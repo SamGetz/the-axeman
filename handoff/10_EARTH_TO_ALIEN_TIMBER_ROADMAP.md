@@ -1,14 +1,14 @@
 # The Axeman — Earth to Alien Timber Master Roadmap
 
-**Status:** Creative Director direction, 2026-08-01; extensive design roadmap,
-not an implementation order. This extends the cozy-lumberyard direction into a
-finite Earth campaign and a spacefaring postgame. The existing module sign-off
+**Status:** Creative Director direction, 2026-08-01; scope clarified 2026-08-02.
+This is an extensive design roadmap, not an implementation order. It extends
+the cozy-lumberyard direction into global wood mastery and a spacefaring postgame. The existing module sign-off
 rule, frozen Part A contracts, Godot 4.7 Compatibility constraints and Sam's
 ownership of final tuning values all remain in force.
 
 **One-line pitch:** Start with one axe, one log and one coin; build the company
-that fells every tree on Earth; then spend the world's timber fortune launching
-expeditions to bring back impossible logs from space.
+that masters every kind of log on Earth; then spend the resulting timber
+fortune launching expeditions to bring back impossible logs from space.
 
 ## Executive decision
 
@@ -19,19 +19,19 @@ swing takes on a larger meaning:
 1. A swing earns a coin.
 2. A good swing completes an order.
 3. A session grows a lumberyard.
-4. A lumberyard becomes a regional company.
-5. A company builds a global felling network.
-6. The last tree on Earth becomes a handcrafted finale.
-7. The empty planet becomes the launchpad for an alien-timber age.
+4. A lumberyard attracts suppliers from new regions.
+5. A regional yard becomes the world's finest log-chopping company.
+6. The final terrestrial species becomes a handcrafted mastery finale.
+7. A completed Earth wood catalogue becomes the launchpad for an alien-timber age.
 
 The player should spend the opening hours believing this is a warm, tactile
 firewood game. The scale then widens one layer at a time until the cozy yard is
-somehow the headquarters of an interstellar logging concern. The absurdity is
+somehow the headquarters of an interstellar log-chopping concern. The absurdity is
 earned because every new system grows from a tool, person, customer or problem
 the player already understands.
 
-The Earth campaign should have a real ending: **Trees remaining: 0**. Space is
-not a reset that undoes it. It is the consequence and reward.
+The Earth campaign should have a real ending: **Earth wood catalogue complete**.
+Space is not a reset that undoes it. It is the consequence and reward.
 
 ## North star
 
@@ -49,27 +49,27 @@ and splitting it better than any machine.
 | Stump | “That cut felt good.” | The axe, log and payout become legible. |
 | Yard | “This place is mine.” | Orders, tools, skills and visible upgrades arrive. |
 | Company | “I built a machine around my craft.” | Staff and logistics remove friction. |
-| Nation | “The map is yielding.” | Regions become finite progress bars and suppliers. |
-| Planet | “We are actually going to finish this.” | Global operations and absurd machinery dominate. |
-| Last Tree | “I have to make this final cut myself.” | Automation stops for a handcrafted finale. |
+| Nation | “Logs are arriving from everywhere.” | Regional suppliers, routes and new woods expand the queue. |
+| Planet | “I can master every wood on Earth.” | A global catalogue and prestigious contracts dominate. |
+| Earth Master | “One terrestrial species remains.” | The hardest Earth log becomes a handcrafted finale. |
 | Orbit | “The yard was only the beginning.” | Launch projects and expeditions unfold. |
 | Alien timber | “What even counts as wood now?” | Exotic log behaviours reinvent chopping. |
 
 ### Non-negotiable pillars
 
 1. **The chopping game remains the best active play.** Automation can own
-   supply, transport, bulk felling and ordinary processing. Manual chopping
+   supply, transport, stacking, bundling and ordinary logistics. Manual chopping
    owns mastery, rare specimens, signature work and the strongest temporary
    company boost.
 2. **Every era visibly changes the yard.** A number is never the only proof of a
    major upgrade. Buildings, traffic, piles, machinery, skyline and eventually
    spacecraft make growth physical.
-3. **Progression unfolds.** Do not show a planetary map, skill constellation,
+3. **Progression unfolds.** Do not show a global supplier atlas, skill constellation,
    launchpad and five currencies in hour one. Each layer appears only when the
    preceding loop has become comfortable.
-4. **Earth is finite.** Regions have authored totals and clear permanently.
-   There is no “prestige and magically regrow the same forest” before the Earth
-   ending.
+4. **Earth mastery is finite.** Regions have authored species, suppliers,
+   customers and mastery goals. Completing them fills a permanent global wood
+   catalogue; no forests are depleted or simulated.
 5. **Failure creates texture, not a stop sign.** The current scar-and-pity rule
    remains the model: imperfect work still advances the game and improves the
    next attempt.
@@ -109,22 +109,22 @@ must start from this real baseline.
 - No player skill tree, species mastery or equipment loadout.
 - No yard expansion beyond the current pile and shop panel.
 - No staff, routes, passive logistics or offline outcome.
-- No regional, national or planetary progression.
-- No finite tree population, “last tree” finale or world completion.
+- No regional, national or global supplier progression.
+- No finite Earth wood catalogue or terrestrial-mastery finale.
 - No industrial projects, launch economy, expeditions or alien logs.
 - No long-horizon goal presentation beyond earning the next amount of cash.
 
 ### Important technical interpretation
 
-The new “fell every tree on the planet” direction does **not** require restoring
-the deleted M5 FPS forest game. Planetary felling belongs to an abstract,
-data-driven operations map. Regions provide log species, contracts and a finite
-tree count; staff and industrial projects reduce that count. Selected logs are
-delivered to the existing chopping block for the premium manual loop.
+**Tree felling is not in scope in any form.** This roadmap must not restore the
+deleted M5 FPS forest game or replace it with an abstract felling-management
+layer. There are no standing-tree counts, forest depletion, felling crews,
+skidders or harvesting controls.
 
-This preserves the pivot, avoids rebuilding an entire second action game, and
-lets the fantasy reach planetary scale without pretending the player personally
-walks to billions of tree meshes.
+Regions are data-driven **log suppliers**. They unlock delivered species,
+customers, orders and transport relationships. Every meaningful piece of wood
+returns to the existing chopping block, and global progression is measured by
+species mastery and completed work—not by removing trees from a map.
 
 ## Genre research and what The Axeman should steal
 
@@ -143,11 +143,11 @@ lesson, not copy content or presentation.
 | [Melvor Idle 2](https://store.steampowered.com/app/3218350/Melvor_Idle_2/) | Many interlocking skills, mastery, equipment, offline progress and an event log. | Give manual chopping permanent skill identity and species mastery. If offline progress is approved, explain exactly what happened while away. | Twenty-nine parallel skills. The Axeman needs a small, legible set. |
 | [Idle Slayer](https://store.steampowered.com/app/1353300/Idle_Slayer/) | Active and offline progress, regions, materials, crafting, a large skill tree, equipment, achievements and side challenges. | A skill tree is strongest when it unlocks mechanics, not only multipliers. Regions should provide distinctive materials and rules. | Unrelated minigames added only to broaden content. |
 | [Antimatter Dimensions](https://store.steampowered.com/app/1399720/Antimatter_Dimensions/) | Deeply unfolding layers, challenges that alter rules, prestige and extensive automation of solved tasks. | Automate a system once the player has demonstrated understanding; use optional contracts/challenges to make familiar chopping rules newly interesting. | Nested reset layers and UI complexity that erase the grounded fantasy. |
-| [Mr. Mine](https://store.steampowered.com/app/1397920/MrMine/) | A physical depth axis, workers, drill upgrades, buildings, relics, secrets and feature unlocks tied to progress. | “Trees remaining” should be spatial and visible like depth: every region is a finite body the player measurably consumes. Discoveries punctuate the count. | Random treasure as a mandatory progression gate. |
+| [Mr. Mine](https://store.steampowered.com/app/1397920/MrMine/) | A physical depth axis, workers, drill upgrades, buildings, relics, secrets and feature unlocks tied to progress. | Make global wood mastery spatial and visible: every supplier region fills a clear catalogue section and reveals new mechanics. | Random treasure as a mandatory progression gate. |
 | [Rusty's Retirement](https://store.steampowered.com/app/2666510/Rusty%27s_Retirement/) | A cozy visible workplace, automation helpers and a focus mode that respects attention. | Staff should be charming, visible and easy to understand. The game should be pleasant to watch without demanding constant check-ins. | Becoming so passive that active chopping has no reason to exist. |
 | [Cell to Singularity](https://store.steampowered.com/app/977400/) | A clear thematic journey that expands from microscopic beginnings to civilization, speculative technology, Mars and space. | Use scale itself as story. A tech/project tree can make the path from hand axe to launch vehicle feel coherent. | A generic “tap anywhere for abstract energy” interaction. |
 | [Clicker Heroes](https://store.steampowered.com/app/363970/Clicker_Heroes/) | Active clicks, recruitable producers, skills, critical hits, idle growth, absurd numbers and ascension. | Named staff with clear specialties can make passive production personable. Critical/manual moments should remain satisfying beside idle growth. | Endless zones that differ only in health and number size. |
-| [Dwarf Eats Mountain](https://store.steampowered.com/app/4078200/Dwarf_Eats_Mountain/) | Visible destruction, mining/hauling tension, many specialised units, active buffs, artefacts and build synergies. | Separate extraction from hauling so transport capacity matters, and make global deforestation visually react to the operation. | A failure spiral where output is lost because support capacity was misjudged. |
+| [Dwarf Eats Mountain](https://store.steampowered.com/app/4078200/Dwarf_Eats_Mountain/) | Visible throughput, hauling tension, many specialised units, active buffs, artefacts and build synergies. | Separate supplier delivery, chopping, stacking and shipping so logistics matter without adding another action loop. | A failure spiral where output is lost because support capacity was misjudged. |
 
 Two broader design sources reinforce the same conclusion. Alexander King's
 [incremental design analysis](https://code.tutsplus.com/numbers-getting-bigger-the-design-and-math-of-incremental-games--cms-24023a)
@@ -174,20 +174,20 @@ Complete an order or feed the unlimited buyer
     ↓
 Buy equipment, skills, staff, routes or projects
     ↓
-See the yard and the regional/planetary operation grow
+See the yard and the regional/global supplier network grow
     ↓
 Unlock a new species, customer, region or technology
     ↺
 ```
 
-At company scale, a passive loop runs beside it:
+At company scale, a support loop runs beside it:
 
 ```text
-Felling crews reduce finite regional tree totals
+Suppliers prepare and dispatch the chosen logs
     ↓
-Haulers move bulk timber through unlocked routes
+Drivers keep the chopping queue supplied
     ↓
-Industrial buyers create cash and project materials
+Staff stack, bundle, ship and complete solved logistics
     ↓
 The player directs reinvestment and resolves bottlenecks
 ```
@@ -222,10 +222,10 @@ money systems.
   input. Keep it a background stat until a milestone makes it relevant.
 - **Species mastery:** per-species experience from manual chopping. Unlocks
   knowledge and techniques for that wood, not generic cash bonuses alone.
-- **Trees remaining:** finite count per region and planet. Never spendable,
-  never reset on Earth.
-- **Company trees felled:** lifetime company total, separate from hand-chopped
-  so staff never steal credit from the player's craftsmanship statistic.
+- **Earth wood catalogue:** permanent record of discovered and mastered
+  terrestrial species, signature logs and regional contracts.
+- **Supplier standing:** per-region relationship progress earned through
+  chopping and orders; it unlocks better shapes, rarer species and contracts.
 - **Expedition readiness:** a project checklist/bar, not a banked currency.
 - **Collection records:** best perfect-log streak, hardest wood split, fastest
   order, alien specimens catalogued and other achievement statistics.
@@ -240,8 +240,8 @@ cosmic postgame, where its arrival is itself a joke.
 
 ## How manual chopping remains valuable forever
 
-Automation is necessary to fell a planet, but it must automate scale rather
-than replace the player.
+Automation is useful for supporting a global yard, but it must automate the work
+around chopping rather than replace the player.
 
 ### Manual-only rewards
 
@@ -250,7 +250,7 @@ than replace the player.
   completion improve premium contract value.
 - **Signature orders:** named customers require hand-split pieces.
 - **Specimen processing:** rare Earth and alien logs must be understood at the
-  block before they can enter industrial supply.
+  block before suppliers can offer more shapes and contracts.
 - **Discovery cuts:** the first manual splits reveal unusual grain traits,
   research clues or build-defining materials.
 - **Perfect-log milestones:** permanent achievements and skill progress.
@@ -259,19 +259,19 @@ than replace the player.
 
 ### Automation-only strengths
 
-- Reducing regional tree counts at a meaningful planetary rate.
-- Moving, stacking, bundling and shipping ordinary output.
+- Delivering, moving, stacking, bundling and shipping output.
+- Maintaining species queues and supplier routes while the player is away.
 - Operating solved production chains while the player is away, if offline
   progress is approved.
 - Providing reliable baseline income and project materials.
 
 ### The value rule
 
-Automated bulk output should dominate **total volume** late in the game. Manual
-work should dominate **value per log, progression information, mastery and
-active leverage**. Pretending one person can physically outproduce a planetary
-industry would make the scale feel fake; making their expertise the multiplier
-on that industry makes the player feel essential.
+Staff-supported throughput can dominate the speed of logistics late in the
+game. Manual work continues to own **every split, value per log, progression
+information, mastery and active leverage**. The empire grows because better
+suppliers and staff keep the Axeman chopping valuable logs—not because a hidden
+felling or auto-chopping simulation replaces the game.
 
 ## Craftsmanship model
 
@@ -350,7 +350,7 @@ nodes can fill gaps, but cannot be the whole tree.
 | Route Planner | Makes transport bottlenecks visible and allows a saved route priority. |
 | Bulk Negotiator | Improves ordinary industrial contracts, not signature handwork. |
 | Reputation | Adds a small reputation bonus for first-time order categories. |
-| Trusted Name | Unlocks prestige customers and the planetary boardroom tier. |
+| Trusted Name | Unlocks prestige customers and the global boardroom tier. |
 
 ### Branch D — Frontier (hidden until the launch programme)
 
@@ -361,7 +361,7 @@ nodes can fill gaps, but cannot be the whole tree.
 | Quarantine Eye | Identifies dangerous spores/resin before a cut. |
 | Cargo Instinct | Improves the chance that a mission returns an intact rare specimen. |
 | Vacuum Rhythm | Maintains more Rhythm between unusually slow alien-log reactions. |
-| Field Certification | After hand-mastering a species, remote crews may harvest it safely. |
+| Field Certification | After hand-mastering a species, expedition partners can identify, pack and return further examples safely. |
 
 No final node counts, point costs or magnitudes are approved here. The tree
 should have meaningful forks and allow different early identities: fast rhythm,
@@ -502,7 +502,7 @@ No order may make free chopping impossible.
 - Furniture artisan — small premium clean cuts; introduces signature work.
 - Railway contractor — bulk company output and transport capacity.
 - Government works office — regional infrastructure and permits.
-- Global Timber Board — planetary targets and huge project contracts.
+- Global Timber Board — worldwide mastery targets and huge project contracts.
 - Space agency procurement — precision Earth materials for launch systems.
 - Orbital habitat quartermaster — recurring mixed Earth/alien loads.
 - Xenobotanist — intact specimens, unusual cut rules and mastery certification.
@@ -531,15 +531,16 @@ simplify. They are visible characters/vehicles with one clear job each.
 | Mechanic | Machine uptime and upgrade inspection. | Tool choice or active strikes. |
 | Dispatcher | Route priorities and truck assignment. | Strategic capacity decisions. |
 
-### Field staff
+### Supplier and route staff
 
-- Survey crews reveal region size, traits and discoveries.
-- Felling crews reduce the finite tree count.
-- Skidder teams move felled timber from forest to depot.
-- Truck, rail and ship crews move timber between regional nodes.
-- Camp managers support larger crew capacity.
-- Safety officers reduce adverse events/downtime rather than introducing worker
-  death or a punitive morale simulation.
+- Supplier scouts reveal available species, log shapes and regional customers.
+- Purchasing agents negotiate access to rarer delivered logs.
+- Truck, rail and ship crews move prepared logs between supplier depots and the
+  yard.
+- Depot managers increase queue capacity and delivery reliability.
+- Quality inspectors improve advance information about incoming log traits.
+- Route coordinators reduce delays rather than introducing a punitive worker
+  needs or failure simulation.
 
 ### Space staff
 
@@ -547,72 +548,72 @@ simplify. They are visible characters/vehicles with one clear job each.
 - Launch crew reduces turnaround.
 - Xenobotanist identifies new species traits.
 - Quarantine officer prevents reactive logs disrupting the yard.
-- Remote foreman operates established alien outposts.
+- Cargo liaison manages repeat deliveries from established expedition partners.
 
 ### Offline progress recommendation
 
 Do not implement offline progress until M8 logistics is fun while watched.
 When approved, offline time should advance only systems the player has actually
-automated. On return, present a concise ledger: trees felled, timber hauled,
+automated. On return, present a concise ledger: logs delivered, loads bundled,
 cash earned, contracts completed, incidents and capped/blocked systems. Never
 hide a bottleneck behind “welcome back” confetti.
 
 The offline cap, rate and whether Momentum can persist are final tuning calls
 for Sam.
 
-## The Earth operations map
+## The Earth supplier atlas
 
-The operations map is the bridge from cozy yard to planetary scale.
+The supplier atlas is the bridge from cozy yard to global scale. It represents
+business relationships and wood knowledge—not standing forests or harvesting.
 
 ### Region data
 
 Each region is an authored resource containing:
 
 - display name and visual card/map treatment;
-- finite tree count;
-- species distribution;
+- available species and authored delivery shapes;
 - one signature log shape/specimen;
-- terrain/transport modifier;
+- supplier standing and transport modifier;
 - customer and contract set;
 - discoveries and project unlocks;
 - required reputation/permit project;
-- completion reward and permanent visual consequence.
+- mastery requirements, completion reward and permanent catalogue entry.
 
-Exact region count and tree totals are tuning/content calls. Use enough regions
-for distinct acts, not dozens of palette swaps.
+Exact region and species counts are tuning/content calls. Use enough regions for
+distinct acts, not dozens of palette swaps.
 
 ### Region loop
 
-1. Survey the region.
+1. Meet or discover the regional supplier.
 2. Manually chop its first delivered specimen.
 3. Learn its species trait and unlock basic contracts.
-4. Fund a camp and first felling crew.
-5. Solve the extraction/haul bottleneck with roads, rail or port.
-6. Build Momentum at the block while crews reduce the tree count.
+4. Improve supplier standing through orders and mastery.
+5. Solve the delivery/queue bottleneck with road, rail or port routes.
+6. Build Momentum at the block while staff keep valuable logs arriving.
 7. Discover a landmark contract or rare specimen at milestones.
-8. Clear the final stand and receive a permanent trophy/project unlock.
+8. Master the region's signature wood and receive a permanent catalogue trophy
+   or project unlock.
 
 ### Visual consequence
 
-The map should physically change from forested to cleared. Newspaper boards,
-customer dialogue and yard props can acknowledge the increasingly absurd scale.
-The game need not moralise or punish, but it should not act as if removing every
-tree is visually neutral. The tonal turn—from cozy trade to cheerful corporate
-ecocide—is part of the comedy.
+The atlas should fill with supplier stamps, route lines, species cross-sections
+and completed signature contracts. The yard receives regional signs, vehicles,
+packing styles and trophy cuts. Progress communicates a widening craft network,
+never forest depletion.
 
-### Planetary dashboard
+### Global mastery dashboard
 
 When several regions exist, unfold a simple top-level dashboard:
 
-- Earth trees remaining.
-- Current trees felled per second/minute by the company.
-- Extraction and transport capacity.
-- Active regional bottleneck.
+- Earth species discovered and mastered.
+- Regional signature contracts completed.
+- Delivery and yard-handling capacity.
+- Active supplier/queue bottleneck.
 - Current manual Momentum state.
-- Next planetary milestone/project.
+- Next global mastery milestone/project.
 
-This is the point where a rate becomes useful. Do not show trees-per-second on
-the opening yard screen.
+This is the point where global completion becomes useful. Do not show the whole
+catalogue on the opening yard screen.
 
 ## The launch programme
 
@@ -621,8 +622,8 @@ prestige button.
 
 ### Project chain
 
-1. Global Survey Network — proves Earth is nearly exhausted and reveals the
-   final stands.
+1. Global Wood Catalogue — proves the Axeman has mastered every known
+   terrestrial species and reveals anomalous off-world timber signatures.
 2. Timber Materials Laboratory — uses mastered species for advanced composites.
 3. Launch Authority — converts global reputation into permission and contracts.
 4. Yard Expansion: Mission Control — a visible building arrives at the home
@@ -643,7 +644,7 @@ them.
 
 - Destination and travel time.
 - Cargo capacity versus shielding/safety.
-- Survey intensity versus harvest capacity.
+- Survey intensity versus specimen-retrieval capacity.
 - Crew speciality.
 - Which axe/rig module travels.
 - Whether to prioritise common logs, intact rare specimens or seeds/spores.
@@ -661,17 +662,17 @@ should be a major mechanical reveal, not just a large payout.
 ## Prestige recommendation
 
 Do **not** add a conventional full reset during the Earth campaign. It would
-erase the visible yard, undermine the finite-tree promise and force replay of
-content instead of delivering the next revelation.
+erase the visible yard and force replay of mastered woods instead of delivering
+the next revelation.
 
 Use two softer structures instead:
 
-1. **Regional starts:** a new region begins with no local camp/route capacity,
-   but all character skills, equipment and home-yard progress remain. This
-   creates the acceleration pleasure of prestige without deleting history.
-2. **Planetary charters:** each alien world is a new finite operation. The
-   player chooses a charter/doctrine that shapes the outpost, while retaining
-   Earth, skills, mastered species and spacecraft technology.
+1. **Supplier onboarding:** a new region begins with basic standing and delivery
+   capacity, but all character skills, equipment and home-yard progress remain.
+   This creates fresh optimisation without deleting history.
+2. **Expedition charters:** each alien destination begins with incomplete survey
+   knowledge and limited cargo access. The player chooses a mission doctrine
+   while retaining Earth, skills, mastered species and spacecraft technology.
 
 An optional time-loop/parallel-universe reset can exist only after the complete
 space campaign, if Sam later wants an endless mode. It is not part of the core
@@ -792,20 +793,22 @@ next business goal.
 
 ### M9 — regional supply network
 
-**Goal:** Reveal that the yard is part of a finite world operation.
+**Goal:** Reveal that the yard can attract logs and customers from around the
+world without adding another action loop.
 
 **Features:**
 
-- First operations map with a small authored set of regions.
-- Survey, permit, camp, crew, extraction and transport steps.
+- First supplier atlas with a small authored set of regions.
+- Discovery, standing, depot and transport steps.
 - Region-specific species, customers, traits and visual completion.
-- Separate lifetime hand-chopped and company-felled counts.
-- First bulk felling crews and industrial buyers.
-- First map discoveries and infrastructure projects.
-- Regional starts function as soft prestige without deleting the home yard.
+- Regional mastery pages and signature-log records.
+- First long-distance delivery routes and specialist buyers.
+- First atlas discoveries and infrastructure projects.
+- Supplier onboarding creates fresh optimisation without deleting the home yard.
 
-**Exit test:** The player can explain why a region is slow—felling, extraction
-or transport—and can fix it with a meaningful purchase or manual Momentum.
+**Exit test:** The player can explain why a desired log is slow to arrive—supplier
+standing, dispatch, route or yard queue—and can fix it with a meaningful purchase
+or manual Momentum.
 
 ### M10 — national and continental company
 
@@ -815,61 +818,62 @@ or transport—and can fix it with a meaningful purchase or manual Momentum.
 
 - Railheads, ports and bulk routes.
 - Multiple simultaneous regions with limited dispatcher capacity.
-- Company doctrines/builds: craftsmanship-first, logistics-first or heavy
-  industry, with respec/adjustment that does not brick a save.
+- Company doctrines/builds: craftsmanship-first, logistics-first or contract-
+  first, with respec/adjustment that does not brick a save.
 - Cedar/eucalyptus/mahogany-tier species candidates and harder signature work.
 - Large infrastructure contracts and government customers.
-- Industrial equipment that processes common timber while the player handles
-  premium specimens.
+- Logistics equipment that keeps common orders supplied while the player still
+  performs every chop and personally handles premium specimens.
 - Visible yard transition from depot to headquarters.
 
 **Exit test:** Two viable companies can reach the same milestone through
 different bottleneck solutions, and older equipment/species still has a role.
 
-### M11 — global deforestation campaign
+### M11 — global wood mastery campaign
 
-**Goal:** Make “fell every tree on Earth” the explicit primary objective.
+**Goal:** Master every authored terrestrial wood and complete the World Wood
+Catalogue.
 
 **Features:**
 
-- Full Earth trees-remaining dashboard.
-- Continental operations, shipping lanes and global project board.
+- Full Earth species/mastery dashboard.
+- Continental supplier relationships, shipping lanes and global project board.
 - Late-Earth redwood/ironwood-scale mastery challenges.
-- Enormous but visually readable machinery and throughput.
-- Global news/headlines that let the cozy premise turn into restrained dark
-  comedy.
-- Milestone discoveries at authored percentages of Earth completion.
-- Launch-programme foreshadowing begins well before Earth reaches zero.
-- Anti-stall systems: always identify the limiting region and allow meaningful
-  action.
+- Enormous but visually readable delivery and yard-handling machinery.
+- Global news/headlines celebrating the increasingly improbable chopping
+  business.
+- Milestone discoveries at authored catalogue/mastery thresholds.
+- Launch-programme foreshadowing begins well before the Earth catalogue is
+  complete.
+- Anti-stall systems always identify the missing species, contract or mastery
+  requirement and allow meaningful action.
 
-**Exit test:** Earth completion is mathematically achievable without unattended
-years, but long enough to make the final approach feel momentous. The last
-region cannot disappear unnoticed while the player is offline.
+**Exit test:** Earth mastery is achievable without repetitive filler, but long
+enough to make the final terrestrial species feel momentous. No new species or
+first-time mastery event completes invisibly while the player is offline.
 
-### M11B — the Last Tree finale
+### M11B — the final terrestrial species
 
-**Goal:** Deliver the finite ending promised from the map's reveal.
+**Goal:** Deliver the finite Earth-mastery ending promised by the catalogue.
 
 **Sequence:**
 
-1. Automation halts before the last authored stand.
-2. The world map, yard staff and customers acknowledge the moment.
-3. A final extraordinary Earth log is delivered to the original block.
+1. The final catalogue slot and its requirements become explicit.
+2. The supplier atlas, yard staff and customers acknowledge the moment.
+3. A final extraordinary terrestrial-species log is delivered to the original
+   block.
 4. The player completes a multi-stage hand-crafted split using the skills they
    developed across the campaign.
 5. Failed hits scar and weaken as usual; the finale is never hard-failed.
-6. The last split takes Earth trees remaining to zero.
+6. The last split completes the World Wood Catalogue and awards Earth Master
+   status.
 7. The haul-away becomes a unique global celebration.
 8. The final cross-section is mounted in the yard/Mission Control.
 9. The launch programme becomes the new headline goal.
 
-This does not restore tree-felling traversal. It turns the last tree into the
-ultimate delivered log and the ultimate version of the game's actual mechanic.
-
 **Exit test:** The Earth campaign has credits/closure and the save remains
-playable. The player cannot accidentally miss the final tree because passive
-progress crossed zero.
+playable. The player cannot accidentally miss the final terrestrial mastery
+because passive progress crossed its threshold.
 
 ### M12 — launch programme
 
@@ -900,7 +904,7 @@ space does not feel like an unrelated menu game.
 - Vessel departure/return spectacle.
 - Quarantine and specimen-identification sequence.
 - One alien species with a genuinely new readable split behaviour.
-- Specimen mastery unlocks safe remote harvesting.
+- Specimen mastery unlocks repeat cargo requests from that destination.
 - Orbital/specimen chopping rig evolves from the familiar stump.
 - Alien wood creates a new premium order family and one spacecraft upgrade.
 
@@ -909,22 +913,23 @@ and still recognisably The Axeman.
 
 ### M14 — interplanetary timber company
 
-**Goal:** Turn expeditions into a repeatable finite-planet meta-loop.
+**Goal:** Turn expeditions into a repeatable alien-log discovery and mastery
+loop.
 
 **Features:**
 
-- Several authored planets/moons with distinct wood ecologies.
-- Planetary charters as soft prestige/build choice.
-- Survey → specimen → certification → outpost → finite harvest loop.
-- Cargo fleets, range, shielding and remote foremen.
+- Several authored planets/moons with distinct recovered log ecologies.
+- Expedition charters as soft prestige/build choice.
+- Survey → specimen retrieval → certification → repeat cargo → mastery loop.
+- Cargo fleets, range, shielding and supplier liaisons.
 - Alien customers/materials and cross-species projects.
 - Gravitic tools and Frontier mastery.
 - Earth remains visible as the headquarters and completed first campaign.
 
 **Exit test:** Each destination changes strategy and chopping behaviour; none is
-merely a larger tree counter.
+merely a larger price multiplier.
 
-### Postgame — the observable forest
+### Postgame — the cosmic wood catalogue
 
 **Goal:** Provide endless aspiration only after the authored campaign is
 complete.
@@ -932,9 +937,9 @@ complete.
 Candidates:
 
 - Procedurally assembled but trait-bounded star systems.
-- Rare authored cosmic trees between procedural planets.
+- Rare authored cosmic log specimens between procedural destinations.
 - Company doctrines/challenges that alter rules without deleting history.
-- A final counter for trees remaining in the known universe.
+- A final catalogue for woods mastered across the known universe.
 - Optional timeline/parallel-universe reset for players who explicitly choose
   it, with permanent museum records of completed universes.
 
@@ -958,11 +963,11 @@ The shop and skill tree should support at least three understandable strategies:
 - Synergy: the player chooses rare/high-value logs while staff keep ordinary
   supply flowing.
 
-### Heavy timber concern
+### Global specialist
 
-- Felling crews, machines, hard-species gear and major projects.
-- Best raw regional depletion and infrastructure progress.
-- Synergy: manual specimen certification unlocks each new industrial target.
+- Hard-species gear, premium supplier access and major catalogue projects.
+- Best at difficult woods, rare log shapes and global mastery progress.
+- Synergy: manual specimen certification unlocks each new supplier tier.
 
 The player can hybridise. Builds should be preferences and temporary
 bottlenecks, not irreversible classes.
@@ -979,7 +984,7 @@ All numerical examples below are targets to tune, not approved constants.
 3. **Campaign clock:** hours. Unlock a species, yard state, region, company tier,
    continent, last-tree act or expedition.
 
-Every era needs activity on all three clocks. A planetary counter moving does
+Every era needs activity on all three clocks. A global catalogue filling does
 not excuse a ten-minute gap with no interesting purchase; a constant shower of
 coins does not replace a meaningful hour-scale goal.
 
@@ -1012,8 +1017,8 @@ Sam.
 ### Active versus passive target
 
 Measure active value as more than cash. A chopping session produces immediate
-cash, contract progress, mastery and Momentum; passive operations produce bulk
-cash/materials and reduce tree totals. Balance should be evaluated on **time to
+cash, contract progress, mastery and Momentum; passive logistics prepare
+deliveries and may process already-chopped secondary stock. Balance should be evaluated on **time to
 next meaningful decision** with and without active play, not only coins per
 second.
 
@@ -1087,7 +1092,7 @@ props and modest UI.
 Forklifts, trucks, saws in the distance, radios, rail horns and a busier horizon.
 The chopping impact remains the loudest, cleanest foreground sound.
 
-### Planetary era
+### Global era
 
 Map lights, radio dispatch, huge distant machinery and a skyline crowded with
 infrastructure. The original stump remains visible as a deliberate relic.
@@ -1120,9 +1125,10 @@ touch or see.
 - Contract routing cannot double-sell or lose a piece.
 - Rough pieces always retain base value.
 - Reputation and mastery never decrease.
-- Hand-chopped and company-felled totals cannot contaminate one another.
-- Region and planet counts never go below zero.
-- Passive progress halts before the authored Last Tree.
+- Supplier standing and hand-chopped mastery cannot contaminate one another.
+- Catalogue and contract progress never exceeds authored bounds.
+- Passive progress cannot complete a first-time species mastery or final Earth
+  showcase.
 - Offline simulation is deterministic from saved inputs and respects its cap.
 - Expedition cargo and project payments are atomic.
 - New species preserve slicer materials/tangents/winding and respect physics
@@ -1133,7 +1139,8 @@ touch or see.
 - Every yard tier gets before/after shots from the real main scene.
 - Every species gets fresh/cut/scarred/perfect reference shots.
 - Staff and vehicles are checked in motion, not only counted in the tree.
-- Region completion and Last Tree cannot be approved headless-only.
+- Region completion and the final terrestrial-species showcase cannot be
+  approved headless-only.
 - Alien traits need recorded visual checks for readability.
 
 ### Playtest telemetry (local development, not invasive analytics by default)
@@ -1144,7 +1151,7 @@ touch or see.
 - Time spent with no affordable/meaningful action.
 - Upgrade purchase order and unused options.
 - Active versus passive time to the next milestone.
-- Regions where extraction or transport is misunderstood.
+- Regions where supplier standing, delivery or yard queues are misunderstood.
 - How often players return to manual chopping after automation unlocks.
 - Whether players notice the haul threshold, Momentum and current contract.
 
@@ -1156,17 +1163,19 @@ compulsion.
 - A generic auto-chopper that produces the same premium output as the player.
 - Daily streaks, energy systems, ads, loot boxes or fear-of-missing-out events.
 - More currencies as a substitute for new mechanics.
-- Resetting Earth before the player fells it.
-- A planet that is only “same trees, 1,000× health.”
+- Resetting the Earth catalogue and forcing mastered woods to be repeated.
+- An alien log that is only “same wood, 1,000× price.”
 - Equipment with ten tiny stats and no felt difference.
 - Mandatory consumable maintenance, hunger or worker-needs simulation.
-- A second full FPS exploration/felling game competing with the chopping block.
+- Any tree-felling, forest-depletion, harvesting or exploration layer competing
+  with the chopping block.
 - Timed contracts as the default loop.
 - Random rare drops required for story progress.
-- Offline progress that completes the Last Tree or a first-time story event.
+- Offline progress that completes the final Earth species or a first-time story
+  event.
 - Background rates so strong that returning to the block is economically silly.
 - A joke-first opening that spoils the earned shift from cozy yard to cosmic
-  deforestation.
+  timber.
 
 ## Creative Director tuning calls by milestone
 
@@ -1195,18 +1204,18 @@ The following must be presented to Sam before implementation of their milestone.
 
 ### M9–M11
 
-- Region list, tree totals and species distribution.
-- Company-felling rate curve.
+- Region list, species catalogue and supplier progression.
+- Delivery, queue and supplier-standing curves.
 - Transport rules and capacity costs.
 - Earth campaign target duration.
-- Tone of the deforestation comedy and Last Tree presentation.
+- Tone and presentation of the final terrestrial-species showcase.
 
 ### M12–M14
 
 - Launch-project costs and sequence.
 - Expedition duration/outcome rules.
 - First destination and alien species.
-- Planetary charter choices.
+- Expedition charter choices.
 - Scope of the authored space campaign versus postgame procedural content.
 
 ## Recommended production priority
@@ -1221,27 +1230,27 @@ The following must be presented to Sam before implementation of their milestone.
 
 ### Then prove scale
 
-6. A finite region can be consumed through a clear felling/extraction/transport
-   model.
+6. A supplier region can be completed through clear discovery, delivery,
+   chopping, contracts and mastery.
 7. Multiple regions remain understandable.
 8. Earth completion can create anticipation without an idle wall.
-9. The Last Tree lands as an emotional/mechanical climax.
+9. The final terrestrial species lands as an emotional/mechanical climax.
 
 ### Only then build space
 
 10. Launch projects reuse existing systems.
 11. The first alien log changes chopping in a legible way.
-12. Planetary charters provide replay variety without erasing the player's
+12. Expedition charters provide replay variety without erasing the player's
     history.
 
 ## The promise
 
 At the beginning, the player sees a log on a stump.
 
-At the midpoint, they see a world map whose forests are visibly disappearing
-because of a company they built around that stump.
+At the midpoint, they see a world atlas filling with supplier routes, mastered
+species and signature contracts because of a company built around that stump.
 
-At the Earth finale, every machine waits while the last delivered log is split
+At the Earth finale, the world's final unmastered species arrives and is split
 by hand.
 
 Then a launch vehicle rises behind the same yard, crosses the sky, and returns

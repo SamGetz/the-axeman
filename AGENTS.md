@@ -64,16 +64,18 @@ Sam approved the full cozy-lumberyard recommendation and the roadmap in
 ### EXPANDED ENDGAME DIRECTION (2026-08-01)
 
 Sam has now defined the long-horizon goal: build from the cozy yard into the
-company that **fells every tree on Earth**, then spend the resulting wealth and
-materials on space expeditions that return alien logs. The extensive design and
-module sequence are in `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`.
+company that **masters and chops every kind of log on Earth**, then spend the
+resulting wealth and materials on space expeditions that return alien logs. The
+extensive design and module sequence are in
+`handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`.
 
-This does **not** restore M5 or the deleted FPS forest game. Earth felling is a
-finite, data-driven operations-map/company layer; selected and rare logs come
-back to the existing chopping block, which remains the premium active play.
-The grounded yard must be established before the planetary scale is revealed,
-and the Earth campaign has a real Last Tree ending before the space campaign.
-The roadmap is not permission to skip module sign-off or invent tuning values.
+This does **not** restore M5 or create a replacement tree-felling management
+layer. There are no standing-tree counts, forest-depletion maps, felling crews,
+skidders or Last Tree sequence. Regions are log suppliers only: selected and
+rare logs arrive at the existing chopping block, which remains the premium
+active play. The grounded yard must be established before the global and space
+scale is revealed. The roadmap is not permission to skip module sign-off or
+invent tuning values.
 
 Exact prices, payout multipliers, timing values and upgrade magnitudes are still
 tuning decisions. Do not invent them in code: present them to Sam as resource
@@ -846,12 +848,12 @@ The binding post-pivot roadmap is
    supply/transport upgrades. Imperfect pieces always remain sellable.
 6. **M8:** optional yard staff/logistics — support the work around chopping;
    never replace chopping as the highest-value active play.
-7. **M9–M11:** regional supply network, national/continental growth, global
-   operations and the finite Last Tree finale. These are abstract management
-   layers, never a restored FPS tree-felling game.
-8. **M12–M14:** launch programme, first alien timber expedition and a finite-
-   planet interstellar company loop.
-9. **Postgame candidate:** the observable-forest/endless layer, only after the
+7. **M9–M11:** regional supplier network, national/continental growth, global
+   wood mastery and the final terrestrial-species showcase. Regions deliver
+   logs; there is no felling or forest-depletion layer.
+8. **M12–M14:** launch programme, first alien timber expedition and an
+   interstellar log-supply/mastery loop.
+9. **Postgame candidate:** the cosmic-catalogue/endless layer, only after the
    authored Earth and space campaigns are complete.
 
 The detailed long-horizon order is binding in

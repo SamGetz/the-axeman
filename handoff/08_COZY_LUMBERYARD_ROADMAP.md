@@ -7,9 +7,9 @@ module-by-module sign-off or to invent final tuning values.
 **Expanded direction:** This grounded roadmap remains the foundation, but its
 long horizon is now extended by
 [`10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`](10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md):
-the yard grows into a finite Earth-felling company, reaches a Last Tree ending,
-then launches expeditions for alien logs. That plan uses an abstract operations
-map and does not restore the deleted FPS forest/tree-felling game.
+the yard grows into a global log-chopping company, masters every terrestrial
+wood, then launches expeditions for alien logs. Regions are suppliers only;
+there is no standing-tree, forest-depletion or felling layer of any kind.
 
 ## North star
 
