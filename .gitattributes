@@ -1,0 +1,24 @@
+# Line endings are normalised to LF in the repository and in the working tree,
+# on every machine, regardless of that machine's core.autocrlf setting.
+# the-axeman/.gitattributes (Godot's own) already does this for the project
+# folder; this file covers the repo root — docs, handoff pack, source art.
+* text=auto eol=lf
+
+# Art and Maya sources are binary. text=auto usually detects this, but a
+# misfire would silently corrupt an FBX, so say it outright.
+*.fbx   binary
+*.obj   binary
+*.ma    binary
+*.mb    binary
+*.psd   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.tga   binary
+*.exr   binary
+*.hdr   binary
+*.wav   binary
+*.ogg   binary
+*.mp3   binary
+*.ttf   binary
+*.otf   binary
