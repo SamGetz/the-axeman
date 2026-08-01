@@ -87,7 +87,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **21/23** — both failures are the A1 finding below |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
-| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **29/29** |
+| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
 | M7A | `--quit-after 900 res://core/tests/m7a_acceptance.tscn` | **40/40** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
@@ -140,11 +140,17 @@ the real entry flow exists.
   InventoryManager — one `resource_gathered` per finished firewood piece, at the
   batch-collect point (`_begin_stacking`). Wood type is data-driven: `_LOG_SPECIES`
   in `chopping_minigame.gd` maps each log mesh → yield item, built to scale to
-  many woods (add a row). CURRENT MAPPING: `log_01.fbx`→`oak_log`,
-  `log_02.fbx`→`pine_log` (log_02 is pine only to demo per-log yields and still
-  wears oak art — remap freely), `birch_log_01.fbx`→`birch_log` (real birch art
-  throughout, added 2026-08-01). A row may also carry `inside_tex`/
-  `inside_normal`/`inside_tint` for its cut faces; omitted keys fall back to oak.
+  many woods (add a row) and many log SHAPES per wood (add a path). CURRENT
+  MAPPING: `log_01.fbx`→`oak_log`, `log_02.fbx`→`pine_log` (log_02 is pine only
+  to demo per-log yields and still wears oak art — remap freely),
+  `birch_log_01..06.fbx`→`birch_log` (six authored shapes, real birch art
+  throughout, added 2026-08-01).
+- **A row's `meshes` is a LIST on purpose.** Species is picked first, shape
+  second, so log variety never changes how often a wood turns up — six birch
+  meshes as six rows would have made three quarters of every yard birch.
+  `debug_forced_species` / `debug_forced_mesh` force either for tests and shots.
+  A row may also carry `inside_tex`/`inside_normal`/`inside_tint` for its cut
+  faces; omitted keys fall back to oak.
   Cut materials are cached per species BY DESIGN, not just for speed:
   `MeshUtils.jag_cut` finds a piece's cut surface by comparing
   `material == _cut_mat` **by reference**, so a fresh instance per log would

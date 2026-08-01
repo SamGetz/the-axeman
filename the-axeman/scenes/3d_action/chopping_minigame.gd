@@ -51,8 +51,14 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 
 # --- log species (data-driven; scales to many woods) ----------------------
-## Each row pairs a log MESH with the item it yields when chopped into firewood.
-## This is the ONLY place a wood type is declared — add a row to add a species.
+## Each row is a WOOD SPECIES: the meshes a log of it can be cut from, and the
+## item it yields when chopped into firewood. This is the ONLY place a wood type
+## is declared — add a row to add a species, add a path to add log variety.
+##
+## `meshes` is a LIST, not a single path, so a species can have many authored log
+## shapes without skewing which wood turns up: the species is picked first and a
+## shape second. Six birch meshes as six rows would have made three quarters of
+## every yard birch.
 ##
 ## `yield_item` MUST be a registered id (res://data/item_registry.tres); a
 ## finished log deposits it into InventoryManager once per firewood piece (see
@@ -62,7 +68,7 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 ## species looks like itself the moment it is imported. The CUT FACE does not —
 ## it is generated at runtime, so each row also names the inside look:
 ##
-##   `inside_tex` / `inside_normal`  the exposed end-grain. These are sampled with
+##   `inside_tex` / `inside_normal`  the exposed inside grain. These are sampled with
 ##       a TILING, metres-based UV mapping (see the 2026-07-27 slicer bugfix note),
 ##       so they MUST be tileable textures — a log-end "disc" texture repeats into
 ##       a grid of discs and looks wrong. Omit to fall back to the oak set.
@@ -73,16 +79,24 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 ## log_02 is mapped to pine_log purely to DEMONSTRATE per-log yields — it still
 ## wears oak art. Remap freely.
 const _LOG_SPECIES: Array[Dictionary] = [
-	{"mesh": "res://assets/models/logs_export/log_01.fbx", "yield_item": &"oak_log"},
-	{"mesh": "res://assets/models/logs_export/log_02.fbx", "yield_item": &"pine_log"},
-	# Birch (Sam's drop, 2026-08-01). Its bark and authored ends come from the
-	# FBX's own embedded materials; its CUT faces use Sam's tileable birch
-	# end-grain, so a split birch log is pale inside instead of oak-coloured.
+	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_log"},
+	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_log"},
+	# Birch (Sam's drop, 2026-08-01): SIX authored log shapes, one species. Bark
+	# and authored ends come from each FBX's own embedded materials; the CUT
+	# faces use Sam's tileable birch inside grain, so a split birch log is pale
+	# inside instead of oak-coloured.
 	{
-		"mesh": "res://assets/models/logs_export/birch_log_01.fbx",
+		"meshes": [
+			"res://assets/models/logs_export/birch_log_01.fbx",
+			"res://assets/models/logs_export/birch_log_02.fbx",
+			"res://assets/models/logs_export/birch_log_03.fbx",
+			"res://assets/models/logs_export/birch_log_04.fbx",
+			"res://assets/models/logs_export/birch_log_05.fbx",
+			"res://assets/models/logs_export/birch_log_06.fbx",
+		],
 		"yield_item": &"birch_log",
-		"inside_tex": "res://assets/textures/wood_birch/birch_top_tilable.png",
-		"inside_normal": "res://assets/textures/wood_birch/birch_top_tilable_normal.png",
+		"inside_tex": "res://assets/textures/wood_birch/birch_inside_tilable.png",
+		"inside_normal": "res://assets/textures/wood_birch/birch_inside_tilable_normal.png",
 	},
 ]
 
@@ -92,6 +106,7 @@ const _LOG_SPECIES: Array[Dictionary] = [
 @export var camera_step_deg := 30.0
 @export var orbit_time := 0.25
 @export var debug_forced_species := -1   # -1 = random each log; >=0 forces a _LOG_SPECIES index (headless tests only)
+@export var debug_forced_mesh := -1      # -1 = random shape within the species; >=0 forces one (tests + species_shot)
 
 # --- fall classification (the reference rule) -----------------------------
 @export_group("Classification")
@@ -220,7 +235,9 @@ func _ready() -> void:
 	_audio = AudioStreamPlayer3D.new()
 	add_child(_audio)
 
-	_source_mesh = _center_mesh(_build_split_log(_LOG_SPECIES[_pick_species_index()].mesh))
+	# _source_mesh is deliberately NOT built here: _spawn_fresh_log() below sets it
+	# from the species it actually puts on the block, so building one up front only
+	# loaded and scaled an FBX for a random species that was thrown away.
 	_build_stump()
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
@@ -719,7 +736,7 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	var species_index := _pick_species_index()
 	_current_species = _LOG_SPECIES[species_index]
 	_cut_mat = _cut_mat_for(species_index)
-	_source_mesh = _center_mesh(_build_split_log(_current_species.mesh))
+	_source_mesh = _center_mesh(_build_split_log(_pick_mesh(_current_species)))
 
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
 	var rest_y := _stump_top_y + half_h
@@ -945,9 +962,21 @@ func _pick_species_index() -> int:
 	return randi() % _LOG_SPECIES.size()
 
 
+## Which authored log SHAPE of that species turns up. Picked separately from the
+## species so log variety never changes how often a wood appears.
+func _pick_mesh(species_row: Dictionary) -> String:
+	var meshes: Array = species_row.get("meshes", [])
+	if meshes.is_empty():
+		push_error("chopping_minigame: species '%s' lists no meshes." % species_row.get("yield_item", "?"))
+		return ""
+	if debug_forced_mesh >= 0 and debug_forced_mesh < meshes.size():
+		return meshes[debug_forced_mesh]
+	return meshes[randi() % meshes.size()]
+
+
 func _load_log_mesh(variant_path := "") -> Mesh:
 	if variant_path.is_empty():
-		variant_path = _LOG_SPECIES[_pick_species_index()].mesh
+		variant_path = _pick_mesh(_LOG_SPECIES[_pick_species_index()])
 	return MeshUtils.mesh_from_path(variant_path)
 
 

@@ -176,26 +176,33 @@ func _test_6_species_table_integrity() -> void:
 
 	for i in range(species.size()):
 		var row: Dictionary = species[i]
-		var label: String = String(row.get("mesh", "<no mesh>")).get_file()
-
 		var yield_item: StringName = row.get("yield_item", &"")
-		_check(yield_item != &"" and InventoryManager.is_valid_id(yield_item),
-			"species %d (%s) yields a REGISTERED item id ('%s')" % [i, label, yield_item])
+		var meshes: Array = row.get("meshes", [])
 
-		# Build the log the way the game does and measure what the player gets.
+		_check(yield_item != &"" and InventoryManager.is_valid_id(yield_item),
+			"species %d ('%s') yields a REGISTERED item id" % [i, yield_item])
+		_check(not meshes.is_empty(),
+			"species %d ('%s') lists at least one log mesh (%d)" % [i, yield_item, meshes.size()])
+
+		# One live scene per species, then every AUTHORED SHAPE of that species
+		# built through the same code path. Log variety is exactly where a bad
+		# import hides: five good meshes and one broken one still spawns fine
+		# five times out of six.
 		var mg := await _make_minigame(i)
-		var mesh: Mesh = mg._source_mesh
-		if mesh == null:
-			_check(false, "species %d (%s) built a log mesh" % [i, label])
-			await _drop(mg)
-			continue
-		var size: Vector3 = mesh.get_aabb().size
-		_check(absf(size.y - target_height) <= 0.001,
-			"species %d (%s) stands %.3f m on the block, as authored (%.2f m)" % [i, label, size.y, target_height])
-		_check(size.x > 0.05 and size.z > 0.05,
-			"species %d (%s) has real girth (%.3f x %.3f m), not a degenerate import" % [i, label, size.x, size.z])
 		_check(mg.cuttable_count() == 1,
-			"species %d (%s) spawns exactly one cuttable piece" % [i, label])
+			"species %d ('%s') spawns exactly one cuttable piece" % [i, yield_item])
+
+		for m in range(meshes.size()):
+			var label: String = String(meshes[m]).get_file()
+			var built: Mesh = mg._center_mesh(mg._build_split_log(meshes[m]))
+			if built == null:
+				_check(false, "  %s builds a log mesh" % label)
+				continue
+			var size: Vector3 = built.get_aabb().size
+			_check(absf(size.y - target_height) <= 0.001,
+				"  %s stands %.3f m on the block, as authored (%.2f m)" % [label, size.y, target_height])
+			_check(size.x > 0.05 and size.z > 0.05,
+				"  %s has real girth (%.3f x %.3f m), not a degenerate import" % [label, size.x, size.z])
 		await _drop(mg)
 
 

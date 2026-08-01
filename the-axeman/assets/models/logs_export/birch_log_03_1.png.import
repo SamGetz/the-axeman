@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dqgyhon41ra37"
-path.s3tc="res://.godot/imported/birch_log_01_0.png-bd56660bd25be5f44be2ba9491a6b369.s3tc.ctex"
+uid="uid://bhkedflexlsfk"
+path.s3tc="res://.godot/imported/birch_log_03_1.png-7c1221d84ccf2d9b25270e78fc7e33fa.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "2aeda3833e84917ca3593b7f5b3a1366"
+"md5": "69f86d0ccc5b36806ca4bce69682416f"
 }
 
 [deps]
 
-source_file="res://assets/models/logs_export/birch_log_01_0.png"
-dest_files=["res://.godot/imported/birch_log_01_0.png-bd56660bd25be5f44be2ba9491a6b369.s3tc.ctex"]
+source_file="res://assets/models/logs_export/birch_log_03_1.png"
+dest_files=["res://.godot/imported/birch_log_03_1.png-7c1221d84ccf2d9b25270e78fc7e33fa.s3tc.ctex"]
 
 [params]
 
