@@ -7,12 +7,9 @@ extends Control
 ## FULL NODE TREE (yard_hud.tscn):
 ##   YardHUD (Control, full rect, mouse_filter = IGNORE)
 ##   ├── TopBar (PanelContainer, top-left, mouse_filter = IGNORE)
-##   │   └── Stats (VBoxContainer)
-##   │       ├── CashRow (HBoxContainer)
-##   │       │   ├── CashIcon (TextureRect — the coin)
-##   │       │   └── CashLabel (Label)
-##   │       ├── PileLabel (Label)
-##   │       └── LifetimeLabel (Label)
+##   │   └── CashRow (HBoxContainer)
+##   │       ├── CashIcon (TextureRect — the coin)
+##   │       └── CashLabel (Label)
 ##   ├── YardPanel (PanelContainer, right column — 2D management mode only)
 ##   │   └── Column (VBoxContainer)
 ##   │       ├── Title (Label)
@@ -37,18 +34,22 @@ extends Control
 ## `minigame_exited` — so main.gd's A10 mode switch is driven by exactly the path
 ## it was always meant to be driven by. The M key is gone with this scene.
 ##
-## LIVE, NEVER POLLED: it listens to GameState.cash_changed,
-## GameState.lifetime_wood_chopped_changed and GameState.yard_pile_changed, which
-## is precisely what those local signals exist for (Amendment 2's precedent).
+## CASH IS THE ONLY NUMBER ON SCREEN (Creative Director call, 2026-08-01: "we
+## don't need to show the player how many are stacked in yard or how many you have
+## chopped in your lifetime, those can stay as background stats"). Both are still
+## counted and still saved — `GameState.get_yard_pile_count()` and
+## `get_lifetime_wood_chopped()` are unchanged, and the pile itself is still the
+## visible record of the stack. They simply have no readout.
+##
+## LIVE, NEVER POLLED: it listens to GameState.cash_changed, which is precisely
+## what that local signal exists for (Amendment 2's precedent).
 ##
 ## Layout numbers and wording here are functional placeholders — art direction for
 ## the 2D side is still deferred (M2 sign-off). THE SHOP IS AN EMPTY ROOM ON
 ## PURPOSE: upgrades and new logs are blocked on Sam's numbers (Directive 3), so
 ## this is the door and the counter, with nothing on the shelves yet.
 
-@onready var _cash_label: Label = $TopBar/Stats/CashRow/CashLabel
-@onready var _pile_label: Label = $TopBar/Stats/PileLabel
-@onready var _lifetime_label: Label = $TopBar/Stats/LifetimeLabel
+@onready var _cash_label: Label = $TopBar/CashRow/CashLabel
 @onready var _yard_panel: PanelContainer = $YardPanel
 @onready var _shop_panel: PanelContainer = $ShopPanel
 @onready var _shop_button: Button = $YardPanel/Column/ShopButton
@@ -64,8 +65,6 @@ func _ready() -> void:
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
 
 	GameState.cash_changed.connect(_on_cash_changed)
-	GameState.lifetime_wood_chopped_changed.connect(_on_lifetime_changed)
-	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
 	EventBus.minigame_entered.connect(_on_minigame_entered)
 	EventBus.minigame_exited.connect(_on_minigame_exited)
 
@@ -119,15 +118,5 @@ func _on_cash_changed(_new_amount: int) -> void:
 	_refresh_stats()
 
 
-func _on_lifetime_changed(_new_total: int) -> void:
-	_refresh_stats()
-
-
-func _on_yard_pile_changed(_new_total: int) -> void:
-	_refresh_stats()
-
-
 func _refresh_stats() -> void:
 	_cash_label.text = str(GameState.get_cash())
-	_pile_label.text = "Stacked in the yard: %d" % GameState.get_yard_pile_count()
-	_lifetime_label.text = "Wood chopped (lifetime): %d" % GameState.get_lifetime_wood_chopped()

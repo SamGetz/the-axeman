@@ -382,15 +382,18 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	add_child(hud)
 	await get_tree().process_frame
 
-	var cash_label: Label = hud.get_node("TopBar/Stats/CashRow/CashLabel")
-	var cash_icon: TextureRect = hud.get_node("TopBar/Stats/CashRow/CashIcon")
-	var pile_label: Label = hud.get_node("TopBar/Stats/PileLabel")
-	var lifetime_label: Label = hud.get_node("TopBar/Stats/LifetimeLabel")
+	var cash_label: Label = hud.get_node("TopBar/CashRow/CashLabel")
+	var cash_icon: TextureRect = hud.get_node("TopBar/CashRow/CashIcon")
 	var shop_button: Button = hud.get_node("YardPanel/Column/ShopButton")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
 
 	_check(cash_label.text == "0", "a fresh yard reads 0 cash")
-	_check(pile_label.text.contains("0"), "...and 0 stacked in the yard: '%s'" % pile_label.text)
+
+	# Cash is the only number on screen; the pile count and the lifetime total are
+	# background stats now, still counted and still saved but never shown.
+	_check(hud.get_node_or_null("TopBar/PileLabel") == null
+			and hud.get_node_or_null("TopBar/LifetimeLabel") == null,
+		"the yard-pile and lifetime readouts are GONE from the HUD")
 
 	# There is nothing to sell by hand any more: the yard buys a piece as it lands.
 	_check(hud.get_node_or_null("YardPanel/Column/StockList") == null
@@ -409,10 +412,8 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 		"six birch pieces paid out %d as they landed" % (birch * 6))
 	_check(cash_label.text == str(birch * 6),
 		"...the cash label repainted off cash_changed: '%s'" % cash_label.text)
-	_check(pile_label.text.contains("6"),
-		"...the pile counter repainted off yard_pile_changed: '%s'" % pile_label.text)
-	_check(lifetime_label.text.contains("6"),
-		"...and the lifetime label shows the 6 chopped: '%s'" % lifetime_label.text)
+	_check(GameState.get_yard_pile_count() == 6 and GameState.get_lifetime_wood_chopped() == 6,
+		"...and both hidden stats still counted all 6 behind the scenes")
 	_check(InventoryManager.get_count(&"birch_firewood") == 0,
 		"...leaving no stock to manage — the wood was bought, not stored")
 
