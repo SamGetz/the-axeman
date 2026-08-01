@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://5plbyow3t1l3"]
+
+[ext_resource type="Texture2D" uid="uid://cw8kn4u30avgt" path="res://assets/models/axe_basic/axe_basic_0.png" id="1_mj8ji"]
+
+[resource]
+resource_name = "metal"
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.70253915, 0.70253915, 0.70253915, 0.4516129)
+albedo_texture = ExtResource("1_mj8ji")
+emission_enabled = true

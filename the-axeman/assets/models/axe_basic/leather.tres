@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://c1j65ayo5ti84"]
+
+[ext_resource type="Texture2D" uid="uid://dfdfur1rl0elh" path="res://assets/models/axe_basic/axe_basic_1.png" id="1_c0erd"]
+
+[resource]
+resource_name = "leather"
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.7289468, 0.7289468, 0.7289468, 0.4903226)
+albedo_texture = ExtResource("1_c0erd")
+emission_enabled = true
