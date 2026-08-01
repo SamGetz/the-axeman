@@ -14,6 +14,10 @@ extends Node
 ##     serialiser, so Directive 6 is never bypassed
 ##   - a corrupt, versionless or NEWER-than-this-build save cannot damage the
 ##     player's yard
+##   - the ALWAYS-AVAILABLE BASIC BUYER pays the price table, refuses anything it
+##     is not priced for, and settles a sale atomically in both directions
+##   - the YARD HUD shows cash/stock/lifetime live off the local signals, sells
+##     from its own rows, and carries the REAL entry flow that replaced the M key
 ##
 ## Every check asserts a positive quantity. Several of these would pass trivially
 ## against a game with the feature deleted if they only asserted bounds — cash
@@ -48,6 +52,11 @@ func _ready() -> void:
 	_test_7_newer_save_is_preserved_not_clobbered()
 	_test_8_unregistered_ids_are_dropped()
 	await _test_9_autosave_on_inventory_change()
+	_test_10_buyer_prices_only_what_it_wants()
+	_test_11_a_sale_is_atomic()
+	_test_12_sell_everything_is_one_transaction()
+	await _test_13_yard_hud_is_live_and_sells()
+	await _test_14_hud_carries_the_entry_flow()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -265,6 +274,187 @@ func _test_9_autosave_on_inventory_change() -> void:
 	_check(InventoryManager.get_count(&"birch_firewood") == 6,
 		"...holding all 6 pieces of the batch, not a partial write")
 	SaveSystem.delete_save()
+
+
+# --------------------------------------------------------------- basic buyer
+## Prices themselves are Sam's tuning call and WILL change, so nothing here
+## asserts a literal price. Each check asserts the price is positive and that the
+## payout is exactly price x count — a relationship that survives any retune but
+## still fails on a buyer that pays a flat rate, double-pays, or pays nothing.
+func _test_10_buyer_prices_only_what_it_wants() -> void:
+	var oak := Market.get_price(&"oak_firewood")
+	_check(oak > 0, "the basic buyer pays a positive price for oak_firewood (%d)" % oak)
+	_check(Market.is_sellable(&"birch_firewood"), "...and buys birch_firewood too")
+
+	# The load-bearing one: an item with no entry in the price table must read as
+	# UNSELLABLE, not as free. A buyer that returns 0 and sells anyway would mint
+	# stock into nothing.
+	_check(Market.get_price(&"stone") == 0,
+		"an item the table does not price reads as 0, not as a free sale")
+	_check(not Market.is_sellable(&"stone"), "...and is refused by is_sellable()")
+	_check(Market.get_price(&"unobtanium") == 0, "an unregistered id prices at 0")
+
+	InventoryManager.apply_save_dict({})
+	_check(Market.get_stock_value() == 0, "an empty yard is worth exactly 0")
+	InventoryManager.add_item(&"oak_firewood", 5)
+	_check(Market.get_stock_value() == oak * 5,
+		"5 oak in stock is worth exactly 5 x %d" % oak)
+
+
+func _test_11_a_sale_is_atomic() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	InventoryManager.add_item(&"oak_firewood", 4)
+	var oak := Market.get_price(&"oak_firewood")
+
+	_check(Market.sell(&"oak_firewood", 5) == 0,
+		"selling 5 out of a stock of 4 earns nothing rather than overselling")
+	_check(InventoryManager.get_count(&"oak_firewood") == 4,
+		"...and the refused sale consumed NOTHING (still exactly 4 in stock)")
+	_check(GameState.get_cash() == 0, "...and paid nothing (still 0 cash)")
+
+	var earned := Market.sell(&"oak_firewood", 4)
+	_check(earned == oak * 4, "selling all 4 earns exactly 4 x %d = %d" % [oak, oak * 4])
+	_check(GameState.get_cash() == oak * 4, "...and the purse holds exactly that")
+	_check(InventoryManager.get_count(&"oak_firewood") == 0, "...and the stock is gone")
+
+	# Selling is not chopping. This runs through Market rather than the raw
+	# remove_items of test 4, because that is the path the game will actually use.
+	_check(GameState.get_lifetime_wood_chopped() == 0,
+		"a sale never touches the lifetime chopped counter")
+
+	InventoryManager.add_item(&"stone", 10)
+	_check(Market.sell(&"stone", 10) == 0, "an unpriced item cannot be sold")
+	_check(InventoryManager.get_count(&"stone") == 10, "...and none of it left the yard")
+
+	# The mixed basket is where an unpriced line actually costs the player: the
+	# priced half makes the payout positive, so only the per-line price check
+	# stops the stone being handed over for nothing.
+	InventoryManager.add_item(&"oak_firewood", 3)
+	var mixed: Array = [
+		{"item_id": &"oak_firewood", "amount": 3},
+		{"item_id": &"stone", "amount": 10},
+	]
+	_check(Market.sell_batch(mixed) == 0,
+		"a basket with one unsellable line is refused WHOLE, not part-sold")
+	_check(InventoryManager.get_count(&"oak_firewood") == 3
+			and InventoryManager.get_count(&"stone") == 10,
+		"...and neither line left the yard")
+
+
+func _test_12_sell_everything_is_one_transaction() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	InventoryManager.add_item(&"oak_firewood", 3)
+	InventoryManager.add_item(&"birch_firewood", 2)
+	InventoryManager.add_item(&"stone", 7)   # priced by nobody — must be left alone
+
+	var expected := Market.get_price(&"oak_firewood") * 3 + Market.get_price(&"birch_firewood") * 2
+	_check(expected > 0, "the two-species basket is worth a positive %d" % expected)
+	_check(Market.get_stock_value() == expected,
+		"stock value ignores the unsellable stone (%d)" % expected)
+
+	var rows := Market.get_sellable_stock()
+	_check(rows.size() == 2, "the sellable stock lists exactly the 2 priced species, not the stone")
+
+	_check(Market.sell_everything() == expected, "selling everything earns exactly %d" % expected)
+	_check(GameState.get_cash() == expected, "...and the purse agrees")
+	_check(InventoryManager.get_count(&"oak_firewood") == 0
+			and InventoryManager.get_count(&"birch_firewood") == 0,
+		"...both species are sold out")
+	_check(InventoryManager.get_count(&"stone") == 7,
+		"...and the 7 stone the buyer does not want is still there")
+	_check(Market.sell_everything() == 0, "selling an empty yard again earns 0 and is harmless")
+
+
+# -------------------------------------------------------------------- the HUD
+## Drives the REAL yard_hud.tscn. A reimplementation of it here would prove
+## nothing about the scene the player actually sees.
+func _test_13_yard_hud_is_live_and_sells() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+
+	var cash_label: Label = hud.get_node("TopBar/Stats/CashLabel")
+	var lifetime_label: Label = hud.get_node("TopBar/Stats/LifetimeLabel")
+	var stock_list: VBoxContainer = hud.get_node("YardPanel/Column/StockList")
+	var sell_all: Button = hud.get_node("YardPanel/Column/SellAllButton")
+
+	_check(stock_list.get_child_count() == 0, "an empty yard shows no stock rows")
+	_check(sell_all.disabled, "...and 'Sell all' is disabled with nothing to sell")
+
+	# One finished log, deposited exactly the way the mini-game deposits it: six
+	# separate A7 signals, one per piece, all inside this frame.
+	for i in range(6):
+		EventBus.resource_gathered.emit(&"birch_firewood", 1)
+
+	# The load-bearing check, and the same shape as the autosave one above: an
+	# eager rebuild would already show the row here, having thrown the list away
+	# and rebuilt it six times for one chop.
+	_check(stock_list.get_child_count() == 0,
+		"the six deposits have not rebuilt the list yet — the rebuild is coalesced, not per-signal")
+
+	await get_tree().process_frame   # the deferred rebuild lands here
+
+	_check(stock_list.get_child_count() == 1,
+		"...and one frame later there is exactly ONE row for the six pieces")
+	_check(lifetime_label.text.contains("6"), "the lifetime label shows the 6 chopped: '%s'" % lifetime_label.text)
+	_check(not sell_all.disabled, "...and 'Sell all' has enabled itself")
+
+	var birch := Market.get_price(&"birch_firewood")
+	var row_button: Button = stock_list.get_child(0).get_child(1)
+	row_button.pressed.emit()
+	_check(GameState.get_cash() == birch * 6,
+		"the row's own Sell button sold all 6 for exactly %d" % (birch * 6))
+	_check(cash_label.text.contains(str(birch * 6)),
+		"...and the cash label repainted off cash_changed: '%s'" % cash_label.text)
+
+	await get_tree().process_frame
+	_check(stock_list.get_child_count() == 0, "...and the sold-out row removed itself")
+	_check(GameState.get_lifetime_wood_chopped() == 6,
+		"...while lifetime chopped still reads 6 after the sale")
+
+	hud.queue_free()
+	await get_tree().process_frame
+
+
+## The M key is gone; these two buttons are the only way in and out now, so they
+## are worth a check that fails loudly if either comes unwired.
+func _test_14_hud_carries_the_entry_flow() -> void:
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+
+	var yard_panel: PanelContainer = hud.get_node("YardPanel")
+	var chop: Button = hud.get_node("YardPanel/Column/ChopButton")
+	var back: Button = hud.get_node("BackButton")
+
+	_check(yard_panel.visible and not back.visible,
+		"the game opens in the yard: the panel is up, the back button is not")
+
+	var entered: Array[int] = []
+	var exited := [0]
+	var on_enter := func(b: Enums.Biome) -> void: entered.append(int(b))
+	var on_exit := func() -> void: exited[0] += 1
+	EventBus.minigame_entered.connect(on_enter)
+	EventBus.minigame_exited.connect(on_exit)
+
+	chop.pressed.emit()
+	_check(entered.size() == 1 and entered[0] == Enums.Biome.PINE_FOREST,
+		"'Go chopping' emits minigame_entered once — the same A7 path the M key used")
+	_check(not yard_panel.visible and back.visible,
+		"...and the HUD swapped to chopping mode off the SIGNAL, not off the click")
+
+	back.pressed.emit()
+	_check(exited[0] == 1, "'Back to the yard' emits minigame_exited once")
+	_check(yard_panel.visible and not back.visible, "...and the yard panel is back up")
+
+	EventBus.minigame_entered.disconnect(on_enter)
+	EventBus.minigame_exited.disconnect(on_exit)
+	hud.queue_free()
+	await get_tree().process_frame
 
 
 # ------------------------------------------------------------------ fixture

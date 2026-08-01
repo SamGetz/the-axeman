@@ -106,24 +106,13 @@ func _enter_3d_mode() -> void:
 
 
 # ---------------------------------------------------------------------------
-# M2 TEMPORARY DEBUG — remove when M7 provides the real minigame entry flow.
-# Press M to toggle between 2D and 3D mode so the pixel pipeline can be
-# eyeballed from the main scene. Uses the real EventBus signals (A7) so the
-# production path is what gets exercised.
+# The M2 TEMPORARY DEBUG M-key toggle is GONE (2026-08-01). M7A's real entry
+# flow replaced it: YardHUD's "Go chopping" and "Back to the yard" buttons
+# (res://scenes/2d_management/yard_hud.gd, instanced under UI_Overlay) emit the
+# same A7 signals the key did, so the mode switch above is unchanged and is now
+# driven by the production path.
 #
 # The T key that swapped between the chopping block and the tree-felling scene
-# went with the tree game (2026-08-01 pivot); the chopping mini-game is now the
-# only thing under 3D_World_Root and it is instanced in main.tscn.
+# went with the tree game in the pivot; the chopping mini-game is the only thing
+# under 3D_World_Root and it is instanced in main.tscn.
 # ---------------------------------------------------------------------------
-var _debug_in_minigame := false
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey and event.pressed and not event.echo):
-		return
-	if event.keycode == KEY_M:
-		if _debug_in_minigame:
-			EventBus.minigame_exited.emit()
-		else:
-			EventBus.minigame_entered.emit(Enums.Biome.PINE_FOREST)
-		_debug_in_minigame = not _debug_in_minigame

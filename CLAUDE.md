@@ -88,7 +88,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 2000 res://core/tests/m7a_acceptance.tscn` | **44/44** |
+| M7A | `--quit-after 2000 res://core/tests/m7a_acceptance.tscn` | **85/85** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -101,9 +101,10 @@ Godot project: `C:\Users\Sam\Documents\the_axeman\the-axeman\`.
 - **M2 (main scene shell + pixel pipeline): DONE, functionality accepted;
   art direction deferred by Sam.** Known: SpotLight3D `light_projector` gobo
   does not render under gl_compatibility (see Amendment 9 — replaced in the
-  chopping scene by an animated shadow-cutout gobo); the game boots to empty
-  2D mode by design, and the temp **M key** in `scenes/main.gd` toggles into
-  the 3D chopping scene.
+  chopping scene by an animated shadow-cutout gobo). The game boots into 2D
+  management mode by design; since M7A that mode is no longer empty — it shows
+  the yard HUD, and its "Go chopping" button is the real entry into the 3D
+  scene. **The temp M key is GONE** (2026-08-01).
 - **M3 (GameFeel): code DONE, awaiting Creative Director sign-off.** 16/16.
   GameFeel is the 4th autoload (Amendment 5). Hit-pause overlap guard, trauma
   camera shake (h/v offset), `register_impact`, A7 wiring all verified. Temp
@@ -124,8 +125,8 @@ Godot project: `C:\Users\Sam\Documents\the_axeman\the-axeman\`.
 `res://scenes/3d_action/chopping_minigame.tscn` (root Node3D runs
 `chopping_minigame.gd`). `chopping_minigame_harness.tscn` is an F6 feel-test
 harness that instances the same scene inside a viewport. Enter it from the main
-scene with the temp **M key** in `scenes/main.gd` (the A10 2D/3D toggle) until
-the real entry flow exists.
+scene with the yard HUD's **"Go chopping"** button, which emits `minigame_entered`
+and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
 
 - **The slicer is Amendment 6's runtime plane cut.** Each click cuts the log
   along a camera-inferred angle and caps the cut face; sliver cuts round up to
@@ -209,7 +210,7 @@ the real entry flow exists.
 ### M7A — progression spine (STARTED 2026-08-01, no sign-off yet)
 
 Built ahead of the orders/prices because none of it needed a tuning value or an
-asset. Suite: `m7a_acceptance` 40/40.
+asset. Suite: `m7a_acceptance` 85/85.
 
 - **Cash and lifetime wood chopped live in `GameState`.** Cash is an `int`,
   never a float. It leaves the purse ONLY through `try_spend_cash()`, which is
@@ -253,9 +254,64 @@ asset. Suite: `m7a_acceptance` 40/40.
   The coalescing guard is proven to fail without its fix (calling the flush
   directly instead of deferring turns it red).
 - `core/tools/save_probe.tscn` drives the save from outside the game (`dump` /
-  `seed` / `quit` / `wipe`) — the only way to see it until the UI exists. Note
-  it is a SCENE, not a `-s` script: a `-s` script replaces the main loop and the
-  autoloads are never instantiated.
+  `seed` / `quit` / `wipe`) — it predates the UI and is still the way to inspect
+  a save from outside. Note it is a SCENE, not a `-s` script: a `-s` script
+  replaces the main loop and the autoloads are never instantiated.
+
+### M7A — the basic buyer, the yard HUD and the real entry flow (2026-08-01)
+
+The second M7A slice, and again everything in it that needed a tuning value was
+pushed into data instead of invented. **Still no sign-off.**
+
+- **`res://data/price_table.gd` + `price_table.tres` (`class_name PriceTable`)**
+  holds what the buyer pays per unit. **EVERY NUMBER IN IT IS A PLACEHOLDER**
+  (pine 2, oak 3, birch 4, mahogany 10) and is waiting on Sam.
+  It is a SEPARATE resource and not a field on `ItemDef` because A8 is a frozen
+  Part A contract (Directive 2), and because a price is a property of the market,
+  not of the object — M7B's reputation and per-customer multipliers layer on top
+  of these base values without touching the registry. **An id the table does not
+  price is NOT sellable**; it must never fall through to a free sale.
+- **`res://core/market.gd` (`class_name Market`) is NOT an autoload**, for the
+  same reasons as SaveSystem: no state, and a 5th autoload would need an
+  amendment. It is the always-available basic buyer (roadmap pillar 5) — buys any
+  priced item, any quantity, any time, no contract to accept.
+- **It writes NOTHING itself.** Stock leaves only through
+  `InventoryManager.remove_items`, cash arrives only through `GameState.add_cash`,
+  so Directive 6 holds: Market decides what a sale IS, the owners perform it.
+- **A sale is atomic in both directions, and the ORDER IS LOAD-BEARING:** price
+  the whole basket and refuse it entirely if any line is unpriced, then remove the
+  stock in ONE aggregated `remove_items`, and only then pay. Paying first and
+  failing to collect would mint money from nothing. Both halves are proven to fail
+  without their fix (a mixed oak+stone basket part-sells without the per-line
+  price check; swapping the order pays for a sale that never happened).
+- **`res://scenes/2d_management/yard_hud.tscn/.gd`** is instanced under
+  `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). It shows cash,
+  stock value and lifetime chopped; one sell row per species; "Sell all"; and the
+  entry-flow buttons. It updates off `cash_changed`,
+  `lifetime_wood_chopped_changed` and `inventory_changed` — never polled, which is
+  exactly what Amendment 2 added those local signals for.
+- **The stock rows are BUILT FROM DATA at runtime**, from
+  `Market.get_sellable_stock()`, so a new wood species appears in the yard the
+  moment it has a price and a piece in stock — no scene edit. The rebuild is
+  deferred/coalesced for the same reason the autosave is (a six-piece log fires
+  six `inventory_changed` in one frame), and that guard is proven to fail without
+  its fix too.
+- **THE TEMP M KEY IS GONE.** "Go chopping" / "Back to the yard" emit the same A7
+  `minigame_entered` / `minigame_exited` the key did, so `main.gd`'s A10 mode
+  switch is unchanged and is now driven by the production path. The HUD switches
+  its own view off the SIGNALS, not off the clicks.
+- **`core/tools/hud_shot.tscn` renders the real main scene to PNGs** (yard,
+  chopping, sold) — RUN NON-HEADLESS. Every numeric check here is green on a UI
+  that is off-screen or covering the chopping block; this is `shot_runner` applied
+  to the 2D side. It stashes the real save for the run.
+- **SEEN IN THE SHOTS, Sam's call:** coming back from chopping leaves the last
+  rendered 3D frame frozen behind the yard panel (A10 stops the viewport
+  rendering, it does not clear it). It reads fine — the yard IS the chopping site
+  — but if you want the yard to be its own view, that is a design decision, not a
+  bug fix.
+- Still to do in M7A: three authored orders, five upgrades, an unlockable second
+  species, and the visible growing stockpile. All four are blocked on tuning
+  values (Directive 3).
 
 ### Files the chopping game owns
 
@@ -264,8 +320,11 @@ asset. Suite: `m7a_acceptance` 40/40.
 `fragment_physics_budget.gd`, `piece_animator.gd`, `wood_pile.gd`, `axe_rig.gd`,
 `canopy_gobo.gd`.
 
+`scenes/2d_management/`: `yard_hud.gd/.tscn` (the yard HUD, the basic buyer's
+front end and the entry flow) — the first thing this folder has ever held.
+
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
-`pile_shot`, `shot_runner`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
+`pile_shot`, `shot_runner`, `hud_shot`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
 `species_shot` (renders EVERY row of `_LOG_SPECIES`, fresh and cut — run it on any
 log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
 ACTUAL bound texture per surface — see the material-name trap below).

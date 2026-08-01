@@ -85,9 +85,10 @@ Suite results, all re-run after the pivot on the shipping assets:
 | Suite | How to run | Result |
 |---|---|---|
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
-| M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **21/23** — both failures are the A1 finding below |
+| M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
-| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **16/16** |
+| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
+| M7A | `--quit-after 2000 res://core/tests/m7a_acceptance.tscn` | **85/85** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -100,9 +101,10 @@ Godot project: `C:\Users\Sam\Documents\the_axeman\the-axeman\`.
 - **M2 (main scene shell + pixel pipeline): DONE, functionality accepted;
   art direction deferred by Sam.** Known: SpotLight3D `light_projector` gobo
   does not render under gl_compatibility (see Amendment 9 — replaced in the
-  chopping scene by an animated shadow-cutout gobo); the game boots to empty
-  2D mode by design, and the temp **M key** in `scenes/main.gd` toggles into
-  the 3D chopping scene.
+  chopping scene by an animated shadow-cutout gobo). The game boots into 2D
+  management mode by design; since M7A that mode is no longer empty — it shows
+  the yard HUD, and its "Go chopping" button is the real entry into the 3D
+  scene. **The temp M key is GONE** (2026-08-01).
 - **M3 (GameFeel): code DONE, awaiting Creative Director sign-off.** 16/16.
   GameFeel is the 4th autoload (Amendment 5). Hit-pause overlap guard, trauma
   camera shake (h/v offset), `register_impact`, A7 wiring all verified. Temp
@@ -123,15 +125,15 @@ Godot project: `C:\Users\Sam\Documents\the_axeman\the-axeman\`.
 `res://scenes/3d_action/chopping_minigame.tscn` (root Node3D runs
 `chopping_minigame.gd`). `chopping_minigame_harness.tscn` is an F6 feel-test
 harness that instances the same scene inside a viewport. Enter it from the main
-scene with the temp **M key** in `scenes/main.gd` (the A10 2D/3D toggle) until
-the real entry flow exists.
+scene with the yard HUD's **"Go chopping"** button, which emits `minigame_entered`
+and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
 
 - **The slicer is Amendment 6's runtime plane cut.** Each click cuts the log
   along a camera-inferred angle and caps the cut face; sliver cuts round up to
   a minimum piece size. `size_tier` is COMPUTED at slice time, and A3's single
   size test is unchanged.
 - **Viewport** is 1280×720 + NEAREST (Amendment 8 — the pixel-art look was
-  dropped). See the A1 finding below: what is authored is not what runs.
+  dropped), and since Amendment 16 the project base canvas matches, so that IS what renders.
 - **Ground:** `res://assets/models/forest_floor/forest_floor_a.fbx` is instanced
   directly as a child node in `chopping_minigame.tscn` (scale 0.4, Sam-authored
   placement).
@@ -139,10 +141,24 @@ the real entry flow exists.
   InventoryManager — one `resource_gathered` per finished firewood piece, at the
   batch-collect point (`_begin_stacking`). Wood type is data-driven: `_LOG_SPECIES`
   in `chopping_minigame.gd` maps each log mesh → yield item, built to scale to
-  many woods (add a row). CURRENT PLACEHOLDER MAPPING:
-  `log_01.fbx`→`oak_log`, `log_02.fbx`→`pine_log` (both still wear the oak inside
-  texture — log_02 is pine only to demo per-log yields; remap freely, and
-  per-species textures can join the same table later).
+  many woods (add a row) and many log SHAPES per wood (add a path). CURRENT
+  MAPPING: `log_01.fbx`→`oak_log`, `log_02.fbx`→`pine_log` (log_02 is pine only
+  to demo per-log yields and still wears oak art — remap freely),
+  `birch_log_01..06.fbx`→`birch_log` (six authored shapes, real birch art
+  throughout, added 2026-08-01).
+- **A row's `meshes` is a LIST on purpose.** Species is picked first, shape
+  second, so log variety never changes how often a wood turns up — six birch
+  meshes as six rows would have made three quarters of every yard birch.
+  `debug_forced_species` / `debug_forced_mesh` force either for tests and shots.
+  A row may also carry `inside_tex`/`inside_normal`/`inside_tint` for its cut
+  faces; omitted keys fall back to oak.
+  Cut materials are cached per species BY DESIGN, not just for speed:
+  `MeshUtils.jag_cut` finds a piece's cut surface by comparing
+  `material == _cut_mat` **by reference**, so a fresh instance per log would
+  leave anything cut before the swap unroughenable.
+- `assets/models/logs_export/` also holds `log_2.fbx`, an unused duplicate, and
+  `maya_working/` still has unimported `log_03/04/05.fbx`. CLAUDE.md previously
+  claimed log_01…log_05 were live; they were not, and are not.
 - **Acceptance:** `m4_acceptance.tscn` 16/16 — drives `debug_slice_world` to
   completion, checks inventory deposit == firewood count, per-species yield, one
   hit per slice, the A12 budget. It calls `get_tree().quit()` on finish, so run
@@ -191,6 +207,112 @@ the real entry flow exists.
   slice of a turned billet was cutting on a plane rotated the wrong way round since
   M4 shipped. Guarded by 10 checks in `test_slicer` at five yaws including 310.8°.
 
+### M7A — progression spine (STARTED 2026-08-01, no sign-off yet)
+
+Built ahead of the orders/prices because none of it needed a tuning value or an
+asset. Suite: `m7a_acceptance` 85/85.
+
+- **Cash and lifetime wood chopped live in `GameState`.** Cash is an `int`,
+  never a float. It leaves the purse ONLY through `try_spend_cash()`, which is
+  atomic — a refused purchase changes nothing and emits nothing (Amendment 4's
+  all-or-nothing rule, applied to money). `DEFAULT_CASH = 0` is a PLACEHOLDER.
+- **`lifetime_wood_chopped` is fed by the existing A7 `resource_gathered`
+  signal** — no contract change, no edit to the chopping game. It filters on
+  `ItemCategory.RAW_WOOD` rather than a list of wood ids **on purpose**: that
+  survives the still-open `*_log` vs `*_firewood` rename, and picks up a new
+  species for free. Monotonic by construction — it never sees removals, so
+  selling stock cannot un-chop wood. **Revisit at M8:** it counts wood
+  *gathered*, so staff who gather wood would be credited to the player.
+- **Two LOCAL signals** on GameState — `cash_changed`, `lifetime_wood_chopped_
+  changed` — following Amendment 2's precedent exactly: NOT on EventBus, A7
+  untouched, they never cross the 2D/3D boundary, and they exist so the M7 UI
+  can update without polling.
+- **`res://core/save_system.gd` (`class_name SaveSystem`) is NOT an autoload.**
+  It is stateless static methods, so it needs nothing an autoload provides, and
+  a 5th autoload would have needed an amendment the way GameFeel did. Each
+  system serialises ITSELF (`to_save_dict`/`apply_save_dict` on GameState and
+  InventoryManager), so Directive 6 is never bypassed — SaveSystem only moves
+  dictionaries to and from disk.
+- Save file: `user://the_axeman_save.cfg` (ConfigFile — Variants survive
+  natively, and it is readable when a save goes wrong). Written to a `.tmp`
+  and renamed over the real file, so a crash mid-write cannot truncate a save.
+  Versioned; a save from a NEWER build is refused and moved to a `.bak` rather
+  than loaded or overwritten.
+- **`main.gd` now loads at boot and saves on window close.** It sets
+  `get_tree().auto_accept_quit = false` and saves in
+  `NOTIFICATION_WM_CLOSE_REQUEST` — the only hook that still sees live state.
+  Quitting is unconditional even if the save fails.
+- **Autosave: on every inventory change** (Creative Director call, 2026-08-01 —
+  "save when something new is added to inventory"). It is **coalesced**: a
+  finished log deposits one piece at a time, so a six-piece log fires
+  `inventory_changed` six times in one frame; the flush is deferred so the batch
+  collapses to a single write. It is connected AFTER main's own load, because
+  `apply_save_dict` emits for every item it restores and would otherwise make
+  loading immediately trigger a save. It fires on any change, not only additions
+  — a sale or an upgrade cost is at least as worth persisting, and filtering to
+  increases would leave a sale unsaved until the next chop.
+  The coalescing guard is proven to fail without its fix (calling the flush
+  directly instead of deferring turns it red).
+- `core/tools/save_probe.tscn` drives the save from outside the game (`dump` /
+  `seed` / `quit` / `wipe`) — it predates the UI and is still the way to inspect
+  a save from outside. Note it is a SCENE, not a `-s` script: a `-s` script
+  replaces the main loop and the autoloads are never instantiated.
+
+### M7A — the basic buyer, the yard HUD and the real entry flow (2026-08-01)
+
+The second M7A slice, and again everything in it that needed a tuning value was
+pushed into data instead of invented. **Still no sign-off.**
+
+- **`res://data/price_table.gd` + `price_table.tres` (`class_name PriceTable`)**
+  holds what the buyer pays per unit. **EVERY NUMBER IN IT IS A PLACEHOLDER**
+  (pine 2, oak 3, birch 4, mahogany 10) and is waiting on Sam.
+  It is a SEPARATE resource and not a field on `ItemDef` because A8 is a frozen
+  Part A contract (Directive 2), and because a price is a property of the market,
+  not of the object — M7B's reputation and per-customer multipliers layer on top
+  of these base values without touching the registry. **An id the table does not
+  price is NOT sellable**; it must never fall through to a free sale.
+- **`res://core/market.gd` (`class_name Market`) is NOT an autoload**, for the
+  same reasons as SaveSystem: no state, and a 5th autoload would need an
+  amendment. It is the always-available basic buyer (roadmap pillar 5) — buys any
+  priced item, any quantity, any time, no contract to accept.
+- **It writes NOTHING itself.** Stock leaves only through
+  `InventoryManager.remove_items`, cash arrives only through `GameState.add_cash`,
+  so Directive 6 holds: Market decides what a sale IS, the owners perform it.
+- **A sale is atomic in both directions, and the ORDER IS LOAD-BEARING:** price
+  the whole basket and refuse it entirely if any line is unpriced, then remove the
+  stock in ONE aggregated `remove_items`, and only then pay. Paying first and
+  failing to collect would mint money from nothing. Both halves are proven to fail
+  without their fix (a mixed oak+stone basket part-sells without the per-line
+  price check; swapping the order pays for a sale that never happened).
+- **`res://scenes/2d_management/yard_hud.tscn/.gd`** is instanced under
+  `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). It shows cash,
+  stock value and lifetime chopped; one sell row per species; "Sell all"; and the
+  entry-flow buttons. It updates off `cash_changed`,
+  `lifetime_wood_chopped_changed` and `inventory_changed` — never polled, which is
+  exactly what Amendment 2 added those local signals for.
+- **The stock rows are BUILT FROM DATA at runtime**, from
+  `Market.get_sellable_stock()`, so a new wood species appears in the yard the
+  moment it has a price and a piece in stock — no scene edit. The rebuild is
+  deferred/coalesced for the same reason the autosave is (a six-piece log fires
+  six `inventory_changed` in one frame), and that guard is proven to fail without
+  its fix too.
+- **THE TEMP M KEY IS GONE.** "Go chopping" / "Back to the yard" emit the same A7
+  `minigame_entered` / `minigame_exited` the key did, so `main.gd`'s A10 mode
+  switch is unchanged and is now driven by the production path. The HUD switches
+  its own view off the SIGNALS, not off the clicks.
+- **`core/tools/hud_shot.tscn` renders the real main scene to PNGs** (yard,
+  chopping, sold) — RUN NON-HEADLESS. Every numeric check here is green on a UI
+  that is off-screen or covering the chopping block; this is `shot_runner` applied
+  to the 2D side. It stashes the real save for the run.
+- **SEEN IN THE SHOTS, Sam's call:** coming back from chopping leaves the last
+  rendered 3D frame frozen behind the yard panel (A10 stops the viewport
+  rendering, it does not clear it). It reads fine — the yard IS the chopping site
+  — but if you want the yard to be its own view, that is a design decision, not a
+  bug fix.
+- Still to do in M7A: three authored orders, five upgrades, an unlockable second
+  species, and the visible growing stockpile. All four are blocked on tuning
+  values (Directive 3).
+
 ### Files the chopping game owns
 
 `scenes/3d_action/`: `chopping_minigame.gd/.tscn`, `chopping_minigame_harness.tscn`,
@@ -198,25 +320,34 @@ the real entry flow exists.
 `fragment_physics_budget.gd`, `piece_animator.gd`, `wood_pile.gd`, `axe_rig.gd`,
 `canopy_gobo.gd`.
 
+`scenes/2d_management/`: `yard_hud.gd/.tscn` (the yard HUD, the basic buyer's
+front end and the entry flow) — the first thing this folder has ever held.
+
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
-`pile_shot`, `shot_runner`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`.
+`pile_shot`, `shot_runner`, `hud_shot`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
+`species_shot` (renders EVERY row of `_LOG_SPECIES`, fresh and cut — run it on any
+log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
+ACTUAL bound texture per surface — see the material-name trap below).
 
-### OPEN A1 FINDING (pre-existing, NOT fixed, and it has got worse)
+### A1 FINDING — CLOSED 2026-08-01 (Amendment 16)
 
-`Action_Viewport.size` is authored 1280×720 in `main.tscn` but is **not that at
-runtime** — `SubViewportContainer.stretch = true` resizes the child viewport to
+**Fixed. `m2_acceptance` is 24/24 for the first time.** Kept here because the
+trap will bite again the moment anyone touches the render pipeline.
+
+`Action_Viewport.size` is authored 1280×720 in `main.tscn` but that was **not
+what ran** — `SubViewportContainer.stretch = true` resizes the child viewport to
 the container's rect, and the container follows the project's base canvas
-(`display/window/size/viewport_*`). That base canvas is **currently 640×360** in
-`project.godot` (with a 1280×720 window override), so the game renders at 640×360
-and the canvas_items stretch scales it up 2×. This is why `m2_acceptance` fails
-**two** A1 checks now (21/23) where it used to fail one — the documented base was
-960×540, so it has been changed in the Project Settings UI since.
+(`display/window/size/viewport_*`). That base canvas was **640×360**, so the game
+rendered at 640×360 and canvas_items stretched it up 2×, which is very likely the
+"still kinda pixelated" Sam reported. Amendment 8's "render at 1:1, no upscale"
+simply was not happening.
 
-Amendment 8's "render at 1:1, no upscale" is therefore not actually happening, and
-this is very likely the "still kinda pixelated" Sam reported. Fixing it means either
-raising the project base canvas to 1280×720 (a `project.godot` edit — **CLOBBER
-TRAP**, walk Sam through the Settings UI) or dropping container stretch and sizing
-the viewport in code. Sam's call; it touches A1, so it needs an amendment either way.
+The base canvas is now 1280×720, matching the authored viewport and the window.
+`m2_acceptance` now asserts the two are **EQUAL** as well as individually
+correct — the moment they diverge again, the authored size is fiction and the
+check goes red rather than silently passing. Note the old base-canvas check
+expected 960×540 (Amendment 7) and had never been updated for Amendment 8, so it
+was failing for a stale reason on top of the real one.
 
 ---
 
@@ -226,7 +357,7 @@ the viewport in code. Sam's call; it touches A1, so it needs an amendment either
    modules. Never start the next module unprompted.
 2. **Part A contracts are frozen.** Never add, rename, or retype anything in
    them. If a module genuinely needs a contract change: halt, propose it,
-   wait for approval, update CLAUDE.md's amendment log, then resume.
+   wait for approval, update this file's amendment log, then resume.
 3. Any artistic/mathematical tuning value (forces, timings, stage counts,
    shake amounts) → halt and ask for exact values. Never invent finals;
    placeholders live in `.tres` files, never hardcoded.
@@ -405,6 +536,25 @@ anyone reading old commits.
      random waypoints — a further deliberate, scoped exception to A1's
      stepped-keyframe clause for this one effect.
 
+16. **A1's base canvas raised 640×360 → 1280×720** (Creative Director call,
+    2026-08-01 — Sam: "fix that"). This is the fix for the long-standing A1
+    FINDING above: `display/window/size/viewport_*` in `project.godot` is what
+    the stretched `SubViewportContainer` actually sizes `Action_Viewport` to, so
+    the authored 1280×720 was fiction and the game rendered at 640×360 upscaled
+    2×. Base canvas, `Action_Viewport` and the window are now all 1280×720 —
+    Amendment 8's "1:1, no upscale" is finally true. Window size overrides left
+    in place (now redundant, harmless, and explicit about intent). Everything
+    else in A1 is untouched: stretch mode stays `canvas_items`/`keep`, the
+    container stays `stretch = true` + NEAREST, `msaa_3d` stays a 4× per-viewport
+    override, `scaling_3d_mode` stays Bilinear.
+    - **CLOBBER TRAP, still live:** this was a direct `project.godot` edit. If
+      the Godot editor is open when the file is edited by hand, the editor
+      overwrites it on its next save. Close or reopen the editor after any such
+      edit and re-run `m2_acceptance` to confirm.
+    - `m2_acceptance` now asserts the base canvas and `Action_Viewport.size` are
+      **equal**, not merely each correct, so a future divergence goes red instead
+      of quietly reintroducing a hidden upscale.
+
 ### Retired amendments (tree game only — see git `29bcd6f`)
 
 10. Runtime mesh slicing extended to tree felling; superseded A2 for trees.
@@ -426,8 +576,24 @@ against `get_instance_transform` can only ever fail.
 
 ## LOCKED ITEM IDS (res://data/item_registry.tres)
 
-`pine_log, oak_log, mahogany_log, stone, copper_ore, iron_ore, amethyst,
-ruby, sapphire, wood_board, copper_ingot, iron_nail`
+`pine_firewood, oak_firewood, birch_firewood, mahogany_firewood, stone,
+copper_ore, iron_ore, amethyst, ruby, sapphire, wood_board, copper_ingot,
+iron_nail`
+
+**RENAMED 2026-08-01, Creative Director call ("we can call it firewood").** The
+four wood ids were `*_log`, which meant chopping a log *yielded logs* — the wrong
+noun to build an economy on. They are now `*_firewood`, display names to match
+("Oak Firewood"). `birch_firewood` was added the same day with Sam's birch art;
+it is no longer pending.
+
+There are deliberately **no `*_log` items**. Logs are not inventory today — they
+spawn on the block and are consumed by chopping. The roadmap's "log supply"
+upgrade family is about what spawns, not about a stored resource. If logs ever
+need to be stock (staff delivering them, say), add the ids then.
+
+Nothing in any test suite asserts this list — it is enforced by this document
+alone. The rename touched no logic at all, because `lifetime_wood_chopped`
+filters on `ItemCategory.RAW_WOOD` rather than on names.
 
 Known data flag (unresolved): the blueprint's management example mentions
 "Mahogany Boards" but the registry defines generic "Wood Boards". Ask Sam
@@ -445,6 +611,20 @@ whether boards become per-species before writing any upgrade data.
   carries a 30× node scale arrives at 30× — size things by a target height
   (`chopping_minigame.log_height`), never by a bare multiplier. This is exactly
   what broke log spawning on 2026-07-29.
+- **MATERIAL-NAME TRAP.** Godot's scene importer binds an EXTERNAL material when
+  it finds a `.tres` beside the source file whose name matches the FBX's material
+  slot. `assets/models/logs_export/` contains `oak_bark.tres` and `oak_top.tres`,
+  and every log FBX so far carries slots of exactly those names — so a new
+  species can silently inherit the OAK look even though Godot extracted its own
+  embedded textures to disk. The material NAME cannot tell the two cases apart;
+  only the bound texture path can. Check with
+  `core/tools/inspect_materials.gd` on every art drop. (birch_log_01 was checked
+  on 2026-08-01 and is correctly on its own textures.)
+- **A log's CUT face is not the FBX's business.** Bark and authored ends come
+  from the imported materials, but the cut face is generated at runtime from
+  `_LOG_SPECIES`'s `inside_tex`/`inside_normal`. Those must be **tileable** —
+  cut-face UVs are a metres-based tiling mapping, so a log-end "disc" texture
+  repeats into a grid of discs. Oak and birch each have a `*_tilable` set.
 - Style: flat-shaded low-poly, vertex colors preferred over textures,
   hard edges fine, readable silhouettes.
 - Fragment pivots at the piece's landing/contact point (predictable A12
