@@ -38,8 +38,15 @@ var apex_extra := 0.3048       # ref 12in: how far above the pile a flung piece 
 var fly_duration := 500.0      # ms; the actual travel takes fly_duration * 1.6
 var stagger := 300.0           # ms spread across the batch so pieces cascade in
 
+# --- haul-away tuning (set by the owner) ----------------------------------
+var haul_distance := 9.0       # how far out a hauled piece flies before it is dropped (m)
+var haul_rise := 2.2           # how high it arcs on the way (m)
+var haul_duration := 700.0     # ms per piece
+var haul_stagger := 600.0      # ms spread across the whole pile, so it leaves as a wave
+
 # --- state ----------------------------------------------------------------
 var is_animating := false
+var is_hauling := false
 var _tier := 0
 var _filled := {}              # "x,y" -> true
 var _slot_tops := {}           # "x,y" -> height of the top of that column
@@ -49,6 +56,9 @@ var _max_height := 0.0
 var _needs_tier_advance := false
 var _anim: Array = []
 var _on_complete: Callable
+var _haul: Array = []
+var _on_hauled: Callable
+var _on_piece_settled: Callable
 
 
 func pile_height() -> float:
@@ -56,8 +66,12 @@ func pile_height() -> float:
 
 
 ## Assign slots to `proxies` (plain MeshInstance3D at each firewood's landed spot)
-## and start the staggered fly-in. `on_complete` fires when the last piece rests.
-func start_stacking(proxies: Array, on_complete: Callable) -> void:
+## and start the staggered fly-in. `on_complete` fires when the last piece rests;
+## `on_piece_settled` fires for EACH piece the moment it comes to rest in its slot,
+## which is when the yard pays for it — so the cash ticks up in the same cascade
+## the player is watching, rather than in one lump before the wood has landed.
+func start_stacking(proxies: Array, on_complete: Callable, on_piece_settled := Callable()) -> void:
+	_on_piece_settled = on_piece_settled
 	if proxies.is_empty():
 		if on_complete.is_valid():
 			on_complete.call()
@@ -161,6 +175,8 @@ func update() -> void:
 			mesh.position = n.end_pos
 			mesh.quaternion = n.end_quat
 			n.done = true
+			if _on_piece_settled.is_valid():
+				_on_piece_settled.call()
 			continue
 		all_done = false
 
@@ -197,6 +213,79 @@ func update() -> void:
 		_anim = []
 		if _on_complete.is_valid():
 			_on_complete.call()
+
+
+## THE HAUL-AWAY. The pile is full, so the whole load leaves the yard: each piece
+## lifts, arcs outward away from the stump and tumbles off past the horizon, in a
+## staggered wave that reads as the reverse of the fly-in that built the pile.
+##
+## It runs on its OWN animation list, deliberately independent of the stacking
+## one, so the player can go straight back to chopping while the load is still on
+## its way out — the yard never stops to watch itself being tidied.
+##
+## Nodes are freed here as each finishes, because from the caller's point of view
+## they left with the load; `on_hauled` fires once the last one is gone.
+func start_hauling(nodes: Array, on_hauled := Callable()) -> void:
+	if nodes.is_empty():
+		if on_hauled.is_valid():
+			on_hauled.call()
+		return
+	is_hauling = true
+	_on_hauled = on_hauled
+	_haul = []
+	var now := float(Time.get_ticks_msec())
+	var s := haul_stagger / float(nodes.size() - 1) if nodes.size() > 1 else 0.0
+	for idx in range(nodes.size()):
+		var node: Node3D = nodes[idx]
+		var out := Vector3(node.position.x, 0.0, node.position.z)
+		# A piece sitting dead centre still has to go somewhere.
+		out = out.normalized() if out.length() > 0.01 else Vector3.FORWARD
+		_haul.append({
+			"mesh": node,
+			"start_pos": node.position,
+			"start_quat": node.quaternion,
+			"end_pos": node.position + out * haul_distance + Vector3.UP * haul_rise,
+			"spin_axis": Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized(),
+			"spin": randf_range(4.0, 9.0),
+			"start_ms": now + idx * s,
+			"done": false,
+		})
+
+
+## Drive the haul-away. Call once per frame from the owner while is_hauling.
+func update_haul() -> void:
+	if not is_hauling:
+		return
+	var now := float(Time.get_ticks_msec())
+	var all_done := true
+	for n: Dictionary in _haul:
+		if n.done:
+			continue
+		if not is_instance_valid(n.mesh):
+			n.done = true
+			continue
+		if now < n.start_ms:
+			all_done = false
+			continue
+		var a := minf((now - float(n.start_ms)) / haul_duration, 1.0)
+		var mesh: Node3D = n.mesh
+		if a >= 1.0:
+			n.done = true
+			mesh.queue_free()
+			continue
+		all_done = false
+		# Ease OUT of the pile and IN to the distance: a slow lift that turns into
+		# a fling, so the wood looks thrown rather than slid.
+		var t := a * a
+		mesh.position = (n.start_pos as Vector3).lerp(n.end_pos, t) \
+			+ Vector3.UP * sin(a * PI) * haul_rise * 0.35
+		mesh.quaternion = Quaternion(n.spin_axis, float(n.spin) * a) * (n.start_quat as Quaternion)
+
+	if all_done:
+		is_hauling = false
+		_haul = []
+		if _on_hauled.is_valid():
+			_on_hauled.call()
 
 
 func reset() -> void:

@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scenes/2d_management/yard_hud.gd" id="1_hud"]
+[ext_resource type="Texture2D" path="res://assets/ui/coin.png" id="2_coin"]
 
 [node name="YardHUD" type="Control"]
 anchors_preset = 15
@@ -14,8 +15,8 @@ script = ExtResource("1_hud")
 [node name="TopBar" type="PanelContainer" parent="."]
 offset_left = 16.0
 offset_top = 12.0
-offset_right = 336.0
-offset_bottom = 96.0
+offset_right = 356.0
+offset_bottom = 104.0
 mouse_filter = 2
 
 [node name="Stats" type="VBoxContainer" parent="TopBar"]
@@ -23,14 +24,28 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="CashLabel" type="Label" parent="TopBar/Stats"]
+[node name="CashRow" type="HBoxContainer" parent="TopBar/Stats"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
-text = "Cash: 0"
+mouse_filter = 2
+theme_override_constants/separation = 6
 
-[node name="StockValueLabel" type="Label" parent="TopBar/Stats"]
+[node name="CashIcon" type="TextureRect" parent="TopBar/Stats/CashRow"]
+custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
-text = "Stock value: 0"
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("2_coin")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CashLabel" type="Label" parent="TopBar/Stats/CashRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "0"
+
+[node name="PileLabel" type="Label" parent="TopBar/Stats"]
+layout_mode = 2
+text = "Stacked in the yard: 0"
 
 [node name="LifetimeLabel" type="Label" parent="TopBar/Stats"]
 layout_mode = 2
@@ -41,7 +56,7 @@ anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -344.0
-offset_top = 110.0
+offset_top = 118.0
 offset_right = -16.0
 offset_bottom = -16.0
 grow_horizontal = 0
@@ -56,25 +71,72 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "The Yard"
 
-[node name="StockList" type="VBoxContainer" parent="YardPanel/Column"]
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_constants/separation = 4
-
-[node name="EmptyHint" type="Label" parent="YardPanel/Column"]
+[node name="Blurb" type="Label" parent="YardPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
-text = "No firewood in stock. Go chop a log."
+text = "Every piece you split is bought the moment it hits the pile. When the pile is full, the load is hauled away."
 
-[node name="SellAllButton" type="Button" parent="YardPanel/Column"]
+[node name="Spacer" type="Control" parent="YardPanel/Column"]
 layout_mode = 2
-disabled = true
-text = "Sell all firewood"
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="ShopButton" type="Button" parent="YardPanel/Column"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "  Shop"
+icon = ExtResource("2_coin")
+expand_icon = true
 
 [node name="ChopButton" type="Button" parent="YardPanel/Column"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "Go chopping"
+
+[node name="ShopPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -130.0
+offset_right = 220.0
+offset_bottom = 130.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Column" type="VBoxContainer" parent="ShopPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="ShopPanel/Column"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ShopIcon" type="TextureRect" parent="ShopPanel/Column/Header"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+size_flags_vertical = 4
+texture = ExtResource("2_coin")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ShopTitle" type="Label" parent="ShopPanel/Column/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Shop"
+
+[node name="ShopEmpty" type="Label" parent="ShopPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 3
+text = "Nothing on the shelves yet. Sharper axes, a bigger block and new woods to cut will be sold here."
+
+[node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Close"
 
 [node name="BackButton" type="Button" parent="."]
 anchor_top = 1.0

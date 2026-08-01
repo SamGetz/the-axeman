@@ -16,6 +16,12 @@ extends Node
 ## lifetime counter without polling every frame.
 signal cash_changed(new_amount: int)
 signal lifetime_wood_chopped_changed(new_total: int)
+## How much split firewood is currently STACKED IN THE YARD. Not inventory: since
+## the yard sells a piece the moment it lands on the pile (Creative Director call,
+## 2026-08-01), the wood is no longer owned by the time it is stacked — the pile is
+## the visible record of work done since the last load left, and it is progression
+## state, so it lives here.
+signal yard_pile_changed(new_total: int)
 
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
@@ -39,6 +45,10 @@ var _building_tiers: Dictionary = {}
 var _cash: int = DEFAULT_CASH
 ## Never decreases. The roadmap's "permanent celebratory number".
 var _lifetime_wood_chopped: int = 0
+## Firewood id -> pieces currently stacked on the yard's visible pile. Kept per
+## species so a restored pile shows the same mix of woods it had when the player
+## left, and emptied wholesale when a load is hauled away.
+var _yard_pile: Dictionary = {}
 
 ## ---------------------------------------------------------------- lifecycle
 func _ready() -> void:
@@ -76,6 +86,18 @@ func get_lifetime_wood_chopped() -> int:
 func can_afford_cash(amount: int) -> bool:
 	return amount >= 0 and _cash >= amount
 
+
+## { firewood id (StringName) -> pieces on the pile }. Defensive copy.
+func get_yard_pile() -> Dictionary:
+	return _yard_pile.duplicate()
+
+
+func get_yard_pile_count() -> int:
+	var total := 0
+	for id: StringName in _yard_pile:
+		total += int(_yard_pile[id])
+	return total
+
 ## ------------------------------------------------- writes (public methods)
 ## Cash has no EventBus signal and does not get one: A7 is frozen, and a sale is
 ## a purely 2D-side event that never crosses into the action scene. The buyer and
@@ -104,14 +126,40 @@ func try_spend_cash(amount: int) -> bool:
 	cash_changed.emit(_cash)
 	return true
 
+## ------------------------------------------------------------- the yard pile
+## A piece of firewood landed on the pile. Called by the chopping game as each
+## piece settles — the same moment it is sold — so the pile and the cash it earned
+## are always the same event.
+func add_to_yard_pile(item_id: StringName, amount := 1) -> void:
+	if amount <= 0:
+		push_error("GameState: add_to_yard_pile amount must be > 0 (got %d) — ignored." % amount)
+		return
+	_yard_pile[item_id] = int(_yard_pile.get(item_id, 0)) + amount
+	yard_pile_changed.emit(get_yard_pile_count())
+
+
+## The whole pile left the yard (the haul-away at `max_pile_pieces`). Wholesale on
+## purpose: the pile is never partially removed, because the wood was paid for as
+## it landed and there is nothing to reconcile.
+func clear_yard_pile() -> void:
+	if _yard_pile.is_empty():
+		return
+	_yard_pile = {}
+	yard_pile_changed.emit(0)
+
+
 ## ------------------------------------------------------------ persistence
 ## GameState serialises ITSELF. SaveSystem orchestrates the file but never
 ## reaches into this state directly, so Directive 6 still holds: progression is
 ## only ever written in here.
 func to_save_dict() -> Dictionary:
+	var pile: Dictionary = {}
+	for id: StringName in _yard_pile:
+		pile[String(id)] = int(_yard_pile[id])
 	return {
 		"cash": _cash,
 		"lifetime_wood_chopped": _lifetime_wood_chopped,
+		"yard_pile": pile,
 		"tool_tiers": _tool_tiers.duplicate(),
 		"building_tiers": _building_tiers.duplicate(),
 		"unlocked_biomes": _unlocked_biomes.keys(),
@@ -124,6 +172,16 @@ func apply_save_dict(data: Dictionary) -> void:
 	## Signals fire after the whole load so a UI never paints a half-restored state.
 	_cash = maxi(0, int(data.get("cash", DEFAULT_CASH)))
 	_lifetime_wood_chopped = maxi(0, int(data.get("lifetime_wood_chopped", 0)))
+
+	_yard_pile = {}
+	var pile: Variant = data.get("yard_pile")
+	if pile is Dictionary:
+		for key: Variant in pile as Dictionary:
+			# String through the file, StringName to every reader — same trap the
+			# building tiers hit.
+			var n := maxi(0, int((pile as Dictionary)[key]))
+			if n > 0:
+				_yard_pile[StringName(key)] = n
 
 	var tiers: Variant = data.get("tool_tiers")
 	if tiers is Dictionary:
@@ -151,6 +209,7 @@ func apply_save_dict(data: Dictionary) -> void:
 
 	cash_changed.emit(_cash)
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
+	yard_pile_changed.emit(get_yard_pile_count())
 
 
 func reset_to_defaults() -> void:
@@ -158,6 +217,7 @@ func reset_to_defaults() -> void:
 	## which need a known slate without restarting the process.
 	_cash = DEFAULT_CASH
 	_lifetime_wood_chopped = 0
+	_yard_pile = {}
 	_tool_tiers = {
 		Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
 		Enums.ToolType.PICKAXE: DEFAULT_TOOL_TIER,
@@ -166,6 +226,7 @@ func reset_to_defaults() -> void:
 	_unlocked_biomes = { Enums.Biome.PINE_FOREST: true }
 	cash_changed.emit(_cash)
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
+	yard_pile_changed.emit(0)
 
 ## ------------------------------------------- writes (EventBus-driven ONLY)
 func _on_gear_upgraded(tool_type: Enums.ToolType, new_tier: int) -> void:

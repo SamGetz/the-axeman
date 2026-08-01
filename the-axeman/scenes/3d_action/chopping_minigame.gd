@@ -164,12 +164,21 @@ const _LOG_SPECIES: Array[Dictionary] = [
 @export var pile_apex_extra := 0.3048    # ref 12in: arc height of a flung piece
 @export var pile_fly_ms := 500.0         # travel takes this * 1.6
 @export var pile_stagger_ms := 300.0     # cascade spread across the batch
-## PLACEHOLDER per Directive 3 — how much firewood the yard SHOWS at once. The
-## stockpile is a view of InventoryManager, and stock has no ceiling, so this is
-## the point where "the place grows" stops being one mesh per piece. Above it the
-## counter keeps climbing and the pile does not. If Sam wants the pile to keep
-## growing past this, A12/Amendment 15's MultiMesh consolidation is the route.
-@export var max_pile_pieces := 120
+## Creative Director call, 2026-08-01: the pile builds to 50 pieces and is then
+## HAULED AWAY — the whole load flies off screen and the yard starts a fresh
+## stack. It doubles as A12's ceiling on how many pile meshes exist at once.
+@export var max_pile_pieces := 50
+@export var haul_distance := 9.0         # how far a hauled piece flies before it is dropped (m)
+@export var haul_rise := 2.2             # how high it arcs on the way out (m)
+@export var haul_ms := 700.0             # travel time per piece
+@export var haul_stagger_ms := 600.0     # spread across the load, so it leaves as a wave
+
+## The yard buys every piece the moment it lands on the pile (Creative Director
+## call, 2026-08-01 — "as soon as the pieces enter the pile, they should be
+## converted to their cash value"). OFF for the M4 suite, which tests the chopping
+## game's yield contract — that a finished piece deposits stock — and would
+## otherwise be watching the economy sell that stock out from under it.
+@export var auto_sell := true
 
 # --- axe ------------------------------------------------------------------
 @export_group("Axe")
@@ -199,6 +208,7 @@ var _animator := _PieceAnimator.new()
 var _pile := _WoodPile.new()
 var _pieces_root: Node3D                  # identity-transform parent so piece.position == world
 var _pile_root: Node3D                    # frozen stacked firewood proxies live here
+var _haul_root: Node3D                    # a load on its way out of the yard; NOT part of the pile any more
 var _on_block: Array = []                 # Array[Area3D] — script-animated pieces on the block
 var _firewood: Array = []                 # Array[RigidBody3D] — the only physics pieces
 var _pending: Dictionary = {}             # in-flight strike waiting out anticipation_sec
@@ -237,6 +247,12 @@ func _ready() -> void:
 	_pile_root = Node3D.new()
 	_pile_root.name = "Pile"
 	add_child(_pile_root)
+	# A hauled load is reparented out of the pile the instant it is handed over, so
+	# the next stack can start building underneath it without the two ever sharing
+	# a node or a slot.
+	_haul_root = Node3D.new()
+	_haul_root.name = "Haul"
+	add_child(_haul_root)
 	_configure_pile()
 
 	_audio = AudioStreamPlayer3D.new()
@@ -250,15 +266,14 @@ func _ready() -> void:
 	_build_axe()
 	_spawn_fresh_log()
 
-	# The stockpile is a VIEW of the firewood in InventoryManager (see
-	# _rebuild_pile_from_stock), so the yard you come back to is the yard you
-	# left. Nothing new is saved for it — stock already persists, and the pile is
-	# derived from stock, so there is no second copy of the truth to fall out of
-	# step with the first.
-	# (_spawn_fresh_log above has already built the pile from stock; these keep it
-	# in step with every later sale, load and re-entry.)
-	InventoryManager.inventory_changed.connect(_on_stock_changed)
-	EventBus.minigame_entered.connect(_on_minigame_entered)
+	# The pile on screen is a view of GameState's yard pile, so the yard you come
+	# back to is the yard you left.
+	#
+	# This connection is what makes a LOADED SAVE show its pile at all: a child's
+	# _ready runs before its parent's, so this scene is built before main.gd has
+	# read the save off disk, and the pile it builds in _spawn_fresh_log above is
+	# necessarily empty. The load lands moments later and this rebuilds on it.
+	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
 
 
 func _exit_tree() -> void:
@@ -279,10 +294,20 @@ func _process(delta: float) -> void:
 	if _awaiting_stack and _firewood_settled():
 		_begin_stacking()
 
+	# The load on its way out is animated independently of the stack coming in, so
+	# the player can chop through a haul-away instead of waiting for it.
+	if _pile.is_hauling:
+		_pile.update_haul()
+
 	if _stacking:
 		_pile.update()
 		if not _pile.is_animating:
 			_stacking = false
+			# The last piece of the load has landed and been paid for. If that
+			# filled the yard, the whole pile leaves now — before the next log
+			# drops, so the fresh stack starts on clear ground.
+			if GameState.get_yard_pile_count() >= max_pile_pieces:
+				_haul_away()
 			_spawn_fresh_log(false)   # keep the pile; grow it with the next log
 
 
@@ -298,18 +323,21 @@ func _configure_pile() -> void:
 	_pile.apex_extra = pile_apex_extra
 	_pile.fly_duration = pile_fly_ms
 	_pile.stagger = pile_stagger_ms
+	_pile.haul_distance = haul_distance
+	_pile.haul_rise = haul_rise
+	_pile.haul_duration = haul_ms
+	_pile.haul_stagger = haul_stagger_ms
 
 
 # ------------------------------------------------- the yard's stockpile (M7A)
-## The pile the player can SEE is a view of the firewood they OWN.
+## The pile the player can SEE is the work they have done since the last load left
+## the yard — GameState's yard pile, one mesh per piece.
 ##
-## The roadmap asks for two kinds of progress at once — "numbers grow" and "the
-## place grows" — and the cheapest honest way to get the second is to stop
-## treating the pile as a record of this session's chopping and start treating it
-## as a rendering of InventoryManager. Consequences, all of them wanted:
-##   * a loaded save shows the yard you left, without saving a single new field;
-##   * selling firewood SHRINKS the pile, so a sale costs you something visible;
-##   * a new species appears in the pile the moment you own a piece of it.
+## The firewood itself is NOT in it: the yard buys each piece the moment it lands
+## (Creative Director call, 2026-08-01), so by the time a piece is stacked it has
+## already been paid for. The pile is therefore a record of work, not of property,
+## which is why it lives in GameState next to the lifetime counter rather than
+## being derived from InventoryManager.
 ##
 ## REBUILT, not maintained. A rebuild is instant and total: the arc packing in
 ## wood_pile.gd is deterministic and has no notion of removing one piece from the
@@ -318,10 +346,8 @@ func _configure_pile() -> void:
 ## Deliberately NOT called while a batch is flying in. Freshly cut pieces are the
 ## real sliced meshes and they animate into the pile; rebuilding on top of that
 ## would swap them for stand-ins mid-flight and throw away the best moment in the
-## game. Stock and pile agree anyway during a session: a rebuild sets the pile to
-## the stock count, and every piece that flies in afterwards is one the stock also
-## gained.
-func _rebuild_pile_from_stock() -> void:
+## game.
+func _rebuild_pile_from_yard() -> void:
 	if _stacking or _awaiting_stack:
 		return
 	for c in _pile_root.get_children():
@@ -339,17 +365,19 @@ func _rebuild_pile_from_stock() -> void:
 		_pile.place_settled(node)
 
 
-## How many pieces of each species the pile should show: the player's actual
-## counts, scaled down together if the yard holds more than `max_pile_pieces` so
-## the mix on show still reflects the mix owned.
+## How many pieces of each species to stack, from GameState's yard pile. Capped at
+## `max_pile_pieces`, scaled down together so the mix on show still reflects the
+## mix that was cut — the cap only bites on a save written before it was lowered,
+## since a live pile is hauled away the moment it reaches it.
 func _pile_plan() -> Dictionary:
+	var yard := GameState.get_yard_pile()
 	var counts: Dictionary = {}
 	var total := 0
 	for i in range(_LOG_SPECIES.size()):
 		var item: StringName = _LOG_SPECIES[i].get("yield_item", &"")
 		if item == &"":
 			continue
-		var n := InventoryManager.get_count(item)
+		var n := int(yard.get(item, 0))
 		if n <= 0:
 			continue
 		counts[i] = n
@@ -426,18 +454,50 @@ func _quarter(whole: ArrayMesh, mat: StandardMaterial3D) -> ArrayMesh:
 		MeshUtils.jag_cut(second.below, plane_z, mat, cut_jag_amount, _cut_noise))
 
 
-## Stock moved. A sale (or a load) has to be reflected; a deposit made by the
-## chopping in progress must NOT be, because those pieces are already flying in.
-func _on_stock_changed(_item_id: StringName, _new_count: int) -> void:
+## The yard pile changed under us — a save loaded, or a haul-away emptied it.
+##
+## The pieces THIS scene adds one at a time as they land also come through here,
+## and must not trigger anything: the count check below is what tells the two
+## apart. If the pile on screen already shows what GameState says it holds, there
+## is nothing to rebuild, and a landing piece is by definition already shown.
+func _on_yard_pile_changed(total: int) -> void:
 	if _stacking or _awaiting_stack:
 		return
-	_rebuild_pile_from_stock()
+	if _pile_root.get_child_count() == mini(total, max_pile_pieces):
+		return
+	_rebuild_pile_from_yard()
 
 
-## Coming back into the yard: whatever was sold from the 2D side while the 3D
-## world was process-disabled (A10) is reflected now.
-func _on_minigame_entered(_biome: Enums.Biome) -> void:
-	_rebuild_pile_from_stock()
+## A piece has come to rest on the pile. This is the moment the yard pays for it
+## (Sam's call: converted to cash on entering the pile, never sold by hand), and
+## the moment it starts counting toward the load that gets hauled away.
+##
+## The sale goes through Market like any other, so the price table stays the one
+## place a piece's worth is decided and Directive 6 still holds — the stock leaves
+## through InventoryManager and the cash arrives through GameState.
+func _on_piece_landed(item_id: StringName) -> void:
+	GameState.add_to_yard_pile(item_id, 1)
+	if not auto_sell:
+		return
+	if Market.sell(item_id, 1) <= 0:
+		# Priced at nothing, or nothing in stock to sell: the piece still stacks,
+		# so the yard never eats wood it did not pay for.
+		push_warning("chopping_minigame: '%s' landed on the pile but could not be sold." % item_id)
+
+
+## The load is full: the whole pile leaves the yard in a staggered wave while the
+## player carries on chopping into the empty space it left.
+func _haul_away() -> void:
+	if _pile.is_hauling:
+		return
+	var load_out: Array = []
+	for c in _pile_root.get_children():
+		_pile_root.remove_child(c)
+		_haul_root.add_child(c)
+		load_out.append(c)
+	_pile.reset()
+	GameState.clear_yard_pile()
+	_pile.start_hauling(load_out)
 
 
 ## True once every live firewood body has (nearly) stopped, or the wait times out.
@@ -487,7 +547,9 @@ func _begin_stacking() -> void:
 			EventBus.resource_gathered.emit(yield_item, 1)
 
 	_stacking = true
-	_pile.start_stacking(proxies, Callable())
+	# Each piece pays out as it comes to rest, so the cash ticks up in the same
+	# cascade the player is watching land.
+	_pile.start_stacking(proxies, Callable(), _on_piece_landed.bind(yield_item))
 
 
 # --------------------------------------------------------------- input
@@ -887,10 +949,10 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 		for c in _pile_root.get_children():
 			c.queue_free()
 		_pile.reset()
-		# The pile is a view of stock, not of this session (see
-		# _rebuild_pile_from_stock), so clearing it means rebuilding it — otherwise
+		# The pile is a view of the yard, not of the log on the block (see
+		# _rebuild_pile_from_yard), so clearing it means rebuilding it — otherwise
 		# an R-key reset would look like the yard had been robbed.
-		_rebuild_pile_from_stock()
+		_rebuild_pile_from_yard()
 
 	# Select the next log's species — the species is what this log will yield,
 	# and what its exposed end-grain looks like when it is cut.

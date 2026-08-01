@@ -16,8 +16,11 @@ extends Node
 ##     player's yard
 ##   - the ALWAYS-AVAILABLE BASIC BUYER pays the price table, refuses anything it
 ##     is not priced for, and settles a sale atomically in both directions
-##   - the YARD HUD shows cash/stock/lifetime live off the local signals, sells
-##     from its own rows, and carries the REAL entry flow that replaced the M key
+##   - the YARD HUD shows cash/pile/lifetime live off the local signals, opens the
+##     shop, and carries the REAL entry flow that replaced the M key
+##   - the YARD PILE is a view of GameState, survives a load that lands after the
+##     scene is built, and is HAULED AWAY when it fills
+##   - a piece PAYS FOR ITSELF as it lands on the pile — there is no manual selling
 ##
 ## Every check asserts a positive quantity. Several of these would pass trivially
 ## against a game with the feature deleted if they only asserted bounds — cash
@@ -55,9 +58,10 @@ func _ready() -> void:
 	_test_10_buyer_prices_only_what_it_wants()
 	_test_11_a_sale_is_atomic()
 	_test_12_sell_everything_is_one_transaction()
-	await _test_13_yard_hud_is_live_and_sells()
+	await _test_13_yard_hud_is_live_and_shops()
 	await _test_14_hud_carries_the_entry_flow()
 	await _test_15_the_pile_is_a_view_of_stock()
+	await _test_16_pieces_pay_as_they_land_and_the_load_is_hauled()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -371,51 +375,56 @@ func _test_12_sell_everything_is_one_transaction() -> void:
 # -------------------------------------------------------------------- the HUD
 ## Drives the REAL yard_hud.tscn. A reimplementation of it here would prove
 ## nothing about the scene the player actually sees.
-func _test_13_yard_hud_is_live_and_sells() -> void:
+func _test_13_yard_hud_is_live_and_shops() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
 	await get_tree().process_frame
 
-	var cash_label: Label = hud.get_node("TopBar/Stats/CashLabel")
+	var cash_label: Label = hud.get_node("TopBar/Stats/CashRow/CashLabel")
+	var cash_icon: TextureRect = hud.get_node("TopBar/Stats/CashRow/CashIcon")
+	var pile_label: Label = hud.get_node("TopBar/Stats/PileLabel")
 	var lifetime_label: Label = hud.get_node("TopBar/Stats/LifetimeLabel")
-	var stock_list: VBoxContainer = hud.get_node("YardPanel/Column/StockList")
-	var sell_all: Button = hud.get_node("YardPanel/Column/SellAllButton")
+	var shop_button: Button = hud.get_node("YardPanel/Column/ShopButton")
+	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
 
-	_check(stock_list.get_child_count() == 0, "an empty yard shows no stock rows")
-	_check(sell_all.disabled, "...and 'Sell all' is disabled with nothing to sell")
+	_check(cash_label.text == "0", "a fresh yard reads 0 cash")
+	_check(pile_label.text.contains("0"), "...and 0 stacked in the yard: '%s'" % pile_label.text)
 
-	# One finished log, deposited exactly the way the mini-game deposits it: six
-	# separate A7 signals, one per piece, all inside this frame.
+	# There is nothing to sell by hand any more: the yard buys a piece as it lands.
+	_check(hud.get_node_or_null("YardPanel/Column/StockList") == null
+			and hud.get_node_or_null("YardPanel/Column/SellAllButton") == null,
+		"the manual sell rows and 'Sell all' are GONE from the yard panel")
+
+	# A finished log the way the mini-game reports it: the A7 gather, the sale, and
+	# the piece landing on the pile.
+	var birch := Market.get_price(&"birch_firewood")
 	for i in range(6):
 		EventBus.resource_gathered.emit(&"birch_firewood", 1)
+		Market.sell(&"birch_firewood", 1)
+		GameState.add_to_yard_pile(&"birch_firewood", 1)
 
-	# The load-bearing check, and the same shape as the autosave one above: an
-	# eager rebuild would already show the row here, having thrown the list away
-	# and rebuilt it six times for one chop.
-	_check(stock_list.get_child_count() == 0,
-		"the six deposits have not rebuilt the list yet — the rebuild is coalesced, not per-signal")
-
-	await get_tree().process_frame   # the deferred rebuild lands here
-
-	_check(stock_list.get_child_count() == 1,
-		"...and one frame later there is exactly ONE row for the six pieces")
-	_check(lifetime_label.text.contains("6"), "the lifetime label shows the 6 chopped: '%s'" % lifetime_label.text)
-	_check(not sell_all.disabled, "...and 'Sell all' has enabled itself")
-
-	var birch := Market.get_price(&"birch_firewood")
-	var row_button: Button = stock_list.get_child(0).get_child(1)
-	row_button.pressed.emit()
 	_check(GameState.get_cash() == birch * 6,
-		"the row's own Sell button sold all 6 for exactly %d" % (birch * 6))
-	_check(cash_label.text.contains(str(birch * 6)),
-		"...and the cash label repainted off cash_changed: '%s'" % cash_label.text)
+		"six birch pieces paid out %d as they landed" % (birch * 6))
+	_check(cash_label.text == str(birch * 6),
+		"...the cash label repainted off cash_changed: '%s'" % cash_label.text)
+	_check(pile_label.text.contains("6"),
+		"...the pile counter repainted off yard_pile_changed: '%s'" % pile_label.text)
+	_check(lifetime_label.text.contains("6"),
+		"...and the lifetime label shows the 6 chopped: '%s'" % lifetime_label.text)
+	_check(InventoryManager.get_count(&"birch_firewood") == 0,
+		"...leaving no stock to manage — the wood was bought, not stored")
 
-	await get_tree().process_frame
-	_check(stock_list.get_child_count() == 0, "...and the sold-out row removed itself")
-	_check(GameState.get_lifetime_wood_chopped() == 6,
-		"...while lifetime chopped still reads 6 after the sale")
+	# Sam's coin, on the door of the shop.
+	_check(shop_button.icon != null and shop_button.icon.resource_path.ends_with("coin.png"),
+		"the shop button wears the coin icon (%s)" % ("none" if shop_button.icon == null else shop_button.icon.resource_path))
+	_check(cash_icon.texture != null, "...and the cash readout has a coin beside it")
+	_check(not shop_panel.visible, "the shop starts closed")
+	shop_button.pressed.emit()
+	_check(shop_panel.visible, "...the coin button opens it")
+	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
+	_check(not shop_panel.visible, "...and Close shuts it again")
 
 	hud.queue_free()
 	await get_tree().process_frame
@@ -459,8 +468,9 @@ func _test_14_hud_carries_the_entry_flow() -> void:
 
 
 # ------------------------------------------------------------- the stockpile
-## The yard's visible woodpile is a VIEW of InventoryManager, so it survives a
-## reload without saving anything new and it shrinks when wood is sold.
+## The yard's visible woodpile is a VIEW of GameState's yard pile, so it survives
+## a reload — including the one that matters, where the save lands AFTER this
+## scene has already built itself empty.
 ##
 ## Every check here counts pieces AND looks at where they are. A pile check that
 ## only counted would pass just as well on a build that dropped every piece at the
@@ -476,12 +486,13 @@ func _test_15_the_pile_is_a_view_of_stock() -> void:
 	var pile: Node3D = game.get_node("Pile")
 	_check(pile.get_child_count() == 0, "an empty yard shows an empty pile")
 
-	# Stock arriving from a LOAD, not from chopping: nothing flew in, so the pile
-	# has to be rebuilt from the counts alone.
-	InventoryManager.apply_save_dict({"oak_firewood": 5, "birch_firewood": 3})
+	# A save landing on a scene that is already running — the real boot order, since
+	# a child's _ready runs before its parent's and main.gd loads the save in its.
+	GameState.apply_save_dict({"cash": 40, "yard_pile": {"oak_firewood": 5, "birch_firewood": 3}})
 	await get_tree().process_frame
+	_check(GameState.get_yard_pile_count() == 8, "the save restored a yard pile of 8")
 	_check(pile.get_child_count() == 8,
-		"a save holding 5 oak + 3 birch rebuilds a pile of exactly 8 pieces (got %d)" % pile.get_child_count())
+		"...and the scene rebuilt it as exactly 8 stacked pieces (got %d)" % pile.get_child_count())
 
 	# ...and they are actually stacked somewhere, in two different woods.
 	var positions: Array[Vector3] = []
@@ -505,25 +516,75 @@ func _test_15_the_pile_is_a_view_of_stock() -> void:
 	_check(meshes.size() >= 2,
 		"...built from more than one billet mesh, so two woods are not one repeated block")
 
-	# A sale is the point: the wood leaves the yard, so it leaves the pile.
-	var earned := Market.sell_all_of(&"oak_firewood")
+	# The pile is NOT inventory: owning firewood puts nothing on it, because by the
+	# time a piece is stacked the yard has already bought it.
+	InventoryManager.apply_save_dict({"oak_firewood": 20})
 	await get_tree().process_frame
-	_check(earned > 0, "the 5 oak sold for %d" % earned)
-	_check(pile.get_child_count() == 3,
-		"...and the pile shrank to the 3 birch still owned (got %d)" % pile.get_child_count())
-
-	# The cap: stock has no ceiling, the yard does.
-	game.max_pile_pieces = 4
-	InventoryManager.apply_save_dict({"birch_firewood": 50})
-	await get_tree().process_frame
-	_check(pile.get_child_count() == 4,
-		"50 pieces of one species show as exactly max_pile_pieces (4), not 50 (got %d)" % pile.get_child_count())
-	_check(InventoryManager.get_count(&"birch_firewood") == 50,
-		"...while the stock itself is untouched at 50 — the cap is a view limit, not a loss")
+	_check(pile.get_child_count() == 8,
+		"20 pieces of stock add nothing to the pile — it shows work done, not property")
 
 	game.queue_free()
 	await get_tree().process_frame
 	InventoryManager.apply_save_dict({})
+
+
+## The loop Sam asked for, end to end on the real scene: chop a log down, watch
+## each piece pay for itself as it lands, and watch the full load leave the yard.
+##
+## The pile's fly-in runs on a REAL-TIME clock, so the timings are turned right
+## down here rather than waited out — a headless frame loop outruns a real-time
+## animation, which is exactly why pile_smoke has to run non-headless.
+func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	game.debug_forced_species = 0        # oak, so the payout is a known price
+	game.pile_fly_ms = 20.0
+	game.pile_stagger_ms = 10.0
+	game.firewood_settle_timeout = 0.2
+	game.max_pile_pieces = 3             # a load small enough to fill in one log
+	game.haul_ms = 20.0
+	game.haul_stagger_ms = 10.0
+	add_child(game)
+	await get_tree().process_frame
+
+	var pile: Node3D = game.get_node("Pile")
+	var safety := 0
+	while game.cuttable_count() > 0 and safety < 60:
+		game.debug_slice_world(Plane(Vector3.RIGHT if safety % 2 == 0 else Vector3.BACK, 0.0))
+		safety += 1
+		await get_tree().process_frame
+	var pieces: int = game.piece_count()
+	_check(pieces > 0, "the log chopped down into %d pieces of firewood" % pieces)
+
+	await _wait(1.2)   # settle timeout, then the whole (shortened) fly-in
+
+	var oak := Market.get_price(&"oak_firewood")
+	_check(GameState.get_cash() == oak * pieces,
+		"every piece paid %d as it landed — %d pieces, %d cash" % [oak, pieces, GameState.get_cash()])
+	_check(InventoryManager.get_count(&"oak_firewood") == 0,
+		"...and none of it is left in stock: the yard bought it, the player never sold it")
+	_check(GameState.get_lifetime_wood_chopped() == pieces,
+		"...while lifetime chopped counts all %d" % pieces)
+
+	# The load filled the yard, so it was hauled off.
+	_check(pieces >= 3, "the load reached the %d-piece haul threshold" % 3)
+	_check(GameState.get_yard_pile_count() == 0,
+		"...so the yard pile emptied (got %d)" % GameState.get_yard_pile_count())
+	await _wait(1.0)
+	_check(pile.get_child_count() == 0,
+		"...and the pieces are gone from the pile, hauled off screen (got %d)" % pile.get_child_count())
+	_check(GameState.get_cash() == oak * pieces,
+		"...and hauling paid nothing extra — the wood was already bought (%d)" % GameState.get_cash())
+
+	game.queue_free()
+	await get_tree().process_frame
+	InventoryManager.apply_save_dict({})
+
+
+func _wait(seconds: float) -> void:
+	await get_tree().create_timer(seconds, true, false, true).timeout
 
 
 # ------------------------------------------------------------------ fixture

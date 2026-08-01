@@ -78,6 +78,11 @@ func _on_gathered(item: StringName, amount: int) -> void:
 func _make_minigame(forced_species: int) -> Node3D:
 	var mg: Node3D = _MINIGAME.instantiate()
 	mg.debug_forced_species = forced_species
+	# M4 tests the YIELD contract: a finished piece deposits stock. Since
+	# 2026-08-01 the yard buys that stock back the moment the piece lands on the
+	# pile, which would empty the very inventory these tests are counting — so the
+	# economy layer is switched off here. Its own behaviour is m7a_acceptance's.
+	mg.auto_sell = false
 	add_child(mg)
 	await get_tree().process_frame   # let _ready() build the stump + drop the first log
 	return mg

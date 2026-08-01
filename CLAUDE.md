@@ -88,7 +88,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 4000 res://core/tests/m7a_acceptance.tscn` | **94/94** |
+| M7A | `--quit-after 6000 res://core/tests/m7a_acceptance.tscn` | **103/103** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -289,17 +289,19 @@ pushed into data instead of invented. **Still no sign-off.**
   without their fix (a mixed oak+stone basket part-sells without the per-line
   price check; swapping the order pays for a sale that never happened).
 - **`res://scenes/2d_management/yard_hud.tscn/.gd`** is instanced under
-  `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). It shows cash,
-  stock value and lifetime chopped; one sell row per species; "Sell all"; and the
-  entry-flow buttons. It updates off `cash_changed`,
-  `lifetime_wood_chopped_changed` and `inventory_changed` — never polled, which is
-  exactly what Amendment 2 added those local signals for.
-- **The stock rows are BUILT FROM DATA at runtime**, from
-  `Market.get_sellable_stock()`, so a new wood species appears in the yard the
-  moment it has a price and a piece in stock — no scene edit. The rebuild is
-  deferred/coalesced for the same reason the autosave is (a six-piece log fires
-  six `inventory_changed` in one frame), and that guard is proven to fail without
-  its fix too.
+  `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). It shows cash
+  (with Sam's coin beside it), how much is stacked in the yard, and lifetime
+  chopped; plus the shop and the entry-flow buttons. It updates off
+  `cash_changed`, `lifetime_wood_chopped_changed` and `yard_pile_changed` — never
+  polled, which is exactly what Amendment 2 added those local signals for.
+- **THERE IS NO MANUAL SELLING** (Creative Director call, 2026-08-01 — see the
+  auto-sell section below). The per-species sell rows and "Sell all" this HUD
+  shipped with on the same day are GONE; `Market` is still the buyer, it is just
+  called by the yard as each piece lands instead of by a button.
+- **The shop is an empty room ON PURPOSE.** `assets/ui/coin.png` (Sam's art) is
+  the shop's icon on the button and on its header; the panel itself says what
+  will be sold there. Upgrades and new woods are blocked on Sam's numbers
+  (Directive 3), so this is the door and the counter, with nothing on the shelves.
 - **THE TEMP M KEY IS GONE.** "Go chopping" / "Back to the yard" emit the same A7
   `minigame_entered` / `minigame_exited` the key did, so `main.gd`'s A10 mode
   switch is unchanged and is now driven by the production path. The HUD switches
@@ -313,27 +315,41 @@ pushed into data instead of invented. **Still no sign-off.**
   rendering, it does not clear it). It reads fine — the yard IS the chopping site
   — but if you want the yard to be its own view, that is a design decision, not a
   bug fix.
-### M7A — the stockpile is a VIEW of stock (2026-08-01)
+### M7A — the pile pays as it lands, and the load is hauled away (2026-08-01)
 
-The roadmap's "visibly growing stockpile", built third because it was the only
-remaining M7A item that needed no tuning value from Sam.
+**Creative Director call, and it REPLACED the model shipped earlier the same day:**
+*"I think we should have the pile of chopped wood still build up, but we shouldn't
+be selling it manually — as soon as the pieces enter the pile, they should be
+converted to their cash value. Once the pile hits 50 pieces, it can animate off
+screen in a fun way, similarly to how it animates on to the pile after it is
+chopped."*
 
-- **The pile the player can see IS the firewood they own.** `chopping_minigame`
-  rebuilds `_pile_root` from `InventoryManager` — so a loaded save shows the yard
-  you left, selling firewood SHRINKS the pile, and a new species appears in it the
-  moment you own a piece. **Nothing new is saved for it**: stock already persists
-  and the pile is derived, so there is no second copy of the truth to drift.
+- **A piece is bought the MOMENT IT LANDS.** `WoodPile.start_stacking` now takes an
+  `on_piece_settled` callback and fires it as each piece comes to rest, so the cash
+  ticks up in the same cascade the player is watching land, not in one lump before
+  the wood has arrived. `chopping_minigame._on_piece_landed` is that callback: it
+  adds the piece to the yard pile and sells it through `Market`, so the price table
+  is still the one place a piece's worth is decided and Directive 6 still holds.
+- **`auto_sell` (@export, default true) is OFF in `m4_acceptance`.** M4 tests the
+  chopping game's YIELD contract — a finished piece deposits stock — and the
+  economy would otherwise sell that stock out from under it. Two suites, two
+  concerns; nothing about the deposit changed.
+- **The pile is no longer a view of InventoryManager.** It could not be: the wood
+  is paid for and gone by the time it is stacked. It is now a view of
+  **`GameState`'s yard pile** (`add_to_yard_pile` / `clear_yard_pile` /
+  `yard_pile_changed`, saved in `to_save_dict`) — a record of WORK DONE since the
+  last load left, which is progression, which is why it lives there.
+- **A LOADED SAVE lands after this scene is built** — a child's `_ready` runs
+  before its parent's, so the pile builds empty and `main.gd` reads the save
+  moments later. The `yard_pile_changed` connection is what makes a restored pile
+  appear at all; the count check in `_on_yard_pile_changed` is what stops the
+  pieces this scene adds one at a time from triggering a rebuild on top of the
+  animation that is placing them.
 - **Rebuilt, never patched.** `wood_pile.gd`'s arc packing is deterministic and
   has no way to pull one piece out of the middle of a stack, so a change rebuilds
-  the whole pile instantly via the new `WoodPile.place_settled()` — which shares
+  the whole pile instantly via `WoodPile.place_settled()` — which shares
   `_slot_layout`/`_sim_to_world` with the animated path, so a restored pile packs
   exactly like one the player watched being thrown together.
-- **NOT rebuilt while a batch is flying in** (`_stacking` / `_awaiting_stack`
-  guard). Freshly cut pieces are the REAL sliced meshes and they animate into the
-  pile; rebuilding on top of that would swap them for stand-ins mid-flight and
-  throw away the best moment in the game. Stock and pile stay in step anyway: a
-  rebuild sets the pile to the stock count, and every piece that flies in
-  afterwards is one the stock also gained.
 - **Stand-in pieces are made by SLICING that species' own log** — two centre cuts
   into a quarter column with jagged cut faces, which is what the first two clicks
   on it would produce. A box would have been cheaper and would have looked like a
@@ -341,17 +357,25 @@ remaining M7A item that needed no tuning value from Sam.
   player owns none of never loads its FBX. NOTE it calls `MeshUtils.jag_cut` with
   the SPECIMEN's material, not through `_jag_cut()`, which roughens only what
   matches the log currently on the block.
-- **`max_pile_pieces` (120) is a PLACEHOLDER** and the point where "the place
-  grows" stops being one mesh per piece: above it the counter keeps climbing and
-  the pile does not. If Sam wants it to keep growing, A12/Amendment 15's MultiMesh
-  consolidation is the route (and its traps are recorded at the bottom of the
-  retired-amendments section).
-- Verified by 9 checks in `m7a_acceptance` that count pieces AND look at where
-  they are — distinct slots, stacked upward, more than one billet mesh — because
-  a pile check that only counted would pass on a build that dropped every piece
-  inside the stump. Proven to fail without its fix (unwire `inventory_changed`
-  and six of them go red), and RENDERED: `hud_shot` shots 3 and 4 are a 65-piece
-  yard and the same yard after a sale.
+- **THE HAUL-AWAY at `max_pile_pieces` (50, Sam's number).** `WoodPile.start_hauling`
+  lifts every piece, arcs it outward away from the stump and tumbles it off past
+  the horizon in a staggered wave — the fly-in run backwards. It has its OWN
+  animation list and its own `_haul_root` parent, deliberately independent of the
+  stack coming in, so **the player can chop straight through a haul-away** instead
+  of waiting for the yard to tidy itself. It pays nothing: the wood was bought as
+  it landed.
+- Verified by 15 checks in `m7a_acceptance`, including a full chop on the real
+  scene (4 pieces, 5 cash each, hauled at the cap) and pile checks that count
+  pieces AND look at where they are — distinct slots, stacked upward, more than one
+  billet mesh — because a count-only check would pass on a build that dropped every
+  piece inside the stump. Both halves are proven to fail without their fix
+  (`auto_sell = false` kills the payout checks; disarming the threshold leaves the
+  load sitting in the yard). RENDERED: `hud_shot` shoots the shop, a 40-piece pile
+  and the haul CAUGHT MID-FLIGHT, which no counter could have told us.
+- **Still open, and Sam's call:** the pile does not tell you how close it is to
+  the 50 that triggers a haul — the HUD reads "Stacked in the yard: 40" with no
+  denominator, because the threshold lives on the mini-game and duplicating it in
+  the UI would give the number two owners.
 
 - Still to do in M7A: three authored orders, five upgrades and an unlockable
   second species. All three are blocked on tuning values (Directive 3).
@@ -682,6 +706,8 @@ whether boards become per-species before writing any upgrade data.
   hard edges fine, readable silhouettes.
 - Fragment pivots at the piece's landing/contact point (predictable A12
   physics).
+- Live art in `res://assets/ui/`: `coin.png` (Sam's drop, 2026-08-01) — the
+  shop's icon and the cash readout's.
 - Live art in `res://assets/models/`: `axe_basic`, `chopping_stump_a`,
   `forest_floor`, `logs_export` (log_01…log_05). `trees_export` was deleted in
   the pivot.
