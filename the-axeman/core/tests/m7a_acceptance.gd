@@ -47,6 +47,7 @@ func _ready() -> void:
 	_test_6_corrupt_save_is_survivable()
 	_test_7_newer_save_is_preserved_not_clobbered()
 	_test_8_unregistered_ids_are_dropped()
+	await _test_9_autosave_on_inventory_change()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -103,13 +104,13 @@ func _test_3_lifetime_counts_wood_only() -> void:
 	_lifetime_events.clear()
 	_check(GameState.get_lifetime_wood_chopped() == 0, "lifetime wood starts at 0")
 
-	EventBus.resource_gathered.emit(&"oak_log", 4)
-	EventBus.resource_gathered.emit(&"birch_log", 3)
+	EventBus.resource_gathered.emit(&"oak_firewood", 4)
+	EventBus.resource_gathered.emit(&"birch_firewood", 3)
 	_check(GameState.get_lifetime_wood_chopped() == 7,
 		"7 pieces of wood across two species count as exactly 7 (not 2 gathers, not 1 species)")
 
-	# Category filter, not an id list — this is what survives the still-open
-	# question of whether the yield is called *_log or *_firewood.
+	# Category filter, not an id list. That choice is what let the whole registry
+	# be renamed *_log -> *_firewood without touching a line of the counter.
 	EventBus.resource_gathered.emit(&"stone", 50)
 	EventBus.resource_gathered.emit(&"ruby", 5)
 	_check(GameState.get_lifetime_wood_chopped() == 7,
@@ -121,14 +122,14 @@ func _test_3_lifetime_counts_wood_only() -> void:
 func _test_4_lifetime_never_decreases() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	EventBus.resource_gathered.emit(&"oak_log", 10)
+	EventBus.resource_gathered.emit(&"oak_firewood", 10)
 	var peak := GameState.get_lifetime_wood_chopped()
 	_check(peak == 10, "lifetime reached exactly 10")
 
 	# Selling stock is the thing most likely to be wired into this by accident.
-	var sold: bool = InventoryManager.remove_items([{"item_id": &"oak_log", "amount": 10}])
-	_check(sold, "10 oak_log sold out of inventory")
-	_check(InventoryManager.get_count(&"oak_log") == 0, "...stock is now 0")
+	var sold: bool = InventoryManager.remove_items([{"item_id": &"oak_firewood", "amount": 10}])
+	_check(sold, "10 oak_firewood sold out of inventory")
+	_check(InventoryManager.get_count(&"oak_firewood") == 0, "...stock is now 0")
 	_check(GameState.get_lifetime_wood_chopped() == peak,
 		"...but lifetime wood chopped still reads 10 — selling never un-chops wood")
 
@@ -140,7 +141,7 @@ func _test_5_save_round_trip() -> void:
 	InventoryManager.apply_save_dict({})
 
 	GameState.add_cash(1234)
-	EventBus.resource_gathered.emit(&"birch_log", 9)
+	EventBus.resource_gathered.emit(&"birch_firewood", 9)
 	EventBus.gear_upgraded.emit(Enums.ToolType.AXE, 3)
 	EventBus.building_upgraded.emit(&"wood_shed", 2)
 	EventBus.environment_unlocked.emit(Enums.Biome.MOSSY_QUARRY)
@@ -158,7 +159,7 @@ func _test_5_save_round_trip() -> void:
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "load_game() reports OK")
 	_check(GameState.get_cash() == 1234, "cash restored to exactly 1234")
 	_check(GameState.get_lifetime_wood_chopped() == 9, "lifetime wood restored to exactly 9")
-	_check(InventoryManager.get_count(&"birch_log") == 9, "birch_log stock restored to exactly 9")
+	_check(InventoryManager.get_count(&"birch_firewood") == 9, "birch_firewood stock restored to exactly 9")
 	_check(GameState.get_tool_tier(Enums.ToolType.AXE) == 3, "axe tier restored to 3")
 	_check(GameState.get_building_tier(&"wood_shed") == 2,
 		"building tier restored to 2 (StringName keys survive the file)")
@@ -215,11 +216,55 @@ func _test_7_newer_save_is_preserved_not_clobbered() -> void:
 
 func _test_8_unregistered_ids_are_dropped() -> void:
 	InventoryManager.apply_save_dict({})
-	InventoryManager.apply_save_dict({"oak_log": 5, "unobtanium": 99})
-	_check(InventoryManager.get_count(&"oak_log") == 5,
-		"a save's valid stock loads (oak_log == 5)")
+	InventoryManager.apply_save_dict({"oak_firewood": 5, "unobtanium": 99})
+	_check(InventoryManager.get_count(&"oak_firewood") == 5,
+		"a save's valid stock loads (oak_firewood == 5)")
 	_check(InventoryManager.get_count(&"unobtanium") == 0,
 		"...while an id no longer in the registry is dropped, not resurrected")
+
+
+# ------------------------------------------------------------------ autosave
+## Drives the REAL main scene, because the autosave lives there and a test of a
+## reimplementation of it would prove nothing.
+##
+## The load-bearing check is the one asserting NO file exists immediately after
+## the batch. Without it this test passes just as well against a naive
+## save-per-signal implementation, which writes the file six times for one chop.
+func _test_9_autosave_on_inventory_change() -> void:
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	add_child(main)
+	await get_tree().process_frame   # main._ready: loads, then connects
+
+	SaveSystem.delete_save()
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	await get_tree().process_frame   # let that reset's own autosave flush
+	SaveSystem.delete_save()
+
+	# One finished log: six pieces deposited one at a time, all in this frame.
+	for i in range(6):
+		EventBus.resource_gathered.emit(&"birch_firewood", 1)
+
+	_check(not SaveSystem.has_save(),
+		"six deposits in one frame wrote NOTHING yet — the autosave is coalesced, not per-signal")
+
+	await get_tree().process_frame   # the deferred flush lands here
+	_check(SaveSystem.has_save(), "...and one save appears at the end of the frame")
+
+	# Drop main BEFORE trashing state to reload: while it is alive, clearing the
+	# inventory is itself an inventory change, so it queues an autosave that would
+	# overwrite the very file this is about to read. (That is not a bug in the
+	# autosave — it is why main.gd connects only AFTER its own load.)
+	main.queue_free()
+	await get_tree().process_frame
+
+	# Prove the single write captured the WHOLE batch, not just the first piece.
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "...which reloads cleanly")
+	_check(InventoryManager.get_count(&"birch_firewood") == 6,
+		"...holding all 6 pieces of the batch, not a partial write")
+	SaveSystem.delete_save()
 
 
 # ------------------------------------------------------------------ fixture

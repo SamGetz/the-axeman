@@ -46,7 +46,7 @@ func _seed() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 	GameState.add_cash(555)
-	EventBus.resource_gathered.emit(&"birch_log", 77)
+	EventBus.resource_gathered.emit(&"birch_firewood", 77)
 	EventBus.gear_upgraded.emit(Enums.ToolType.AXE, 4)
 	var ok := SaveSystem.save_game()
 	print("save_probe: seeded (cash 555, lifetime 77, axe tier 4) -> saved=%s" % ok)
@@ -69,7 +69,7 @@ func _quit_cycle() -> void:
 	# starts fresh), which would otherwise overwrite whatever was staged here and
 	# make this tool "prove" a save of the wrong numbers.
 	GameState.add_cash(4321)
-	EventBus.resource_gathered.emit(&"oak_log", 12)
+	EventBus.resource_gathered.emit(&"oak_firewood", 12)
 	print("save_probe: staged cash=%d lifetime=%d, firing the close notification..." % [
 		GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
 	])

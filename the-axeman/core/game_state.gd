@@ -190,7 +190,7 @@ func _on_building_upgraded(building_id: StringName, new_tier: int) -> void:
 ## no new contract, no change to the mini-game.
 ##
 ## Filtered by ItemCategory.RAW_WOOD rather than by a list of wood ids ON PURPOSE:
-## whether the registry ends up calling the yield `oak_log` or `oak_firewood` is
+## whether the registry ends up calling the yield `oak_firewood` or `oak_firewood` is
 ## still an open Creative Director question, and a category filter survives that
 ## rename untouched. It also picks up a new species for free.
 ##

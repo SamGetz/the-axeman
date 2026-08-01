@@ -76,11 +76,11 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 ##       wherever it is not Color.WHITE: it is standing in for a species' real
 ##       tileable inside texture until Sam authors one.
 ##
-## log_02 is mapped to pine_log purely to DEMONSTRATE per-log yields — it still
+## log_02 is mapped to pine_firewood purely to DEMONSTRATE per-log yields — it still
 ## wears oak art. Remap freely.
 const _LOG_SPECIES: Array[Dictionary] = [
-	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_log"},
-	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_log"},
+	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_firewood"},
+	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_firewood"},
 	# Birch (Sam's drop, 2026-08-01): SIX authored log shapes, one species. Bark
 	# and authored ends come from each FBX's own embedded materials; the CUT
 	# faces use Sam's tileable birch inside grain, so a split birch log is pale
@@ -94,7 +94,7 @@ const _LOG_SPECIES: Array[Dictionary] = [
 			"res://assets/models/logs_export/birch_log_05.fbx",
 			"res://assets/models/logs_export/birch_log_06.fbx",
 		],
-		"yield_item": &"birch_log",
+		"yield_item": &"birch_firewood",
 		"inside_tex": "res://assets/textures/wood_birch/birch_inside_tilable.png",
 		"inside_normal": "res://assets/textures/wood_birch/birch_inside_tilable_normal.png",
 	},

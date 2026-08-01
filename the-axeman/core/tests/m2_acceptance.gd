@@ -96,11 +96,18 @@ func _test_a1_pipeline(main: Node) -> void:
 		== "canvas_items", "project stretch mode is canvas_items")
 	_check(str(ProjectSettings.get_setting("display/window/stretch/aspect"))
 		== "keep", "project stretch aspect is keep")
-	_check(int(ProjectSettings.get_setting(
-		"display/window/size/viewport_width")) == 960
-		and int(ProjectSettings.get_setting(
-		"display/window/size/viewport_height")) == 540,
-		"project base viewport is 960x540 (A1, Amendment 7)")
+	# The base canvas is what ACTUALLY renders. SubViewportContainer.stretch = true
+	# resizes Action_Viewport to the container's rect, and the container follows
+	# this setting — so an Action_Viewport authored at 1280x720 rendered at
+	# whatever this said, and canvas_items stretched the result back up. It said
+	# 640x360 until Amendment 16 raised it to match. Assert them EQUAL as well as
+	# correct: the moment they diverge, the authored size above is fiction again.
+	var base_w := int(ProjectSettings.get_setting("display/window/size/viewport_width"))
+	var base_h := int(ProjectSettings.get_setting("display/window/size/viewport_height"))
+	_check(base_w == 1280 and base_h == 720,
+		"project base viewport is 1280x720 (A1, Amendment 16) — got %dx%d" % [base_w, base_h])
+	_check(Vector2i(base_w, base_h) == viewport.size,
+		"...and it MATCHES Action_Viewport, so the authored render size is the real one (no hidden upscale)")
 	_check(int(ProjectSettings.get_setting(
 		"rendering/anti_aliasing/quality/msaa_3d", 0)) == 0,
 		"project-wide MSAA 3D default is off (Action_Viewport overrides its own, below)")

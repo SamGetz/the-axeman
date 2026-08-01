@@ -10,8 +10,8 @@ extends Node
 ##     carrying the acting axe tier
 ##   - a full chop-down deposits the log's species yield into InventoryManager,
 ##     exactly one unit per finished firewood piece (A7 resource_gathered)
-##   - the per-species table drives the yield item: an oak log yields oak_log,
-##     a pine log yields pine_log (nothing crosses over)
+##   - the per-species table drives the yield item: an oak log yields oak_firewood,
+##     a pine log yields pine_firewood (nothing crosses over)
 ##   - A12: fragment_physics_budget still caps active bodies at 24 with a
 ##     settle-timeout backstop (reserved for M5/M6, kept + covered here)
 ##   - EVERY row of the species table is coherent: a registered yield id, and a
@@ -124,31 +124,31 @@ func _test_2_slice_geometry_and_hit() -> void:
 
 
 func _test_3_chopdown_stocks_inventory() -> void:
-	var mg := await _make_minigame(0)   # species 0 -> oak_log
-	var before := InventoryManager.get_count(&"oak_log")
+	var mg := await _make_minigame(0)   # species 0 -> oak_firewood
+	var before := InventoryManager.get_count(&"oak_firewood")
 	_gathered.clear()
 	var firewood := await _drive_to_completion(mg)
 	_check(firewood > 0, "chop-down produced firewood (%d pieces)" % firewood)
 
 	await _wait(2.2)   # settle-timeout (1.5s) + margin, so _begin_stacking runs and collects
-	var after := InventoryManager.get_count(&"oak_log")
+	var after := InventoryManager.get_count(&"oak_firewood")
 	_check(after - before == firewood,
-		"each finished piece deposits 1 oak_log (inventory +%d for %d pieces)" % [after - before, firewood])
-	_check(int(_gathered.get(&"oak_log", 0)) == firewood,
-		"resource_gathered fired once per firewood piece (oak_log x%d)" % firewood)
-	_check(not _gathered.has(&"pine_log"), "an oak log yields no pine_log")
+		"each finished piece deposits 1 oak_firewood (inventory +%d for %d pieces)" % [after - before, firewood])
+	_check(int(_gathered.get(&"oak_firewood", 0)) == firewood,
+		"resource_gathered fired once per firewood piece (oak_firewood x%d)" % firewood)
+	_check(not _gathered.has(&"pine_firewood"), "an oak log yields no pine_firewood")
 	await _drop(mg)
 
 
 func _test_4_species_drives_yield() -> void:
-	var mg := await _make_minigame(1)   # species 1 -> pine_log
-	var before := InventoryManager.get_count(&"pine_log")
+	var mg := await _make_minigame(1)   # species 1 -> pine_firewood
+	var before := InventoryManager.get_count(&"pine_firewood")
 	_gathered.clear()
 	var firewood := await _drive_to_completion(mg)
 	await _wait(2.2)
-	_check(InventoryManager.get_count(&"pine_log") - before == firewood,
-		"a pine log deposits pine_log, not oak (the species table drives the yield)")
-	_check(int(_gathered.get(&"pine_log", 0)) == firewood and not _gathered.has(&"oak_log"),
+	_check(InventoryManager.get_count(&"pine_firewood") - before == firewood,
+		"a pine log deposits pine_firewood, not oak (the species table drives the yield)")
+	_check(int(_gathered.get(&"pine_firewood", 0)) == firewood and not _gathered.has(&"oak_firewood"),
 		"only the chopped log's species is gathered")
 	await _drop(mg)
 
@@ -157,7 +157,7 @@ func _test_4_species_drives_yield() -> void:
 ## covered the moment it is added, instead of needing its own hand-written test.
 ##
 ## Tests 3 and 4 only ever exercise species 0 and 1 by index; birch (added
-## 2026-08-01) would have shipped with an unregistered `birch_log` yield and
+## 2026-08-01) would have shipped with an unregistered `birch_firewood` yield and
 ## nothing here would have gone red — InventoryManager errors and ignores an
 ## unregistered id, so the wood would simply have vanished on collection.
 ##

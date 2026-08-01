@@ -10,6 +10,8 @@ extends Node
 ##
 ## Temp debug keys (see the block at the bottom): M enters/leaves the 3D mode.
 
+var _save_queued := false
+
 @onready var _action_viewport: SubViewport = $"UI_Canvas/SubViewportContainer/Action_Viewport"
 @onready var _world_root: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root"
 
@@ -27,9 +29,41 @@ func _ready() -> void:
 			GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
 		])
 
+	# Autosave whenever stock moves. Connected AFTER the load on purpose:
+	# apply_save_dict emits inventory_changed for every item as it restores them,
+	# so connecting earlier would have the act of loading immediately trigger a
+	# save of what was just loaded.
+	InventoryManager.inventory_changed.connect(_on_inventory_changed)
+
 	# Godot tears the window down the moment it is closed unless told otherwise,
 	# which would drop everything earned since the last save.
 	get_tree().auto_accept_quit = false
+
+
+## ---------------------------------------------------------------- autosave
+## Stock changed, so the yard is worth writing down.
+##
+## COALESCED, and it has to be: finishing a log deposits one firewood piece at a
+## time, so a six-piece log fires this six times in a single frame. Writing the
+## file six times for one chop would be six times the I/O for one identical
+## result. The deferred flush collapses a whole batch into one write at the end
+## of the frame.
+##
+## This fires on any inventory CHANGE, not only on additions — a sale or an
+## upgrade cost is at least as worth persisting as a gather, and filtering to
+## increases would leave a sale unsaved until the next chop. Say so if you want
+## it narrowed to gathers only.
+func _on_inventory_changed(_item_id: StringName, _new_count: int) -> void:
+	if _save_queued:
+		return
+	_save_queued = true
+	_flush_autosave.call_deferred()
+
+
+func _flush_autosave() -> void:
+	_save_queued = false
+	if not SaveSystem.save_game():
+		push_error("Main: autosave failed — progress since the last good save is at risk.")
 
 
 ## Save on the way out. NOTIFICATION_WM_CLOSE_REQUEST is the only hook that fires

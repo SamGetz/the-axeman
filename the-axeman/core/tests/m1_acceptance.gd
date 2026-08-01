@@ -38,12 +38,12 @@ func _check(cond: bool, label: String) -> void:
 		print("FAIL: " + label)
 
 
-## Criterion: emitting resource_gathered(&"pine_log", 3) raises pine log count by 3.
+## Criterion: emitting resource_gathered(&"pine_firewood", 3) raises pine log count by 3.
 func _test_1_gather_valid() -> void:
-	var before := InventoryManager.get_count(&"pine_log")
-	EventBus.resource_gathered.emit(&"pine_log", 3)
-	_check(InventoryManager.get_count(&"pine_log") == before + 3,
-		"resource_gathered(&\"pine_log\", 3) raised count from %d to %d" % [before, before + 3])
+	var before := InventoryManager.get_count(&"pine_firewood")
+	EventBus.resource_gathered.emit(&"pine_firewood", 3)
+	_check(InventoryManager.get_count(&"pine_firewood") == before + 3,
+		"resource_gathered(&\"pine_firewood\", 3) raised count from %d to %d" % [before, before + 3])
 
 
 ## Criterion: emitting an unregistered id logs an error and changes nothing.

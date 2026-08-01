@@ -85,10 +85,10 @@ Suite results, all re-run after the pivot on the shipping assets:
 | Suite | How to run | Result |
 |---|---|---|
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
-| M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **21/23** — both failures are the A1 finding below |
+| M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 900 res://core/tests/m7a_acceptance.tscn` | **40/40** |
+| M7A | `--quit-after 2000 res://core/tests/m7a_acceptance.tscn` | **44/44** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -132,7 +132,7 @@ the real entry flow exists.
   a minimum piece size. `size_tier` is COMPUTED at slice time, and A3's single
   size test is unchanged.
 - **Viewport** is 1280×720 + NEAREST (Amendment 8 — the pixel-art look was
-  dropped). See the A1 finding below: what is authored is not what runs.
+  dropped), and since Amendment 16 the project base canvas matches, so that IS what renders.
 - **Ground:** `res://assets/models/forest_floor/forest_floor_a.fbx` is instanced
   directly as a child node in `chopping_minigame.tscn` (scale 0.4, Sam-authored
   placement).
@@ -241,9 +241,17 @@ asset. Suite: `m7a_acceptance` 40/40.
   `get_tree().auto_accept_quit = false` and saves in
   `NOTIFICATION_WM_CLOSE_REQUEST` — the only hook that still sees live state.
   Quitting is unconditional even if the save fails.
-- **OPEN — Sam's call: periodic autosave cadence.** Today a crash or power cut
-  costs the session. Every N seconds? Per finished log? Per sale? It is a feel
-  decision, so it was not invented in code.
+- **Autosave: on every inventory change** (Creative Director call, 2026-08-01 —
+  "save when something new is added to inventory"). It is **coalesced**: a
+  finished log deposits one piece at a time, so a six-piece log fires
+  `inventory_changed` six times in one frame; the flush is deferred so the batch
+  collapses to a single write. It is connected AFTER main's own load, because
+  `apply_save_dict` emits for every item it restores and would otherwise make
+  loading immediately trigger a save. It fires on any change, not only additions
+  — a sale or an upgrade cost is at least as worth persisting, and filtering to
+  increases would leave a sale unsaved until the next chop.
+  The coalescing guard is proven to fail without its fix (calling the flush
+  directly instead of deferring turns it red).
 - `core/tools/save_probe.tscn` drives the save from outside the game (`dump` /
   `seed` / `quit` / `wipe`) — the only way to see it until the UI exists. Note
   it is a SCENE, not a `-s` script: a `-s` script replaces the main loop and the
@@ -262,22 +270,25 @@ asset. Suite: `m7a_acceptance` 40/40.
 log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
 ACTUAL bound texture per surface — see the material-name trap below).
 
-### OPEN A1 FINDING (pre-existing, NOT fixed, and it has got worse)
+### A1 FINDING — CLOSED 2026-08-01 (Amendment 16)
 
-`Action_Viewport.size` is authored 1280×720 in `main.tscn` but is **not that at
-runtime** — `SubViewportContainer.stretch = true` resizes the child viewport to
+**Fixed. `m2_acceptance` is 24/24 for the first time.** Kept here because the
+trap will bite again the moment anyone touches the render pipeline.
+
+`Action_Viewport.size` is authored 1280×720 in `main.tscn` but that was **not
+what ran** — `SubViewportContainer.stretch = true` resizes the child viewport to
 the container's rect, and the container follows the project's base canvas
-(`display/window/size/viewport_*`). That base canvas is **currently 640×360** in
-`project.godot` (with a 1280×720 window override), so the game renders at 640×360
-and the canvas_items stretch scales it up 2×. This is why `m2_acceptance` fails
-**two** A1 checks now (21/23) where it used to fail one — the documented base was
-960×540, so it has been changed in the Project Settings UI since.
+(`display/window/size/viewport_*`). That base canvas was **640×360**, so the game
+rendered at 640×360 and canvas_items stretched it up 2×, which is very likely the
+"still kinda pixelated" Sam reported. Amendment 8's "render at 1:1, no upscale"
+simply was not happening.
 
-Amendment 8's "render at 1:1, no upscale" is therefore not actually happening, and
-this is very likely the "still kinda pixelated" Sam reported. Fixing it means either
-raising the project base canvas to 1280×720 (a `project.godot` edit — **CLOBBER
-TRAP**, walk Sam through the Settings UI) or dropping container stretch and sizing
-the viewport in code. Sam's call; it touches A1, so it needs an amendment either way.
+The base canvas is now 1280×720, matching the authored viewport and the window.
+`m2_acceptance` now asserts the two are **EQUAL** as well as individually
+correct — the moment they diverge again, the authored size is fiction and the
+check goes red rather than silently passing. Note the old base-canvas check
+expected 960×540 (Amendment 7) and had never been updated for Amendment 8, so it
+was failing for a stale reason on top of the real one.
 
 ---
 
@@ -466,6 +477,25 @@ anyone reading old commits.
      random waypoints — a further deliberate, scoped exception to A1's
      stepped-keyframe clause for this one effect.
 
+16. **A1's base canvas raised 640×360 → 1280×720** (Creative Director call,
+    2026-08-01 — Sam: "fix that"). This is the fix for the long-standing A1
+    FINDING above: `display/window/size/viewport_*` in `project.godot` is what
+    the stretched `SubViewportContainer` actually sizes `Action_Viewport` to, so
+    the authored 1280×720 was fiction and the game rendered at 640×360 upscaled
+    2×. Base canvas, `Action_Viewport` and the window are now all 1280×720 —
+    Amendment 8's "1:1, no upscale" is finally true. Window size overrides left
+    in place (now redundant, harmless, and explicit about intent). Everything
+    else in A1 is untouched: stretch mode stays `canvas_items`/`keep`, the
+    container stays `stretch = true` + NEAREST, `msaa_3d` stays a 4× per-viewport
+    override, `scaling_3d_mode` stays Bilinear.
+    - **CLOBBER TRAP, still live:** this was a direct `project.godot` edit. If
+      the Godot editor is open when the file is edited by hand, the editor
+      overwrites it on its next save. Close or reopen the editor after any such
+      edit and re-run `m2_acceptance` to confirm.
+    - `m2_acceptance` now asserts the base canvas and `Action_Viewport.size` are
+      **equal**, not merely each correct, so a future divergence goes red instead
+      of quietly reintroducing a hidden upscale.
+
 ### Retired amendments (tree game only — see git `29bcd6f`)
 
 10. Runtime mesh slicing extended to tree felling; superseded A2 for trees.
@@ -487,24 +517,24 @@ against `get_instance_transform` can only ever fail.
 
 ## LOCKED ITEM IDS (res://data/item_registry.tres)
 
-`pine_log, oak_log, birch_log, mahogany_log, stone, copper_ore, iron_ore,
-amethyst, ruby, sapphire, wood_board, copper_ingot, iron_nail`
+`pine_firewood, oak_firewood, birch_firewood, mahogany_firewood, stone,
+copper_ore, iron_ore, amethyst, ruby, sapphire, wood_board, copper_ingot,
+iron_nail`
 
-**`birch_log` ADDED 2026-08-01 — PENDING CREATIVE DIRECTOR SIGN-OFF.** Sam
-dropped `birch_log_01.fbx` into `assets/models/logs_export/` and said to keep
-working; the species could not be wired up at all without a registered id
-(InventoryManager errors and ignores unregistered ids, so the wood would have
-silently vanished on collection). Added as the obvious consequence of the asset
-drop, not as an approved contract change. Note nothing in any test suite asserts
-this list — it is enforced by this document alone.
+**RENAMED 2026-08-01, Creative Director call ("we can call it firewood").** The
+four wood ids were `*_log`, which meant chopping a log *yielded logs* — the wrong
+noun to build an economy on. They are now `*_firewood`, display names to match
+("Oak Firewood"). `birch_firewood` was added the same day with Sam's birch art;
+it is no longer pending.
 
-**STILL OPEN, and it decides whether these ids survive:** a fully chopped log
-deposits `oak_log`/`pine_log`/`birch_log` — one per firewood piece — so chopping
-a log currently *yields logs*. The cozy roadmap's progression spine calls for
-**firewood stock**. Either these ids are declared to mean the firewood, or the
-registry gains `*_firewood` ids and the log ids become the raw supply. Ask Sam
-before building any order/buyer code on top of them; renaming afterwards is
-cheap, building the economy on the wrong noun is not.
+There are deliberately **no `*_log` items**. Logs are not inventory today — they
+spawn on the block and are consumed by chopping. The roadmap's "log supply"
+upgrade family is about what spawns, not about a stored resource. If logs ever
+need to be stock (staff delivering them, say), add the ids then.
+
+Nothing in any test suite asserts this list — it is enforced by this document
+alone. The rename touched no logic at all, because `lifetime_wood_chopped`
+filters on `ItemCategory.RAW_WOOD` rather than on names.
 
 Known data flag (unresolved): the blueprint's management example mentions
 "Mahogany Boards" but the registry defines generic "Wood Boards". Ask Sam
