@@ -87,7 +87,8 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **21/23** — both failures are the A1 finding below |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
-| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **16/16** |
+| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **29/29** |
+| M7A | `--quit-after 900 res://core/tests/m7a_acceptance.tscn` | **40/40** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -139,10 +140,18 @@ the real entry flow exists.
   InventoryManager — one `resource_gathered` per finished firewood piece, at the
   batch-collect point (`_begin_stacking`). Wood type is data-driven: `_LOG_SPECIES`
   in `chopping_minigame.gd` maps each log mesh → yield item, built to scale to
-  many woods (add a row). CURRENT PLACEHOLDER MAPPING:
-  `log_01.fbx`→`oak_log`, `log_02.fbx`→`pine_log` (both still wear the oak inside
-  texture — log_02 is pine only to demo per-log yields; remap freely, and
-  per-species textures can join the same table later).
+  many woods (add a row). CURRENT MAPPING: `log_01.fbx`→`oak_log`,
+  `log_02.fbx`→`pine_log` (log_02 is pine only to demo per-log yields and still
+  wears oak art — remap freely), `birch_log_01.fbx`→`birch_log` (real birch art
+  throughout, added 2026-08-01). A row may also carry `inside_tex`/
+  `inside_normal`/`inside_tint` for its cut faces; omitted keys fall back to oak.
+  Cut materials are cached per species BY DESIGN, not just for speed:
+  `MeshUtils.jag_cut` finds a piece's cut surface by comparing
+  `material == _cut_mat` **by reference**, so a fresh instance per log would
+  leave anything cut before the swap unroughenable.
+- `assets/models/logs_export/` also holds `log_2.fbx`, an unused duplicate, and
+  `maya_working/` still has unimported `log_03/04/05.fbx`. CLAUDE.md previously
+  claimed log_01…log_05 were live; they were not, and are not.
 - **Acceptance:** `m4_acceptance.tscn` 16/16 — drives `debug_slice_world` to
   completion, checks inventory deposit == firewood count, per-species yield, one
   hit per slice, the A12 budget. It calls `get_tree().quit()` on finish, so run
@@ -191,6 +200,49 @@ the real entry flow exists.
   slice of a turned billet was cutting on a plane rotated the wrong way round since
   M4 shipped. Guarded by 10 checks in `test_slicer` at five yaws including 310.8°.
 
+### M7A — progression spine (STARTED 2026-08-01, no sign-off yet)
+
+Built ahead of the orders/prices because none of it needed a tuning value or an
+asset. Suite: `m7a_acceptance` 40/40.
+
+- **Cash and lifetime wood chopped live in `GameState`.** Cash is an `int`,
+  never a float. It leaves the purse ONLY through `try_spend_cash()`, which is
+  atomic — a refused purchase changes nothing and emits nothing (Amendment 4's
+  all-or-nothing rule, applied to money). `DEFAULT_CASH = 0` is a PLACEHOLDER.
+- **`lifetime_wood_chopped` is fed by the existing A7 `resource_gathered`
+  signal** — no contract change, no edit to the chopping game. It filters on
+  `ItemCategory.RAW_WOOD` rather than a list of wood ids **on purpose**: that
+  survives the still-open `*_log` vs `*_firewood` rename, and picks up a new
+  species for free. Monotonic by construction — it never sees removals, so
+  selling stock cannot un-chop wood. **Revisit at M8:** it counts wood
+  *gathered*, so staff who gather wood would be credited to the player.
+- **Two LOCAL signals** on GameState — `cash_changed`, `lifetime_wood_chopped_
+  changed` — following Amendment 2's precedent exactly: NOT on EventBus, A7
+  untouched, they never cross the 2D/3D boundary, and they exist so the M7 UI
+  can update without polling.
+- **`res://core/save_system.gd` (`class_name SaveSystem`) is NOT an autoload.**
+  It is stateless static methods, so it needs nothing an autoload provides, and
+  a 5th autoload would have needed an amendment the way GameFeel did. Each
+  system serialises ITSELF (`to_save_dict`/`apply_save_dict` on GameState and
+  InventoryManager), so Directive 6 is never bypassed — SaveSystem only moves
+  dictionaries to and from disk.
+- Save file: `user://the_axeman_save.cfg` (ConfigFile — Variants survive
+  natively, and it is readable when a save goes wrong). Written to a `.tmp`
+  and renamed over the real file, so a crash mid-write cannot truncate a save.
+  Versioned; a save from a NEWER build is refused and moved to a `.bak` rather
+  than loaded or overwritten.
+- **`main.gd` now loads at boot and saves on window close.** It sets
+  `get_tree().auto_accept_quit = false` and saves in
+  `NOTIFICATION_WM_CLOSE_REQUEST` — the only hook that still sees live state.
+  Quitting is unconditional even if the save fails.
+- **OPEN — Sam's call: periodic autosave cadence.** Today a crash or power cut
+  costs the session. Every N seconds? Per finished log? Per sale? It is a feel
+  decision, so it was not invented in code.
+- `core/tools/save_probe.tscn` drives the save from outside the game (`dump` /
+  `seed` / `quit` / `wipe`) — the only way to see it until the UI exists. Note
+  it is a SCENE, not a `-s` script: a `-s` script replaces the main loop and the
+  autoloads are never instantiated.
+
 ### Files the chopping game owns
 
 `scenes/3d_action/`: `chopping_minigame.gd/.tscn`, `chopping_minigame_harness.tscn`,
@@ -199,7 +251,10 @@ the real entry flow exists.
 `canopy_gobo.gd`.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
-`pile_shot`, `shot_runner`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`.
+`pile_shot`, `shot_runner`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
+`species_shot` (renders EVERY row of `_LOG_SPECIES`, fresh and cut — run it on any
+log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
+ACTUAL bound texture per surface — see the material-name trap below).
 
 ### OPEN A1 FINDING (pre-existing, NOT fixed, and it has got worse)
 
@@ -461,6 +516,20 @@ whether boards become per-species before writing any upgrade data.
   carries a 30× node scale arrives at 30× — size things by a target height
   (`chopping_minigame.log_height`), never by a bare multiplier. This is exactly
   what broke log spawning on 2026-07-29.
+- **MATERIAL-NAME TRAP.** Godot's scene importer binds an EXTERNAL material when
+  it finds a `.tres` beside the source file whose name matches the FBX's material
+  slot. `assets/models/logs_export/` contains `oak_bark.tres` and `oak_top.tres`,
+  and every log FBX so far carries slots of exactly those names — so a new
+  species can silently inherit the OAK look even though Godot extracted its own
+  embedded textures to disk. The material NAME cannot tell the two cases apart;
+  only the bound texture path can. Check with
+  `core/tools/inspect_materials.gd` on every art drop. (birch_log_01 was checked
+  on 2026-08-01 and is correctly on its own textures.)
+- **A log's CUT face is not the FBX's business.** Bark and authored ends come
+  from the imported materials, but the cut face is generated at runtime from
+  `_LOG_SPECIES`'s `inside_tex`/`inside_normal`. Those must be **tileable** —
+  cut-face UVs are a metres-based tiling mapping, so a log-end "disc" texture
+  repeats into a grid of discs. Oak and birch each have a `*_tilable` set.
 - Style: flat-shaded low-poly, vertex colors preferred over textures,
   hard edges fine, readable silhouettes.
 - Fragment pivots at the piece's landing/contact point (predictable A12

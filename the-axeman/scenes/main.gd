@@ -19,6 +19,38 @@ func _ready() -> void:
 	EventBus.minigame_exited.connect(_on_minigame_exited)
 	_enter_2d_mode()
 
+	# Boot the player's yard back up. Autoloads have already run their _ready by
+	# now, so the registry is parsed and both serialisers are safe to call.
+	var result := SaveSystem.load_or_start_fresh()
+	if result == SaveSystem.LoadResult.OK:
+		print("Main: save loaded — %d cash, %d wood chopped lifetime." % [
+			GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
+		])
+
+	# Godot tears the window down the moment it is closed unless told otherwise,
+	# which would drop everything earned since the last save.
+	get_tree().auto_accept_quit = false
+
+
+## Save on the way out. NOTIFICATION_WM_CLOSE_REQUEST is the only hook that fires
+## early enough to still see live state — _exit_tree and PREDELETE run after the
+## tree has begun coming apart.
+##
+## Quitting is UNCONDITIONAL: if the save fails the player is told, but the window
+## still closes. A game that refuses to shut down is a worse bug than a lost
+## session.
+##
+## OPEN, and Sam's call: this saves on quit ONLY. A crash or a power cut still
+## costs the session. Periodic autosave needs a cadence (every N seconds? on each
+## completed log? on each sale?), which is a feel decision, not a default to
+## invent here.
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_WM_CLOSE_REQUEST:
+		return
+	if not SaveSystem.save_game():
+		push_error("Main: the save failed on quit — this session's progress is lost.")
+	get_tree().quit()
+
 
 func _on_minigame_entered(_biome: Enums.Biome) -> void:
 	_enter_3d_mode()

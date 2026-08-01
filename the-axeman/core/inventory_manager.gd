@@ -106,6 +106,37 @@ func remove_items(costs: Array) -> bool:
 		inventory_changed.emit(item_id, _counts[item_id])
 	return true
 
+## ------------------------------------------------------------ persistence
+## InventoryManager serialises ITSELF, for the same reason GameState does: A5
+## says item counts are only ever written in here, and a save loader that poked
+## _counts from outside would be exactly the violation that rule exists to stop.
+func to_save_dict() -> Dictionary:
+	## Only non-zero counts are written — a save should not grow every time an
+	## item id is added to the registry.
+	var out: Dictionary = {}
+	for item_id: StringName in _counts:
+		if _counts[item_id] > 0:
+			out[String(item_id)] = _counts[item_id]
+	return out
+
+
+func apply_save_dict(data: Dictionary) -> void:
+	## Registry-validated, exactly like add_item: an id that no longer exists (a
+	## renamed or removed item) is dropped with an error rather than resurrected
+	## into a count no UI can name. Everything absent resets to zero, so loading
+	## is a true replace and not a merge with whatever was already in memory.
+	for item_id: StringName in _counts:
+		_counts[item_id] = 0
+	for raw_id: Variant in data:
+		var item_id := StringName(raw_id)
+		if not _defs.has(item_id):
+			push_error("InventoryManager: save contains unregistered item id '%s' — dropped." % item_id)
+			continue
+		_counts[item_id] = maxi(0, int(data[raw_id]))
+	# Emit only after the whole load, so a listening UI never sees a torn state.
+	for item_id: StringName in _counts:
+		inventory_changed.emit(item_id, _counts[item_id])
+
 ## ---------------------------------------------------------------- internals
 func _on_resource_gathered(resource_id: StringName, amount: int) -> void:
 	add_item(resource_id, amount)
