@@ -84,8 +84,8 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 ## the wood that pays most resists most: pine 2 cash and easy, oak 5 and middling,
 ## birch 10 and stubborn. Omitted = `default_split_chance`.
 const _LOG_SPECIES: Array[Dictionary] = [
-	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_firewood", "split_chance": 0.7},
-	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_firewood", "split_chance": 0.9},
+	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_firewood", "split_chance": 0.55},
+	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_firewood", "split_chance": 0.75},
 	# Birch (Sam's drop, 2026-08-01): SIX authored log shapes, one species. Bark
 	# and authored ends come from each FBX's own embedded materials; the CUT
 	# faces use Sam's tileable birch inside grain, so a split birch log is pale
@@ -100,7 +100,7 @@ const _LOG_SPECIES: Array[Dictionary] = [
 			"res://assets/models/logs_export/birch_log_06.fbx",
 		],
 		"yield_item": &"birch_firewood",
-		"split_chance": 0.5,
+		"split_chance": 0.4,
 		"inside_tex": "res://assets/textures/wood_birch/birch_inside_tilable.png",
 		"inside_normal": "res://assets/textures/wood_birch/birch_inside_tilable_normal.png",
 	},
@@ -213,7 +213,7 @@ const _LOG_SPECIES: Array[Dictionary] = [
 ## How much easier a SMALL piece is than the whole log it came from. 1.0 = a tiny
 ## billet is a near-certain split; 0.0 = size is irrelevant and a last small chunk
 ## resists exactly as hard as the fresh log did.
-@export_range(0.0, 1.0) var size_relief := 0.5
+@export_range(0.0, 1.0) var size_relief := 0.2
 ## The ceiling, however many protein bars have been eaten: a swing is never a
 ## certainty, which is the whole point of the mechanic.
 @export_range(0.5, 1.0) var max_split_chance := 0.95
@@ -222,8 +222,9 @@ const _LOG_SPECIES: Array[Dictionary] = [
 ## Shake for a swing that bit but did not split — smaller than a real hit, and
 ## with NO hit-pause, so a successful split keeps the time-stop to itself.
 @export var fail_impact := 0.25
-@export var scar_size := 0.075          # width of the gouge a failed swing leaves (m)
-@export var scar_depth := 0.012         # how deep the gouge bites (m)
+@export var scar_size := 0.13           # width of the mark a failed swing leaves (m)
+@export var scar_depth := 0.008         # how far off the wood the mark is laid, so it never z-fights (m)
+@export var scar_colour := Color(0.07, 0.05, 0.04)   # near-black: readability beats matching the wood
 @export var debug_split_roll := -1      # -1 = roll for real; 0 = always fail; 1 = always split (tests only)
 
 # --- swing cooldown (what the coffee buys) --------------------------------
@@ -231,7 +232,7 @@ const _LOG_SPECIES: Array[Dictionary] = [
 ## and Sam chose a REAL cooldown for it to cut into — before this the game had
 ## none at all and a swing was gated only by the anticipation window.
 @export_group("Swing rate")
-@export var swing_cooldown := 0.3       # PLACEHOLDER: minimum seconds between swings
+@export var swing_cooldown := 0.45      # Creative Director call, 2026-08-01
 @export var coffee_step := 0.05         # Sam's 5%, compounding per level
 
 # --- audio (hooks; drop a stream in to hear it) ---------------------------
@@ -782,58 +783,53 @@ func _add_scar(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
 	scar.position += n * scar_depth
 
 
-## The axe mark for the species currently on the block, built once per species and
-## cached. Two flat diamonds laid one on the other, both just proud of the wood:
-## an outer shadowed bite and a darker inner gash. They wear the species' own
-## inside grain, so the mark is the wood under the bark rather than a decal from
-## nowhere — and it is depth of TONE that reads as depth of cut, because an actual
-## dent would be hidden behind the surface it is dented into.
+## The axe mark, built once and shared by every wood.
 ##
-## Godot's Decal node, which is what this would otherwise be, does not render
-## under the Compatibility renderer, so a mesh is the route (Directive 4).
+## ONE FLAT DARK SLASH, and deliberately not clever (Creative Director call,
+## 2026-08-01: *"I am having a hard time seeing the scar, it can just be a dark
+## color as well, so no need to have it match every log"*). The earlier version
+## wore each species' own inside grain in two tones, which was prettier and much
+## harder to see. Being readable beats being correct here: a scar the player misses
+## is a mechanic the player misses.
+##
+## UNSHADED on purpose — a lit material dims into dark bark exactly where the mark
+## matters most, and unlit keeps it the same near-black whatever the sun is doing.
+## It is laid just PROUD of the wood, never carved into it: geometry cannot
+## subtract from a surface, and the first version of this sank a notch into the log
+## and rendered completely invisible behind the bark in front of it. (Godot's
+## Decal node, the obvious tool, does not render under Compatibility.)
 func _scar_mesh() -> ArrayMesh:
-	var key := _species_index_of(_current_species)
-	if _scar_meshes.has(key):
-		return _scar_meshes[key]
+	if _scar_meshes.has(0):
+		return _scar_meshes[0]
 
-	var mesh := ArrayMesh.new()
-	# TWO TONES, and both are needed: the bright outer slash is the sapwood the axe
-	# knocked the bark off, which is what shows on a DARK wood like oak; the dark
-	# core is the shadow in the cut, which is what shows on a PALE one like birch.
-	# A single dark mark was tried first and disappeared completely on oak bark.
-	_add_scar_layer(mesh, scar_size, scar_size * 0.30, 0.0, Color(1.0, 0.90, 0.72))
-	_add_scar_layer(mesh, scar_size * 0.72, scar_size * 0.12, scar_depth * 0.3,
-		Color(0.14, 0.10, 0.07))
-	_scar_meshes[key] = mesh
-	return mesh
-
-
-## One flat diamond of the gouge: `w` x `h`, standing `z` proud of the surface,
-## tinted `tint` over this species' inside grain.
-func _add_scar_layer(mesh: ArrayMesh, w: float, h: float, z: float, tint: Color) -> void:
+	var w := scar_size
+	var h := scar_size * 0.34
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var l := Vector3(-w * 0.5, 0.0, z)
-	var r := Vector3(w * 0.5, 0.0, z)
-	var t := Vector3(0.0, h * 0.5, z)
-	var b := Vector3(0.0, -h * 0.5, z)
-	# Winding is deliberately not fussed over: every cut material in this project
-	# is CULL_DISABLED (see the winding note in CLAUDE.md), so a mark cannot end up
-	# see-through whichever way its triangles happen to wind.
+	var l := Vector3(-w * 0.5, 0.0, 0.0)
+	var r := Vector3(w * 0.5, 0.0, 0.0)
+	var t := Vector3(0.0, h * 0.5, 0.0)
+	var b := Vector3(0.0, -h * 0.5, 0.0)
+	# Winding is deliberately not fussed over: the material is CULL_DISABLED (see
+	# the winding note in CLAUDE.md), so a mark cannot end up see-through whichever
+	# way its triangles happen to wind.
 	for tri: Array in [[l, t, r], [l, r, b]]:
 		for i in range(3):
 			var v: Vector3 = tri[i]
 			st.set_normal(Vector3.BACK)
-			st.set_uv(Vector2(v.x, v.y) * 4.0)   # metres-based, like every other cut face
+			st.set_uv(Vector2(v.x, v.y))
 			st.set_color(Color.WHITE)
 			st.add_vertex(v)
-	st.generate_tangents()
-	var arrays := st.commit_to_arrays()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mesh := st.commit()
 
-	var mat: StandardMaterial3D = _cut_mat.duplicate()
-	mat.albedo_color = tint
-	mesh.surface_set_material(mesh.get_surface_count() - 1, mat)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = scar_colour
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, mat)
+
+	_scar_meshes[0] = mesh
+	return mesh
 
 
 func _species_index_of(row: Dictionary) -> int:

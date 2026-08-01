@@ -392,9 +392,10 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   instead of luck. The new headless seam is `debug_swing_world`, with
   `debug_split_roll` forcing the outcome (-1 roll / 0 always fail / 1 always split).
 - **`split_chance_for(piece)` is the whole sum in one place:** the wood's own
-  `split_chance` (a new field in `_LOG_SPECIES`, placeholders laid out to follow
-  the price ladder — pine 0.9, oak 0.7, birch 0.5, so the wood that pays most
-  resists most), made easier as the piece gets smaller (`size_relief`), plus
+  `split_chance` (a new field in `_LOG_SPECIES` — **oak 0.55 is Sam's: "roughly
+  45% to start" on the starting log**; pine 0.75 and birch 0.4 are placeholders
+  set around it to follow the price ladder, so the wood that pays most resists
+  most), made easier as the piece gets smaller (`size_relief`), plus
   `scar_bonus` per scar already in it, plus `strength_step` per protein bar,
   clamped to `max_split_chance` (0.95) — a swing is NEVER a certainty, which is
   the thing Sam asked for by name. `m7a_acceptance` asserts the price/difficulty
@@ -402,12 +403,16 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   valuable and the easiest.
 - **A SCAR IS DRAWN OUTWARD, NOT CARVED IN.** Geometry cannot subtract from a
   surface: the first implementation sank a V into the log and rendered completely
-  invisible, because the bark in front of it drew over the top. The mark is now
-  two flat diamonds laid just proud of the wood, wearing that species' own inside
-  grain — **a bright sapwood slash with a dark core**, and it needs BOTH tones: the
-  bright one is what shows on dark oak bark, the dark one is what shows on pale
-  birch. A single dark mark was tried and vanished on oak. (Godot's `Decal` node,
-  the obvious tool, does not render under Compatibility.)
+  invisible, because the bark in front of it drew over the top. The mark is laid
+  just proud of the wood instead. (Godot's `Decal` node, the obvious tool, does
+  not render under Compatibility.)
+- **The mark is ONE FLAT NEAR-BLACK SLASH, shared by every wood, and UNSHADED.**
+  It went through a prettier version first — two tones of the species' own inside
+  grain, a bright sapwood slash with a dark core — and Sam could not see it:
+  *"I am having a hard time seeing the scar, it can just be a dark color as well,
+  so no need to have it match every log."* Unshaded is the load-bearing part: a
+  lit material dims into dark bark exactly where the mark matters most. Readable
+  beats correct — a scar the player misses is a mechanic the player misses.
 - Scars live as children of the piece, so they turn with it and die with it. A
   piece that finally splits takes its scars with it and the two halves start
   clean — correct, since the cleave went straight through the marks.
@@ -436,6 +441,15 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   9 go red; drop the strength term and the protein bar's check goes red).
   RENDERED: `core/tools/scar_shot.tscn` shoots a clean log, a scarred one and a
   split one for both a dark wood and a pale one — run it on any change to the mark.
+- **`core/tools/split_odds.tscn` MEASURES THE FELT RATE, and it is not the
+  authored one.** `split_chance` is the odds on the FIRST swing of a whole log;
+  almost every swing after that lands on a smaller piece that `size_relief` has
+  already made easier, and on wood the scars have already weakened. Sam reported
+  *"I'm not really ever seeing the failures"* and the tool said why: at oak 0.7 /
+  relief 0.5, only **19% of swings failed and 12 logs in 40 went down without a
+  single failure**. At oak 0.55 / relief 0.2 it is **35% of swings, and 37 logs in
+  40 show at least one failure**. Run it after touching any of those numbers —
+  arguing about the authored value is arguing about the wrong number.
 
 - Still to do in M7A: three authored orders, three more upgrades and an
   unlockable second species. All are blocked on tuning values (Directive 3).
@@ -451,7 +465,7 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
 front end and the entry flow) — the first thing this folder has ever held.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
-`pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
+`pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `split_odds`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
 `species_shot` (renders EVERY row of `_LOG_SPECIES`, fresh and cut — run it on any
 log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
 ACTUAL bound texture per surface — see the material-name trap below).
