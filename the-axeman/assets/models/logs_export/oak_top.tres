@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://bvggisc7pw841"]
+
+[ext_resource type="Texture2D" uid="uid://dc2gdwfukcxs6" path="res://assets/models/logs_export/log_01_1.png" id="1_3a0uv"]
+[ext_resource type="Texture2D" uid="uid://bmn4bxm3ieibs" path="res://assets/models/logs_export/log_01_3.png" id="2_mhkpm"]
+
+[resource]
+resource_name = "oak_top"
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.9063318, 0.9063318, 0.9063318, 0.8)
+albedo_texture = ExtResource("1_3a0uv")
+emission_enabled = true
+normal_enabled = true
+normal_scale = 1.0
+normal_texture = ExtResource("2_mhkpm")

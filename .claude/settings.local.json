@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone *)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Sam\\\\Documents\\\\the_axeman\\\\the-axeman\\\\assets\\\\models\" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Sam\\\\Documents\\\\the_axeman\\\\the-axeman\\\\assets\\\\models\\\\forest_floor\" | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Sam\\\\Documents\\\\the_axeman\\\\the-axeman\\\\assets\\\\models\\\\forest_floor\" -Recurse | ForEach-Object { $_.Name })",
+      "WebSearch"
+    ]
+  }
+}

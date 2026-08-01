@@ -1,0 +1,15 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://cp0w8noehlcv6"]
+
+[ext_resource type="Texture2D" uid="uid://qqumlinudpmv" path="res://assets/models/chopping_stump_a/chopping_stump_a_0.png" id="1_obdrm"]
+[ext_resource type="Texture2D" uid="uid://dgodr4xeau220" path="res://assets/models/chopping_stump_a/chopping_stump_a_2.png" id="2_wfomp"]
+
+[resource]
+resource_name = "chopping_block_bark"
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.9063318, 0.9063318, 0.9063318, 0.8)
+albedo_texture = ExtResource("1_obdrm")
+roughness = 0.0
+emission_enabled = true
+normal_enabled = true
+normal_texture = ExtResource("2_wfomp")
+bent_normal_texture = ExtResource("2_wfomp")

@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://b2hncvf3ramxn"]
+
+[ext_resource type="Texture2D" uid="uid://c8g6d98p5w7v0" path="res://assets/textures/wood_oak/wood_oak_inside_tilable_diffColor.jpg" id="1_diffuse"]
+[ext_resource type="Texture2D" uid="uid://b94kv3w5dptsd" path="res://assets/textures/wood_oak/wood_oak_inside_tilable_normals.jpg" id="2_normal"]
+
+[resource]
+resource_name = "oak_inside"
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.9063318, 0.9063318, 0.9063318, 0.8)
+albedo_texture = ExtResource("1_diffuse")
+emission_enabled = true
+normal_enabled = true
+normal_scale = 1.0
+normal_texture = ExtResource("2_normal")

@@ -1,0 +1,87 @@
+[gd_scene format=3 uid="uid://cxmnchopmg0a1"]
+
+[ext_resource type="Script" uid="uid://d2xfogqelkaw3" path="res://scenes/3d_action/chopping_minigame.gd" id="1_mg"]
+[ext_resource type="PackedScene" uid="uid://bkjcipib43xh8" path="res://assets/models/forest_floor/forest_floor_a.fbx" id="2_30w1t"]
+[ext_resource type="Script" uid="uid://cv4gwxgawlaok" path="res://scenes/3d_action/canopy_gobo.gd" id="3_gobo"]
+
+[sub_resource type="Environment" id="Environment_mg"]
+background_mode = 1
+background_color = Color(0.63, 0.75, 0.82, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.7, 0.75, 0.8, 1)
+ambient_light_energy = 0.6
+
+[sub_resource type="BoxShape3D" id="Shape_floor"]
+size = Vector3(60, 2, 60)
+
+[node name="Chopping_Minigame" type="Node3D" unique_id=1574814684]
+script = ExtResource("1_mg")
+swing_time = 1.0
+
+[node name="CameraPivot" type="Node3D" parent="." unique_id=1325982870]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=1381852308]
+transform = Transform3D(1, 0, 0, 0, 0.84165555, 0.5400148, 0, -0.5400148, 0.84165555, 0, 0.76330715, 1.0039457)
+current = true
+
+[node name="AreaLight3D" type="AreaLight3D" parent="." unique_id=1223300488]
+transform = Transform3D(1.1599525, -0.24794768, 0.41322234, -0.24676746, -0.8338354, 2.1959567, 0.051464804, 1.5902923, 1.2158293, 1.2598009, 1.3775764, 0.6787071)
+visible = false
+light_color = Color(0.8845306, 0.8630008, 0.22682571, 1)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=2027577293]
+environment = SubResource("Environment_mg")
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1284461447]
+
+[node name="FloorCollision" type="CollisionShape3D" parent="Floor" unique_id=1314150499]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+shape = SubResource("Shape_floor")
+
+[node name="Fallers" type="Node3D" parent="." unique_id=1262106074]
+
+[node name="forest_floor_a" parent="." unique_id=15056532 instance=ExtResource("2_30w1t")]
+transform = Transform3D(0.4, 0, 0, 0, 0.4, 0, 0, 0, 0.4, 0, 0.005, 0)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=430022757]
+transform = Transform3D(1, 0, 0, 0, -0.74026555, 0.6723146, 0, -0.6723146, -0.74026555, 0, 1.0136948, 0)
+light_color = Color(1, 1, 0.56078434, 1)
+light_energy = 0.2
+shadow_enabled = true
+
+[node name="CanopyGobo" type="MeshInstance3D" parent="." unique_id=-473962879]
+transform = Transform3D(2.4187117, -0.061699033, -0.2095131, 0.2087104, 0.78802025, 0.15816437, 0.22906189, -0.06651424, 2.0681803, 0, 0, 0)
+script = ExtResource("3_gobo")
+canopy_size = Vector2(12, 12)
+canopy_height = 4.0
+alpha_scissor_threshold = 0.2
+sway_amount = 0.03
+sway_step_sec = 12.0
+sway_positions = 300
+
+[node name="Sun" type="SpotLight3D" parent="." unique_id=291910401]
+transform = Transform3D(0.4956624, -0.72162986, 0.48329, -0.19716771, 0.44843325, 0.8717985, -0.8458391, -0.5274069, 0.07998939, 1.6050503, 3.4645195, -0.44202363)
+light_color = Color(0.9758665, 0.85368127, 0.43758348, 1)
+light_energy = 0.5
+shadow_enabled = true
+shadow_bias = 0.0
+shadow_normal_bias = 0.72
+shadow_blur = 10.0
+spot_range = 11.245
+spot_attenuation = 1.32
+spot_angle = 24.3
+spot_angle_attenuation = 1.0352644
+
+[node name="Sun2" type="SpotLight3D" parent="." unique_id=1135558218]
+transform = Transform3D(-0.91170335, 0.24307704, -0.33122596, -0.19716765, 0.44843334, 0.87179846, 0.36044693, 0.8601286, -0.36091125, -1.2601635, 3.4645195, -1.3970945)
+light_color = Color(0.9758665, 0.85368127, 0.43758348, 1)
+light_energy = 0.3
+shadow_enabled = true
+shadow_bias = 0.0
+shadow_normal_bias = 0.72
+shadow_blur = 10.0
+spot_range = 11.245
+spot_attenuation = 1.32
+spot_angle = 24.3
+spot_angle_attenuation = 1.0352644

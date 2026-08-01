@@ -1,0 +1,7 @@
+# Godot engine cache / import artifacts
+the-axeman/.godot/
+the-axeman/android/
+
+# Scratch + tool logs
+.codex_tmp/
+*.log

@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/3d_action/forest_player.gd" id="1_player"]
+
+[sub_resource type="CapsuleShape3D" id="Shape_player_body"]
+radius = 0.35
+height = 1.8
+
+[node name="ForestPlayer" type="CharacterBody3D"]
+script = ExtResource("1_player")
+
+[node name="Body" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("Shape_player_body")
+
+[node name="Head" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.65, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Head"]
+current = true

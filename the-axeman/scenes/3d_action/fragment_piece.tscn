@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/3d_action/fragment_piece.gd" id="1_frag"]
+
+[node name="FragmentPiece" type="RigidBody3D"]
+script = ExtResource("1_frag")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]

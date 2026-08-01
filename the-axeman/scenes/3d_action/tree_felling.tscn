@@ -1,0 +1,61 @@
+[gd_scene format=3 uid="uid://6bfiba8s10eq"]
+
+[ext_resource type="Script" uid="uid://xoym8vs803h1" path="res://scenes/3d_action/tree_felling.gd" id="1_fell"]
+[ext_resource type="PackedScene" uid="uid://bkjcipib43xh8" path="res://assets/models/forest_floor/forest_floor_a.fbx" id="2_floor"]
+[ext_resource type="Script" uid="uid://cv4gwxgawlaok" path="res://scenes/3d_action/canopy_gobo.gd" id="3_gobo"]
+[ext_resource type="PackedScene" path="res://scenes/3d_action/forest_player.tscn" id="4_player"]
+
+[sub_resource type="Environment" id="Environment_fell"]
+background_mode = 1
+background_color = Color(0.63, 0.75, 0.82, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.7, 0.75, 0.8, 1)
+ambient_light_energy = 0.45
+tonemap_mode = 3
+
+[sub_resource type="BoxShape3D" id="Shape_floor_fell"]
+size = Vector3(60, 2, 60)
+
+[node name="Tree_Felling" type="Node3D" unique_id=292466538]
+script = ExtResource("1_fell")
+band_height = -0.5
+bite_depth = 0.03
+cut_span = 0.8
+cut_reach = 0.01
+hinge_hold_frac = 0.25
+fall_gravity_scale = 3.0
+fade_delay = 0.5
+fade_time = 0.3
+
+[node name="Player" parent="." unique_id=1835011591 instance=ExtResource("4_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3.4)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=238112828]
+environment = SubResource("Environment_fell")
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=1837620555]
+
+[node name="FloorCollision" type="CollisionShape3D" parent="Floor" unique_id=1579529426]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+shape = SubResource("Shape_floor_fell")
+
+[node name="Fallers" type="Node3D" parent="." unique_id=1789794842]
+
+[node name="forest_floor_a" parent="." unique_id=297259091 instance=ExtResource("2_floor")]
+transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0.005, 0)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1608628587]
+transform = Transform3D(0.819, 0, -0.574, -0.4397, 0.643, -0.6274, 0.3691, 0.766, 0.5266, 0, 8, 0)
+light_color = Color(1, 0.96, 0.82, 1)
+light_energy = 0.75
+shadow_enabled = true
+
+[node name="CanopyGobo" type="MeshInstance3D" parent="." unique_id=879698437]
+script = ExtResource("3_gobo")
+canopy_size = Vector2(26, 26)
+canopy_height = 10.0
+tile_scale = 6.0
+alpha_scissor_threshold = 0.2
+sway_amount = 0.03
+sway_step_sec = 12.0
+sway_positions = 300
