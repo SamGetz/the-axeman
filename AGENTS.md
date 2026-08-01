@@ -61,6 +61,20 @@ Sam approved the full cozy-lumberyard recommendation and the roadmap in
 5. **Tone is cozy lumberyard first**, with restrained absurd escalation only
    after the grounded chopping-and-yard fantasy is established.
 
+### EXPANDED ENDGAME DIRECTION (2026-08-01)
+
+Sam has now defined the long-horizon goal: build from the cozy yard into the
+company that **fells every tree on Earth**, then spend the resulting wealth and
+materials on space expeditions that return alien logs. The extensive design and
+module sequence are in `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`.
+
+This does **not** restore M5 or the deleted FPS forest game. Earth felling is a
+finite, data-driven operations-map/company layer; selected and rare logs come
+back to the existing chopping block, which remains the premium active play.
+The grounded yard must be established before the planetary scale is revealed,
+and the Earth campaign has a real Last Tree ending before the space campaign.
+The roadmap is not permission to skip module sign-off or invent tuning values.
+
 Exact prices, payout multipliers, timing values and upgrade magnitudes are still
 tuning decisions. Do not invent them in code: present them to Sam as resource
 values/placeholders and tune with Creative Director sign-off.
@@ -825,8 +839,17 @@ The binding post-pivot roadmap is
    supply/transport upgrades. Imperfect pieces always remain sellable.
 6. **M8:** optional yard staff/logistics — support the work around chopping;
    never replace chopping as the highest-value active play.
-7. **Post-M8 candidates:** wood-supply regions and secondary workshop products.
-   These are expansions, not permission to start them before M7/M8 sign-off.
+7. **M9–M11:** regional supply network, national/continental growth, global
+   operations and the finite Last Tree finale. These are abstract management
+   layers, never a restored FPS tree-felling game.
+8. **M12–M14:** launch programme, first alien timber expedition and a finite-
+   planet interstellar company loop.
+9. **Postgame candidate:** the observable-forest/endless layer, only after the
+   authored Earth and space campaigns are complete.
+
+The detailed long-horizon order is binding in
+`handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`, but it is not permission to
+start a later module before the current one is signed off.
 
 The old `05_M7_MANAGEMENT.md` and `06_M8_VILLAGERS.md` are historical inputs,
 not build specs. Their replacement scope lives in the cozy roadmap. Continue to

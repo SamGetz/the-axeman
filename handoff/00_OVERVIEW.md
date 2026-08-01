@@ -145,10 +145,13 @@ disk. Protocol:
 >
 > The new scope is a **cozy "number go up" lumberyard game** built on the M4
 > chopping mini-game, which Sam says already feels awesome. The approved
-> progression direction is captured in `08_COZY_LUMBERYARD_ROADMAP.md`.
+> grounded progression direction is captured in
+> `08_COZY_LUMBERYARD_ROADMAP.md`; the expanded finite-Earth and alien-timber
+> endgame is in `10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`.
 >
 > `02_M4_CHOPPING_BLOCK.md` and `07_M4_SLICING_POC.md` describe live chopping
-> code. `08_COZY_LUMBERYARD_ROADMAP.md` is the binding roadmap. `04`/`05`/`06`
+> code. `08_COZY_LUMBERYARD_ROADMAP.md` plus its long-horizon extension
+> `10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` are the binding roadmap. `04`/`05`/`06`
 > describe the retired pre-pivot plan and are retained only as history.
 >
 > **What is waiting is Sam, not code.** M4 is integrated and 16/16 but has never
@@ -200,6 +203,7 @@ every module — it's how a fresh session recovers state fast.
 | `02_M4_CHOPPING_BLOCK.md` | M4 | Firewood chopping mini-game — **this is the game now** |
 | `07_M4_SLICING_POC.md` | M4 | Slicer state, render-to-PNG debug workflow, Compatibility material traps |
 | `08_COZY_LUMBERYARD_ROADMAP.md` | M7+ | **Binding:** cozy orders, progression, upgrades, later logistics staff |
+| `10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` | M7–M14+ | **Binding extension:** skills, finite Earth campaign, Last Tree, launch programme and alien logs |
 | `04_M6_ORE_MINING.md` | M6 | **Retired:** historical ore-mining direction; do not build |
 | `05_M7_MANAGEMENT.md` | old M7 | **Superseded:** historical village-management direction; do not build |
 | `06_M8_VILLAGERS.md` | old M8 | **Superseded:** historical villager/morale direction; do not build |
