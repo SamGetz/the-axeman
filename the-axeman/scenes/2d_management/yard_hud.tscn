@@ -86,10 +86,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -220.0
-offset_top = -130.0
-offset_right = 220.0
-offset_bottom = 130.0
+offset_left = -240.0
+offset_top = -160.0
+offset_right = 240.0
+offset_bottom = 160.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -114,11 +114,15 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Shop"
 
-[node name="ShopEmpty" type="Label" parent="ShopPanel/Column"]
+[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Column"]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="ShopEmpty" type="Label" parent="ShopPanel/Column"]
+layout_mode = 2
 autowrap_mode = 3
-text = "Nothing on the shelves yet. Sharper axes, a bigger block and new woods to cut will be sold here."
+text = "Nothing on the shelves yet."
 
 [node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
 custom_minimum_size = Vector2(0, 40)

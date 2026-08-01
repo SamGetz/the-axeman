@@ -78,9 +78,14 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 ##
 ## log_02 is mapped to pine_firewood purely to DEMONSTRATE per-log yields — it still
 ## wears oak art. Remap freely.
+## `split_chance` is how likely ONE swing is to cleave a WHOLE log of this wood
+## (2026-08-01: a swing is no longer a guaranteed split — see the Splitting group
+## below). PLACEHOLDERS per Directive 3, laid out to follow the price ladder, so
+## the wood that pays most resists most: pine 2 cash and easy, oak 5 and middling,
+## birch 10 and stubborn. Omitted = `default_split_chance`.
 const _LOG_SPECIES: Array[Dictionary] = [
-	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_firewood"},
-	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_firewood"},
+	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_firewood", "split_chance": 0.7},
+	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_firewood", "split_chance": 0.9},
 	# Birch (Sam's drop, 2026-08-01): SIX authored log shapes, one species. Bark
 	# and authored ends come from each FBX's own embedded materials; the CUT
 	# faces use Sam's tileable birch inside grain, so a split birch log is pale
@@ -95,6 +100,7 @@ const _LOG_SPECIES: Array[Dictionary] = [
 			"res://assets/models/logs_export/birch_log_06.fbx",
 		],
 		"yield_item": &"birch_firewood",
+		"split_chance": 0.5,
 		"inside_tex": "res://assets/textures/wood_birch/birch_inside_tilable.png",
 		"inside_normal": "res://assets/textures/wood_birch/birch_inside_tilable_normal.png",
 	},
@@ -188,10 +194,51 @@ const _LOG_SPECIES: Array[Dictionary] = [
 @export var axe_struck_euler := Vector3(0.15, 0.0, 0.1)
 @export var swing_time := 0.16
 
+# --- splitting: a swing can FAIL and leave a scar -------------------------
+## Creative Director call, 2026-08-01: *"we should make sure the player doesn't
+## split through every time guaranteed, they should leave a scar on the log if
+## they fail a hit. The stat increase works towards easier spliting, higher tier
+## logs have a harder % to break through."*
+##
+## The model Sam chose is a ROLL WITH A PITY BONUS made visible as scars: each
+## failed swing marks the piece and makes the NEXT swing into it more likely to
+## go through, so a stubborn log always gives eventually and you can read how
+## close it is by looking at it. Every number here is a PLACEHOLDER except the two
+## 5% steps Sam named.
+@export_group("Splitting")
+@export var default_split_chance := 0.7   # for a species row that names none
+## Each scar already on a piece adds this to the next swing's odds. This is the
+## pity counter — it is what stops a bad run of luck from stalling the game.
+@export var scar_bonus := 0.15
+## How much easier a SMALL piece is than the whole log it came from. 1.0 = a tiny
+## billet is a near-certain split; 0.0 = size is irrelevant and a last small chunk
+## resists exactly as hard as the fresh log did.
+@export_range(0.0, 1.0) var size_relief := 0.5
+## The ceiling, however many protein bars have been eaten: a swing is never a
+## certainty, which is the whole point of the mechanic.
+@export_range(0.5, 1.0) var max_split_chance := 0.95
+## Sam's 5%: each level of the strength upgrade adds this to the odds.
+@export var strength_step := 0.05
+## Shake for a swing that bit but did not split — smaller than a real hit, and
+## with NO hit-pause, so a successful split keeps the time-stop to itself.
+@export var fail_impact := 0.25
+@export var scar_size := 0.075          # width of the gouge a failed swing leaves (m)
+@export var scar_depth := 0.012         # how deep the gouge bites (m)
+@export var debug_split_roll := -1      # -1 = roll for real; 0 = always fail; 1 = always split (tests only)
+
+# --- swing cooldown (what the coffee buys) --------------------------------
+## Creative Director call, 2026-08-01: coffee is "5% faster time between swings",
+## and Sam chose a REAL cooldown for it to cut into — before this the game had
+## none at all and a swing was gated only by the anticipation window.
+@export_group("Swing rate")
+@export var swing_cooldown := 0.3       # PLACEHOLDER: minimum seconds between swings
+@export var coffee_step := 0.05         # Sam's 5%, compounding per level
+
 # --- audio (hooks; drop a stream in to hear it) ---------------------------
 @export_group("Audio")
 @export var drop_sfx: AudioStream        # ref: drop.mp3 on log landing
 @export var split_sfx: AudioStream       # ref: split sound on each chop
+@export var thud_sfx: AudioStream        # a swing that bit but did not split
 
 const _TEX_INSIDE := preload("res://assets/textures/wood_oak/wood_oak_inside_tilable_diffColor.jpg")
 const _TEX_INSIDE_N := preload("res://assets/textures/wood_oak/wood_oak_inside_tilable_normals.jpg")
@@ -212,6 +259,7 @@ var _haul_root: Node3D                    # a load on its way out of the yard; N
 var _on_block: Array = []                 # Array[Area3D] — script-animated pieces on the block
 var _firewood: Array = []                 # Array[RigidBody3D] — the only physics pieces
 var _pending: Dictionary = {}             # in-flight strike waiting out anticipation_sec
+var _cooldown_left := 0.0                 # seconds until the axe can swing again (what coffee shortens)
 var _stacking := false                    # firewood is flying into the pile
 var _awaiting_stack := false              # log done; waiting for firewood to settle before stacking
 var _await_since := 0.0                   # sec timestamp the wait began
@@ -224,6 +272,7 @@ var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
 var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
+var _scar_meshes: Dictionary = {}         # species index -> ArrayMesh: the gouge a failed swing leaves
 var _phys_mat: PhysicsMaterial
 var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut faces
 var _stump_top_y := 0.5
@@ -283,13 +332,16 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	_animator.update()
 
+	if _cooldown_left > 0.0:
+		_cooldown_left -= delta
+
 	if not _pending.is_empty():
 		_pending.timer -= delta
 		if _pending.timer <= 0.0:
 			var pd := _pending
 			_pending = {}
 			if is_instance_valid(pd.piece) and pd.piece in _on_block:
-				_perform_split(pd.piece, pd.world_point, pd.normal, pd.dir)
+				_resolve_strike(pd.piece, pd.world_point, pd.normal, pd.dir)
 
 	if _awaiting_stack and _firewood_settled():
 		_begin_stacking()
@@ -567,6 +619,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_click(screen_pos: Vector2) -> void:
 	if not _pending.is_empty():
 		return   # one strike resolves at a time (matches reference _pendingSplit gate)
+	if _cooldown_left > 0.0:
+		return   # still getting the axe back up — this is what the coffee shortens
 	var from := _camera.project_ray_origin(screen_pos)
 	var dir := _camera.project_ray_normal(screen_pos)
 	var space := get_world_3d().direct_space_state
@@ -601,6 +655,7 @@ func _on_click(screen_pos: Vector2) -> void:
 			return
 	var world_point: Vector3 = hit.position
 	_swing_axe(world_point, normal)
+	_cooldown_left = current_swing_cooldown()
 	_pending = {
 		"piece": piece, "world_point": world_point, "normal": normal,
 		"dir": _dir_from_normal(normal), "timer": anticipation_sec,
@@ -628,6 +683,171 @@ func _tween_pivot(target_y: float, t: float) -> void:
 		_orbit_tween.kill()
 	_orbit_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_orbit_tween.tween_property(_pivot, "rotation:y", target_y, t)
+
+
+# ------------------------------------------------- does the swing go through?
+## Resolve one landed swing: either the wood cleaves, or the axe bites and leaves
+## a scar. THE ROLL LIVES HERE AND NOT IN _perform_split ON PURPOSE — _perform_split
+## means "cut this piece" and is what `debug_slice_world` and the whole M4 suite
+## drive, so those keep testing geometry rather than luck.
+func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int) -> bool:
+	if _roll_splits(piece):
+		piece.set_meta("scars", 0)
+		return _perform_split(piece, world_point, normal, dir_enum)
+
+	# It bit, it did not go through. Mark the wood and make the next swing into
+	# this piece more likely — the pity bonus, worn where the player can see it.
+	piece.set_meta("scars", _scars_on(piece) + 1)
+	_add_scar(piece, world_point, normal)
+	# Shake WITHOUT the hit-pause: a split keeps the time-stop to itself, so the
+	# two outcomes feel different before the player has read a single number.
+	GameFeel.register_impact(fail_impact, false)
+	_play_sfx(thud_sfx)
+	return false
+
+
+## The odds that ONE swing cleaves `piece`, all in one place:
+##   the wood's own resistance, made easier as the piece gets smaller,
+##   + the scars already in it, + every level of the strength upgrade,
+##   capped so a swing is never a certainty.
+func split_chance_for(piece: Area3D) -> float:
+	var base: float = _current_species.get("split_chance", default_split_chance)
+
+	# Size relief: a fresh log is the full fight, a small billet much less of one.
+	# Measured against the log this piece came from, so it is a fraction of THIS
+	# log rather than an absolute size that a bigger species would fail.
+	var frac := _size_fraction(piece)
+	base += (1.0 - base) * (1.0 - frac) * size_relief
+
+	base += float(_scars_on(piece)) * scar_bonus
+	base += float(Shop.get_level(GameState.UPGRADE_STRENGTH)) * strength_step
+	return clampf(base, 0.0, max_split_chance)
+
+
+func _roll_splits(piece: Area3D) -> bool:
+	if debug_split_roll == 0:
+		return false
+	if debug_split_roll == 1:
+		return true
+	return randf() < split_chance_for(piece)
+
+
+func _scars_on(piece: Area3D) -> int:
+	return int(piece.get_meta("scars", 0))
+
+
+## This piece's volume as a fraction of the whole log's, by AABB — cheap, and the
+## slicer's pieces are chunky enough for a box to rank them correctly. Returns 1.0
+## if the source log is unknown, so an unmeasurable piece is treated as the full
+## fight rather than a free one.
+func _size_fraction(piece: Area3D) -> float:
+	var mesh: Mesh = piece.get_meta("mesh_ref")
+	if mesh == null or _source_mesh == null:
+		return 1.0
+	var s := mesh.get_aabb().size
+	var w := _source_mesh.get_aabb().size
+	var whole := w.x * w.y * w.z
+	if whole <= 0.0001:
+		return 1.0
+	return clampf((s.x * s.y * s.z) / whole, 0.0, 1.0)
+
+
+## The axe mark a failed swing leaves: a shallow V of the wood's OWN inside grain,
+## sunk into the surface at the impact point, so a birch log scars pale and an oak
+## one dark without a single extra asset.
+##
+## It is a child of the piece, so it turns with it and dies with it. A piece that
+## finally splits takes its scars with it and the two fresh halves start clean —
+## which is correct, since the cleave went straight through the marks.
+func _add_scar(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
+	var scar := MeshInstance3D.new()
+	scar.mesh = _scar_mesh()
+	piece.add_child(scar)
+	scar.position = piece.to_local(world_point)
+
+	# Face the way the axe came from, then roll it a little so no two marks in the
+	# same spot look stamped from the same die.
+	var n := piece.global_transform.basis.inverse() * normal
+	if n.length() < 0.001:
+		n = Vector3.FORWARD
+	n = n.normalized()
+	var up := Vector3.UP if absf(n.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
+	var right := up.cross(n).normalized()
+	scar.basis = Basis(right, n.cross(right).normalized(), n).rotated(n, randf_range(-0.4, 0.4))
+	# OUTWARD, never inward. A gouge cut into the log would be hidden by the bark
+	# in front of it — geometry cannot subtract from a surface — so the mark is laid
+	# just proud of the wood instead, and reads as a bite because it is DARK, not
+	# because it is deep. The first render of this mechanic was invisible for
+	# exactly this reason.
+	scar.position += n * scar_depth
+
+
+## The axe mark for the species currently on the block, built once per species and
+## cached. Two flat diamonds laid one on the other, both just proud of the wood:
+## an outer shadowed bite and a darker inner gash. They wear the species' own
+## inside grain, so the mark is the wood under the bark rather than a decal from
+## nowhere — and it is depth of TONE that reads as depth of cut, because an actual
+## dent would be hidden behind the surface it is dented into.
+##
+## Godot's Decal node, which is what this would otherwise be, does not render
+## under the Compatibility renderer, so a mesh is the route (Directive 4).
+func _scar_mesh() -> ArrayMesh:
+	var key := _species_index_of(_current_species)
+	if _scar_meshes.has(key):
+		return _scar_meshes[key]
+
+	var mesh := ArrayMesh.new()
+	# TWO TONES, and both are needed: the bright outer slash is the sapwood the axe
+	# knocked the bark off, which is what shows on a DARK wood like oak; the dark
+	# core is the shadow in the cut, which is what shows on a PALE one like birch.
+	# A single dark mark was tried first and disappeared completely on oak bark.
+	_add_scar_layer(mesh, scar_size, scar_size * 0.30, 0.0, Color(1.0, 0.90, 0.72))
+	_add_scar_layer(mesh, scar_size * 0.72, scar_size * 0.12, scar_depth * 0.3,
+		Color(0.14, 0.10, 0.07))
+	_scar_meshes[key] = mesh
+	return mesh
+
+
+## One flat diamond of the gouge: `w` x `h`, standing `z` proud of the surface,
+## tinted `tint` over this species' inside grain.
+func _add_scar_layer(mesh: ArrayMesh, w: float, h: float, z: float, tint: Color) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var l := Vector3(-w * 0.5, 0.0, z)
+	var r := Vector3(w * 0.5, 0.0, z)
+	var t := Vector3(0.0, h * 0.5, z)
+	var b := Vector3(0.0, -h * 0.5, z)
+	# Winding is deliberately not fussed over: every cut material in this project
+	# is CULL_DISABLED (see the winding note in CLAUDE.md), so a mark cannot end up
+	# see-through whichever way its triangles happen to wind.
+	for tri: Array in [[l, t, r], [l, r, b]]:
+		for i in range(3):
+			var v: Vector3 = tri[i]
+			st.set_normal(Vector3.BACK)
+			st.set_uv(Vector2(v.x, v.y) * 4.0)   # metres-based, like every other cut face
+			st.set_color(Color.WHITE)
+			st.add_vertex(v)
+	st.generate_tangents()
+	var arrays := st.commit_to_arrays()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+	var mat: StandardMaterial3D = _cut_mat.duplicate()
+	mat.albedo_color = tint
+	mesh.surface_set_material(mesh.get_surface_count() - 1, mat)
+
+
+func _species_index_of(row: Dictionary) -> int:
+	for i in range(_LOG_SPECIES.size()):
+		if _LOG_SPECIES[i] == row:
+			return i
+	return 0
+
+
+## Seconds the player must wait between swings, after the coffee. Compounding, so
+## each cup is 5% off what the last one left rather than 5% off the original.
+func current_swing_cooldown() -> float:
+	var level := Shop.get_level(GameState.UPGRADE_COFFEE)
+	return swing_cooldown * pow(1.0 - coffee_step, float(level))
 
 
 # --------------------------------------------------------------- slicing
@@ -759,6 +979,40 @@ func debug_slice_world(world_plane: Plane) -> bool:
 	var piece: Area3D = _on_block[0]
 	var wp := world_plane.project(piece.global_position)
 	return _perform_split(piece, wp, world_plane.normal, _dir_from_normal(world_plane.normal))
+
+
+## Like debug_slice_world, but goes through the ROLL — so it can fail, scar the
+## piece and leave it whole. This is the headless seam for the split mechanic;
+## `debug_split_roll` forces the outcome so a test never depends on luck.
+## Returns true if the wood actually split.
+func debug_swing_world(world_plane: Plane, point_offset := Vector3.ZERO) -> bool:
+	if _on_block.is_empty():
+		return false
+	var piece: Area3D = _on_block[0]
+	# On the SURFACE, not on the plane through the middle of the piece. A real
+	# click lands where the ray hits the wood, and a scar placed at the projected
+	# centre would be buried inside the log — which is exactly how the first render
+	# of this mechanic came out invisible.
+	var wp := world_plane.project(piece.global_position) + point_offset
+	var mesh: Mesh = piece.get_meta("mesh_ref")
+	if mesh != null:
+		var span := MeshUtils.extent_along(mesh, world_plane.normal, piece.global_transform)
+		wp += world_plane.normal * (span.y - world_plane.normal.dot(wp))
+	return _resolve_strike(piece, wp, world_plane.normal, _dir_from_normal(world_plane.normal))
+
+
+## Scars currently worn by the piece on the block (the pity counter, and what the
+## shot tools and tests count).
+func debug_scar_count() -> int:
+	if _on_block.is_empty():
+		return 0
+	return _scars_on(_on_block[0])
+
+
+func debug_split_chance() -> float:
+	if _on_block.is_empty():
+		return 0.0
+	return split_chance_for(_on_block[0])
 
 
 # ------------------------------------------------------- piece factories

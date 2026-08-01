@@ -88,7 +88,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 6000 res://core/tests/m7a_acceptance.tscn` | **103/103** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **139/139** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -377,8 +377,68 @@ chopped."*
   denominator, because the threshold lives on the mini-game and duplicating it in
   the UI would give the number two owners.
 
-- Still to do in M7A: three authored orders, five upgrades and an unlockable
-  second species. All three are blocked on tuning values (Directive 3).
+### M7A — a swing is a ROLL, and the shop sells the odds (2026-08-01)
+
+**Creative Director call:** *"we should make sure the player doesn't split through
+every time guaranteed, they should leave a scar on the log if they fail a hit. The
+stat increase works towards easier spliting, higher tier logs have a harder % to
+break through."* Sam then chose, from the options put to him: a roll with a PITY
+BONUS; scars that WEAKEN the piece they are in; the protein bar as +5 points of
+split chance; and a REAL swing cooldown for the coffee to cut into.
+
+- **`_resolve_strike` owns the roll, NOT `_perform_split`.** That split is
+  deliberate: `_perform_split` means "cut this piece" and is what
+  `debug_slice_world` and the entire M4 suite drive, so M4 goes on testing geometry
+  instead of luck. The new headless seam is `debug_swing_world`, with
+  `debug_split_roll` forcing the outcome (-1 roll / 0 always fail / 1 always split).
+- **`split_chance_for(piece)` is the whole sum in one place:** the wood's own
+  `split_chance` (a new field in `_LOG_SPECIES`, placeholders laid out to follow
+  the price ladder — pine 0.9, oak 0.7, birch 0.5, so the wood that pays most
+  resists most), made easier as the piece gets smaller (`size_relief`), plus
+  `scar_bonus` per scar already in it, plus `strength_step` per protein bar,
+  clamped to `max_split_chance` (0.95) — a swing is NEVER a certainty, which is
+  the thing Sam asked for by name. `m7a_acceptance` asserts the price/difficulty
+  ordering against the species table, so a new wood cannot ship as both the most
+  valuable and the easiest.
+- **A SCAR IS DRAWN OUTWARD, NOT CARVED IN.** Geometry cannot subtract from a
+  surface: the first implementation sank a V into the log and rendered completely
+  invisible, because the bark in front of it drew over the top. The mark is now
+  two flat diamonds laid just proud of the wood, wearing that species' own inside
+  grain — **a bright sapwood slash with a dark core**, and it needs BOTH tones: the
+  bright one is what shows on dark oak bark, the dark one is what shows on pale
+  birch. A single dark mark was tried and vanished on oak. (Godot's `Decal` node,
+  the obvious tool, does not render under Compatibility.)
+- Scars live as children of the piece, so they turn with it and die with it. A
+  piece that finally splits takes its scars with it and the two halves start
+  clean — correct, since the cleave went straight through the marks.
+- **A failed swing shakes but does NOT stop time.** `GameFeel.register_impact`
+  gained an optional `with_pause` argument (a public method, not an A7 signal, so
+  no contract moved) and failures pass `false`. A11's hit-pause stays the
+  punctuation of a real split, so the two outcomes feel different before the
+  player has read a single number.
+- **The swing cooldown did not exist before this.** The game was gated only by one
+  strike at a time plus the anticipation window, so there was nothing for "5%
+  faster between swings" to shorten. `swing_cooldown` (0.3 s, PLACEHOLDER and the
+  value most likely to want Sam's hand) is now a real gate, and coffee compounds
+  5% off it per level.
+- **`res://core/shop.gd` + `data/upgrade_def.gd` / `upgrade_table.tres`.** Shop is
+  static and not an autoload, like Market and SaveSystem. **Levels are stored as
+  BUILDING TIERS** through A7's existing `building_upgraded` — a shop upgrade is
+  exactly what that frozen signal already describes, so nothing was added to the
+  contract to sell a cup of coffee. NOTE `DEFAULT_BUILDING_TIER` is 1, so LEVEL =
+  TIER - 1; every reader goes through `Shop.get_level()` so that lives in one
+  place. A purchase is atomic and ordered: refuse if maxed, spend the cash, and
+  only then raise the tier.
+- Costs (25 / 40, growth 1.6-1.7, cap 10 levels) are PLACEHOLDERS. The two 5%
+  effect steps are Sam's.
+- Verified by 37 checks in `m7a_acceptance`, all forcing the roll so none of them
+  depend on RNG, and proven to fail without their fix (make every swing split and
+  9 go red; drop the strength term and the protein bar's check goes red).
+  RENDERED: `core/tools/scar_shot.tscn` shoots a clean log, a scarred one and a
+  split one for both a dark wood and a pale one — run it on any change to the mark.
+
+- Still to do in M7A: three authored orders, three more upgrades and an
+  unlockable second species. All are blocked on tuning values (Directive 3).
 
 ### Files the chopping game owns
 
@@ -391,7 +451,7 @@ chopped."*
 front end and the entry flow) — the first thing this folder has ever held.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
-`pile_shot`, `shot_runner`, `hud_shot`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
+`pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
 `species_shot` (renders EVERY row of `_LOG_SPECIES`, fresh and cut — run it on any
 log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
 ACTUAL bound texture per surface — see the material-name trap below).

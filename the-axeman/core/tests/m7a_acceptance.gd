@@ -62,6 +62,10 @@ func _ready() -> void:
 	await _test_14_hud_carries_the_entry_flow()
 	await _test_15_the_pile_is_a_view_of_stock()
 	await _test_16_pieces_pay_as_they_land_and_the_load_is_hauled()
+	await _test_17_a_swing_can_fail_and_scars_the_log()
+	_test_18_tougher_wood_pays_better()
+	_test_19_the_shop_sells_levels()
+	await _test_20_upgrades_change_the_game()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -586,6 +590,175 @@ func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
 
 func _wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds, true, false, true).timeout
+
+
+# --------------------------------------------------- splitting is not a given
+## A swing is a ROLL now, not a guarantee: it either cleaves the wood or bites and
+## leaves a scar, and every scar makes the next swing into that piece more likely
+## (Creative Director call, 2026-08-01). Every check here forces the outcome
+## through `debug_split_roll`, so the suite tests the mechanic and never the RNG.
+func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 2      # birch: the dearest wood and the most stubborn
+	mg.debug_split_roll = 0          # every swing fails
+	add_child(mg)
+	await get_tree().process_frame
+
+	var pieces_before: int = mg.piece_count()
+	var chance_before: float = mg.debug_split_chance()
+	_check(chance_before > 0.0 and chance_before < 1.0,
+		"a fresh birch log is neither hopeless nor certain (%.2f)" % chance_before)
+
+	var split: bool = mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	_check(not split, "a failed swing does not split the log")
+	_check(mg.piece_count() == pieces_before,
+		"...the log is still one piece (%d)" % mg.piece_count())
+	_check(mg.debug_scar_count() == 1, "...and it wears exactly one scar")
+
+	# The scar is a real mesh on the real piece, not just a counter.
+	var marks := 0
+	for c in mg.get_node("OnBlock").get_child(0).get_children():
+		if c is MeshInstance3D and c.name != "Mesh":
+			marks += 1
+	_check(marks == 1, "...which is an actual gouge mesh on the log (%d)" % marks)
+
+	var chance_after: float = mg.debug_split_chance()
+	_check(absf((chance_after - chance_before) - mg.scar_bonus) < 0.001,
+		"the scar raised the next swing's odds by exactly one scar_bonus (%.2f -> %.2f)"
+			% [chance_before, chance_after])
+
+	# Keep failing: the pity bonus climbs, and stops at the ceiling. Without that
+	# cap a long enough run of bad luck would make a swing a certainty, which is
+	# the one thing Sam asked the mechanic never to become.
+	for i in range(20):
+		mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	_check(mg.debug_scar_count() == 21, "21 failed swings, 21 scars")
+	_check(absf(mg.debug_split_chance() - mg.max_split_chance) < 0.001,
+		"...and the odds are pinned at the %.2f ceiling, never 1.0" % mg.max_split_chance)
+
+	# Strength is the other half of the sum.
+	var before_strength: float = mg.debug_split_chance()
+	EventBus.building_upgraded.emit(GameState.UPGRADE_STRENGTH, 2)   # tier 2 = level 1
+	_check(Shop.get_level(GameState.UPGRADE_STRENGTH) == 1, "one protein bar = strength level 1")
+	_check(mg.debug_split_chance() >= before_strength,
+		"...and the ceiling still holds with strength on top")
+
+	# A swing that lands takes the scars with it: the cleave went through them.
+	mg.debug_split_roll = 1
+	_check(mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0)), "a successful swing splits the log")
+	_check(mg.piece_count() > pieces_before,
+		"...into more pieces than it was (%d)" % mg.piece_count())
+	_check(mg.debug_scar_count() == 0, "...and the fresh piece on the block is unscarred")
+
+	mg.queue_free()
+	await get_tree().process_frame
+
+
+## Difficulty follows the money: the wood that pays most resists most. Asserted
+## against the species table itself so a new wood cannot quietly ship as the most
+## valuable AND the easiest.
+func _test_18_tougher_wood_pays_better() -> void:
+	var probe: Node = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	var species: Array = probe._LOG_SPECIES
+	var fallback: float = probe.default_split_chance
+	probe.free()
+
+	var rows: Array = []
+	for row: Dictionary in species:
+		var item: StringName = row.get("yield_item", &"")
+		rows.append({
+			"item": item,
+			"price": Market.get_price(item),
+			"chance": float(row.get("split_chance", fallback)),
+		})
+	_check(rows.size() >= 3, "at least three woods to rank (%d)" % rows.size())
+
+	for a: Dictionary in rows:
+		for b: Dictionary in rows:
+			if int(a["price"]) <= int(b["price"]):
+				continue
+			_check(float(a["chance"]) <= float(b["chance"]),
+				"%s pays more than %s, so it must not be easier to split (%.2f vs %.2f)"
+					% [a["item"], b["item"], a["chance"], b["chance"]])
+
+
+# ------------------------------------------------------------------- the shop
+func _test_19_the_shop_sells_levels() -> void:
+	GameState.reset_to_defaults()
+	var upgrades := Shop.get_upgrades()
+	_check(upgrades.size() == 2, "the shop stocks exactly the two things Sam named (%d)" % upgrades.size())
+	_check(Shop.get_upgrade(GameState.UPGRADE_COFFEE) != null
+			and Shop.get_upgrade(GameState.UPGRADE_STRENGTH) != null,
+		"...coffee and the protein bar")
+	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == 0,
+		"a fresh game owns level 0 of everything, despite building tiers starting at 1")
+
+	# Broke: the purchase must change NOTHING.
+	var cost := Shop.get_next_cost(GameState.UPGRADE_COFFEE)
+	_check(cost > 0, "the first coffee costs %d" % cost)
+	_check(not Shop.can_buy(GameState.UPGRADE_COFFEE), "...which 0 cash cannot cover")
+	_check(Shop.buy(GameState.UPGRADE_COFFEE) == -1, "...so the purchase is refused")
+	_check(GameState.get_cash() == 0 and Shop.get_level(GameState.UPGRADE_COFFEE) == 0,
+		"...spending nothing and granting nothing")
+
+	GameState.add_cash(cost)
+	_check(Shop.buy(GameState.UPGRADE_COFFEE) == 1, "with the money in hand, coffee reaches level 1")
+	_check(GameState.get_cash() == 0, "...and it cost exactly what it said (0 left)")
+	_check(Shop.get_next_cost(GameState.UPGRADE_COFFEE) > cost,
+		"...the next cup costs more than the first")
+
+	# Levels are building tiers, so they persist through the save that already exists.
+	SaveSystem.delete_save()
+	_check(SaveSystem.save_game(), "the yard saves with an upgrade owned")
+	GameState.reset_to_defaults()
+	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == 0, "state trashed before loading")
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "...the save reloads")
+	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == 1, "...and the coffee level came back")
+	SaveSystem.delete_save()
+
+
+## The two upgrades have to actually DO their 5%, or they are just a cash sink.
+func _test_20_upgrades_change_the_game() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 2
+	mg.debug_split_roll = 0
+	add_child(mg)
+	await get_tree().process_frame
+
+	var cooldown0: float = mg.current_swing_cooldown()
+	var chance0: float = mg.debug_split_chance()
+
+	GameState.add_cash(100000)
+	Shop.buy(GameState.UPGRADE_COFFEE)
+	Shop.buy(GameState.UPGRADE_STRENGTH)
+
+	var cooldown1: float = mg.current_swing_cooldown()
+	_check(absf(cooldown1 - cooldown0 * (1.0 - mg.coffee_step)) < 0.0001,
+		"one coffee cuts the wait between swings by 5%% (%.3fs -> %.3fs)" % [cooldown0, cooldown1])
+	_check(cooldown1 < cooldown0, "...which is genuinely shorter, not merely different")
+
+	_check(absf((mg.debug_split_chance() - chance0) - mg.strength_step) < 0.001,
+		"one protein bar adds 5 points to the odds of splitting (%.2f -> %.2f)"
+			% [chance0, mg.debug_split_chance()])
+
+	# Buying the shelf out must stop somewhere.
+	var def := Shop.get_upgrade(GameState.UPGRADE_COFFEE)
+	for i in range(def.max_level + 5):
+		Shop.buy(GameState.UPGRADE_COFFEE)
+	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == def.max_level,
+		"coffee stops at its cap of %d levels" % def.max_level)
+	_check(Shop.buy(GameState.UPGRADE_COFFEE) == -1, "...and a maxed upgrade refuses to sell again")
+	_check(mg.current_swing_cooldown() > 0.0, "...with the swing rate still a positive number of seconds")
+
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
 
 
 # ------------------------------------------------------------------ fixture

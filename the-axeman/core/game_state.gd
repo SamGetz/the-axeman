@@ -26,6 +26,13 @@ signal yard_pile_changed(new_total: int)
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
 const DEFAULT_BUILDING_TIER := 1
+
+## Shop upgrade ids. They are stored as BUILDING TIERS (see res://core/shop.gd for
+## why that is the honest home and not a new contract), and they live here rather
+## than on either the shop or the chopping game because both sides read them: the
+## shop sells the level, the mini-game spends it.
+const UPGRADE_COFFEE := &"coffee"       # shorter cooldown between swings
+const UPGRADE_STRENGTH := &"strength"   # better odds of splitting a log clean through
 ## PLACEHOLDER per Directive 3 — the starting purse is a tuning value, not a
 ## design fact. Sam sets the real number when M7A's prices are decided.
 const DEFAULT_CASH := 0

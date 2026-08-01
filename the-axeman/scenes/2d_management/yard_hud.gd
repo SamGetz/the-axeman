@@ -20,6 +20,7 @@ extends Control
 ##   ├── ShopPanel (PanelContainer, centred — hidden until the shop is opened)
 ##   │   └── Column (VBoxContainer)
 ##   │       ├── Header (HBoxContainer) → ShopIcon (TextureRect), ShopTitle (Label)
+##   │       ├── ShopList (VBoxContainer)   <- rows are built at RUNTIME
 ##   │       ├── ShopEmpty (Label)
 ##   │       └── CloseShopButton (Button)
 ##   └── BackButton (Button, bottom-left — chopping mode only)
@@ -44,13 +45,20 @@ extends Control
 ## LIVE, NEVER POLLED: it listens to GameState.cash_changed, which is precisely
 ## what that local signal exists for (Amendment 2's precedent).
 ##
+## THE SHOP ROWS ARE BUILT FROM DATA at runtime, from `Shop.get_upgrades()` — so
+## a new thing to buy is a row in `res://data/upgrade_table.tres` and nothing else.
+## Costs and level caps in that file are placeholders awaiting Sam; the two 5%
+## effect steps are his.
+##
 ## Layout numbers and wording here are functional placeholders — art direction for
-## the 2D side is still deferred (M2 sign-off). THE SHOP IS AN EMPTY ROOM ON
-## PURPOSE: upgrades and new logs are blocked on Sam's numbers (Directive 3), so
-## this is the door and the counter, with nothing on the shelves yet.
+## the 2D side is still deferred (M2 sign-off).
+
+const _COIN := preload("res://assets/ui/coin.png")
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
 @onready var _yard_panel: PanelContainer = $YardPanel
+@onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopList
+@onready var _shop_empty: Label = $ShopPanel/Column/ShopEmpty
 @onready var _shop_panel: PanelContainer = $ShopPanel
 @onready var _shop_button: Button = $YardPanel/Column/ShopButton
 @onready var _close_shop_button: Button = $ShopPanel/Column/CloseShopButton
@@ -65,6 +73,9 @@ func _ready() -> void:
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
 
 	GameState.cash_changed.connect(_on_cash_changed)
+	# A purchase moves a tier through A7's own signal, so the shelf repaints off
+	# the same event that recorded the sale.
+	EventBus.building_upgraded.connect(_on_building_upgraded)
 	EventBus.minigame_entered.connect(_on_minigame_entered)
 	EventBus.minigame_exited.connect(_on_minigame_exited)
 
@@ -73,6 +84,7 @@ func _ready() -> void:
 	_shop_panel.visible = false
 	_show_yard(true)
 	_refresh_stats()
+	_rebuild_shop()
 
 
 ## ------------------------------------------------------------------ entry flow
@@ -107,15 +119,78 @@ func _show_yard(yard_visible: bool) -> void:
 ## ------------------------------------------------------------------- the shop
 func _on_shop_pressed() -> void:
 	_shop_panel.visible = true
+	_rebuild_shop()   # levels and affordability may have moved while it was shut
 
 
 func _on_close_shop_pressed() -> void:
 	_shop_panel.visible = false
 
 
+func _on_building_upgraded(_id: StringName, _tier: int) -> void:
+	_rebuild_shop()
+
+
+## One row per upgrade, straight from the table: what it is, what it does, what
+## level you are on and what the next one costs.
+func _rebuild_shop() -> void:
+	for child in _shop_list.get_children():
+		_shop_list.remove_child(child)
+		child.queue_free()
+
+	var upgrades := Shop.get_upgrades()
+	_shop_empty.visible = upgrades.is_empty()
+	for def: UpgradeDef in upgrades:
+		if def != null:
+			_shop_list.add_child(_build_shop_row(def))
+
+
+func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
+	var level := Shop.get_level(def.id)
+	var maxed := def.is_maxed(level)
+
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 8)
+	var name_label := Label.new()
+	name_label.text = "%s  (level %d)" % [def.display_name, level]
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(name_label)
+
+	var buy := Button.new()
+	buy.custom_minimum_size = Vector2(92, 34)   # room for the coin beside the price
+	if maxed:
+		buy.text = "Maxed"
+		buy.disabled = true
+	else:
+		buy.text = str(Shop.get_next_cost(def.id))
+		buy.icon = _COIN
+		buy.expand_icon = true
+		buy.disabled = not Shop.can_buy(def.id)
+		buy.pressed.connect(_on_buy_pressed.bind(def.id))
+	top.add_child(buy)
+	row.add_child(top)
+
+	var blurb := Label.new()
+	blurb.text = def.description
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.add_theme_font_size_override("font_size", 13)
+	row.add_child(blurb)
+	return row
+
+
+func _on_buy_pressed(id: StringName) -> void:
+	# Shop.buy is atomic: a refused purchase spends nothing and moves no tier, so
+	# there is nothing to undo here. The rebuild rides in on building_upgraded.
+	Shop.buy(id)
+
+
 ## ----------------------------------------------------------------- live view
 func _on_cash_changed(_new_amount: int) -> void:
 	_refresh_stats()
+	if _shop_panel.visible:
+		_rebuild_shop()   # what you can afford changed while you were looking at it
 
 
 func _refresh_stats() -> void:

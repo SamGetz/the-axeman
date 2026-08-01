@@ -65,13 +65,20 @@ func _process(delta: float) -> void:
 
 ## ------------------------------------------------------------- public API
 
-## Register a gameplay impact: adds trauma (shake) and triggers a hit-pause.
-## strength is clamped to 0..1. Safe to call from anywhere; the pause is
-## fire-and-forget.
-func register_impact(strength: float) -> void:
+## Register a gameplay impact: adds trauma (shake) and, by default, triggers a
+## hit-pause. strength is clamped to 0..1. Safe to call from anywhere; the pause
+## is fire-and-forget.
+##
+## `with_pause = false` gives shake WITHOUT stopping time, for a blow that landed
+## but did not resolve anything — the chopping game's failed swings use it, so a
+## split still owns the punctuation of a time-stop and a bounced axe reads as a
+## lesser event. Added 2026-08-01; an optional argument on a public method, so
+## every existing caller and the A7 signal path are untouched.
+func register_impact(strength: float, with_pause := true) -> void:
 	strength = clampf(strength, 0.0, 1.0)
 	_trauma = clampf(_trauma + strength, 0.0, 1.0)
-	hit_pause()
+	if with_pause:
+		hit_pause()
 
 
 ## A11 hit-pause. Pins Engine.time_scale to 0.05 for `duration` real seconds
