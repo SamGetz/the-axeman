@@ -23,9 +23,9 @@ func _ready() -> void:
 			await get_tree().process_frame
 		_save("_%d_a_clean" % species)
 
-		# Four swings around the face the camera is looking at.
+		# Four failed swings across the top, the way the camera sees them.
 		for k in range(4):
-			mg.debug_swing_world(Plane(Vector3.BACK, 0.0), Vector3(0.0, -0.12 + 0.08 * k, 0.0))
+			mg.debug_swing_world(Plane(Vector3.RIGHT, -0.09 + 0.06 * k))
 			for i in range(3):
 				await get_tree().process_frame
 		_save("_%d_b_scarred" % species)

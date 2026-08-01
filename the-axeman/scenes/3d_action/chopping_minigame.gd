@@ -222,9 +222,10 @@ const _LOG_SPECIES: Array[Dictionary] = [
 ## Shake for a swing that bit but did not split — smaller than a real hit, and
 ## with NO hit-pause, so a successful split keeps the time-stop to itself.
 @export var fail_impact := 0.25
-@export var scar_size := 0.13           # width of the mark a failed swing leaves (m)
-@export var scar_depth := 0.008         # how far off the wood the mark is laid, so it never z-fights (m)
-@export var scar_colour := Color(0.07, 0.05, 0.04)   # near-black: readability beats matching the wood
+@export var scar_width := 0.014         # thickness of the line a failed swing leaves (m)
+@export_range(0.0, 1.0) var scar_length_frac := 0.8   # how far the line runs across the piece's top
+@export var scar_lift := 0.004          # how far above the top face the line is laid, so it never z-fights (m)
+@export var scar_colour := Color(0.20, 0.13, 0.09, 0.55)   # a soft mark, not a black bar
 @export var debug_split_roll := -1      # -1 = roll for real; 0 = always fail; 1 = always split (tests only)
 
 # --- swing cooldown (what the coffee buys) --------------------------------
@@ -753,71 +754,80 @@ func _size_fraction(piece: Area3D) -> float:
 	return clampf((s.x * s.y * s.z) / whole, 0.0, 1.0)
 
 
-## The axe mark a failed swing leaves: a shallow V of the wood's OWN inside grain,
-## sunk into the surface at the impact point, so a birch log scars pale and an oak
-## one dark without a single extra asset.
+## The mark a failed swing leaves: a thin line ACROSS THE TOP OF THE LOG, along
+## the cut the axe was trying to make.
+##
+## Creative Director call, 2026-08-01: *"It would need to be on the top, the line
+## in the direction the camera is facing from where the player clicked."* That is
+## the honest place for it — the log stands on the block and the axe comes down on
+## its top face, so the bite belongs on the top, not on the side the click ray
+## happened to enter through (which is where the first version put it).
+##
+## The line runs along `UP x normal`. `normal` is the camera's own right vector
+## (see _on_click), so the cut plane contains the camera's forward — and the line
+## the plane leaves on the top face runs away from the viewer, exactly the line the
+## split would have opened.
 ##
 ## It is a child of the piece, so it turns with it and dies with it. A piece that
-## finally splits takes its scars with it and the two fresh halves start clean —
-## which is correct, since the cleave went straight through the marks.
+## finally splits takes its marks with it and the two fresh halves start clean —
+## which is correct, since the cleave went straight through them.
 func _add_scar(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
+	var line_dir := Vector3.UP.cross(normal)
+	if line_dir.length() < 0.001:
+		return
+	line_dir = line_dir.normalized()
+
+	var mesh: Mesh = piece.get_meta("mesh_ref")
+	if mesh == null:
+		return
+	# Pieces on the block are only ever yawed, so the mesh's own height still gives
+	# the top face, and the click's x/z give where along it the axe came down.
+	var top_y := piece.global_position.y + mesh.get_aabb().size.y * 0.5
+	var length := maxf(_piece_extent_along(piece, line_dir) * scar_length_frac, scar_width)
+
 	var scar := MeshInstance3D.new()
 	scar.mesh = _scar_mesh()
 	piece.add_child(scar)
-	scar.position = piece.to_local(world_point)
-
-	# Face the way the axe came from, then roll it a little so no two marks in the
-	# same spot look stamped from the same die.
-	var n := piece.global_transform.basis.inverse() * normal
-	if n.length() < 0.001:
-		n = Vector3.FORWARD
-	n = n.normalized()
-	var up := Vector3.UP if absf(n.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
-	var right := up.cross(n).normalized()
-	scar.basis = Basis(right, n.cross(right).normalized(), n).rotated(n, randf_range(-0.4, 0.4))
-	# OUTWARD, never inward. A gouge cut into the log would be hidden by the bark
-	# in front of it — geometry cannot subtract from a surface — so the mark is laid
-	# just proud of the wood instead, and reads as a bite because it is DARK, not
-	# because it is deep. The first render of this mechanic was invisible for
-	# exactly this reason.
-	scar.position += n * scar_depth
+	# Built as a unit quad and stretched here, so one cached mesh serves a line of
+	# any length on any piece.
+	scar.global_transform = Transform3D(
+		Basis(line_dir * length, Vector3.UP.cross(line_dir) * scar_width, Vector3.UP),
+		Vector3(world_point.x, top_y + scar_lift, world_point.z))
 
 
-## The axe mark, built once and shared by every wood.
+## The mark itself: a 1x1 quad, laid flat and stretched to length by _add_scar,
+## in one soft dark tone shared by every wood.
 ##
-## ONE FLAT DARK SLASH, and deliberately not clever (Creative Director call,
-## 2026-08-01: *"I am having a hard time seeing the scar, it can just be a dark
-## color as well, so no need to have it match every log"*). The earlier version
-## wore each species' own inside grain in two tones, which was prettier and much
-## harder to see. Being readable beats being correct here: a scar the player misses
-## is a mechanic the player misses.
+## Creative Director calls, both learned the hard way. *"I am having a hard time
+## seeing the scar, it can just be a dark color as well, so no need to have it
+## match every log"* retired a prettier two-tone version that wore each species'
+## own inside grain and was much harder to see. Then *"the line is way too dark,
+## it should just be a soft-indicator of failure"* — so it is translucent now,
+## a thin mark where the axe failed to punch through rather than a black bar.
 ##
-## UNSHADED on purpose — a lit material dims into dark bark exactly where the mark
-## matters most, and unlit keeps it the same near-black whatever the sun is doing.
-## It is laid just PROUD of the wood, never carved into it: geometry cannot
-## subtract from a surface, and the first version of this sank a notch into the log
-## and rendered completely invisible behind the bark in front of it. (Godot's
-## Decal node, the obvious tool, does not render under Compatibility.)
+## UNSHADED on purpose: a lit material dims into dark bark exactly where the mark
+## matters most. And it is laid just PROUD of the surface, never carved into it —
+## geometry cannot subtract from a surface, and the first version sank a notch into
+## the log and rendered completely invisible behind the bark in front of it.
+## (Godot's Decal node, the obvious tool, does not render under Compatibility.)
 func _scar_mesh() -> ArrayMesh:
 	if _scar_meshes.has(0):
 		return _scar_meshes[0]
 
-	var w := scar_size
-	var h := scar_size * 0.34
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var l := Vector3(-w * 0.5, 0.0, 0.0)
-	var r := Vector3(w * 0.5, 0.0, 0.0)
-	var t := Vector3(0.0, h * 0.5, 0.0)
-	var b := Vector3(0.0, -h * 0.5, 0.0)
 	# Winding is deliberately not fussed over: the material is CULL_DISABLED (see
 	# the winding note in CLAUDE.md), so a mark cannot end up see-through whichever
 	# way its triangles happen to wind.
-	for tri: Array in [[l, t, r], [l, r, b]]:
+	var a := Vector3(-0.5, -0.5, 0.0)
+	var b := Vector3(0.5, -0.5, 0.0)
+	var c := Vector3(0.5, 0.5, 0.0)
+	var d := Vector3(-0.5, 0.5, 0.0)
+	for tri: Array in [[a, b, c], [a, c, d]]:
 		for i in range(3):
 			var v: Vector3 = tri[i]
 			st.set_normal(Vector3.BACK)
-			st.set_uv(Vector2(v.x, v.y))
+			st.set_uv(Vector2(v.x, v.y) + Vector2(0.5, 0.5))
 			st.set_color(Color.WHITE)
 			st.add_vertex(v)
 	var mesh := st.commit()
@@ -825,6 +835,7 @@ func _scar_mesh() -> ArrayMesh:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = scar_colour
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh.surface_set_material(0, mat)
 
@@ -989,11 +1000,9 @@ func debug_swing_world(world_plane: Plane, point_offset := Vector3.ZERO) -> bool
 	# click lands where the ray hits the wood, and a scar placed at the projected
 	# centre would be buried inside the log — which is exactly how the first render
 	# of this mechanic came out invisible.
+	# The point only has to lie ON THE CUT PLANE: the mark is drawn where that plane
+	# crosses the top face, so there is no surface to hunt for.
 	var wp := world_plane.project(piece.global_position) + point_offset
-	var mesh: Mesh = piece.get_meta("mesh_ref")
-	if mesh != null:
-		var span := MeshUtils.extent_along(mesh, world_plane.normal, piece.global_transform)
-		wp += world_plane.normal * (span.y - world_plane.normal.dot(wp))
 	return _resolve_strike(piece, wp, world_plane.normal, _dir_from_normal(world_plane.normal))
 
 

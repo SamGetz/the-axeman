@@ -406,13 +406,23 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   invisible, because the bark in front of it drew over the top. The mark is laid
   just proud of the wood instead. (Godot's `Decal` node, the obvious tool, does
   not render under Compatibility.)
-- **The mark is ONE FLAT NEAR-BLACK SLASH, shared by every wood, and UNSHADED.**
-  It went through a prettier version first — two tones of the species' own inside
-  grain, a bright sapwood slash with a dark core — and Sam could not see it:
-  *"I am having a hard time seeing the scar, it can just be a dark color as well,
-  so no need to have it match every log."* Unshaded is the load-bearing part: a
-  lit material dims into dark bark exactly where the mark matters most. Readable
-  beats correct — a scar the player misses is a mechanic the player misses.
+- **THE MARK GOES ON THE TOP FACE, ALONG THE CUT LINE** (Creative Director call:
+  *"It would need to be on the top, the line in the direction the camera is facing
+  from where the player clicked"*). The log stands on the block and the axe comes
+  down on its top, so that is where the bite belongs — the first version put it on
+  whichever SIDE the click ray entered through, which is where the ray hit but not
+  where the axe went. The line runs along `UP x normal`; since `normal` is the
+  camera's own right vector (see `_on_click`), that is the line the split would
+  have opened, running away from the viewer.
+- **It is ONE SOFT DARK LINE, shared by every wood, UNSHADED and translucent.** It
+  went through two rejected versions: a prettier two-tone of each species' own
+  inside grain (*"I am having a hard time seeing the scar, it can just be a dark
+  color as well, so no need to have it match every log"*), then a solid near-black
+  bar (*"the line is also way too dark, it should just be a soft-indicator of
+  failure, a thin mark where an axe failed to punch through"*). Unshaded is the
+  load-bearing part: a lit material dims into dark bark exactly where the mark
+  matters most. Readable beats correct — a scar the player misses is a mechanic
+  the player misses.
 - Scars live as children of the piece, so they turn with it and die with it. A
   piece that finally splits takes its scars with it and the two halves start
   clean — correct, since the cleave went straight through the marks.
