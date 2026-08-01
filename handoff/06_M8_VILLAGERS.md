@@ -1,5 +1,9 @@
 # M8 — Villager Overlays (portraits · morale · production multiplier)
 
+> **SUPERSEDED 2026-08-01:** Do not build the old villager/morale system. M8 is
+> now optional yard staff who support logistics around manual chopping, as
+> defined in `08_COZY_LUMBERYARD_ROADMAP.md`. This file is historical only.
+
 Status at handoff: direction only. Final module; smallest system surface,
 highest art dependence (Sam's hi-res portraits).
 

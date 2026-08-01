@@ -143,14 +143,13 @@ disk. Protocol:
 > below about trees, the forest, felling, bucking or the voxel wood describes
 > code that no longer exists — it is preserved in git at commit `29bcd6f`.
 >
-> The new scope is a **"number go up" log-cutter** built on the M4 chopping
-> mini-game, which Sam says already feels awesome. **Nothing has been designed
-> for the progression layer** — ask Sam before writing any of it.
+> The new scope is a **cozy "number go up" lumberyard game** built on the M4
+> chopping mini-game, which Sam says already feels awesome. The approved
+> progression direction is captured in `08_COZY_LUMBERYARD_ROADMAP.md`.
 >
-> `02_M4_CHOPPING_BLOCK.md` and `07_M4_SLICING_POC.md` are the two docs in this
-> pack that still describe live code. `04`/`05`/`06` (ore, management,
-> villagers) describe the pre-pivot village-builder game and are unreviewed
-> against the new scope.
+> `02_M4_CHOPPING_BLOCK.md` and `07_M4_SLICING_POC.md` describe live chopping
+> code. `08_COZY_LUMBERYARD_ROADMAP.md` is the binding roadmap. `04`/`05`/`06`
+> describe the retired pre-pivot plan and are retained only as history.
 >
 > **What is waiting is Sam, not code.** M4 is integrated and 16/16 but has never
 > been signed off, and the click-to-chop input layer has never been
@@ -164,8 +163,8 @@ disk. Protocol:
   - `scenes/3d_action/placeholder_action_scene.tscn`: placeholder stump/
     ground/blurred-BG-quad/sun-gobo-spotlight/stepped AnimationPlayer.
   - **Temp debug:** M key in `main.gd` toggles 2D↔3D via real EventBus
-    signals. Marked "M2 TEMPORARY DEBUG". Keep until M7 provides the real
-    entry flow (M4–M6 development relies on it), then delete.
+    signals. Marked "M2 TEMPORARY DEBUG". Keep until M7A provides the real
+    entry flow for the chopping game, then delete.
   - `assets/textures/background_blurred.jpg` was converted from
     `images/background_blurred.jfif` at repo root (Godot won't import .jfif;
     it's a plain JPEG — rename-copy was enough).
@@ -200,9 +199,10 @@ every module — it's how a fresh session recovers state fast.
 | `01_M3_GAMEFEEL.md` | M3 | Hit-pause, noise camera shake, `register_impact` |
 | `02_M4_CHOPPING_BLOCK.md` | M4 | Firewood chopping mini-game — **this is the game now** |
 | `07_M4_SLICING_POC.md` | M4 | Slicer state, render-to-PNG debug workflow, Compatibility material traps |
-| `04_M6_ORE_MINING.md` | M6 | Pickaxe, fracture layers, gem drops — **pre-pivot, unreviewed** |
-| `05_M7_MANAGEMENT.md` | M7 | 2D management: inventory UI, buildings, refining — **pre-pivot, unreviewed** |
-| `06_M8_VILLAGERS.md` | M8 | Villager overlays, morale multiplier — **pre-pivot, unreviewed** |
+| `08_COZY_LUMBERYARD_ROADMAP.md` | M7+ | **Binding:** cozy orders, progression, upgrades, later logistics staff |
+| `04_M6_ORE_MINING.md` | M6 | **Retired:** historical ore-mining direction; do not build |
+| `05_M7_MANAGEMENT.md` | old M7 | **Superseded:** historical village-management direction; do not build |
+| `06_M8_VILLAGERS.md` | old M8 | **Superseded:** historical villager/morale direction; do not build |
 
 `03_M5_TREE_FELLING.md`, `08_FPS_FOREST.md` and `09_TRUNK_SEAMS_AND_ROOTS.md`
 were deleted in the 2026-08-01 pivot along with the code they specified.

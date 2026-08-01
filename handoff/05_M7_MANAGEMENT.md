@@ -1,5 +1,9 @@
 # M7 — 2D Management (inventory UI · buildings · refining · upgrades)
 
+> **SUPERSEDED 2026-08-01:** Do not build this village-management/refining spec.
+> M7 is now the lightweight cozy-lumberyard progression and order layer defined
+> in `08_COZY_LUMBERYARD_ROADMAP.md`. This file is historical reference only.
+
 Status at handoff: direction only. M7 is where the 2D half of the hybrid
 finally exists — the game stops booting to an empty screen, and the M-key
 debug toggle finally dies.

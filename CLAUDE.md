@@ -24,9 +24,11 @@ bucking, the 22 forest/seam dev tools, `m5_acceptance`, `TreeDef`,
 `pine_tree.tres` and 53 MB of tree art — was deleted on 2026-08-01. It is all
 recoverable from git (see below); it is not coming back unless Sam says so.
 
-**What the game is now:** the M4 chopping mini-game — a log on a block, click to
-slice it into firewood, firewood into the inventory — plus whatever
-progression / "number go up" layer Sam decides on top of it.
+**What the game is now:** a cozy "number go up" lumberyard game built around
+M4's tactile chopping — a log on a block, click to slice it into firewood, then
+turn that satisfying work into stock, fulfilled orders, cash, reputation and a
+steadily growing yard. Manual chopping remains the central and most valuable
+interaction for the entire game.
 
 **THE PROJECT IS NOW UNDER GIT.** The repo root is
 `C:\Users\Sam\Documents\the_axeman\` (the whole thing, not just the Godot
@@ -40,20 +42,36 @@ project). Two commits exist:
 `.godot/` and `*.log` are gitignored. **Commit as you work now** — the safety
 net exists, use it. Nothing has been pushed to a remote; there is no remote.
 
-### OPEN — Sam's calls, do not invent answers
+### APPROVED POST-PIVOT DIRECTION (2026-08-01)
 
-1. **What does "number go up" mean concretely?** Nothing has been designed or
-   built for it. Ask before writing any progression code.
-2. **What happens to M6 (ore mining), M7 (2D management) and M8 (villagers)?**
-   The module roadmap below is the *pre-pivot* one. M6's spec
-   (`handoff/04_M6_ORE_MINING.md`), `ore_vein_def.gd` and `FragmentDef` were all
-   left in place because Sam only asked for the *tree* game to go. If ore is out
-   of scope too, say so and it can go the same way.
-3. `slice_poc.tscn` still sits in `scenes/3d_action/` — a leftover from the
+Sam approved the full cozy-lumberyard recommendation and the roadmap in
+`handoff/08_COZY_LUMBERYARD_ROADMAP.md`:
+
+1. **M6 ore mining is retired from the active roadmap.** Its old spec and live
+   data files remain archival until Sam separately asks to delete them. Mining
+   must not be implemented as a second action loop.
+2. **M7 is re-scoped to lightweight lumberyard progression and orders.** Cash,
+   firewood stock, reputation and lifetime wood chopped are the progression
+   spine. The yard grows visibly alongside the counters.
+3. **M8 is reinterpreted as optional yard staff and logistics.** Staff may
+   deliver logs, gather, stack, bundle, ship and run passive secondary
+   production. They must never make manual chopping obsolete.
+4. **Biomes may return only as wood-supply regions**, not explorable FPS forest
+   levels. They unlock species, customers and contracts.
+5. **Tone is cozy lumberyard first**, with restrained absurd escalation only
+   after the grounded chopping-and-yard fantasy is established.
+
+Exact prices, payout multipliers, timing values and upgrade magnitudes are still
+tuning decisions. Do not invent them in code: present them to Sam as resource
+values/placeholders and tune with Creative Director sign-off.
+
+### OPEN — cleanup calls, do not invent answers
+
+1. `slice_poc.tscn` still sits in `scenes/3d_action/` — a leftover from the
    2026-07-22 rename, a second harness pointing at `chopping_minigame.tscn` at
    the old 960×540. Harmless, probably wants deleting; not touched in the pivot
    because it is an M4 file, not a tree file.
-4. The stale root-level `core/` and `data/` duplicates (see ASSET PIPELINE) had
+2. The stale root-level `core/` and `data/` duplicates (see ASSET PIPELINE) had
    `data/tree_def.gd` removed as part of the pivot, because Sam said "any and
    all files relating to the tree game". The rest of that stale mirror is
    untouched, and `handoff/00_OVERVIEW.md` still says not to delete it.
@@ -446,21 +464,28 @@ whether boards become per-species before writing any upgrade data.
 
 ---
 
-## MODULE ORDER & SCOPE — NEEDS RE-PLANNING WITH SAM
+## MODULE ORDER & SCOPE — APPROVED COZY LUMBERYARD ROADMAP
 
-The pre-pivot roadmap was: M1 core contracts ✅ · M2 main scene shell ✅ ·
-M3 GameFeel ✅ · M4 firewood chopping block ✅ · M5 tree felling ❌ *(deleted)* ·
-M6 ore mining · M7 2D management (inventory UI, buildings, refining, upgrades) ·
-M8 villager overlays.
+The binding post-pivot roadmap is
+`handoff/08_COZY_LUMBERYARD_ROADMAP.md`. In order:
 
-**M5 is gone. M6–M8 are unreviewed against the new "number go up log cutter"
-scope.** The handoff specs `handoff/04_M6_ORE_MINING.md`,
-`handoff/05_M7_MANAGEMENT.md` and `handoff/06_M8_VILLAGERS.md` still describe the
-old village-builder game. Do not build from them without asking Sam what survives
-the pivot — see the OPEN list at the top of this file.
+1. **M1–M4:** existing contracts, shell, GameFeel and chopping. Preserve and
+   finish Creative Director tuning/sign-off.
+2. **M5:** tree felling — deleted and retired.
+3. **M6:** ore mining — retired from the active roadmap. Archival files may
+   stay, but nothing builds from `04_M6_ORE_MINING.md`.
+4. **M7A:** first cozy progression slice — always-available basic buyer, three
+   authored orders, cash, firewood stock, lifetime chopped, five tangible
+   upgrades, one unlockable wood species and a visibly growing stockpile.
+5. **M7B:** craftsmanship and expanded lumberyard — reputation, cut-quality
+   bonuses, size/species orders, customer families and meaningful yard/axe/
+   supply/transport upgrades. Imperfect pieces always remain sellable.
+6. **M8:** optional yard staff/logistics — support the work around chopping;
+   never replace chopping as the highest-value active play.
+7. **Post-M8 candidates:** wood-supply regions and secondary workshop products.
+   These are expansions, not permission to start them before M7/M8 sign-off.
 
-The handoff pack that remains: `00_OVERVIEW`, `01_M3_GAMEFEEL`,
-`02_M4_CHOPPING_BLOCK`, `04_M6_ORE_MINING`, `05_M7_MANAGEMENT`, `06_M8_VILLAGERS`,
-`07_M4_SLICING_POC` — that last one (the slicing POC state, the render-to-PNG
-debug workflow, and the Compatibility-renderer material traps) is still the most
-useful of them for the chopping game.
+The old `05_M7_MANAGEMENT.md` and `06_M8_VILLAGERS.md` are historical inputs,
+not build specs. Their replacement scope lives in the cozy roadmap. Continue to
+use `02_M4_CHOPPING_BLOCK.md` and `07_M4_SLICING_POC.md` for the live chopping
+implementation and render/debug traps.

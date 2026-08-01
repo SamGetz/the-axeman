@@ -1,5 +1,9 @@
 # M6 — Ore Mining (pickaxe · fracture layers · gem drops)
 
+> **RETIRED 2026-08-01:** Ore mining is removed from the active roadmap because
+> it competes with the game's strongest interaction. This file is historical
+> reference only. Do not implement it unless Sam explicitly reverses the pivot.
+
 Status at handoff: direction only — the thinnest spec in the pack because
 most blueprint detail for M6 was never surfaced into CLAUDE.md. Expect to
 lean on Sam for mechanics; do NOT guess them into existence.
