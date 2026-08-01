@@ -45,13 +45,22 @@ func _ready() -> void:
 		await get_tree().process_frame
 	_save("_2_chopping")
 
-	# Back out and sell the lot.
+	# A yard that has been worked for a while: stock arriving the way a LOAD
+	# delivers it, so the pile has to be rebuilt from the counts alone.
+	InventoryManager.apply_save_dict({"birch_firewood": 40, "oak_firewood": 25})
+	for i in range(20):
+		await get_tree().process_frame
+	_save("_3_stockpile")
+
+	# Back out and sell the lot: the wood leaves the yard, so it leaves the pile.
 	hud.get_node("BackButton").pressed.emit()
 	await get_tree().process_frame
 	hud.get_node("YardPanel/Column/SellAllButton").pressed.emit()
 	await get_tree().process_frame
-	await get_tree().process_frame
-	_save("_3_sold")
+	hud.get_node("YardPanel/Column/ChopButton").pressed.emit()
+	for i in range(10):
+		await get_tree().process_frame
+	_save("_4_sold_out")
 
 	main.queue_free()
 	await get_tree().process_frame

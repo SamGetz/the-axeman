@@ -95,6 +95,37 @@ func start_stacking(proxies: Array, on_complete: Callable) -> void:
 		})
 
 
+## Place one piece straight into its slot with NO fly-in, and return the world
+## transform it landed in.
+##
+## This is how a pile is REBUILT rather than earned: the yard's stockpile is a
+## view of InventoryManager's firewood, so on a load — or after a sale — the whole
+## pile has to appear at once, already settled. It shares `_slot_layout` and
+## `_sim_to_world` with the animated path, so a restored pile packs identically to
+## one the player watched being thrown together, and a piece added by either route
+## lands in the same next slot.
+##
+## The tier-advance bookkeeping mirrors start_stacking's, per piece instead of per
+## batch: once a slot runs past the arc span the next piece starts a new tier
+## stepping outward, so a big yard piles up in rows rather than in one endless arc.
+func place_settled(node: MeshInstance3D) -> void:
+	if node == null or node.mesh == null:
+		return
+	if _needs_tier_advance:
+		_advance_tier()
+		_needs_tier_advance = false
+
+	var l := _slot_layout(node.mesh)
+	var sim_y: float = l.physicalBaseY + l.T * 0.5
+	var w := _sim_to_world(l, sim_y, randf_range(-0.04, 0.04))
+	node.position = w.pos
+	node.quaternion = w.quat
+
+	var arc_len := arc_span * (radius + _tier * tier_depth_spacing)
+	if absf(l.slotX * slot_spacing) >= arc_len:
+		_needs_tier_advance = true
+
+
 ## Drive the fly-in. Call once per frame from the owner while is_animating.
 func update() -> void:
 	if not is_animating:

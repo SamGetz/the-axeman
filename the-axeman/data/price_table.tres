@@ -6,7 +6,7 @@
 script = ExtResource("1_price")
 base_prices = {
 &"pine_firewood": 2,
-&"oak_firewood": 3,
-&"birch_firewood": 4,
-&"mahogany_firewood": 10
+&"oak_firewood": 5,
+&"birch_firewood": 10,
+&"mahogany_firewood": 25
 }

@@ -164,6 +164,12 @@ const _LOG_SPECIES: Array[Dictionary] = [
 @export var pile_apex_extra := 0.3048    # ref 12in: arc height of a flung piece
 @export var pile_fly_ms := 500.0         # travel takes this * 1.6
 @export var pile_stagger_ms := 300.0     # cascade spread across the batch
+## PLACEHOLDER per Directive 3 — how much firewood the yard SHOWS at once. The
+## stockpile is a view of InventoryManager, and stock has no ceiling, so this is
+## the point where "the place grows" stops being one mesh per piece. Above it the
+## counter keeps climbing and the pile does not. If Sam wants the pile to keep
+## growing past this, A12/Amendment 15's MultiMesh consolidation is the route.
+@export var max_pile_pieces := 120
 
 # --- axe ------------------------------------------------------------------
 @export_group("Axe")
@@ -207,6 +213,7 @@ var _axe: AxeRig
 var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
+var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
 var _phys_mat: PhysicsMaterial
 var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut faces
 var _stump_top_y := 0.5
@@ -242,6 +249,16 @@ func _ready() -> void:
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
 	_spawn_fresh_log()
+
+	# The stockpile is a VIEW of the firewood in InventoryManager (see
+	# _rebuild_pile_from_stock), so the yard you come back to is the yard you
+	# left. Nothing new is saved for it — stock already persists, and the pile is
+	# derived from stock, so there is no second copy of the truth to fall out of
+	# step with the first.
+	# (_spawn_fresh_log above has already built the pile from stock; these keep it
+	# in step with every later sale, load and re-entry.)
+	InventoryManager.inventory_changed.connect(_on_stock_changed)
+	EventBus.minigame_entered.connect(_on_minigame_entered)
 
 
 func _exit_tree() -> void:
@@ -281,6 +298,146 @@ func _configure_pile() -> void:
 	_pile.apex_extra = pile_apex_extra
 	_pile.fly_duration = pile_fly_ms
 	_pile.stagger = pile_stagger_ms
+
+
+# ------------------------------------------------- the yard's stockpile (M7A)
+## The pile the player can SEE is a view of the firewood they OWN.
+##
+## The roadmap asks for two kinds of progress at once — "numbers grow" and "the
+## place grows" — and the cheapest honest way to get the second is to stop
+## treating the pile as a record of this session's chopping and start treating it
+## as a rendering of InventoryManager. Consequences, all of them wanted:
+##   * a loaded save shows the yard you left, without saving a single new field;
+##   * selling firewood SHRINKS the pile, so a sale costs you something visible;
+##   * a new species appears in the pile the moment you own a piece of it.
+##
+## REBUILT, not maintained. A rebuild is instant and total: the arc packing in
+## wood_pile.gd is deterministic and has no notion of removing one piece from the
+## middle of a stack, and faking one would leave pieces resting on nothing.
+##
+## Deliberately NOT called while a batch is flying in. Freshly cut pieces are the
+## real sliced meshes and they animate into the pile; rebuilding on top of that
+## would swap them for stand-ins mid-flight and throw away the best moment in the
+## game. Stock and pile agree anyway during a session: a rebuild sets the pile to
+## the stock count, and every piece that flies in afterwards is one the stock also
+## gained.
+func _rebuild_pile_from_stock() -> void:
+	if _stacking or _awaiting_stack:
+		return
+	for c in _pile_root.get_children():
+		_pile_root.remove_child(c)
+		c.queue_free()
+	_pile.reset()
+
+	for species_index: int in _interleave(_pile_plan()):
+		var meshes: Array = _specimens_for(species_index)
+		if meshes.is_empty():
+			continue
+		var node := MeshInstance3D.new()
+		node.mesh = meshes[randi() % meshes.size()]
+		_pile_root.add_child(node)
+		_pile.place_settled(node)
+
+
+## How many pieces of each species the pile should show: the player's actual
+## counts, scaled down together if the yard holds more than `max_pile_pieces` so
+## the mix on show still reflects the mix owned.
+func _pile_plan() -> Dictionary:
+	var counts: Dictionary = {}
+	var total := 0
+	for i in range(_LOG_SPECIES.size()):
+		var item: StringName = _LOG_SPECIES[i].get("yield_item", &"")
+		if item == &"":
+			continue
+		var n := InventoryManager.get_count(item)
+		if n <= 0:
+			continue
+		counts[i] = n
+		total += n
+	if total <= max_pile_pieces:
+		return counts
+	var scaled: Dictionary = {}
+	for i: int in counts:
+		scaled[i] = maxi(1, int(floor(float(counts[i]) * float(max_pile_pieces) / float(total))))
+	return scaled
+
+
+## Round-robin the plan into one sequence, so a yard holding two species stacks as
+## a mixed pile rather than as two solid blocks. Which piece went on the pile first
+## is not recoverable from a count, and a blended pile reads as wood accumulated
+## over many logs, which is what it is.
+func _interleave(plan: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	var left := plan.duplicate()
+	while not left.is_empty():
+		for i: int in left.keys():
+			out.append(i)
+			left[i] = int(left[i]) - 1
+			if int(left[i]) <= 0:
+				left.erase(i)
+	return out
+
+
+## Stand-in firewood for a species, built once and cached.
+##
+## Built by SLICING that species' own log exactly the way the first two clicks on
+## it would — two centre cuts into a quarter column, jagged cut faces, the
+## species' own bark and inside grain. A box would have been cheaper and would
+## have looked like a box next to the real pieces; this way a restored pile and a
+## chopped one are made of the same thing. Lazy, so a species the player owns none
+## of never loads its FBX at all.
+func _specimens_for(species_index: int) -> Array:
+	if _specimens.has(species_index):
+		return _specimens[species_index]
+	var out: Array = []
+	var row: Dictionary = _LOG_SPECIES[species_index] if species_index >= 0 and species_index < _LOG_SPECIES.size() else {}
+	var paths: Array = row.get("meshes", [])
+	var mat := _cut_mat_for(species_index)
+	# Two shapes is enough variety for a pile; six would be six FBX loads for
+	# pieces that are mostly buried in the stack.
+	for p_idx in range(mini(2, paths.size())):
+		var whole := MeshUtils.centered(_build_split_log(paths[p_idx]))
+		var billet := _quarter(whole, mat)
+		if billet != null:
+			out.append(billet)
+	_specimens[species_index] = out
+	return out
+
+
+## Two centre cuts through a standing log -> a quarter column, which is what the
+## chopping game's own early splits produce. Returns null if either cut degenerates
+## (a mesh the plane misses), rather than a half-cut lump.
+## NOTE it calls MeshUtils.jag_cut with the SPECIMEN'S material rather than going
+## through _jag_cut(): that helper roughens whatever surface matches `_cut_mat`, the
+## material of the log currently ON THE BLOCK, and a specimen for any other species
+## would come back perfectly smooth (see the caching note on _cut_mat_for).
+func _quarter(whole: ArrayMesh, mat: StandardMaterial3D) -> ArrayMesh:
+	_cut_noise.frequency = cut_jag_freq
+	var plane_x := Plane(Vector3.RIGHT, 0.0)
+	var first := MeshSlicer.slice(whole, plane_x, mat)
+	if first.below == null:
+		return null
+	var half := MeshUtils.jag_cut(first.below, plane_x, mat, cut_jag_amount, _cut_noise)
+	var plane_z := Plane(Vector3.FORWARD, 0.0)
+	var second := MeshSlicer.slice(half, plane_z, mat)
+	if second.below == null:
+		return null
+	return MeshUtils.centered(
+		MeshUtils.jag_cut(second.below, plane_z, mat, cut_jag_amount, _cut_noise))
+
+
+## Stock moved. A sale (or a load) has to be reflected; a deposit made by the
+## chopping in progress must NOT be, because those pieces are already flying in.
+func _on_stock_changed(_item_id: StringName, _new_count: int) -> void:
+	if _stacking or _awaiting_stack:
+		return
+	_rebuild_pile_from_stock()
+
+
+## Coming back into the yard: whatever was sold from the 2D side while the 3D
+## world was process-disabled (A10) is reflected now.
+func _on_minigame_entered(_biome: Enums.Biome) -> void:
+	_rebuild_pile_from_stock()
 
 
 ## True once every live firewood body has (nearly) stopped, or the wait times out.
@@ -730,6 +887,10 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 		for c in _pile_root.get_children():
 			c.queue_free()
 		_pile.reset()
+		# The pile is a view of stock, not of this session (see
+		# _rebuild_pile_from_stock), so clearing it means rebuilding it — otherwise
+		# an R-key reset would look like the yard had been robbed.
+		_rebuild_pile_from_stock()
 
 	# Select the next log's species — the species is what this log will yield,
 	# and what its exposed end-grain looks like when it is cut.

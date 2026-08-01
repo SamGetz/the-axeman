@@ -57,6 +57,7 @@ func _ready() -> void:
 	_test_12_sell_everything_is_one_transaction()
 	await _test_13_yard_hud_is_live_and_sells()
 	await _test_14_hud_carries_the_entry_flow()
+	await _test_15_the_pile_is_a_view_of_stock()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -455,6 +456,74 @@ func _test_14_hud_carries_the_entry_flow() -> void:
 	EventBus.minigame_exited.disconnect(on_exit)
 	hud.queue_free()
 	await get_tree().process_frame
+
+
+# ------------------------------------------------------------- the stockpile
+## The yard's visible woodpile is a VIEW of InventoryManager, so it survives a
+## reload without saving anything new and it shrinks when wood is sold.
+##
+## Every check here counts pieces AND looks at where they are. A pile check that
+## only counted would pass just as well on a build that dropped every piece at the
+## origin inside the stump — this project has shipped that exact kind of empty
+## guard before.
+func _test_15_the_pile_is_a_view_of_stock() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	add_child(game)
+	await get_tree().process_frame
+	var pile: Node3D = game.get_node("Pile")
+	_check(pile.get_child_count() == 0, "an empty yard shows an empty pile")
+
+	# Stock arriving from a LOAD, not from chopping: nothing flew in, so the pile
+	# has to be rebuilt from the counts alone.
+	InventoryManager.apply_save_dict({"oak_firewood": 5, "birch_firewood": 3})
+	await get_tree().process_frame
+	_check(pile.get_child_count() == 8,
+		"a save holding 5 oak + 3 birch rebuilds a pile of exactly 8 pieces (got %d)" % pile.get_child_count())
+
+	# ...and they are actually stacked somewhere, in two different woods.
+	var positions: Array[Vector3] = []
+	var meshes := {}
+	var highest := 0.0
+	for c in pile.get_children():
+		var m: MeshInstance3D = c
+		positions.append(m.position)
+		meshes[m.mesh] = true
+		highest = maxf(highest, m.position.y)
+	var distinct := 0
+	for i in range(positions.size()):
+		var unique := true
+		for j in range(i):
+			if positions[i].distance_to(positions[j]) < 0.001:
+				unique = false
+		if unique:
+			distinct += 1
+	_check(distinct == 8, "...each piece sits in its own slot (%d distinct positions)" % distinct)
+	_check(highest > 0.0, "...and the pile stacks upward (top piece at y=%.3f)" % highest)
+	_check(meshes.size() >= 2,
+		"...built from more than one billet mesh, so two woods are not one repeated block")
+
+	# A sale is the point: the wood leaves the yard, so it leaves the pile.
+	var earned := Market.sell_all_of(&"oak_firewood")
+	await get_tree().process_frame
+	_check(earned > 0, "the 5 oak sold for %d" % earned)
+	_check(pile.get_child_count() == 3,
+		"...and the pile shrank to the 3 birch still owned (got %d)" % pile.get_child_count())
+
+	# The cap: stock has no ceiling, the yard does.
+	game.max_pile_pieces = 4
+	InventoryManager.apply_save_dict({"birch_firewood": 50})
+	await get_tree().process_frame
+	_check(pile.get_child_count() == 4,
+		"50 pieces of one species show as exactly max_pile_pieces (4), not 50 (got %d)" % pile.get_child_count())
+	_check(InventoryManager.get_count(&"birch_firewood") == 50,
+		"...while the stock itself is untouched at 50 — the cap is a view limit, not a loss")
+
+	game.queue_free()
+	await get_tree().process_frame
+	InventoryManager.apply_save_dict({})
 
 
 # ------------------------------------------------------------------ fixture

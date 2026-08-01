@@ -88,7 +88,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 2000 res://core/tests/m7a_acceptance.tscn` | **85/85** |
+| M7A | `--quit-after 4000 res://core/tests/m7a_acceptance.tscn` | **94/94** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -264,8 +264,12 @@ The second M7A slice, and again everything in it that needed a tuning value was
 pushed into data instead of invented. **Still no sign-off.**
 
 - **`res://data/price_table.gd` + `price_table.tres` (`class_name PriceTable`)**
-  holds what the buyer pays per unit. **EVERY NUMBER IN IT IS A PLACEHOLDER**
-  (pine 2, oak 3, birch 4, mahogany 10) and is waiting on Sam.
+  holds what the buyer pays per unit. **Creative Director call, 2026-08-01: pine
+  2, oak 5, birch 10** — Sam chose the wide spread over a gentle one, so which
+  wood you are cutting matters and unlocking a species is a real jump in income.
+  `mahogany_firewood` sits at 25 as a PLACEHOLDER above birch; it has no art and
+  Sam has not priced it. Nothing in code or in any test asserts a literal price
+  (the checks assert price x count), so retuning is a one-line data edit.
   It is a SEPARATE resource and not a field on `ItemDef` because A8 is a frozen
   Part A contract (Directive 2), and because a price is a property of the market,
   not of the object — M7B's reputation and per-customer multipliers layer on top
@@ -309,9 +313,48 @@ pushed into data instead of invented. **Still no sign-off.**
   rendering, it does not clear it). It reads fine — the yard IS the chopping site
   — but if you want the yard to be its own view, that is a design decision, not a
   bug fix.
-- Still to do in M7A: three authored orders, five upgrades, an unlockable second
-  species, and the visible growing stockpile. All four are blocked on tuning
-  values (Directive 3).
+### M7A — the stockpile is a VIEW of stock (2026-08-01)
+
+The roadmap's "visibly growing stockpile", built third because it was the only
+remaining M7A item that needed no tuning value from Sam.
+
+- **The pile the player can see IS the firewood they own.** `chopping_minigame`
+  rebuilds `_pile_root` from `InventoryManager` — so a loaded save shows the yard
+  you left, selling firewood SHRINKS the pile, and a new species appears in it the
+  moment you own a piece. **Nothing new is saved for it**: stock already persists
+  and the pile is derived, so there is no second copy of the truth to drift.
+- **Rebuilt, never patched.** `wood_pile.gd`'s arc packing is deterministic and
+  has no way to pull one piece out of the middle of a stack, so a change rebuilds
+  the whole pile instantly via the new `WoodPile.place_settled()` — which shares
+  `_slot_layout`/`_sim_to_world` with the animated path, so a restored pile packs
+  exactly like one the player watched being thrown together.
+- **NOT rebuilt while a batch is flying in** (`_stacking` / `_awaiting_stack`
+  guard). Freshly cut pieces are the REAL sliced meshes and they animate into the
+  pile; rebuilding on top of that would swap them for stand-ins mid-flight and
+  throw away the best moment in the game. Stock and pile stay in step anyway: a
+  rebuild sets the pile to the stock count, and every piece that flies in
+  afterwards is one the stock also gained.
+- **Stand-in pieces are made by SLICING that species' own log** — two centre cuts
+  into a quarter column with jagged cut faces, which is what the first two clicks
+  on it would produce. A box would have been cheaper and would have looked like a
+  box next to the real pieces. Built lazily and cached per species, so a wood the
+  player owns none of never loads its FBX. NOTE it calls `MeshUtils.jag_cut` with
+  the SPECIMEN's material, not through `_jag_cut()`, which roughens only what
+  matches the log currently on the block.
+- **`max_pile_pieces` (120) is a PLACEHOLDER** and the point where "the place
+  grows" stops being one mesh per piece: above it the counter keeps climbing and
+  the pile does not. If Sam wants it to keep growing, A12/Amendment 15's MultiMesh
+  consolidation is the route (and its traps are recorded at the bottom of the
+  retired-amendments section).
+- Verified by 9 checks in `m7a_acceptance` that count pieces AND look at where
+  they are — distinct slots, stacked upward, more than one billet mesh — because
+  a pile check that only counted would pass on a build that dropped every piece
+  inside the stump. Proven to fail without its fix (unwire `inventory_changed`
+  and six of them go red), and RENDERED: `hud_shot` shots 3 and 4 are a 65-piece
+  yard and the same yard after a sale.
+
+- Still to do in M7A: three authored orders, five upgrades and an unlockable
+  second species. All three are blocked on tuning values (Directive 3).
 
 ### Files the chopping game owns
 
@@ -384,6 +427,16 @@ was failing for a stale reason on top of the real one.
   the wrongly-rotated cut plane, the see-through geometry) were invisible to
   every numeric test and obvious in a single PNG. `core/tools/shot_runner.tscn`
   is the pattern.
+- **Run every `godot --path .` from `the-axeman\`, not from the repo root.** The
+  repo root has no `project.godot`, so the engine quietly falls back to the
+  project manager: it prints its banner, runs NOTHING, and exits 0 (or segfaults
+  headless). A whole suite "passing silently" or "crashing" is this, not your
+  code. `--verbose` gives it away — it loads editor settings and never loads a
+  project.
+- **A new `class_name` is invisible until the project is rescanned.** A headless
+  run does not refresh `.godot/global_script_class_cache.cfg`, so a brand-new
+  global class reads as "Identifier not declared" everywhere it is used. Run
+  `godot --headless --path . --import` once after adding one.
 - **`godot --headless --path . --check-only -s res://<script>` is one second**
   and settles whether a parse error is cascading. (Autoload identifiers read as
   "not found" under `--check-only`; that is expected, not an error.)
