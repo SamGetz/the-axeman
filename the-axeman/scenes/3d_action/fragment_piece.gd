@@ -111,9 +111,9 @@ func setup(fragment_def: FragmentDef, settle_timeout: float) -> void:
 ## COLLISION SHAPES ARE CACHED PER MESH, and shared between every piece using it.
 ##
 ## `create_convex_shape()` runs a hull build — mesh arrays out, QuickHull, a new resource —
-## and M5 spawns about twelve chips per blow off a splinter mesh table with THREE entries in
-## the whole game (`tree_felling._stick_mesh`). So it was building the same three hulls
-## twelve times a blow, for ever. MEASURED as the single largest slice of a blow's cost.
+## and the retired tree game spawned about twelve chips per blow off a splinter mesh table
+## with THREE entries in the whole game. So it was building the same three hulls twelve
+## times a blow, for ever. MEASURED as the single largest slice of a blow's cost.
 ##
 ## A Shape3D is shareable by design: the per-body part is the CollisionShape3D's transform,
 ## which is still set per piece below. Keyed by the mesh's own instance id, so two pieces

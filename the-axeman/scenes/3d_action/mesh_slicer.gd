@@ -23,8 +23,8 @@ extends RefCounted
 
 const _WELD_EPS := 0.0005
 ## Where a piece's own radius lands in a single-round cut texture, 0..0.5 — so the bark ring in
-## the image sits on the bark. Matches `WoodVolume.ring_fit`, which maps the voxel band's cut
-## faces the same way; the two must agree or a bucked end and a chopped end read differently.
+## the image sits on the bark. (The retired tree game's voxel band mapped its cut faces the
+## same way, so the two would agree; this is now the only cut-face mapping in the project.)
 const _RING_FIT := 0.48
 
 
@@ -238,7 +238,7 @@ static func _build_caps(cut_pts: Array[Vector3], plane: Plane,
 		# AWAY from (its own generate_normals computes -(RHR) as the facing
 		# direction). The below piece's cap faces +normal, so it must be wound the
 		# other way round, and the above piece's cap likewise. Corrected
-		# 2026-07-25 alongside the same error in WoodVolume; here it was invisible
+		# 2026-07-25 alongside the same error in the voxel mesher; here it was invisible
 		# because every cut material in the project is CULL_DISABLED, which draws
 		# both sides.
 		_cap_tri(below_cap, plane.normal, centroid, q2, q1, uvc, uv2, uv1)
