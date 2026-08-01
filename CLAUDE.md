@@ -426,8 +426,24 @@ against `get_instance_transform` can only ever fail.
 
 ## LOCKED ITEM IDS (res://data/item_registry.tres)
 
-`pine_log, oak_log, mahogany_log, stone, copper_ore, iron_ore, amethyst,
-ruby, sapphire, wood_board, copper_ingot, iron_nail`
+`pine_log, oak_log, birch_log, mahogany_log, stone, copper_ore, iron_ore,
+amethyst, ruby, sapphire, wood_board, copper_ingot, iron_nail`
+
+**`birch_log` ADDED 2026-08-01 — PENDING CREATIVE DIRECTOR SIGN-OFF.** Sam
+dropped `birch_log_01.fbx` into `assets/models/logs_export/` and said to keep
+working; the species could not be wired up at all without a registered id
+(InventoryManager errors and ignores unregistered ids, so the wood would have
+silently vanished on collection). Added as the obvious consequence of the asset
+drop, not as an approved contract change. Note nothing in any test suite asserts
+this list — it is enforced by this document alone.
+
+**STILL OPEN, and it decides whether these ids survive:** a fully chopped log
+deposits `oak_log`/`pine_log`/`birch_log` — one per firewood piece — so chopping
+a log currently *yields logs*. The cozy roadmap's progression spine calls for
+**firewood stock**. Either these ids are declared to mean the firewood, or the
+registry gains `*_firewood` ids and the log ids become the raw supply. Ask Sam
+before building any order/buyer code on top of them; renaming afterwards is
+cheap, building the economy on the wrong noun is not.
 
 Known data flag (unresolved): the blueprint's management example mentions
 "Mahogany Boards" but the registry defines generic "Wood Boards". Ask Sam

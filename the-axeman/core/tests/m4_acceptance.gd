@@ -14,6 +14,10 @@ extends Node
 ##     a pine log yields pine_log (nothing crosses over)
 ##   - A12: fragment_physics_budget still caps active bodies at 24 with a
 ##     settle-timeout backstop (reserved for M5/M6, kept + covered here)
+##   - EVERY row of the species table is coherent: a registered yield id, and a
+##     log that actually builds at the authored height with real girth. This one
+##     is written to cover species the suite has never heard of, so an art drop
+##     is checked without editing this file.
 ##
 ## Drives debug_slice_world() directly (no mouse) so it is fully headless. The
 ## click-to-chop input layer itself is NOT headless-verifiable — eyeball that in
@@ -39,6 +43,7 @@ func _ready() -> void:
 	await _test_3_chopdown_stocks_inventory()
 	await _test_4_species_drives_yield()
 	await _test_5_budget_cap_and_timeout()
+	await _test_6_species_table_integrity()
 	print("=== M4 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
 		print("=== ALL M4 ACCEPTANCE CRITERIA PASS ===")
@@ -146,6 +151,52 @@ func _test_4_species_drives_yield() -> void:
 	_check(int(_gathered.get(&"pine_log", 0)) == firewood and not _gathered.has(&"oak_log"),
 		"only the chopped log's species is gathered")
 	await _drop(mg)
+
+
+## Every row of the species table, checked the same way — so a NEW SPECIES DROP is
+## covered the moment it is added, instead of needing its own hand-written test.
+##
+## Tests 3 and 4 only ever exercise species 0 and 1 by index; birch (added
+## 2026-08-01) would have shipped with an unregistered `birch_log` yield and
+## nothing here would have gone red — InventoryManager errors and ignores an
+## unregistered id, so the wood would simply have vanished on collection.
+##
+## Each check asserts a POSITIVE quantity, never just a bound: the row count is
+## asserted first so an emptied table cannot satisfy the loop vacuously, and the
+## height check asserts the log measures `log_height`, not merely "less than
+## enormous" — the 2026-07-29 bug shipped a 14 m log past every relative check.
+func _test_6_species_table_integrity() -> void:
+	var probe: Node = _MINIGAME.instantiate()
+	var species: Array = probe._LOG_SPECIES
+	var target_height: float = probe.log_height
+	probe.free()
+
+	_check(species.size() >= 2,
+		"the species table holds at least the two shipped woods (%d rows)" % species.size())
+
+	for i in range(species.size()):
+		var row: Dictionary = species[i]
+		var label: String = String(row.get("mesh", "<no mesh>")).get_file()
+
+		var yield_item: StringName = row.get("yield_item", &"")
+		_check(yield_item != &"" and InventoryManager.is_valid_id(yield_item),
+			"species %d (%s) yields a REGISTERED item id ('%s')" % [i, label, yield_item])
+
+		# Build the log the way the game does and measure what the player gets.
+		var mg := await _make_minigame(i)
+		var mesh: Mesh = mg._source_mesh
+		if mesh == null:
+			_check(false, "species %d (%s) built a log mesh" % [i, label])
+			await _drop(mg)
+			continue
+		var size: Vector3 = mesh.get_aabb().size
+		_check(absf(size.y - target_height) <= 0.001,
+			"species %d (%s) stands %.3f m on the block, as authored (%.2f m)" % [i, label, size.y, target_height])
+		_check(size.x > 0.05 and size.z > 0.05,
+			"species %d (%s) has real girth (%.3f x %.3f m), not a degenerate import" % [i, label, size.x, size.z])
+		_check(mg.cuttable_count() == 1,
+			"species %d (%s) spawns exactly one cuttable piece" % [i, label])
+		await _drop(mg)
 
 
 func _test_5_budget_cap_and_timeout() -> void:

@@ -5,3 +5,6 @@ the-axeman/android/
 # Scratch + tool logs
 .codex_tmp/
 *.log
+
+# Maya writes these thumbnail caches beside the source images
+.mayaSwatches/

@@ -53,15 +53,37 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 # --- log species (data-driven; scales to many woods) ----------------------
 ## Each row pairs a log MESH with the item it yields when chopped into firewood.
 ## This is the ONLY place a wood type is declared — add a row to add a species.
+##
 ## `yield_item` MUST be a registered id (res://data/item_registry.tres); a
 ## finished log deposits it into InventoryManager once per firewood piece (see
-## _begin_stacking). Per-species inside textures can join this table later (a
-## data-only change); today both meshes share the oak inside look (_TEX_INSIDE),
-## so log_02 is mapped to pine_log purely to DEMONSTRATE per-log yields — remap
-## freely.
+## _begin_stacking).
+##
+## The log's OUTSIDE (bark and ends) comes from the FBX's own materials, so a new
+## species looks like itself the moment it is imported. The CUT FACE does not —
+## it is generated at runtime, so each row also names the inside look:
+##
+##   `inside_tex` / `inside_normal`  the exposed end-grain. These are sampled with
+##       a TILING, metres-based UV mapping (see the 2026-07-27 slicer bugfix note),
+##       so they MUST be tileable textures — a log-end "disc" texture repeats into
+##       a grid of discs and looks wrong. Omit to fall back to the oak set.
+##   `inside_tint`  albedo multiplier over that texture. PLACEHOLDER per Directive 3
+##       wherever it is not Color.WHITE: it is standing in for a species' real
+##       tileable inside texture until Sam authors one.
+##
+## log_02 is mapped to pine_log purely to DEMONSTRATE per-log yields — it still
+## wears oak art. Remap freely.
 const _LOG_SPECIES: Array[Dictionary] = [
 	{"mesh": "res://assets/models/logs_export/log_01.fbx", "yield_item": &"oak_log"},
 	{"mesh": "res://assets/models/logs_export/log_02.fbx", "yield_item": &"pine_log"},
+	# Birch (Sam's drop, 2026-08-01). Its bark and authored ends come from the
+	# FBX's own embedded materials; its CUT faces use Sam's tileable birch
+	# end-grain, so a split birch log is pale inside instead of oak-coloured.
+	{
+		"mesh": "res://assets/models/logs_export/birch_log_01.fbx",
+		"yield_item": &"birch_log",
+		"inside_tex": "res://assets/textures/wood_birch/birch_top_tilable.png",
+		"inside_normal": "res://assets/textures/wood_birch/birch_top_tilable_normal.png",
+	},
 ]
 
 # --- infrastructure (unchanged geometry/material setup) -------------------
@@ -168,7 +190,8 @@ var _yaw_steps := 0
 var _orbit_tween: Tween
 var _axe: AxeRig
 var _audio: AudioStreamPlayer3D
-var _cut_mat: StandardMaterial3D
+var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
+var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
 var _phys_mat: PhysicsMaterial
 var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut faces
 var _stump_top_y := 0.5
@@ -178,10 +201,9 @@ var _current_species: Dictionary = {}   # the species row of the log currently o
 
 func _ready() -> void:
 	GameFeel.register_camera(_camera)
-	_cut_mat = _make_planar(_TEX_INSIDE)
-	_cut_mat.normal_enabled = true
-	_cut_mat.normal_texture = _TEX_INSIDE_N
-	_cut_mat.normal_scale = 1.0
+	# A cut material must exist before anything can slice; _spawn_fresh_log swaps
+	# in the one belonging to whichever species it puts on the block.
+	_cut_mat = _cut_mat_for(0)
 	_phys_mat = PhysicsMaterial.new()
 	_phys_mat.friction = 0.9
 	_phys_mat.bounce = 0.0
@@ -692,8 +714,11 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 			c.queue_free()
 		_pile.reset()
 
-	# Select the next log's species — the species is what this log will yield.
-	_current_species = _LOG_SPECIES[_pick_species_index()]
+	# Select the next log's species — the species is what this log will yield,
+	# and what its exposed end-grain looks like when it is cut.
+	var species_index := _pick_species_index()
+	_current_species = _LOG_SPECIES[species_index]
+	_cut_mat = _cut_mat_for(species_index)
 	_source_mesh = _center_mesh(_build_split_log(_current_species.mesh))
 
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
@@ -767,6 +792,40 @@ func _make_planar(tex: Texture2D) -> StandardMaterial3D:
 	m.roughness = 1.0
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
+
+
+## The cut-face material for a species, built once and cached.
+##
+## Cached rather than rebuilt per log for a reason beyond speed: MeshUtils.jag_cut
+## identifies which surface of a freshly sliced piece is the CUT one by comparing
+## `material == _cut_mat` by reference. Handing out a fresh instance per log would
+## leave any piece cut before the swap unroughenable.
+func _cut_mat_for(species_index: int) -> StandardMaterial3D:
+	if _cut_mats.has(species_index):
+		return _cut_mats[species_index]
+	var row: Dictionary = _LOG_SPECIES[species_index] if species_index >= 0 and species_index < _LOG_SPECIES.size() else {}
+	# Paths, not preloaded Textures, so a row reads the same way as its "mesh".
+	var albedo := _tex_or(row.get("inside_tex", ""), _TEX_INSIDE)
+	var normal := _tex_or(row.get("inside_normal", ""), _TEX_INSIDE_N)
+	var mat := _make_planar(albedo)
+	mat.normal_enabled = true
+	mat.normal_texture = normal
+	mat.normal_scale = 1.0
+	mat.albedo_color = row.get("inside_tint", Color.WHITE)
+	_cut_mats[species_index] = mat
+	return mat
+
+
+## Load a texture path, falling back to `fallback` when the row omits it or the
+## path does not resolve (a typo must not leave a piece with an untextured cut).
+func _tex_or(path: String, fallback: Texture2D) -> Texture2D:
+	if path.is_empty():
+		return fallback
+	var tex: Texture2D = load(path) as Texture2D
+	if tex == null:
+		push_warning("chopping_minigame: inside texture '%s' did not load; using the default." % path)
+		return fallback
+	return tex
 
 
 func _build_split_log(variant_path := "") -> ArrayMesh:
