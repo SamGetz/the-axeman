@@ -50,9 +50,9 @@ never invent it.**
 
 | Path | What |
 |---|---|
-| `C:\Users\Sam\Documents\the_axeman\` | Repo root (NOT a git repo). CLAUDE.md, this pack, source images, Maya files. |
+| `C:\Users\Sam\Documents\the_axeman\` | Repo root. **A git repo since the 2026-08-01 pivot** — commit as you work. CLAUDE.md, this pack, source images, Maya files. |
 | `...\the_axeman\the-axeman\` | **The actual Godot project.** Everything you ship goes here. |
-| `...\the_axeman\core\`, `...\data\` | **Stale duplicates** of the M1 drop. Canonical copies are inside `the-axeman\`. Sam hasn't approved deleting these — don't. |
+| `...\the_axeman\core\`, `...\data\` | **Stale duplicates** of the M1 drop. Canonical copies are inside `the-axeman\`. Sam hasn't approved deleting these — don't. (`data/tree_def.gd` went in the 2026-08-01 pivot; the rest stands.) |
 | `...\the_axeman\maya_working\models\` | Sam's Maya sources + FBX exports (`chopping_stump_a.fbx`, `log_a.fbx` exist today). Copy FBX into `res://assets/models/` when a module needs them; never reference `maya_working` from the project. |
 | `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe` | The engine binary. |
 
@@ -135,28 +135,26 @@ disk. Protocol:
 
 ## State of delivered work
 
-> **PICK UP HERE (2026-07-31): `09_TRUNK_SEAMS_AND_ROOTS.md`, and the CLAUDE.md
-> entry "THE HIT NO LONGER STUTTERS".** The felled trunk no longer sinks through
-> the floor, and a blow now costs **32-50 ms with no spikes** (it was 84-350 ms,
-> a 5-20 frame hitch on every hit, which is what Sam reported). M5 is **199/203**
-> — the best it has been; the 4 remaining are documented tuning baselines, all
-> Sam's. **No known live bug.**
+> **PICK UP HERE (2026-08-01): read CLAUDE.md's "THE PIVOT" block first.**
+> **This pack is older than the pivot and parts of it are now wrong.** Sam has
+> cut the scope to the log-chopping game alone: the whole tree-felling game (M5)
+> and the FPS forest were deleted, along with `03_M5_TREE_FELLING.md`,
+> `08_FPS_FOREST.md` and `09_TRUNK_SEAMS_AND_ROOTS.md` from this pack. Anything
+> below about trees, the forest, felling, bucking or the voxel wood describes
+> code that no longer exists — it is preserved in git at commit `29bcd6f`.
 >
-> **`voxel_roots` is OFF again, deliberately.** Sam asked for root-cutting twice,
-> played it, and then reported that the voxel parts "look awful" and the game
-> "lags on every hit" — and the root flare is the cause of both (its bark is the
-> one part of the trunk that is not the artist's, and it triples the voxel grid).
-> Turning it ON still works and is fully tested; it is a switch so this is Sam's
-> call. **Getting all three — authored-looking roots, cutting into them, and speed
-> — needs ART: a trunk whose flare is part of the stem silhouette rather than
-> separate buttresses.** See the CLAUDE.md entry for why no amount of code does it.
+> The new scope is a **"number go up" log-cutter** built on the M4 chopping
+> mini-game, which Sam says already feels awesome. **Nothing has been designed
+> for the progression layer** — ask Sam before writing any of it.
 >
-> **What is waiting is Sam, not code.** Everything since 2026-07-30 is
-> render-verified only and wants a LIVE look in F5/F6. Sam's numbers to set:
-> **the shipping `cut_span = 0.50`, which cannot fell either trunk and warns at
-> spawn — raise it before playtesting or nothing will come down**;
-> `cut_wood_tint`; `pine_tree.tres` yielding 4 logs against a `buck_target_logs`
-> of 5; and a rebaseline of the four standing M5 failures.
+> `02_M4_CHOPPING_BLOCK.md` and `07_M4_SLICING_POC.md` are the two docs in this
+> pack that still describe live code. `04`/`05`/`06` (ore, management,
+> villagers) describe the pre-pivot village-builder game and are unreviewed
+> against the new scope.
+>
+> **What is waiting is Sam, not code.** M4 is integrated and 16/16 but has never
+> been signed off, and the click-to-chop input layer has never been
+> headless-verifiable — it wants a live look in F5/F6.
 
 - **M1 (core contracts): DONE, signed off.** 21/21 acceptance. Note tests
   2/5/7/8 *deliberately* trigger red errors — only `FAIL:` lines matter.
@@ -200,11 +198,14 @@ every module — it's how a fresh session recovers state fast.
 | Doc | Module | One-liner |
 |---|---|---|
 | `01_M3_GAMEFEEL.md` | M3 | Hit-pause, noise camera shake, `register_impact` |
-| `02_M4_CHOPPING_BLOCK.md` | M4 | Firewood chopping mini-game (vertical slice) |
-| `03_M5_TREE_FELLING.md` | M5 | Quadrant cuts, gear gating, hinge fall |
-| `04_M6_ORE_MINING.md` | M6 | Pickaxe, fracture layers, gem drops |
-| `05_M7_MANAGEMENT.md` | M7 | 2D management: inventory UI, buildings, refining |
-| `06_M8_VILLAGERS.md` | M8 | Villager overlays, morale multiplier |
+| `02_M4_CHOPPING_BLOCK.md` | M4 | Firewood chopping mini-game — **this is the game now** |
+| `07_M4_SLICING_POC.md` | M4 | Slicer state, render-to-PNG debug workflow, Compatibility material traps |
+| `04_M6_ORE_MINING.md` | M6 | Pickaxe, fracture layers, gem drops — **pre-pivot, unreviewed** |
+| `05_M7_MANAGEMENT.md` | M7 | 2D management: inventory UI, buildings, refining — **pre-pivot, unreviewed** |
+| `06_M8_VILLAGERS.md` | M8 | Villager overlays, morale multiplier — **pre-pivot, unreviewed** |
+
+`03_M5_TREE_FELLING.md`, `08_FPS_FOREST.md` and `09_TRUNK_SEAMS_AND_ROOTS.md`
+were deleted in the 2026-08-01 pivot along with the code they specified.
 
 Each doc has: scope fence, binding contracts, the design I would have built
 (follow it unless Sam redirects), acceptance criteria, and the exact
