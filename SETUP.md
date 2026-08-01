@@ -76,20 +76,37 @@ artifacts, and committing it would be both enormous and wrong — it is derived
 data keyed to the exact engine build. A fresh clone therefore has **no imported
 assets at all**: every FBX and PNG is raw source until Godot converts it.
 
-Run the import once, from inside the Godot project folder:
+Run the import from inside the Godot project folder — **twice**:
 
 ```bash
-cd the-axeman && "$GODOT" --headless --path . --import
+cd the-axeman && "$GODOT" --headless --path . --import && "$GODOT" --headless --path . --import
 ```
 
-This takes a few minutes on the first run (there are 40-odd meshes and textures)
-and rebuilds `.godot/` from scratch. Until it finishes, **every scene will fail
-to load and every test suite will report nonsense**, because the resources they
-reference do not exist yet in importable form.
+The first pass takes a few minutes (there are 70-odd meshes and textures) and
+rebuilds `.godot/` from scratch, ending at about 62 MB. Until it finishes,
+**every scene will fail to load and every test suite will report nonsense**,
+because the resources they reference do not exist yet in importable form.
 
-Rerun it whenever a new `class_name` is added, too — a headless run does not
-refresh `.godot/global_script_class_cache.cfg` on its own, so a brand-new global
-class reads as "Identifier not declared" everywhere it is used until you do.
+**The first pass ends in a script error, and it is expected.** On a verified
+fresh clone it reads:
+
+```
+SCRIPT ERROR: Parse Error: Cannot infer the type of "yard" variable because the value doesn't have a set type.
+   at: GDScript::reload (res://scenes/3d_action/chopping_minigame.gd:427)
+ERROR: Failed to load script "res://scenes/3d_action/chopping_minigame.gd" with error "Parse error".
+```
+
+That line is `var yard := GameState.get_yard_pile()`. The autoloads are not
+resolvable at the moment the importer reloads scripts on a cold cache, so the
+inferred type has nothing to infer from — the same reason autoload identifiers
+read as "not found" under `--check-only`. **The second pass is silent**, and
+every suite then passes. If you only run the import once, you will start
+debugging a bug that does not exist.
+
+Rerun the import whenever a new `class_name` is added, too — a headless run does
+not refresh `.godot/global_script_class_cache.cfg` on its own, so a brand-new
+global class reads as "Identifier not declared" everywhere it is used until you
+do.
 
 ---
 
@@ -124,6 +141,9 @@ inside `the-axeman/`**, never from the repo root.
 ```
 
 Expected: M1 21/21, M2 24/24, M3 16/16, M4 42/42, M7A 139/139, slicer 34/34.
+**Those six numbers were confirmed on a fresh clone + double import on
+2026-08-02**, so they are what a correctly bootstrapped machine produces, not
+just what the desktop happens to produce.
 
 Two of them will not behave headless, by design:
 

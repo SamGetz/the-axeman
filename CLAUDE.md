@@ -110,6 +110,13 @@ Suite results, all re-run after the pivot on the shipping assets:
 Engine binary: `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe`.
 Godot project: `C:\Users\Sam\Documents\the_axeman\the-axeman\`.
 
+**Those two paths are the DESKTOP's, not the project's** — nothing in the repo
+reads either one. On any other machine, see `SETUP.md` at the repo root: it is
+the bootstrap for a fresh clone (which engine build, the `--import` pass that
+must run TWICE before any suite means anything, the suites and their expected
+counts, and what does and does not travel between machines). Verified end to end
+on a clean clone on 2026-08-02.
+
 - **M1 (Core Contracts): DONE, signed off.** 21/21. Red errors during tests
   2, 5, 7, 8 are EXPECTED; only `FAIL:` lines are failures.
 - **M2 (main scene shell + pixel pipeline): DONE, functionality accepted;
