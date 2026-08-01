@@ -149,10 +149,11 @@ Staff may eventually:
 - maintain supply while the player is away, if offline progress is later
   approved.
 
-If automated cutters are ever considered, player-cut goods must remain premium
-or manual chopping must accelerate the whole operation enough that returning to
-the block is always valuable. Automated cutting is not part of the approved M8
-scope by default.
+Late-game automated cutting is now approved for the trillion-scale commodity
+volume in the expanded roadmap, but it is not part of M8. A species must be
+manually mastered/certified before an auto-cutter accepts it; player-cut goods
+remain premium, and manual Momentum accelerates the whole operation enough that
+returning to the block is always valuable.
 
 ## Approved module sequence
 

@@ -203,7 +203,7 @@ every module — it's how a fresh session recovers state fast.
 | `02_M4_CHOPPING_BLOCK.md` | M4 | Firewood chopping mini-game — **this is the game now** |
 | `07_M4_SLICING_POC.md` | M4 | Slicer state, render-to-PNG debug workflow, Compatibility material traps |
 | `08_COZY_LUMBERYARD_ROADMAP.md` | M7+ | **Binding:** cozy orders, progression, upgrades, later logistics staff |
-| `10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` | M7–M14+ | **Binding extension:** skills, global log suppliers, Earth wood mastery, launch programme and alien logs |
+| `10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` | M7–M14+ | **Binding extension:** skills, global log suppliers, certified auto-cutting, Earth wood mastery, launch programme and alien logs |
 | `04_M6_ORE_MINING.md` | M6 | **Retired:** historical ore-mining direction; do not build |
 | `05_M7_MANAGEMENT.md` | old M7 | **Superseded:** historical village-management direction; do not build |
 | `06_M8_VILLAGERS.md` | old M8 | **Superseded:** historical villager/morale direction; do not build |

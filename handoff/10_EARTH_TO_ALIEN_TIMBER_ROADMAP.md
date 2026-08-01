@@ -58,9 +58,10 @@ and splitting it better than any machine.
 ### Non-negotiable pillars
 
 1. **The chopping game remains the best active play.** Automation can own
-   supply, transport, stacking, bundling and ordinary logistics. Manual chopping
-   owns mastery, rare specimens, signature work and the strongest temporary
-   company boost.
+   supply, transport, stacking, bundling, ordinary logistics and—late in the
+   campaign—commodity log cutting at enormous scale. Manual chopping owns
+   discovery, certification, mastery, rare specimens, signature work, premium
+   quality and the strongest temporary company boost.
 2. **Every era visibly changes the yard.** A number is never the only proof of a
    major upgrade. Buildings, traffic, piles, machinery, skyline and eventually
    spacecraft make growth physical.
@@ -220,6 +221,10 @@ money systems.
   customers, suppliers, permits and company scale.
 - **Lifetime hand-chopped:** permanent celebration and skill-point milestone
   input. Keep it a background stat until a milestone makes it relevant.
+- **Total timber processed:** company-wide output from hand work and certified
+  auto-cutting lines. It begins as individual pieces/logs and may later be
+  displayed as shipment or source-tree equivalents when throughput reaches the
+  trillions. It never replaces the separate hand-chopped record.
 - **Species mastery:** per-species experience from manual chopping. Unlocks
   knowledge and techniques for that wood, not generic cash bonuses alone.
 - **Earth wood catalogue:** permanent record of discovered and mastered
@@ -240,8 +245,9 @@ cosmic postgame, where its arrival is itself a joke.
 
 ## How manual chopping remains valuable forever
 
-Automation is useful for supporting a global yard, but it must automate the work
-around chopping rather than replace the player.
+Automation is necessary for a global yard. It begins by supporting the work
+around chopping and eventually gains certified commodity cutting, without
+replacing the player's premium craft role.
 
 ### Manual-only rewards
 
@@ -261,17 +267,25 @@ around chopping rather than replace the player.
 
 - Delivering, moving, stacking, bundling and shipping output.
 - Maintaining species queues and supplier routes while the player is away.
+- Processing manually certified, ordinary logs at the scale required by the
+  global and space economy.
 - Operating solved production chains while the player is away, if offline
   progress is approved.
 - Providing reliable baseline income and project materials.
 
 ### The value rule
 
-Staff-supported throughput can dominate the speed of logistics late in the
-game. Manual work continues to own **every split, value per log, progression
-information, mastery and active leverage**. The empire grows because better
-suppliers and staff keep the Axeman chopping valuable logs—not because a hidden
-felling or auto-chopping simulation replaces the game.
+Automated cutting should eventually dominate **total commodity volume**; a
+trillion-scale target cannot honestly be achieved one click at a time. Manual
+work continues to dominate **value per log, discovery, certification, mastery,
+signature contracts and active leverage**. Auto-cutters are visible, purchased
+production lines with clear rates and bottlenecks—not a hidden replacement for
+the chopping game. The Axeman teaches the company how to process a species, then
+returns to the block for its hardest, rarest and most valuable examples.
+
+The exact relationship between Sam's trillion-scale target, delivered logs and
+“source-tree equivalents processed” needs a later tuning/content decision. Do
+not hardcode a literal world total until that unit is defined.
 
 ## Craftsmanship model
 
@@ -349,6 +363,8 @@ nodes can fill gaps, but cannot be the whole tree.
 | Crew Briefing | Manual Momentum spreads to one additional company system. |
 | Route Planner | Makes transport bottlenecks visible and allows a saved route priority. |
 | Bulk Negotiator | Improves ordinary industrial contracts, not signature handwork. |
+| Machine Certification | Allows mastered ordinary species to enter auto-cutting lines; never certifies a first specimen. |
+| Line Foreman | Axeman's Momentum has a stronger or broader effect on visible auto-cutters. |
 | Reputation | Adds a small reputation bonus for first-time order categories. |
 | Trusted Name | Unlocks prestige customers and the global boardroom tier. |
 
@@ -402,6 +418,26 @@ tool trash. Orders and species should create reasons to revisit them.
 - Specimen clamp: required for fossil, living or reactive alien logs.
 - Orbital capture ring: converts the familiar stump silhouette into the zero-g
   endgame rig without losing the visual identity of the block.
+
+### Automated cutting lines (late game)
+
+Auto-cutting is a progression layer inside the log-processing fantasy, not tree
+felling. It should arrive only after the player has manually learned multiple
+woods and the required throughput has clearly outgrown one chopping block.
+
+| Line concept | Role | Boundary |
+|---|---|---|
+| Mechanical Splitter | First slow commodity line; makes automation physical and legible. | Certified common species only; no mastery or premium grade. |
+| Hydraulic Split Bank | Processes several delivered logs in parallel. | Requires delivery capacity and a mechanic; creates commodity output only. |
+| Grain-Vision Cell | Selects a certified cutting profile per species. | The profile is unlocked by the player's manual specimen work. |
+| Continental Cutting Hall | Major global-volume multiplier represented in the yard/company view. | Cannot accept rare, signature or unknown logs. |
+| Orbital Mass Splitter | Space-era line for certified alien commodity timber. | Requires manual alien mastery and specialised containment. |
+
+Every line consumes delivered-log supply, has a visible output rate and produces
+an auditable quantity of commodity firewood/material. It cannot earn species
+mastery, perfect-log records, signature-order credit or first-discovery rewards.
+Manual Momentum should materially accelerate these lines so active chopping
+remains the strongest way to push a near-term global goal.
 
 ### Consumables and temporary boosts
 
@@ -554,8 +590,9 @@ simplify. They are visible characters/vehicles with one clear job each.
 
 Do not implement offline progress until M8 logistics is fun while watched.
 When approved, offline time should advance only systems the player has actually
-automated. On return, present a concise ledger: logs delivered, loads bundled,
-cash earned, contracts completed, incidents and capped/blocked systems. Never
+automated. On return, present a concise ledger: logs delivered, logs auto-cut,
+loads bundled, cash earned, contracts completed, incidents and capped/blocked
+systems. Never
 hide a bottleneck behind “welcome back” confetti.
 
 The offline cap, rate and whether Momentum can persist are final tuning calls
@@ -822,8 +859,9 @@ or manual Momentum.
   first, with respec/adjustment that does not brick a save.
 - Cedar/eucalyptus/mahogany-tier species candidates and harder signature work.
 - Large infrastructure contracts and government customers.
-- Logistics equipment that keeps common orders supplied while the player still
-  performs every chop and personally handles premium specimens.
+- The first visible Mechanical Splitter and its species-certification rule.
+- Logistics equipment that keeps auto-cut lines supplied while the player
+  personally handles new, premium and signature specimens.
 - Visible yard transition from depot to headquarters.
 
 **Exit test:** Two viable companies can reach the same milestone through
@@ -840,6 +878,8 @@ Catalogue.
 - Continental supplier relationships, shipping lanes and global project board.
 - Late-Earth redwood/ironwood-scale mastery challenges.
 - Enormous but visually readable delivery and yard-handling machinery.
+- Successive auto-cutting lines that turn certified commodity logs into the
+  trillion-scale processed-timber number.
 - Global news/headlines celebrating the increasingly improbable chopping
   business.
 - Milestone discoveries at authored catalogue/mastery thresholds.
@@ -905,6 +945,8 @@ space does not feel like an unrelated menu game.
 - Quarantine and specimen-identification sequence.
 - One alien species with a genuinely new readable split behaviour.
 - Specimen mastery unlocks repeat cargo requests from that destination.
+- Manual certification is required before any future alien auto-cutting line
+  can accept that species.
 - Orbital/specimen chopping rig evolves from the familiar stump.
 - Alien wood creates a new premium order family and one spacecraft upgrade.
 
@@ -924,6 +966,8 @@ loop.
 - Cargo fleets, range, shielding and supplier liaisons.
 - Alien customers/materials and cross-species projects.
 - Gravitic tools and Frontier mastery.
+- Orbital auto-cutting lines for mastered commodity species, always subordinate
+  to manual discovery, premium work and Momentum.
 - Earth remains visible as the headquarters and completed first campaign.
 
 **Exit test:** Each destination changes strategy and chopping behaviour; none is
@@ -1017,10 +1061,11 @@ Sam.
 ### Active versus passive target
 
 Measure active value as more than cash. A chopping session produces immediate
-cash, contract progress, mastery and Momentum; passive logistics prepare
-deliveries and may process already-chopped secondary stock. Balance should be evaluated on **time to
-next meaningful decision** with and without active play, not only coins per
-second.
+cash, contract progress, mastery and Momentum; passive systems deliver logs,
+auto-cut certified commodity species and process secondary stock. Balance should
+be evaluated on **time to next meaningful decision** with and without active
+play, not only coins per second. A short manual session should create a visible
+surge across the automated lines even when those lines own most lifetime volume.
 
 ### RNG fairness
 
@@ -1126,6 +1171,13 @@ touch or see.
 - Rough pieces always retain base value.
 - Reputation and mastery never decrease.
 - Supplier standing and hand-chopped mastery cannot contaminate one another.
+- Hand-chopped and auto-cut totals remain distinct while both contribute to
+  total timber processed.
+- Auto-cutters refuse unknown, uncertified, rare and signature-only logs.
+- Auto-cut output cannot earn mastery, perfect-log records or handcrafted-order
+  credit.
+- Delivered-log consumption and commodity output are atomic; a blocked output
+  cannot destroy input.
 - Catalogue and contract progress never exceeds authored bounds.
 - Passive progress cannot complete a first-time species mastery or final Earth
   showcase.
@@ -1153,6 +1205,8 @@ touch or see.
 - Active versus passive time to the next milestone.
 - Regions where supplier standing, delivery or yard queues are misunderstood.
 - How often players return to manual chopping after automation unlocks.
+- Auto-cut share of total volume versus manual share of total value, mastery and
+  Momentum.
 - Whether players notice the haul threshold, Momentum and current contract.
 
 The purpose is to find dead zones and unreadable systems, not to optimise
@@ -1207,6 +1261,11 @@ The following must be presented to Sam before implementation of their milestone.
 - Region list, species catalogue and supplier progression.
 - Delivery, queue and supplier-standing curves.
 - Transport rules and capacity costs.
+- First auto-cutter timing, input capacity, output rate, commodity value and
+  manual Momentum interaction.
+- Definition of the trillion-scale unit: literal logs, timber mass, shipments
+  or source-tree equivalents; clarify Sam's `4 × 3.04 trillion` target before it
+  becomes saved data or a completion threshold.
 - Earth campaign target duration.
 - Tone and presentation of the final terrestrial-species showcase.
 
@@ -1215,6 +1274,7 @@ The following must be presented to Sam before implementation of their milestone.
 - Launch-project costs and sequence.
 - Expedition duration/outcome rules.
 - First destination and alien species.
+- Alien-species certification and orbital auto-cutting rules.
 - Expedition charter choices.
 - Scope of the authored space campaign versus postgame procedural content.
 
@@ -1233,14 +1293,17 @@ The following must be presented to Sam before implementation of their milestone.
 6. A supplier region can be completed through clear discovery, delivery,
    chopping, contracts and mastery.
 7. Multiple regions remain understandable.
-8. Earth completion can create anticipation without an idle wall.
-9. The final terrestrial species lands as an emotional/mechanical climax.
+8. Visible auto-cutters can own commodity volume while manual chopping remains
+   the best active lever and the only source of mastery/premium work.
+9. Trillion-scale progression stays readable and achievable without an idle
+   wall.
+10. The final terrestrial species lands as an emotional/mechanical climax.
 
 ### Only then build space
 
-10. Launch projects reuse existing systems.
-11. The first alien log changes chopping in a legible way.
-12. Expedition charters provide replay variety without erasing the player's
+11. Launch projects reuse existing systems.
+12. The first alien log changes chopping in a legible way.
+13. Expedition charters provide replay variety without erasing the player's
     history.
 
 ## The promise

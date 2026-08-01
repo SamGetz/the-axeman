@@ -77,6 +77,13 @@ active play. The grounded yard must be established before the global and space
 scale is revealed. The roadmap is not permission to skip module sign-off or
 invent tuning values.
 
+**Late-game auto-cutting IS in scope and is required for trillion-scale timber
+throughput.** This automates log processing, never tree felling. Automated lines
+may process ordinary logs only after the player has manually mastered/certified
+that species. Manual chopping remains the source of discovery, mastery, premium
+quality, signature contracts and the strongest active boost to the automated
+company. Exact rates and value differences remain tuning calls.
+
 Exact prices, payout multipliers, timing values and upgrade magnitudes are still
 tuning decisions. Do not invent them in code: present them to Sam as resource
 values/placeholders and tune with Creative Director sign-off.
@@ -848,9 +855,9 @@ The binding post-pivot roadmap is
    supply/transport upgrades. Imperfect pieces always remain sellable.
 6. **M8:** optional yard staff/logistics — support the work around chopping;
    never replace chopping as the highest-value active play.
-7. **M9–M11:** regional supplier network, national/continental growth, global
-   wood mastery and the final terrestrial-species showcase. Regions deliver
-   logs; there is no felling or forest-depletion layer.
+7. **M9–M11:** regional supplier network, national/continental growth,
+   certified auto-cutting, global wood mastery and the final terrestrial-species
+   showcase. Regions deliver logs; there is no felling or forest-depletion layer.
 8. **M12–M14:** launch programme, first alien timber expedition and an
    interstellar log-supply/mastery loop.
 9. **Postgame candidate:** the cosmic-catalogue/endless layer, only after the
