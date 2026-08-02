@@ -46,6 +46,24 @@ signal swing_finished
 ## is what fires `contact`; see res://core/tools/build_axe_swing.gd.
 @export var swing_anim := &"swing"
 
+@export_group("Reach")
+## How much further past the grip the head reaches, in metres. Creative Director
+## call, 2026-08-02: *"I want the axe to land a little bit ahead of the mouse click
+## location - right now it sits just behind and it doesnt look like it actually
+## striking the log."* PLACEHOLDER (Directive 3) — tune it live in the Inspector.
+##
+## IT IS APPLIED AS A SCALE ON THE MODEL, NOT AS A TRANSLATION, and that is forced
+## rather than chosen. The grip is the animation's pivot and the handle butt sits
+## exactly on it, with only about 5 cm of margin below the bottom of the frame at
+## the contact pose — so pushing the rig forward along the view, or up its own
+## handle, buys reach by dragging the butt into shot as a floating stub (measured:
+## 0.10 m of translation puts it 84% down the screen). Scaling moves the FAR end
+## and leaves the pivot exactly where the animation put it, which is why it costs
+## nothing the player can see except a slightly larger axe.
+##
+## Set to 0 to render the axe exactly as authored.
+@export var extra_reach := 0.14: set = set_extra_reach
+
 @export_group("Aim")
 ## The anchor is "fixed to the camera" in the sense that it never leaves it — but
 ## a swing that lands in the same pixel however far off-centre you clicked reads
@@ -56,12 +74,22 @@ signal swing_finished
 @export var aim_pitch_deg := 4.0
 
 @onready var _root: Node3D = $AxeAnimationRoot
+@onready var _axe_model: Node3D = $AxeAnimationRoot/axe_basic
 @onready var _anim: AnimationPlayer = $AnimationPlayer
 
+## The imported axe is 0.502 m from its grip/pivot to its head before the scene's
+## authored model scale is applied. Keep this beside the one place that uses it:
+## it turns a designer-facing distance in metres into a scale multiplier.
+const _RAW_AXE_REACH := 0.502
+
 var _speed := 1.0
+var _authored_model_scale := Vector3.ONE
 
 
 func _ready() -> void:
+	if _axe_model != null:
+		_authored_model_scale = _axe_model.scale
+		_apply_extra_reach()
 	# Out of frame until asked for. The animation's rest pose already parks the axe
 	# off-screen, but hiding it means a half-authored or missing animation can never
 	# leave an axe floating in the middle of the yard.
@@ -69,6 +97,25 @@ func _ready() -> void:
 		_root.visible = false
 	if _anim != null:
 		_anim.animation_finished.connect(_on_animation_finished)
+
+
+func set_extra_reach(value: float) -> void:
+	extra_reach = maxf(value, 0.0)
+	if is_node_ready():
+		_apply_extra_reach()
+
+
+func _apply_extra_reach() -> void:
+	if _axe_model == null:
+		return
+	# Scale from the imported model's origin: that origin is the handle butt/grip,
+	# so this moves the head farther through the clicked point without shifting the
+	# pivot that Sam's animation keys were authored around. Use the captured scene
+	# scale every time so live slider changes cannot compound.
+	var authored_reach := _RAW_AXE_REACH * _authored_model_scale.y
+	if authored_reach <= 0.0:
+		return
+	_axe_model.scale = _authored_model_scale * (1.0 + extra_reach / authored_reach)
 
 
 ## Play the swing. `aim` is the click in normalised screen coordinates — (0,0) is
