@@ -44,12 +44,15 @@ extends Control
 ## `minigame_exited` — so main.gd's A10 mode switch is driven by exactly the path
 ## it was always meant to be driven by. The M key is gone with this scene.
 ##
-## CASH IS THE ONLY NUMBER ON SCREEN (Creative Director call, 2026-08-01: "we
+## CASH IS THE ONLY PERMANENT ECONOMY NUMBER ON SCREEN (Creative Director call,
+## 2026-08-01: "we
 ## don't need to show the player how many are stacked in yard or how many you have
 ## chopped in your lifetime, those can stay as background stats"). Both are still
 ## counted and still saved — `GameState.get_yard_pile_count()` and
 ## `get_lifetime_wood_chopped()` are unchanged, and the pile itself is still the
-## visible record of the stack. They simply have no readout.
+## visible record of the stack. They simply have no readout. Chopping mode has a
+## numberless progress bar toward the approved haul threshold, so the animation
+## has an understandable cause without reviving either hidden statistic.
 ##
 ## LIVE, NEVER POLLED: it listens to GameState.cash_changed, which is precisely
 ## what that local signal exists for (Amendment 2's precedent).
@@ -100,6 +103,9 @@ const _COIN := preload("res://assets/ui/coin.png")
 @onready var _skill_list: VBoxContainer = $SkillPanel/Column/SkillScroll/SkillList
 @onready var _points_label: Label = $SkillPanel/Column/PointsLabel
 @onready var _close_skill_button: Button = $SkillPanel/Column/CloseSkillButton
+@onready var _next_goal: Label = $YardPanel/Column/NextGoal
+@onready var _pile_progress_panel: PanelContainer = $PileProgress
+@onready var _pile_progress: ProgressBar = $PileProgress/Column/Progress
 
 
 func _ready() -> void:
@@ -113,6 +119,7 @@ func _ready() -> void:
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 
 	GameState.cash_changed.connect(_on_cash_changed)
+	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
 	# The woodshed's three live inputs, all local signals (Amendment 2's
 	# precedent), so nothing here polls: what the player picked, what they have
 	# just earned, and the counter the next milestone is measured against.
@@ -137,6 +144,8 @@ func _ready() -> void:
 	_show_yard(true)
 	_refresh_stats()
 	_refresh_xp_bar()
+	_refresh_next_purchase()
+	_refresh_pile_progress()
 	_rebuild_shop()
 	_rebuild_woodshed()
 	_rebuild_skills()
@@ -165,6 +174,7 @@ func _on_minigame_exited() -> void:
 func _show_yard(yard_visible: bool) -> void:
 	_yard_panel.visible = yard_visible
 	_back_button.visible = not yard_visible
+	_pile_progress_panel.visible = not yard_visible
 	if not yard_visible:
 		# Neither counter follows you to the block: the wood is already chosen and
 		# on the stump by the time you are looking at it.
@@ -187,6 +197,7 @@ func _on_close_shop_pressed() -> void:
 
 func _on_building_upgraded(_id: StringName, _tier: int) -> void:
 	_rebuild_shop()
+	_refresh_next_purchase()
 
 
 ## One row per upgrade, straight from the table: what it is, what it does, what
@@ -266,6 +277,7 @@ func _on_selected_species_changed(_id: StringName) -> void:
 
 func _on_species_purchased(_id: StringName) -> void:
 	_rebuild_woodshed()
+	_refresh_next_purchase()
 
 
 ## XP moves the level, and the level is what puts a wood on sale — so the shed's
@@ -273,6 +285,7 @@ func _on_species_purchased(_id: StringName) -> void:
 ## repaints an OPEN panel: this fires once per finished log.
 func _on_xp_changed(_total: int) -> void:
 	_refresh_xp_bar()
+	_refresh_next_purchase()
 	if _wood_panel.visible:
 		_rebuild_woodshed()
 	if _skill_panel.visible:
@@ -499,9 +512,77 @@ func _refresh_xp_bar() -> void:
 ## ----------------------------------------------------------------- live view
 func _on_cash_changed(_new_amount: int) -> void:
 	_refresh_stats()
+	_refresh_next_purchase()
 	if _shop_panel.visible:
 		_rebuild_shop()   # what you can afford changed while you were looking at it
 
 
 func _refresh_stats() -> void:
 	_cash_label.text = str(GameState.get_cash())
+
+
+## The pile owns one approved capacity in GameState. This bar is contextual to
+## chopping mode, so the player can discover what the growing physical stack is
+## building toward without putting another permanent counter on the yard HUD.
+func _on_yard_pile_changed(_new_total: int) -> void:
+	_refresh_pile_progress()
+
+
+func _refresh_pile_progress() -> void:
+	var capacity := GameState.get_yard_pile_capacity()
+	_pile_progress.max_value = capacity
+	_pile_progress.value = mini(GameState.get_yard_pile_count(), capacity)
+
+
+## Keep one attainable cash target in view. The choice is derived from the live
+## catalogues: the cheapest unmaxed shop item or the next level-eligible wood.
+## That makes this a view of authored data, not a second progression table.
+func _refresh_next_purchase() -> void:
+	var goal := _next_cash_purchase()
+	if goal.is_empty():
+		var next_wood := GameState.get_next_unowned_species()
+		if next_wood == null:
+			_next_goal.text = "Every available purchase is owned."
+		else:
+			_next_goal.text = "Next wood: %s unlocks at level %d." % [
+				next_wood.display_name, next_wood.unlock_level]
+		return
+
+	var cost := int(goal["cost"])
+	var name := String(goal["name"])
+	var place := String(goal["place"])
+	var unlock_level := int(goal.get("unlock_level", 0))
+	if unlock_level > GameState.get_level():
+		_next_goal.text = "Next purchase: %s — level %d, then %s coins." % [
+			name, unlock_level, _thousands(cost)]
+		return
+	if GameState.can_afford_cash(cost):
+		_next_goal.text = "Ready now: %s — visit the %s." % [name, place]
+	else:
+		_next_goal.text = "Next purchase: %s — %s coins (%s to go)." % [
+			name, _thousands(cost), _thousands(cost - GameState.get_cash())]
+
+
+func _next_cash_purchase() -> Dictionary:
+	var best: Dictionary = {}
+	for def: UpgradeDef in Shop.get_upgrades():
+		if def == null or def.is_maxed(Shop.get_level(def.id)):
+			continue
+		var cost := Shop.get_next_cost(def.id)
+		if cost > 0 and (best.is_empty() or cost < int(best["cost"])):
+			best = {"name": def.display_name, "cost": cost, "place": "shop"}
+
+	var next_wood := GameState.get_next_unowned_species()
+	if next_wood != null:
+		var cost := next_wood.unlock_cost
+		if GameState.can_species_be_bought(next_wood.id):
+			if cost > 0 and (best.is_empty() or cost < int(best["cost"])):
+				best = {"name": next_wood.display_name, "cost": cost, "place": "woodshed"}
+		elif best.is_empty() and cost > 0:
+			best = {
+				"name": next_wood.display_name,
+				"cost": cost,
+				"place": "woodshed",
+				"unlock_level": next_wood.unlock_level,
+			}
+	return best

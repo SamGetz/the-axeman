@@ -16,8 +16,10 @@ extends Node
 ##     player's yard
 ##   - the ALWAYS-AVAILABLE BASIC BUYER pays the price table, refuses anything it
 ##     is not priced for, and settles a sale atomically in both directions
-##   - the YARD HUD shows cash/pile/lifetime live off the local signals, opens the
-##     shop, and carries the REAL entry flow that replaced the M key
+##   - the YARD HUD shows cash live, derives one next-purchase goal from the real
+##     catalogues, and carries the REAL entry flow that replaced the M key
+##   - the chopping HUD shows a contextual haul progress bar from the pile's one
+##     approved capacity, without restoring permanent pile/lifetime counters
 ##   - the YARD PILE is a view of GameState, survives a load that lands after the
 ##     scene is built, and is HAULED AWAY when it fills
 ##   - a piece PAYS FOR ITSELF as it lands on the pile — there is no manual selling
@@ -259,6 +261,7 @@ func _test_8_unregistered_ids_are_dropped() -> void:
 ## The load-bearing check is the one asserting NO file exists immediately after
 ## the batch. Without it this test passes just as well against a naive
 ## save-per-signal implementation, which writes the file six times for one chop.
+## It also proves a purchase persists without waiting for another inventory move.
 func _test_9_autosave_on_inventory_change() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
@@ -280,6 +283,22 @@ func _test_9_autosave_on_inventory_change() -> void:
 	await get_tree().process_frame   # the deferred flush lands here
 	_check(SaveSystem.has_save(), "...and one save appears at the end of the frame")
 
+	# A woodshed purchase does not move inventory. Seed its authored level and
+	# price, let that setup autosave flush, delete it, then prove the purchase
+	# creates a fresh save of its own.
+	var species := GameState.get_next_unowned_species()
+	var curve: LevelCurve = load("res://data/level_curve.tres")
+	GameState.add_xp(curve.total_xp_for_level(species.unlock_level))
+	var cost := species.unlock_cost
+	GameState.add_cash(cost + 7)
+	await get_tree().process_frame
+	SaveSystem.delete_save()
+	_check(GameState.try_buy_species(species.id), "a progression-only woodshed purchase succeeds")
+	_check(not SaveSystem.has_save(),
+		"...and is coalesced instead of writing inside the transaction")
+	await get_tree().process_frame
+	_check(SaveSystem.has_save(), "...then autosaves without another chop or inventory change")
+
 	# Drop main BEFORE trashing state to reload: while it is alive, clearing the
 	# inventory is itself an inventory change, so it queues an autosave that would
 	# overwrite the very file this is about to read. (That is not a bug in the
@@ -293,6 +312,8 @@ func _test_9_autosave_on_inventory_change() -> void:
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "...which reloads cleanly")
 	_check(InventoryManager.get_count(&"birch_firewood") == 6,
 		"...holding all 6 pieces of the batch, not a partial write")
+	_check(GameState.owns_species(species.id) and GameState.get_cash() == 7,
+		"...and restores the purchased wood plus its post-purchase cash")
 	SaveSystem.delete_save()
 
 
@@ -401,8 +422,22 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var cash_icon: TextureRect = hud.get_node("TopBar/CashRow/CashIcon")
 	var shop_button: Button = hud.get_node("YardPanel/Column/ShopButton")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
+	var next_goal: Label = hud.get_node("YardPanel/Column/NextGoal")
 
 	_check(cash_label.text == "0", "a fresh yard reads 0 cash")
+	var goal_is_authored := false
+	for def: UpgradeDef in Shop.get_upgrades():
+		if (def != null
+				and next_goal.text.contains(def.display_name)
+				and next_goal.text.contains(str(Shop.get_next_cost(def.id)))):
+			goal_is_authored = true
+	var next_wood := GameState.get_next_unowned_species()
+	if (next_wood != null
+			and next_goal.text.contains(next_wood.display_name)
+			and next_goal.text.contains(str(next_wood.unlock_cost))):
+		goal_is_authored = true
+	_check(goal_is_authored,
+		"the yard names a real next purchase and its data-authored cost: '%s'" % next_goal.text)
 
 	# Cash is the only number on screen; the pile count and the lifetime total are
 	# background stats now, still counted and still saved but never shown.
@@ -449,6 +484,7 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 ## The M key is gone; these two buttons are the only way in and out now, so they
 ## are worth a check that fails loudly if either comes unwired.
 func _test_14_hud_carries_the_entry_flow() -> void:
+	GameState.reset_to_defaults()
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
 	await get_tree().process_frame
@@ -456,9 +492,12 @@ func _test_14_hud_carries_the_entry_flow() -> void:
 	var yard_panel: PanelContainer = hud.get_node("YardPanel")
 	var chop: Button = hud.get_node("YardPanel/Column/ChopButton")
 	var back: Button = hud.get_node("BackButton")
+	var pile_panel: PanelContainer = hud.get_node("PileProgress")
+	var pile_progress: ProgressBar = hud.get_node("PileProgress/Column/Progress")
 
 	_check(yard_panel.visible and not back.visible,
 		"the game opens in the yard: the panel is up, the back button is not")
+	_check(not pile_panel.visible, "the haul cue stays off the management view")
 
 	var entered: Array[int] = []
 	var exited := [0]
@@ -472,10 +511,17 @@ func _test_14_hud_carries_the_entry_flow() -> void:
 		"'Go chopping' emits minigame_entered once — the same A7 path the M key used")
 	_check(not yard_panel.visible and back.visible,
 		"...and the HUD swapped to chopping mode off the SIGNAL, not off the click")
+	_check(pile_panel.visible
+			and int(pile_progress.max_value) == GameState.get_yard_pile_capacity(),
+		"...where one contextual bar explains the %d-piece haul" % GameState.get_yard_pile_capacity())
+	GameState.add_to_yard_pile(&"oak_firewood", 7)
+	_check(int(pile_progress.value) == 7,
+		"...and that bar repaints from yard_pile_changed (7 pieces shown)")
 
 	back.pressed.emit()
 	_check(exited[0] == 1, "'Back to the yard' emits minigame_exited once")
 	_check(yard_panel.visible and not back.visible, "...and the yard panel is back up")
+	_check(not pile_panel.visible, "...so the contextual haul cue leaves with chopping mode")
 
 	EventBus.minigame_entered.disconnect(on_enter)
 	EventBus.minigame_exited.disconnect(on_exit)
@@ -500,6 +546,8 @@ func _test_15_the_pile_is_a_view_of_stock() -> void:
 	add_child(game)
 	await get_tree().process_frame
 	var pile: Node3D = game.get_node("Pile")
+	_check(game.max_pile_pieces == GameState.get_yard_pile_capacity(),
+		"the production pile and HUD inherit one %d-piece capacity" % GameState.get_yard_pile_capacity())
 	_check(pile.get_child_count() == 0, "an empty yard shows an empty pile")
 
 	# A save landing on a scene that is already running — the real boot order, since

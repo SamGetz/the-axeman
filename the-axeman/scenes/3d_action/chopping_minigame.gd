@@ -157,7 +157,9 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 ## Creative Director call, 2026-08-01: the pile builds to 50 pieces and is then
 ## HAULED AWAY — the whole load flies off screen and the yard starts a fresh
 ## stack. It doubles as A12's ceiling on how many pile meshes exist at once.
-@export var max_pile_pieces := 50
+## The export remains as a TEST SEAM (the acceptance suite fills a three-piece
+## load), but production inherits the one capacity owned with the pile state.
+@export var max_pile_pieces := GameState.YARD_PILE_CAPACITY
 @export var haul_distance := 9.0         # how far a hauled piece flies before it is dropped (m)
 @export var haul_rise := 2.2             # how high it arcs on the way out (m)
 @export var haul_ms := 700.0             # travel time per piece

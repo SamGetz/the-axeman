@@ -46,6 +46,10 @@ signal species_purchased(species_id: StringName)
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
 const DEFAULT_BUILDING_TIER := 1
+## Creative Director call, 2026-08-01: a full visible load is 50 pieces. This
+## lives beside the yard-pile state so the chopping scene and the HUD never grow
+## separate opinions about when a production load is ready to leave.
+const YARD_PILE_CAPACITY := 50
 
 ## Shop upgrade ids. They are stored as BUILDING TIERS (see res://core/shop.gd for
 ## why that is the honest home and not a new contract), and they live here rather
@@ -145,6 +149,10 @@ func get_yard_pile_count() -> int:
 	for id: StringName in _yard_pile:
 		total += int(_yard_pile[id])
 	return total
+
+
+func get_yard_pile_capacity() -> int:
+	return YARD_PILE_CAPACITY
 
 
 ## ---------------------------------------------------- experience and levels

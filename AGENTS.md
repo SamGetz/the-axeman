@@ -121,7 +121,7 @@ values/placeholders and tune with Creative Director sign-off.
 
 ---
 
-## CURRENT PROJECT STATUS (as of 2026-08-01)
+## CURRENT PROJECT STATUS (as of 2026-08-02)
 
 Suite results, all re-run after the pivot on the shipping assets:
 
@@ -130,8 +130,8 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
-| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **139/139** |
+| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **224/224** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -292,17 +292,16 @@ asset. Suite: `m7a_acceptance` 85/85.
   `get_tree().auto_accept_quit = false` and saves in
   `NOTIFICATION_WM_CLOSE_REQUEST` — the only hook that still sees live state.
   Quitting is unconditional even if the save fails.
-- **Autosave: on every inventory change** (Creative Director call, 2026-08-01 —
-  "save when something new is added to inventory"). It is **coalesced**: a
-  finished log deposits one piece at a time, so a six-piece log fires
-  `inventory_changed` six times in one frame; the flush is deferred so the batch
-  collapses to a single write. It is connected AFTER main's own load, because
-  `apply_save_dict` emits for every item it restores and would otherwise make
-  loading immediately trigger a save. It fires on any change, not only additions
-  — a sale or an upgrade cost is at least as worth persisting, and filtering to
-  increases would leave a sale unsaved until the next chop.
-  The coalescing guard is proven to fail without its fix (calling the flush
-  directly instead of deferring turns it red).
+- **Autosave: on every persisted progression change.** This began as the Creative
+  Director's 2026-08-01 call to save when inventory gains something, then widened
+  on 2026-08-02 so cash, yard-pile state, XP, skills, species purchases and the
+  selected wood cannot wait for another chop before they are safe. It is
+  **coalesced**: a finished log touches inventory, XP, cash and pile state, but
+  the deferred flush collapses the whole transaction to one write. Connections
+  are made AFTER main's own load so restoration signals cannot immediately
+  rewrite the file that was just read.
+  The suite proves both sides: a batch writes nothing inside the transaction,
+  and a woodshed purchase persists without waiting for another inventory move.
 - `core/tools/save_probe.tscn` drives the save from outside the game (`dump` /
   `seed` / `quit` / `wipe`) — it predates the UI and is still the way to inspect
   a save from outside. Note it is a SCENE, not a `-s` script: a `-s` script
@@ -339,11 +338,11 @@ pushed into data instead of invented. **Still no sign-off.**
   without their fix (a mixed oak+stone basket part-sells without the per-line
   price check; swapping the order pays for a sale that never happened).
 - **`res://scenes/2d_management/yard_hud.tscn/.gd`** is instanced under
-  `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). It shows cash
-  (with Sam's coin beside it), how much is stacked in the yard, and lifetime
-  chopped; plus the shop and the entry-flow buttons. It updates off
-  `cash_changed`, `lifetime_wood_chopped_changed` and `yard_pile_changed` — never
-  polled, which is exactly what Amendment 2 added those local signals for.
+  `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). Cash is the only
+  permanent economy number; pile and lifetime totals remain saved background
+  stats. The yard panel derives one next useful cash purchase from the live
+  shop/woodshed catalogues, including a wood's level prerequisite, so it cannot
+  drift from authored data. Chopping mode alone shows the haul progress bar.
 - **THERE IS NO MANUAL SELLING** (Creative Director call, 2026-08-01 — see the
   auto-sell section below). The per-species sell rows and "Sell all" this HUD
   shipped with on the same day are GONE; `Market` is still the buyer, it is just
@@ -422,10 +421,10 @@ chopped."*
   (`auto_sell = false` kills the payout checks; disarming the threshold leaves the
   load sitting in the yard). RENDERED: `hud_shot` shoots the shop, a 40-piece pile
   and the haul CAUGHT MID-FLIGHT, which no counter could have told us.
-- **Still open, and Sam's call:** the pile does not tell you how close it is to
-  the 50 that triggers a haul — the HUD reads "Stacked in the yard: 40" with no
-  denominator, because the threshold lives on the mini-game and duplicating it in
-  the UI would give the number two owners.
+- **The haul threshold is now discoverable without reviving a permanent pile
+  counter.** Chopping mode shows a numberless "Next haul-away" progress bar. Its
+  maximum and the production pile both inherit `GameState.YARD_PILE_CAPACITY`
+  (Sam's 50), so the threshold still has one owner.
 
 ### M7A — a swing is a ROLL, and the shop sells the odds (2026-08-01)
 
@@ -492,16 +491,11 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   faster between swings" to shorten. `swing_cooldown` (0.3 s, PLACEHOLDER and the
   value most likely to want Sam's hand) is now a real gate, and coffee compounds
   5% off it per level.
-- **`res://core/shop.gd` + `data/upgrade_def.gd` / `upgrade_table.tres`.** Shop is
-  static and not an autoload, like Market and SaveSystem. **Levels are stored as
-  BUILDING TIERS** through A7's existing `building_upgraded` — a shop upgrade is
-  exactly what that frozen signal already describes, so nothing was added to the
-  contract to sell a cup of coffee. NOTE `DEFAULT_BUILDING_TIER` is 1, so LEVEL =
-  TIER - 1; every reader goes through `Shop.get_level()` so that lives in one
-  place. A purchase is atomic and ordered: refuse if maxed, spend the cash, and
-  only then raise the tier.
-- Costs (25 / 40, growth 1.6-1.7, cap 10 levels) are PLACEHOLDERS. The two 5%
-  effect steps are Sam's.
+- **The cash shop catalogue is deliberately empty as of 2026-08-02.** Coffee and
+  Protein Bar were player enhancements, so Sam's cash/skill split moved their 5%
+  effects into the skill tree as Quick Hands and Strong Arms. `Shop` and its data
+  schema remain ready for axes, yard equipment and automation once those tangible
+  purchases are authored; they are not rows to invent from placeholder values.
 - Verified by 37 checks in `m7a_acceptance`, all forcing the roll so none of them
   depend on RNG, and proven to fail without their fix (make every swing split and
   9 go red; drop the strength term and the protein bar's check goes red).
@@ -517,8 +511,10 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   40 show at least one failure**. Run it after touching any of those numbers —
   arguing about the authored value is arguing about the wrong number.
 
-- Still to do in M7A: three authored orders, three more upgrades and an
-  unlockable second species. All are blocked on tuning values (Directive 3).
+- Still to do in M7A: three authored orders and the tangible cash-purchase
+  catalogue. Both are blocked on Creative Director tuning/design calls. The
+  unlockable-species requirement is complete: the woodshed now carries Sam's
+  level-gated, cash-purchased 25-wood ladder.
 
 ### Files the chopping game owns
 

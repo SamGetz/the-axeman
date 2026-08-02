@@ -8,7 +8,7 @@ extends Node
 ## No gameplay logic lives here. Gameplay UI goes in UI_Overlay (A9), never
 ## UI_Canvas.
 ##
-## Temp debug keys (see the block at the bottom): M enters/leaves the 3D mode.
+## M7A's yard buttons own entry/exit; the old temporary M key is gone.
 
 var _save_queued := false
 
@@ -29,11 +29,16 @@ func _ready() -> void:
 			GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
 		])
 
-	# Autosave whenever stock moves. Connected AFTER the load on purpose:
-	# apply_save_dict emits inventory_changed for every item as it restores them,
-	# so connecting earlier would have the act of loading immediately trigger a
-	# save of what was just loaded.
+	# Autosave whenever owned stock OR progression moves. Connected AFTER the load
+	# on purpose: every serialiser emits as it restores fields, so connecting any
+	# of these earlier would make loading immediately rewrite what was just read.
 	InventoryManager.inventory_changed.connect(_on_inventory_changed)
+	GameState.cash_changed.connect(_queue_autosave.unbind(1))
+	GameState.yard_pile_changed.connect(_queue_autosave.unbind(1))
+	GameState.selected_species_changed.connect(_queue_autosave.unbind(1))
+	GameState.xp_changed.connect(_queue_autosave.unbind(1))
+	GameState.skill_level_changed.connect(_queue_autosave.unbind(2))
+	GameState.species_purchased.connect(_queue_autosave.unbind(1))
 
 	# Godot tears the window down the moment it is closed unless told otherwise,
 	# which would drop everything earned since the last save.
@@ -41,7 +46,7 @@ func _ready() -> void:
 
 
 ## ---------------------------------------------------------------- autosave
-## Stock changed, so the yard is worth writing down.
+## Owned stock or progression changed, so the yard is worth writing down.
 ##
 ## COALESCED, and it has to be: finishing a log deposits one firewood piece at a
 ## time, so a six-piece log fires this six times in a single frame. Writing the
@@ -49,11 +54,14 @@ func _ready() -> void:
 ## result. The deferred flush collapses a whole batch into one write at the end
 ## of the frame.
 ##
-## This fires on any inventory CHANGE, not only on additions — a sale or an
-## upgrade cost is at least as worth persisting as a gather, and filtering to
-## increases would leave a sale unsaved until the next chop. Say so if you want
-## it narrowed to gathers only.
+## Inventory changes, cash, pile state, XP, skill purchases, species purchases
+## and the selected wood all share this coalescer. A transaction may touch three
+## of them in one frame; it still produces one complete write at frame end.
 func _on_inventory_changed(_item_id: StringName, _new_count: int) -> void:
+	_queue_autosave()
+
+
+func _queue_autosave() -> void:
 	if _save_queued:
 		return
 	_save_queued = true
@@ -74,10 +82,8 @@ func _flush_autosave() -> void:
 ## still closes. A game that refuses to shut down is a worse bug than a lost
 ## session.
 ##
-## OPEN, and Sam's call: this saves on quit ONLY. A crash or a power cut still
-## costs the session. Periodic autosave needs a cadence (every N seconds? on each
-## completed log? on each sale?), which is a feel decision, not a default to
-## invent here.
+## Autosave covers every persisted progression mutation currently in the loop;
+## close-request remains a final synchronous safety write.
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_CLOSE_REQUEST:
 		return

@@ -87,6 +87,12 @@ layout_mode = 2
 autowrap_mode = 3
 text = "Every piece you split is bought the moment it hits the pile. When the pile is full, the load is hauled away."
 
+[node name="NextGoal" type="Label" parent="YardPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
+text = "Next purchase"
+
 [node name="Spacer" type="Control" parent="YardPanel/Column"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -260,3 +266,37 @@ offset_right = 176.0
 offset_bottom = -16.0
 grow_vertical = 0
 text = "Back to the yard"
+
+[node name="PileProgress" type="PanelContainer" parent="."]
+visible = false
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -170.0
+offset_top = -64.0
+offset_right = 170.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="Column" type="VBoxContainer" parent="PileProgress"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Label" type="Label" parent="PileProgress/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+text = "Next haul-away"
+horizontal_alignment = 1
+
+[node name="Progress" type="ProgressBar" parent="PileProgress/Column"]
+custom_minimum_size = Vector2(300, 9)
+layout_mode = 2
+mouse_filter = 2
+max_value = 1.0
+step = 1.0
+show_percentage = false
