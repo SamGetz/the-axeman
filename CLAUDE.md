@@ -656,8 +656,24 @@ it, cash buys it" when asked directly.
   `curve_power` 1.8), every `unlock_level` (1 → 96), every `unlock_cost`
   (0 → 300M), every `xp_reward` (8 → 56,000), and every skill cost/step except
   Sam's two 5%s. These want tuning together against real play, not one at a time.
-- **STILL TO DO from this direction: the green XP orbs.** The award lands and the
-  numbers move; the Minecraft-style burst that carries it does not exist yet.
+- **THE GREEN XP ORBS** (`res://scenes/3d_action/xp_orb.gd`, `class_name XPOrb`).
+  Two phases, because that is what reads as Minecraft: a SCATTER off the block on
+  a little ballistic arc, then a DRAW that accelerates into the camera (the
+  player). Script-animated, not physics — A12 caps active rigid bodies and
+  spending that budget on confetti would push real firewood out of the sim. One
+  shared mesh and material across every orb ever spawned. UNSHADED for the same
+  reason the failure scar is: an orb is a light source in the fiction, and a lit
+  one would go dim in the stump's shadow, which is exactly where they are born.
+- **THE ORB IS THE RECEIPT, NOT THE PAYMENT.** XP is banked the instant the log is
+  finished, never on absorption — quitting during the half-second of flight must
+  not cost the player the log they just chopped, and the save must not disagree
+  with what they watched happen.
+- **How many orbs is a CURVE, not a ratio:** `sqrt(xp) * density`, clamped 5–16.
+  A log worth 8 XP and one worth 56,000 both have to read as "a handful"; one orb
+  per XP would bury the late game in confetti.
+- **`core/tools/orb_shot.tscn` catches the burst MID-FLIGHT — RUN NON-HEADLESS.**
+  A count of orbs proves nothing about an effect whose whole job is to feel like
+  being paid. Run it on any orb change.
 
 - Still to do in M7A: three authored orders and three more upgrades. Both are
   blocked on tuning values (Directive 3). The unlockable-species requirement is

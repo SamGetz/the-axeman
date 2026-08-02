@@ -76,6 +76,19 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 @export var stump_scale := 0.376         # scales chopping_stump_a so its top sits at the log rest height (~0.5m)
 @export var camera_step_deg := 30.0
 @export var orbit_time := 0.25
+@export_group("XP orbs")
+## OFF in tests that count frames rather than watch them; on everywhere else.
+@export var orbs_enabled := true
+## Orbs = sqrt(xp) * density, clamped. PLACEHOLDERS per Directive 3 — the shape
+## matters more than the numbers: a log worth 8 and one worth 56,000 must both
+## read as "a handful", so the count grows sub-linearly and is capped.
+@export var orb_density := 2.2
+@export var orb_count_min := 5
+@export var orb_count_max := 16
+@export var orb_stagger := 0.035     # seconds between orbs leaving the block
+@export var orb_scatter_radius := 0.32
+@export_group("")
+
 @export var debug_forced_species := -1   # -1 = whatever the player picked; >=0 forces a species_table.tres LADDER INDEX (headless tests + shots)
 @export var debug_forced_mesh := -1      # -1 = random shape within the species; >=0 forces one (tests + species_shot)
 
@@ -596,7 +609,31 @@ func _award_log_xp() -> void:
 	# Woodsman and its kin ADD a fraction, so the bonus scales with the wood —
 	# a percentage of Lignum Vitae is worth having, a percentage of aspen is not.
 	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.XP_GAIN)
-	GameState.add_xp(maxi(1, int(round(float(base) * (1.0 + bonus)))))
+	var awarded := maxi(1, int(round(float(base) * (1.0 + bonus))))
+	GameState.add_xp(awarded)
+	_burst_xp_orbs(awarded)
+
+
+## The green orbs, Minecraft-style: they pop off the block and are drawn into the
+## player (Creative Director call, 2026-08-02).
+##
+## THE XP IS ALREADY BANKED by the time these spawn, and deliberately so — see
+## xp_orb.gd. Quitting during the half-second of flight must not cost the player
+## the log they just chopped. The orbs are the receipt, not the payment.
+##
+## HOW MANY is a curve, not a ratio: a log worth 8 XP and one worth 56,000 both
+## have to read as "a handful", so the count grows with the LOG's worth but is
+## clamped hard. Tying one orb to one XP would bury the late game in confetti.
+func _burst_xp_orbs(amount: int) -> void:
+	if not orbs_enabled or _camera == null or amount <= 0:
+		return
+	var count := clampi(int(round(sqrt(float(amount)) * orb_density)), orb_count_min, orb_count_max)
+	var from := Vector3(0.0, _stump_top_y + 0.12, 0.0)
+	for i in range(count):
+		var orb := XPOrb.new()
+		orb.name = "XPOrb%d" % i
+		add_child(orb)
+		orb.setup(from, _camera, float(i) * orb_stagger, orb_scatter_radius)
 
 
 # --------------------------------------------------------------- input
