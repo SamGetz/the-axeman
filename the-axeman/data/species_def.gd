@@ -90,6 +90,44 @@ extends Resource
 ## and is the value every species should end up at once Sam has authored it.
 @export var bark_tint: Color = Color.WHITE
 
+## ---------------------------------------------------------- authored skins
+## THE LOG GEOMETRY IS SHARED; THE SKIN IS NOT (Creative Director call,
+## 2026-08-02: *"I think we can have the log geo be the same and we just apply
+## different textures"*). A species that supplies these stops being a tinted
+## stand-in and wears its own painted bark and end grain on the same FBX.
+##
+## They are bound at runtime onto the imported log's two material slots — see
+## `chopping_minigame._apply_species_look()`, which is also where the
+## duplicate-don't-mutate rule is explained. Empty means "keep the imported
+## material", so a species can supply bark alone and still read as itself.
+##
+## `bark_tex`  TILING side-of-the-log texture -> the `oak_bark` slot.
+## `top_tex`   the authored log END. NOT tileable and must not be: it is a
+##             single painted disc, and the FBX's end UVs are laid out to fit
+##             exactly one of it. -> the `oak_top` slot.
+@export var bark_tex: String = ""
+@export var top_tex: String = ""
+## Optional normal maps for the two skins above. LEAVING THESE EMPTY IS
+## MEANINGFUL, not merely unset: a species that brings its own albedo but no
+## normal has the imported wood's normal map CLEARED rather than inherited,
+## because Sam's log textures are hand-painted with their light and shadow
+## already in them and oak's normal map would emboss oak's crack pattern
+## straight through another wood's painted cracks.
+@export var bark_normal: String = ""
+@export var top_normal: String = ""
+## How many times `bark_tex` repeats around the log. PLACEHOLDER per Directive 3.
+##
+## This exists because the two bark textures in the project are painted at very
+## different scales: oak's is roughly 20 plates across its square, Sam's Eastern
+## White Pine roughly 8. Both are tiling squares and the log's UVs are identical,
+## so at 1.0 the pine shows about four enormous plates on the visible face and
+## reads as dark blobs rather than as bark. Scaling the UV is the non-destructive
+## fix — the alternative is repainting the art finer, which is Sam's call.
+##
+## Only affects the bark slot. The END is a single painted disc that the FBX's UVs
+## are laid out to fit exactly once, so scaling it would tile a grid of discs.
+@export var bark_uv_scale: float = 1.0
+
 
 ## Has the player chopped enough, ever, to have earned this wood?
 func is_unlocked(lifetime_wood_chopped: int) -> bool:

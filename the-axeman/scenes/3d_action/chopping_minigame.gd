@@ -238,7 +238,7 @@ var _axe: AxeRig
 var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
-var _bark_mats: Dictionary = {}           # "species index|source material id" -> tinted duplicate (see _apply_bark_tint)
+var _bark_mats: Dictionary = {}           # "species index|source material id" -> re-skinned duplicate (see _apply_species_look)
 var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
 var _scar_meshes: Dictionary = {}         # species index -> ArrayMesh: the gouge a failed swing leaves
 var _phys_mat: PhysicsMaterial
@@ -447,7 +447,7 @@ func _specimens_for(species_index: int) -> Array:
 	for p_idx in range(mini(2, paths.size())):
 		# Tinted like the log it came off, or a stand-in species' pile would be
 		# oak-coloured next to the oak-coloured billets it just chopped.
-		var whole := _apply_bark_tint(
+		var whole := _apply_species_look(
 			MeshUtils.centered(_build_split_log(paths[p_idx])), species_index)
 		var billet := _quarter(whole, mat)
 		if billet != null:
@@ -1188,7 +1188,7 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	var species_index := _pick_species_index()
 	_current_species = SpeciesTable.at(species_index)
 	_cut_mat = _cut_mat_for(species_index)
-	_source_mesh = _apply_bark_tint(
+	_source_mesh = _apply_species_look(
 		_center_mesh(_build_split_log(_pick_mesh(_current_species))), species_index)
 
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
@@ -1286,32 +1286,44 @@ func _cut_mat_for(species_index: int) -> StandardMaterial3D:
 	return mat
 
 
-## Tint a log's OWN BARK, for a species that is wearing another wood's art.
+## Dress a log in its species' own skin.
 ##
-## ART DEBT, 2026-08-02: Sam named 25 woods and there are two sets of log art
-## (oak and birch), so 22 species point at the oak FBXs. Identical logs would
-## make the wood selector meaningless — the player picks a wood and the block
-## must look like it changed — so each stand-in species carries a `bark_tint`
-## that multiplies the imported bark. WHITE means "this species has its own art,
-## leave it alone", and is where every row should end up once Sam has modelled it.
+## THE GEOMETRY IS SHARED AND THE SKIN IS NOT (Creative Director call,
+## 2026-08-02). Sam named 25 woods and there are two authored log SHAPES sets
+## (oak and birch), so most species stand on the oak FBXs — but a species with
+## its own painted textures is bound to them here and stops looking like oak at
+## all. Two ways in, in order of preference:
+##
+##   1. `bark_tex` / `top_tex` — the species' OWN painted skin. This is the real
+##      answer and it is where every row should end up.
+##   2. `bark_tint` — a colour multiplied over whatever art the log already
+##      wears. The stand-in for a wood Sam has not painted yet: identical logs
+##      would make the wood selector meaningless, since the player picks a wood
+##      and the block has to look like it changed.
+##
+## A species using neither is left completely alone, which is what oak and birch
+## want — they ARE the imported art.
 ##
 ## THE MATERIAL MUST BE DUPLICATED, and this is the trap worth naming: an
 ## imported FBX's materials are shared by REFERENCE — MeshUtils.transformed_by
 ## carries `surface_get_material` straight across, and mesh_from_path re-reads
-## the same imported resource every time. Tinting in place would not tint this
-## log; it would tint that FBX's material for the whole process, so every species
-## sharing the art would drift to whichever wood was loaded last, and the change
-## would outlive the log. Duplicates are cached per (species, source material) for
-## the same reason `_cut_mat_for` caches: a fresh instance per log would be a
-## fresh material per log for the renderer to track.
+## the same imported resource every time. Writing to one would not dress this
+## log; it would repaint that FBX's material for the whole process, so every
+## species sharing the art would drift to whichever wood was loaded last, and the
+## change would outlive the log. Duplicates are cached per (species, source
+## material) for the same reason `_cut_mat_for` caches: a fresh instance per log
+## would be a fresh material per log for the renderer to track.
 ##
 ## Safe against the `jag_cut` reference test, which finds a cut face by comparing
-## `material == _cut_mat`: bark is never the cut material, and a tinted duplicate
-## is still not it.
-func _apply_bark_tint(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
+## `material == _cut_mat`: neither slot here is ever the cut material.
+func _apply_species_look(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
 	var row := SpeciesTable.at(species_index)
-	if row == null or row.bark_tint == Color.WHITE:
-		return mesh                       # this species has its own art
+	if row == null:
+		return mesh
+	var tinted := row.bark_tint != Color.WHITE
+	if not tinted and row.bark_tex.is_empty() and row.top_tex.is_empty():
+		return mesh                       # this species already IS the imported art
+
 	for si in range(mesh.get_surface_count()):
 		var src := mesh.surface_get_material(si)
 		if src == null:
@@ -1321,12 +1333,71 @@ func _apply_bark_tint(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
 			var dup := src.duplicate() as BaseMaterial3D
 			if dup == null:
 				continue                  # a non-BaseMaterial3D (a shader) — leave it be
-			# MULTIPLY, never assign: the imported material may already carry an
-			# albedo of its own, and a tint is a filter over the art, not a repaint.
-			dup.albedo_color = dup.albedo_color * row.bark_tint
+
+			# WHICH SLOT IS THIS? Every log FBX in the project carries exactly two
+			# material slots named `oak_bark` and `oak_top` (verified with
+			# core/tools/inspect_materials.gd), so the name is what tells the side
+			# of the log from its authored end. Falling back to surface order
+			# rather than skipping keeps a future FBX with different slot names
+			# looking like SOMETHING, and says so out loud.
+			var slot := _slot_name(src)
+			var is_top := slot.contains("top") if not slot.is_empty() else si == 1
+			if slot.is_empty():
+				push_warning("chopping_minigame: log material %d has no name; assuming %s by surface order."
+					% [si, "end" if is_top else "bark"])
+
+			var tex_path: String = row.top_tex if is_top else row.bark_tex
+			var normal_path: String = row.top_normal if is_top else row.bark_normal
+			if not tex_path.is_empty():
+				var tex: Texture2D = load(tex_path) as Texture2D
+				if tex == null:
+					push_warning("chopping_minigame: %s texture '%s' did not load; keeping the imported one."
+						% [row.id, tex_path])
+				else:
+					dup.albedo_texture = tex
+					# The species brought its own albedo, so the imported wood's
+					# normal map no longer describes this surface — see the note on
+					# SpeciesDef.bark_normal for why clearing beats inheriting.
+					var nrm: Texture2D = load(normal_path) as Texture2D if not normal_path.is_empty() else null
+					dup.normal_enabled = nrm != null
+					dup.normal_texture = nrm
+
+					# AND THE OAK MATERIAL'S SHADING COMES OFF WITH IT. `oak_bark`
+					# and `oak_top` both carry `vertex_color_use_as_albedo` plus a
+					# 0.906 grey, so the log's baked vertex-colour shading and that
+					# grey multiply over whatever albedo is bound. Oak's own texture
+					# was painted to sit under them; Sam's species textures are
+					# painted with their own light and crevice shadow already in
+					# them, so inheriting both multiplied a second set of shadows on
+					# top and Eastern White Pine came out nearly black. A species
+					# that paints its own skin gets that skin rendered as painted.
+					dup.vertex_color_use_as_albedo = false
+					dup.albedo_color = Color.WHITE
+
+					# Bark only: the end is one painted disc the UVs already fit.
+					if not is_top and row.bark_uv_scale != 1.0:
+						dup.uv1_scale = Vector3(row.bark_uv_scale, row.bark_uv_scale, 1.0)
+
+			# The stand-in tint applies ONLY to slots this species did not paint.
+			# That matters while an art drop is half-finished: Balsam Fir arrived
+			# with bark and no end grain, and tinting its real bark to match the
+			# oak end it is still borrowing would be repainting the good art to
+			# match the placeholder. MULTIPLY, never assign — a tint is a filter
+			# over whatever art is there.
+			if tinted and tex_path.is_empty():
+				dup.albedo_color = dup.albedo_color * row.bark_tint
 			_bark_mats[key] = dup
 		mesh.surface_set_material(si, _bark_mats[key])
 	return mesh
+
+
+## The imported material's own name (`oak_bark` / `oak_top`), lowercased. Godot
+## binds an EXTERNAL .tres beside the FBX when the names match, so the useful name
+## can live on either the resource or its file — check both.
+func _slot_name(mat: Material) -> String:
+	if not mat.resource_name.is_empty():
+		return mat.resource_name.to_lower()
+	return mat.resource_path.get_file().get_basename().to_lower()
 
 
 ## Load a texture path, falling back to `fallback` when the row omits it or the

@@ -28,10 +28,13 @@ janka = 380
 unlock_at = 25
 split_chance = 0.54
 meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
-inside_tex = ""
+inside_tex = "res://assets/textures/wood_eastern_pine/eastern_pine_inside_tilable.png"
 inside_normal = ""
-inside_tint = Color(1.08, 1.0, 0.84, 1)
-bark_tint = Color(1.06, 0.98, 0.82, 1)
+inside_tint = Color(1, 1, 1, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_eastern_pine/eastern_pine_bark.png"
+top_tex = "res://assets/textures/wood_eastern_pine/eastern_pine_top.png"
+bark_uv_scale = 2.6
 
 [sub_resource type="Resource" id="Resource_norway_spruce"]
 resource_name = "norway_spruce"
@@ -43,10 +46,13 @@ janka = 380
 unlock_at = 60
 split_chance = 0.53
 meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
-inside_tex = ""
+inside_tex = "res://assets/textures/wood_norway_spruce/norway_spruce_inside_tilable.png"
 inside_normal = ""
-inside_tint = Color(1.02, 0.96, 0.82, 1)
-bark_tint = Color(1.0, 0.94, 0.8, 1)
+inside_tint = Color(1, 1, 1, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_norway_spruce/norway_spruce_bark.png"
+top_tex = "res://assets/textures/wood_norway_spruce/norway_spruce_top.png"
+bark_uv_scale = 2.2
 
 [sub_resource type="Resource" id="Resource_balsam_fir"]
 resource_name = "balsam_fir"
@@ -62,6 +68,8 @@ inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.98, 0.96, 0.86, 1)
 bark_tint = Color(0.96, 0.94, 0.84, 1)
+bark_tex = "res://assets/textures/wood_balsam_fir/balsam_fir_bark.png"
+bark_uv_scale = 2.4
 
 [sub_resource type="Resource" id="Resource_lodgepole_pine"]
 resource_name = "lodgepole_pine"
