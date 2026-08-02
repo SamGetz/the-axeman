@@ -1,8 +1,9 @@
 # The Axeman — Cozy Lumberyard Roadmap
 
-**Status:** Creative Director-approved direction, 2026-08-01. This replaces the
-pre-pivot M6–M8 module plan. It is a roadmap, not permission to skip the normal
-module-by-module sign-off or to invent final tuning values.
+**Status:** Creative Director-approved direction, 2026-08-01; automation and
+skill/store progression clarified 2026-08-02. This replaces the pre-pivot M6–M8
+module plan. It is a roadmap, not permission to skip the normal module-by-module
+sign-off or to invent final tuning values.
 
 **Expanded direction:** This grounded roadmap remains the foundation, but its
 long horizon is now extended by
@@ -14,9 +15,10 @@ there is no standing-tree, forest-depletion or felling layer of any kind.
 ## North star
 
 Build a cozy “number go up” game about growing the world’s greatest firewood
-business. The tactile M4 chopping is the source of value and the star of the
-game: choose work, chop logs by hand, turn the pieces into useful stock, fulfil
-orders, improve the yard, then take on better wood and more prestigious work.
+business. The tactile M4 chopping is how the player discovers and learns each
+new wood: chop it manually, build the experience and cash needed to certify it,
+then automate that solved species and move upward. The axe is the gateway to
+each new production tier; it is not how twelve trillion logs are processed.
 
 The player should feel two kinds of progress at once:
 
@@ -28,8 +30,9 @@ escalation may arrive much later, after the grounded fantasy is established.
 
 ## Non-negotiable design pillars
 
-1. **Chopping remains central forever.** The game must not automate away its
-   best interaction. Manual chopping remains the highest-value active play.
+1. **Learn by hand, then automate.** Every new species must be manually chopped
+   and certified. Once solved, machines intentionally replace routine hand
+   production for that species and fund the next unfamiliar wood.
 2. **Skill helps; imperfection never blocks progress.** Clean, intentional cuts
    can earn bonuses, but awkward chunks remain sellable and useful.
 3. **Upgrades should be felt or seen.** Prefer a new axe behaviour, log supply,
@@ -38,33 +41,38 @@ escalation may arrive much later, after the grounded fantasy is established.
    currencies just to manufacture progression.
 5. **Orders guide rather than grant permission.** There is always a basic,
    unlimited buyer so the player can relax and chop freely.
-6. **Automation handles the work around chopping.** Staff and machines remove
-   downtime and logistics friction; they do not out-chop the player.
+6. **Automation conquers solved work.** Staff remove logistics friction and
+   cutters eventually out-produce the player on certified commodity woods.
+   Machines cannot discover, master or certify a new species.
 
 ## Core loop
 
 ```text
-Choose an order or chop freely
+Choose an unfamiliar wood or goal
         ↓
-Chop logs by hand
+Chop and learn the species by hand
         ↓
-Create firewood with measurable species, size and quality
+Earn XP, cash and species mastery
         ↓
-Fill an order or sell to the basic buyer
+Complete its manual certification
         ↓
-Earn cash and reputation; grow stock and lifetime totals
+Buy/install its automated cutting profile
         ↓
-Improve axe, block, supply, yard, transport or workshop
+Machines turn that solved wood into volume and cash
         ↓
-Unlock more valuable woods, customers and contracts
+Improve the yard and unlock the next harder wood
         ↺
 ```
 
 ## Progression spine
 
-Use four clear values:
+Use a small set of clear values:
 
 - **Cash:** the primary spendable value for upgrades.
+- **XP/level:** manual Axeman progression; each earned level grants a skill
+  point.
+- **Species mastery:** manual understanding that leads to certification and an
+  automated cutting profile.
 - **Firewood stock:** the literal inventory of produced wood, reflected by a
   visible pile wherever practical.
 - **Reputation:** unlocks customers, contracts, wood supplies and regions.
@@ -110,9 +118,11 @@ loop must remain playable at the player’s own pace.
 ## Upgrade families
 
 - **Axes:** materially change strike feel, valid-cut forgiveness, clean-cut
-  rewards or suitability for different woods.
+  rewards, proc affinity or suitability for different woods.
 - **Chopping block:** improves usable space, log placement and piece control.
 - **Log supply:** unlocks larger logs, rarer species and more valuable timber.
+- **Automated production:** accepts only certified species, then replaces manual
+  commodity chopping through visible throughput, profiles and capacity.
 - **Yard:** increases storage and visibly expands the working space and piles.
 - **Transport:** unlocks bigger contracts and bulk sales.
 - **Workshop:** later converts selected stock into secondary products such as
@@ -121,6 +131,14 @@ loop must remain playable at the player’s own pace.
 
 Percentage bonuses may support these upgrades, but should not be their only
 player-facing effect.
+
+The skill tree remains separate from the cash store. Its three branches are
+**Strength**, **Speed** and **Technique**, and its defining rewards are named
+chance-driven mechanics rather than only faster timers: double/triple/quadruple
+strikes, free follow-ups, hot streaks, golden-grain opportunities and multiplied
+manual XP. Proc chains require bad-luck protection, valid geometry, visible
+announcements and a way to avoid ruining precision work. Exact odds, point costs
+and magnitudes require Sam's tuning sign-off.
 
 ## Target rhythm
 
@@ -149,11 +167,12 @@ Staff may eventually:
 - maintain supply while the player is away, if offline progress is later
   approved.
 
-Late-game automated cutting is now approved for the trillion-scale commodity
-volume in the expanded roadmap, but it is not part of M8. A species must be
-manually mastered/certified before an auto-cutter accepts it; player-cut goods
-remain premium, and manual Momentum accelerates the whole operation enough that
-returning to the block is always valuable.
+The first slow Mechanical Splitter is part of M8. It arrives after the first
+small group of woods has been manually mastered/certified, making the central
+promise legible early: **learn it, automate it, move upward**. A cutter cannot
+accept an unknown species or award Axeman XP/mastery, but after certification it
+should decisively surpass manual commodity output. Later cutters, logistics and
+profiles scale that proven loop toward the trillion-scale target.
 
 ## Approved module sequence
 
@@ -196,11 +215,12 @@ piece sizes/species, additional customer families and meaningful axe/block/
 supply/yard/transport progression. This phase proves that player skill and
 business growth reinforce one another.
 
-### M8 — optional logistics staff
+### M8 — first automation and optional logistics staff
 
-After M7 sign-off, add yard staff only where they support delivery, gathering,
-stacking, bundling, shipping or secondary production. No dialogue simulation,
-needs system, walkable village or morale layer is implied by this roadmap.
+After M7 sign-off, prove the first complete manual learning → certification →
+Mechanical Splitter loop. Add yard staff only where they support delivery,
+feeding, gathering, stacking, bundling, shipping or secondary production. No
+dialogue simulation, needs system, walkable village or morale layer is implied.
 
 ### Post-M8 candidates — not active modules
 
@@ -218,6 +238,7 @@ Each candidate requires a fresh Creative Director scope call before work starts.
 - Ore mining or another competing action mini-game.
 - Tree felling, FPS forest exploration or biome traversal.
 - A heavy village-builder, refining-chain simulator or worker-needs game.
-- Automation that makes chopping strategically irrelevant.
+- Automation that discovers or certifies a new species without the player's
+  manual power phase.
 - Punitive quality rules that discard imperfect firewood.
 - Unapproved currencies, item IDs, contracts or hardcoded tuning values.

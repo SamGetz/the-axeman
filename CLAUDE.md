@@ -55,7 +55,9 @@ Sam approved the full cozy-lumberyard recommendation and the roadmap in
    spine. The yard grows visibly alongside the counters.
 3. **M8 is reinterpreted as optional yard staff and logistics.** Staff may
    deliver logs, gather, stack, bundle, ship and run passive secondary
-   production. They must never make manual chopping obsolete.
+   production. M8 also introduces the first certified Mechanical Splitter:
+   staff do not discover woods, but machinery intentionally replaces routine
+   manual commodity chopping once the player has mastered a species.
 4. **Biomes may return only as wood-supply regions**, not explorable FPS forest
    levels. They unlock species, customers and contracts.
 5. **Tone is cozy lumberyard first**, with restrained absurd escalation only
@@ -71,18 +73,36 @@ extensive design and module sequence are in
 
 This does **not** restore M5 or create a replacement tree-felling management
 layer. There are no standing-tree counts, forest-depletion maps, felling crews,
-skidders or Last Tree sequence. Regions are log suppliers only: selected and
-rare logs arrive at the existing chopping block, which remains the premium
-active play. The grounded yard must be established before the global and space
-scale is revealed. The roadmap is not permission to skip module sign-off or
-invent tuning values.
+skidders or Last Tree sequence. Regions are log suppliers only: every unknown
+species first arrives at the existing chopping block for its manual learning
+and certification phase. The grounded yard must be established before the
+global and space scale is revealed. The roadmap is not permission to skip
+module sign-off or invent tuning values.
 
-**Late-game auto-cutting IS in scope and is required for trillion-scale timber
-throughput.** This automates log processing, never tree felling. Automated lines
-may process ordinary logs only after the player has manually mastered/certified
-that species. Manual chopping remains the source of discovery, mastery, premium
-quality, signature contracts and the strongest active boost to the automated
-company. Exact rates and value differences remain tuning calls.
+**Certified auto-cutting IS in scope, begins with the first Mechanical Splitter
+in M8 and is required for trillion-scale timber throughput.** This automates log
+processing, never tree felling. The progression loop is: manually chop and learn
+a new species a small authored number of times, certify it, buy/install its
+cutting profile, then let machinery replace manual commodity production for
+that solved wood while the player moves to the next unknown species. Machines
+cannot award Axeman XP, discover, master or certify a new species. Exact rates,
+requirements and value differences remain tuning calls.
+
+### SKILL TREE AND STORE DIRECTION (2026-08-02)
+
+Sam approved three player-skill branches: **Strength**, **Speed** and
+**Technique**. Skills must do more than make the same loop faster. Their defining
+rewards are named random bonus mechanics such as double/triple/quadruple strikes,
+free follow-ups, hot streaks, golden-grain opportunities and multiplied manual
+XP. Proc chains require bad-luck protection, valid slicer geometry, visible
+announcements and protection for precision work. Final odds and magnitudes are
+tuning calls.
+
+Cash belongs to the physical store: axes/tools, workstation/environment,
+automated production, yard/logistics and optional session supplies. Skills
+define what the Axeman can do; equipment weights how often, how strongly or how
+safely those mechanics occur. Every meaningful purchase must be felt or seen in
+the yard. Full framework: `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`.
 
 Exact prices, payout multipliers, timing values and upgrade magnitudes are still
 tuning decisions. Do not invent them in code: present them to Sam as resource
@@ -1132,10 +1152,10 @@ The binding post-pivot roadmap is
 5. **M7B:** craftsmanship and expanded lumberyard — reputation, cut-quality
    bonuses, size/species orders, customer families and meaningful yard/axe/
    supply/transport upgrades. Imperfect pieces always remain sellable.
-6. **M8:** optional yard staff/logistics — support the work around chopping;
-   never replace chopping as the highest-value active play.
-7. **M9–M11:** regional supplier network, national/continental growth,
-   certified auto-cutting, global wood mastery and the final terrestrial-species
+6. **M8:** first certified Mechanical Splitter plus optional yard staff/logistics
+   — prove that automation replaces commodity hand production for a solved wood.
+7. **M9–M11:** regional supplier network, national/continental automation
+   growth, global wood mastery and the final terrestrial-species
    showcase. Regions deliver logs; there is no felling or forest-depletion layer.
 8. **M12–M14:** launch programme, first alien timber expedition and an
    interstellar log-supply/mastery loop.

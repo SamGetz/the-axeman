@@ -1,6 +1,7 @@
 # The Axeman — Earth to Alien Timber Master Roadmap
 
-**Status:** Creative Director direction, 2026-08-01; scope clarified 2026-08-02.
+**Status:** Creative Director direction, 2026-08-01; scope clarified 2026-08-02;
+store, skill-tree and automation lifecycle clarified 2026-08-02.
 This is an extensive design roadmap, not an implementation order. It extends
 the cozy-lumberyard direction into global wood mastery and a spacefaring postgame. The existing module sign-off
 rule, frozen Part A contracts, Godot 4.7 Compatibility constraints and Sam's
@@ -37,10 +38,12 @@ Space is not a reset that undoes it. It is the consequence and reward.
 
 ### The fantasy
 
-“I did this with my own two hands” must survive even after millions of workers
-and machines exist. The business can become enormous, but the player is always
-the Axeman: the person who understands a piece of wood by looking at its grain
-and splitting it better than any machine.
+The player begins by doing everything with their own two hands. The long-term
+fantasy is not to keep hand-chopping the same solved log forever: it is to become
+the Axeman who can understand an unknown wood, teach the company how to process
+it, automate that solved commodity and move on to the next harder species.
+Manual chopping is the discovery and power phase for each new wood; automation
+is the earned proof that the player has mastered it.
 
 ### The emotional curve
 
@@ -57,11 +60,12 @@ and splitting it better than any machine.
 
 ### Non-negotiable pillars
 
-1. **The chopping game remains the best active play.** Automation can own
-   supply, transport, stacking, bundling, ordinary logistics and—late in the
-   campaign—commodity log cutting at enormous scale. Manual chopping owns
-   discovery, certification, mastery, rare specimens, signature work, premium
-   quality and the strongest temporary company boost.
+1. **Learn by hand, then automate.** Every new species begins at the chopping
+   block and must be manually learned and certified. Once solved, automated
+   lines are expected to replace manual commodity chopping for that species and
+   carry the company toward trillion-scale output. The player returns to the
+   block for the next unknown species, rare specimens and optional handcrafted
+   work—not to compete with a factory on volume.
 2. **Every era visibly changes the yard.** A number is never the only proof of a
    major upgrade. Buildings, traffic, piles, machinery, skyline and eventually
    spacecraft make growth physical.
@@ -88,12 +92,13 @@ must start from this real baseline.
 
 - Runtime plane-sliced logs with tactile axe anticipation, impact, hit-pause,
   shake, physics and a satisfying pile animation.
-- Pine, oak and birch as working species, with multiple birch shapes and
-  species-specific value, cut materials and splitting difficulty.
+- A 25-species, level-gated Janka ladder with cash purchases, data-driven value,
+  XP rewards, difficulty and a working wood selector. The first species have
+  authored art; later rows remain content work.
 - A swing roll with a maximum chance below certainty, visible failed-hit scars,
   scar weakening, size relief and forced-roll test seams.
-- A real swing cooldown and two upgrade effects: Coffee shortens recovery and a
-  Protein Bar improves split chance.
+- A real swing cooldown, XP to level 99, one skill point per earned level and a
+  validated prerequisite-based skill-tree prototype.
 - Automatic sale as each piece lands, with cash ticking alongside the pile.
 - A 50-piece haul-away spectacle that never blocks continued chopping.
 - Persistent cash, lifetime wood chopped, yard-pile state and upgrade levels.
@@ -106,8 +111,8 @@ must start from this real baseline.
 
 - No authored orders or customer goals.
 - No reputation or career rank.
-- No meaningful wood-selection/supply screen.
-- No player skill tree, species mastery or equipment loadout.
+- No finalized proc-led skill catalogue, species mastery/certification loop,
+  equipment loadout or automation bridge.
 - No yard expansion beyond the current pile and shop panel.
 - No staff, routes, passive logistics or offline outcome.
 - No regional, national or global supplier progression.
@@ -163,42 +168,42 @@ that rather than bury it under menus.
 ## The core loop at every scale
 
 ```text
-Choose a goal
+Unlock an unfamiliar species
     ↓
-Receive a log from the current supply region
+Chop it manually and learn its behaviour
     ↓
-Read grain, aim and split it by hand
+Earn XP + cash + species mastery
     ↓
-Earn cash + mastery + active company momentum
+Complete its authored certification
     ↓
-Complete an order or feed the unlimited buyer
+Buy/install its automated cutting profile
     ↓
-Buy equipment, skills, staff, routes or projects
+Automation turns solved wood into volume and cash
     ↓
-See the yard and the regional/global supplier network grow
-    ↓
-Unlock a new species, customer, region or technology
+Reinvest in tools, yard, logistics and the next species
     ↺
 ```
 
 At company scale, a support loop runs beside it:
 
 ```text
-Suppliers prepare and dispatch the chosen logs
+Suppliers prepare and dispatch certified logs
     ↓
-Drivers keep the chopping queue supplied
+Feeders keep automated lines supplied
     ↓
-Staff stack, bundle, ship and complete solved logistics
+Cutters process solved species at industrial scale
     ↓
-The player directs reinvestment and resolves bottlenecks
+Staff sort, bundle and ship the output
+    ↓
+The player reinvests, expands capacity and resolves bottlenecks
 ```
 
-The loops meet in both directions. Company infrastructure brings better logs to
-the block. Manual chopping creates mastery, fulfils premium work and activates
-**Axeman's Momentum**, a temporary company-wide productivity state. The exact
-duration and magnitude are tuning values, but the rule is structural: active
-play makes the entire empire work better; passive play never invalidates active
-play.
+The loops meet at **certification**. Company infrastructure brings an unknown
+species to the block; manual work teaches and certifies it; the resulting cutting
+profile moves that species into industrial production. Momentum may remain as
+an optional active surge, but established automation must not depend on the
+player repeatedly chopping solved logs. Passive production intentionally
+invalidates manual *commodity grinding* while preserving manual discovery.
 
 ## Progression economy — few currencies, many meaningful counters
 
@@ -206,9 +211,10 @@ play.
 
 1. **Cash** — the universal business currency from stump through space. It buys
    equipment, wages, buildings, routes, industrial projects and expeditions.
-2. **Skill points** — earned only at authored Axeman Rank milestones and spent
-   in the player skill tree. They represent knowledge, not another income rate.
-   Respeccing, if allowed, should be forgiving.
+2. **Skill points** — one is earned for each level gained and spent in the player
+   skill tree. They represent the Axeman's growing strength, speed, technique
+   and chance-driven talents, not business capital. Respeccing should be
+   forgiving.
 
 Do not add separate “yard coins,” “regional tokens,” “rocket bucks,” “prestige
 shards” or a currency per wood species. Space projects can require cash plus
@@ -243,45 +249,47 @@ The interface should preserve exact values in tooltips/history while presenting
 compact values on the main HUD. Scientific notation belongs only in the far
 cosmic postgame, where its arrival is itself a joke.
 
-## How manual chopping remains valuable forever
+## Species lifecycle — master it, automate it, move upward
 
-Automation is necessary for a global yard. It begins by supporting the work
-around chopping and eventually gains certified commodity cutting, without
-replacing the player's premium craft role.
+Manual chopping is a finite **power phase for each new species**, not the
+permanent way the company produces solved timber. A player cannot and should not
+click through twelve trillion logs. The repeatable arc is:
 
-### Manual-only rewards
+1. **Discovery:** an unfamiliar species is delivered to the block and is
+   manual-only. Its traits are initially incomplete or unknown.
+2. **Learning:** the player chops a small authored set of logs, earns XP and
+   cash, reveals the wood's behaviour and builds species mastery.
+3. **Certification:** the player proves understanding through a short species-
+   appropriate checklist. Exact counts and criteria are tuning/content calls.
+4. **Industrialisation:** certification unlocks that species' cutting profile;
+   cash buys a compatible machine or installs the profile in an owned line.
+5. **Production:** automation replaces routine hand-chopping for that species,
+   generating the volume and cash that funds the next unknown wood.
 
-- **Species mastery:** machines cannot earn it.
-- **Craft quality:** even size, accurate cuts, low scar count and efficient log
-  completion improve premium contract value.
-- **Signature orders:** named customers require hand-split pieces.
-- **Specimen processing:** rare Earth and alien logs must be understood at the
-  block before suppliers can offer more shapes and contracts.
-- **Discovery cuts:** the first manual splits reveal unusual grain traits,
-  research clues or build-defining materials.
-- **Perfect-log milestones:** permanent achievements and skill progress.
-- **Axeman's Momentum:** manual success temporarily accelerates the surrounding
-  operation. Better craftsmanship builds the state faster or raises its tier.
+### Manual-only progression
 
-### Automation-only strengths
+- First encounters and trait discovery.
+- Axeman XP and player levels.
+- Species mastery and first certification.
+- Rare specimens, authored finales and optional signature handwork.
+- Perfect-log and personal chopping records.
 
-- Delivering, moving, stacking, bundling and shipping output.
-- Maintaining species queues and supplier routes while the player is away.
-- Processing manually certified, ordinary logs at the scale required by the
-  global and space economy.
-- Operating solved production chains while the player is away, if offline
-  progress is approved.
-- Providing reliable baseline income and project materials.
+### Automation's job
 
-### The value rule
+- Replace manual commodity production for certified species.
+- Scale solved woods from individual pieces to industrial and astronomical
+  totals.
+- Generate the sustained cash required for later tools, routes and projects.
+- Expose understandable supply, machine, power, queue and dispatch bottlenecks.
+- Continue operating solved production chains while the player works on a new
+  species and, if separately approved, while the player is away.
 
-Automated cutting should eventually dominate **total commodity volume**; a
-trillion-scale target cannot honestly be achieved one click at a time. Manual
-work continues to dominate **value per log, discovery, certification, mastery,
-signature contracts and active leverage**. Auto-cutters are visible, purchased
-production lines with clear rates and bottlenecks—not a hidden replacement for
-the chopping game. The Axeman teaches the company how to process a species, then
-returns to the block for its hardest, rarest and most valuable examples.
+Auto-cutters are visible, purchased production lines with auditable inputs and
+outputs. They cannot accept an unknown or uncertified species and cannot award
+first mastery or Axeman XP. After certification, however, they are not a weaker
+consolation prize: they are the intended superior source of commodity volume.
+Manual chopping an old species remains available for pleasure or special work,
+but is no longer strategically required.
 
 The exact relationship between Sam's trillion-scale target, delivered logs and
 “source-tree equivalents processed” needs a later tuning/content decision. Do
@@ -321,73 +329,121 @@ direct exponential cash, avoiding a runaway rich-get-richer loop.
 
 ## Player skills
 
-Skill points arrive at authored Axeman Rank milestones. A node should unlock a
-new behaviour, decision or visible affordance whenever possible. Repeated stat
-nodes can fill gaps, but cannot be the whole tree.
+Every earned level grants one skill point. A level must buy more than a smaller
+timer: the tree's identity comes from random bonus mechanics, branching proc
+chains and rule-changing capstones. Repeated stat ranks may support those
+mechanics, but cannot be the main reward.
 
-### Branch A — Axecraft
+Each branch contains four node types:
 
-| Skill concept | Gameplay effect |
-|---|---|
-| Comfortable Grip | Slightly shortens the real swing recovery; the existing Coffee effect remains a temporary/stackable route, not a replacement. |
-| Grain Reader | Reveals a subtle weak-grain band on the current piece after observing it briefly. |
-| Follow Through | Clean splits contribute more Momentum. |
-| Patient Hands | A deliberately held aim widens the craftsmanship sweet spot without increasing raw split chance. |
-| Scar Tissue | Existing scars weaken the piece more effectively. |
-| Controlled Failure | Failed strikes place their scar closer to the aimed plane, making the next attempt more predictable. |
-| Kindling Technique | Small-piece orders become easier to grade consistently. |
-| Timber Technique | Large/hard species lose less maximum chance to difficulty. Never grants certainty. |
-| Perfect Log | Unlocks perfect-log grading, milestone tracking and signature orders. |
-| Axeman's Flow | At maximum Rhythm, the next successful split creates a distinctive camera/audio event and a larger Momentum contribution. |
+1. **Foundation:** dependable improvements to the underlying action.
+2. **Proc:** introduces a chance for a named bonus event.
+3. **Modifier:** changes what that event can do or how far it can chain.
+4. **Capstone:** a rare, highly visible expression of the branch fantasy.
 
-### Branch B — Yardcraft
+### Branch A — Strength / explosive chopping
 
 | Skill concept | Gameplay effect |
 |---|---|
-| Fast Reset | The next log arrives/settles sooner after a completed load. |
-| Block Sense | Better default log orientation and clearer cut readability. |
-| Sure Landing | Pieces take a cleaner flight to the pile without removing the animation. |
-| Load Caller | Warns clearly when the next pieces will trigger haul-away. |
-| Species Rack | Allows a small queue of chosen incoming species. |
-| Order Crates | Automatically routes matching hand-split pieces to the active contract. |
-| Clean Bench | Reduces visual clutter after very high piece counts. |
-| Workshop Eye | Highlights which affordable equipment would change the current bottleneck. |
+| Strong Arms | Improves ordinary performance against resistant wood without guaranteeing a split. |
+| Deep Bite | Failed strikes sometimes leave a more effective scar or multiple weakness marks. |
+| Critical Cleave | A successful roll can partially ignore the species' resistance. |
+| Echoing Blow | Introduces a chance for one swing to perform a second real slice. |
+| Rolling Thunder | A double strike can chain into a third slice. |
+| Unstoppable | A very lucky chain can reach four slices from one swing. |
+| Earthshaker | Capstone: the rare quadruple strike receives its own escalating impact, audio, hit-pause and announcement. |
 
-### Branch C — Enterprise
+One swing may therefore perform multiple valid slicer operations: two cuts can
+produce up to three pieces, three cuts up to four, and four cuts up to five.
+Each continuation targets a remaining valid piece and stops cleanly when no
+useful geometry remains.
 
-| Skill concept | Gameplay effect |
-|---|---|
-| Regular Customer | Adds another order choice, not another forced obligation. |
-| Honest Estimate | Shows expected contract value before committing. |
-| Material Sense | Reveals region/species traits before buying the supply permit. |
-| Crew Briefing | Manual Momentum spreads to one additional company system. |
-| Route Planner | Makes transport bottlenecks visible and allows a saved route priority. |
-| Bulk Negotiator | Improves ordinary industrial contracts, not signature handwork. |
-| Machine Certification | Allows mastered ordinary species to enter auto-cutting lines; never certifies a first specimen. |
-| Line Foreman | Axeman's Momentum has a stronger or broader effect on visible auto-cutters. |
-| Reputation | Adds a small reputation bonus for first-time order categories. |
-| Trusted Name | Unlocks prestige customers and the global boardroom tier. |
-
-### Branch D — Frontier (hidden until the launch programme)
+### Branch B — Speed / rhythm and flurries
 
 | Skill concept | Gameplay effect |
 |---|---|
-| Zero-G Stance | Reduces alien-log drift in the orbital chopping rig. |
-| Xenograin | Reveals the first trait of an unknown alien species sooner. |
-| Quarantine Eye | Identifies dangerous spores/resin before a cut. |
-| Cargo Instinct | Improves the chance that a mission returns an intact rare specimen. |
-| Vacuum Rhythm | Maintains more Rhythm between unusually slow alien-log reactions. |
-| Field Certification | After hand-mastering a species, expedition partners can identify, pack and return further examples safely. |
+| Quick Hands | Modestly shortens recovery while preserving axe weight. |
+| Ready Stance | Modestly shortens the anticipation before impact. |
+| Follow-Up | A strike can instantly ready the next manual swing. |
+| Free Swing | A successful hit can consume no cooldown. |
+| Hot Streak | Intentional successes raise proc odds until a bonus fires; a miss softens rather than erases the streak. |
+| Blur | Chance for a rapid bonus after-strike with its own visible axe echo. |
+| Flow State | Capstone: a lucky sequence opens a short, audiovisual chopping frenzy rather than a permanent extreme speed multiplier. |
 
-No final node counts, point costs or magnitudes are approved here. The tree
-should have meaningful forks and allow different early identities: fast rhythm,
-precise craft, hard-wood specialist or business builder.
+### Branch C — Technique / knowledge and reward jackpots
+
+| Skill concept | Gameplay effect |
+|---|---|
+| Grain Glimpse | Occasionally reveals a golden weak-grain opportunity. |
+| Edge Control | Broadens the precision band for an intentional cut. |
+| Controlled Failure | Failed strikes land closer to the intended plane and teach the next attempt. |
+| Quick Study | A manually finished log has a chance to award double XP. |
+| Flash of Insight | A rarer proc can produce a larger XP event with a distinct orb burst. |
+| Perfect Fracture | Bonus slices prefer useful spacing and requested size bands instead of creating random rubbish. |
+| Eureka | Capstone: an unfamiliar species can trigger a major mastery/XP discovery during its learning phase. |
+
+Double or multiplied XP must be shown physically through extra or distinct XP
+orbs and a named result; an invisible total change is not enough.
+
+### Cross-branch skills
+
+| Combination | Hybrid effect |
+|---|---|
+| Strength + Speed | Rolling multi-strikes can inherit follow-up and streak behaviour. |
+| Strength + Technique | Multi-slices follow useful geometry and can contribute strongly to certification. |
+| Speed + Technique | Completing a log during a hot streak improves the chance of an XP discovery. |
+| All three | A rare Master's Swing combines a multi-cut, clean fracture and learning bonus. |
+
+### Proc fairness and control
+
+- Use bad-luck protection or a shuffled/weighted sequence so a build cannot go
+  dry for an unreasonable stretch; exact odds remain tuning calls.
+- Bonus cuts occur only when another valid, useful slice exists.
+- Precision and signature work must not be ruined by an unwanted random chain.
+  Multi-strike skills may be equipped/disabled at the yard, and Technique can
+  make them respect an active size request.
+- Every proc is named on screen—DOUBLE STRIKE, TRIPLE STRIKE, QUAD CLEAVE,
+  DOUBLE XP—and receives proportionate sound, animation and game feel.
+- Proc odds and maximum chain depth must be legible in the skill detail view.
+- Player levels and species difficulty must never make every ordinary swing a
+  certainty; scars and failure remain part of the texture.
+
+The full authored tree should cost more points than level 99 awards so builds
+remain distinct, while a forgiving yard respec prevents experimentation from
+bricking a save. Final node counts, costs, odds and magnitudes require Creative
+Director tuning sign-off.
 
 ## Equipment, items and productivity tools
 
-The shop should evolve from two percentage rows into a physical catalogue. Each
-purchase needs a yard prop, axe change, character prop, new animation, new UI
-capability or clearly felt rule change.
+The store is the physical/business half of progression. Skills change what the
+Axeman can do; cash changes the axe, workstation, yard and company. The store
+should evolve from percentage rows into a physical catalogue in which each
+purchase creates a yard prop, axe change, animation, UI capability, production
+line or clearly felt rule change.
+
+### Store departments and presentation
+
+1. **Axes and active tools:** loadout sidegrades biased toward Force, Tempo or
+   Control, with different models, animations and proc affinities.
+2. **Workstation/environment:** stump, cradle, grain lamp, turntable, clamps and
+   other features that make the manual learning phase more capable.
+3. **Automated production:** cutters, installed species profiles, line capacity,
+   force, speed and parallelism.
+4. **Yard and logistics:** input racks, feeders, power, sorting, storage,
+   loading, routes and dispatch capacity that keep production moving.
+5. **Session supplies:** optional short-lived modifiers; never mandatory upkeep.
+
+Every store card must show what changes, the current/next tier, price, relevant
+trade-off and the physical yard consequence. The player may pin one purchase as
+their active cash goal so every payout visibly fills an understandable target.
+The store should almost always expose one affordable action, one session-sized
+goal and one aspirational machine or expansion.
+
+Axes and proc skills deliberately interact: skills define **what can happen**;
+the equipped tool weights **how often, how strongly or how safely it happens**.
+A maul may favour multi-strikes, a hatchet follow-ups, a broad axe clean fracture
+and a balanced axe moderate access to every proc family. No tool may have ten
+tiny opaque stats.
 
 ### Axes and strike tools
 
@@ -419,11 +475,13 @@ tool trash. Orders and species should create reasons to revisit them.
 - Orbital capture ring: converts the familiar stump silhouette into the zero-g
   endgame rig without losing the visual identity of the block.
 
-### Automated cutting lines (late game)
+### Automated cutting lines
 
-Auto-cutting is a progression layer inside the log-processing fantasy, not tree
-felling. It should arrive only after the player has manually learned multiple
-woods and the required throughput has clearly outgrown one chopping block.
+Auto-cutting is the payoff of the species-learning loop, not tree felling. The
+first slow Mechanical Splitter should appear during the early grounded-company
+progression, after the player has manually certified the first small group of
+woods. It must establish the promise “I taught my yard how to cut this” well
+before global scale; later lines expand that proven idea toward twelve trillion.
 
 | Line concept | Role | Boundary |
 |---|---|---|
@@ -434,10 +492,11 @@ woods and the required throughput has clearly outgrown one chopping block.
 | Orbital Mass Splitter | Space-era line for certified alien commodity timber. | Requires manual alien mastery and specialised containment. |
 
 Every line consumes delivered-log supply, has a visible output rate and produces
-an auditable quantity of commodity firewood/material. It cannot earn species
-mastery, perfect-log records, signature-order credit or first-discovery rewards.
-Manual Momentum should materially accelerate these lines so active chopping
-remains the strongest way to push a near-term global goal.
+an auditable quantity of commodity firewood/material. It cannot earn Axeman XP,
+species mastery, perfect-log records, signature-order credit or first-discovery
+rewards. Once a species is certified, the line is expected to surpass manual
+commodity output. Momentum may provide an optional temporary surge, but the
+factory must not require repetitive hand-chopping to remain economically valid.
 
 ### Consumables and temporary boosts
 
@@ -646,7 +705,7 @@ When several regions exist, unfold a simple top-level dashboard:
 - Regional signature contracts completed.
 - Delivery and yard-handling capacity.
 - Active supplier/queue bottleneck.
-- Current manual Momentum state.
+- Current unknown-species mastery/certification state.
 - Next global mastery milestone/project.
 
 This is the point where global completion becomes useful. Do not show the whole
@@ -778,9 +837,12 @@ result.
 
 **Features:**
 
-- Axeman Rank milestones and skill points.
-- Initial Axecraft/Yardcraft/Enterprise branches.
-- Species mastery for the live woods.
+- One skill point per earned level and named Axeman Rank bands.
+- Initial Strength/Speed/Technique branches with foundation, proc, modifier and
+  capstone nodes.
+- First double-strike and double-XP proc families, with bad-luck protection,
+  visible announcements and safe geometry.
+- Species mastery and authored certification for the live woods.
 - Grain-reading feedback and perfect-log tracking.
 - First axe sidegrade and first block upgrade.
 - Equipment loadout with plain comparison text.
@@ -789,7 +851,8 @@ result.
   distinct session choices.
 
 **Exit test:** Two players can spend the same early skill points differently and
-feel the distinction at the block.
+feel the distinction at the block; a random bonus produces a visible mechanical
+event rather than only a smaller timer or hidden number.
 
 ### M7D — the yard visibly grows
 
@@ -808,9 +871,10 @@ feel the distinction at the block.
 **Exit test:** A before/after screenshot communicates major progress without any
 numbers visible.
 
-### M8 — staff and logistics
+### M8 — first automation, staff and logistics
 
-**Goal:** Automate downtime and build the first passive company loop.
+**Goal:** Prove the full learn → certify → automate loop and build the first
+passive company system while the fantasy is still grounded and legible.
 
 **Features:**
 
@@ -820,13 +884,18 @@ numbers visible.
 - Log queues and route priority.
 - Delivery, stacking, order fulfilment and haul-away improvements.
 - Staff upgrades that change equipment/behaviour, not a needs or morale sim.
-- Axeman's Momentum links manual craft to staff productivity.
+- The first visible Mechanical Splitter, initially accepting only the early
+  species the player has manually certified.
+- Installed species cutting profiles, a visible input queue, output rate and
+  one understandable bottleneck.
+- Optional Axeman's Momentum may temporarily boost staff or machinery, but
+  solved production does not require it.
 - Offline progress only after the watched loop is approved.
 - Return ledger and safe offline cap if approved.
 
-**Exit test:** Leaving and returning produces understandable value, while an
-active five-minute chopping session is still the best way to accelerate the
-next business goal.
+**Exit test:** The player manually learns and certifies a species, buys its
+machine/profile, watches automation decisively replace routine hand production
+for that wood, and uses the resulting cash toward the next species.
 
 ### M9 — regional supply network
 
@@ -845,7 +914,7 @@ world without adding another action loop.
 
 **Exit test:** The player can explain why a desired log is slow to arrive—supplier
 standing, dispatch, route or yard queue—and can fix it with a meaningful purchase
-or manual Momentum.
+or priority change.
 
 ### M10 — national and continental company
 
@@ -859,9 +928,10 @@ or manual Momentum.
   first, with respec/adjustment that does not brick a save.
 - Cedar/eucalyptus/mahogany-tier species candidates and harder signature work.
 - Large infrastructure contracts and government customers.
-- The first visible Mechanical Splitter and its species-certification rule.
+- Hydraulic Split Banks and additional profile/capacity upgrades that expand the
+  already-proven Mechanical Splitter loop.
 - Logistics equipment that keeps auto-cut lines supplied while the player
-  personally handles new, premium and signature specimens.
+  personally handles unknown species and optional premium/signature specimens.
 - Visible yard transition from depot to headquarters.
 
 **Exit test:** Two viable companies can reach the same milestone through
@@ -966,8 +1036,8 @@ loop.
 - Cargo fleets, range, shielding and supplier liaisons.
 - Alien customers/materials and cross-species projects.
 - Gravitic tools and Frontier mastery.
-- Orbital auto-cutting lines for mastered commodity species, always subordinate
-  to manual discovery, premium work and Momentum.
+- Orbital auto-cutting lines that replace commodity hand-processing for mastered
+  alien species while new specimens still begin at the manual rig.
 - Earth remains visible as the headquarters and completed first campaign.
 
 **Exit test:** Each destination changes strategy and chopping behaviour; none is
@@ -1060,17 +1130,23 @@ Sam.
 
 ### Active versus passive target
 
-Measure active value as more than cash. A chopping session produces immediate
-cash, contract progress, mastery and Momentum; passive systems deliver logs,
-auto-cut certified commodity species and process secondary stock. Balance should
-be evaluated on **time to next meaningful decision** with and without active
-play, not only coins per second. A short manual session should create a visible
-surge across the automated lines even when those lines own most lifetime volume.
+Active and passive play have different jobs rather than competing rates. Manual
+chopping advances the unknown: Axeman XP, species discovery, mastery and
+certification. Automation exploits the known: commodity volume, cash and project
+materials. Balance should be evaluated on **time from first encounter to
+automation** and **time from automation to the next meaningful purchase**, not
+on forcing hand work to beat a production line. Once a species is solved, its
+machine should make returning to manual commodity grinding economically
+unnecessary.
 
 ### RNG fairness
 
 - Keep the current forced-roll test seam.
 - Every required split has a bounded path to success through scars/pity.
+- Skill procs use a test seam and bounded dry streaks; a proc-focused build must
+  not silently fail to express itself for an unreasonable session.
+- Random bonus cuts cannot ruin required precision work or create invalid
+  geometry.
 - Rare discoveries may surprise but never gate the only route forward.
 - Expedition outcome bands are shown before launch.
 - A failed expedition returns useful survey information or common cargo; it is
@@ -1175,7 +1251,11 @@ touch or see.
   total timber processed.
 - Auto-cutters refuse unknown, uncertified, rare and signature-only logs.
 - Auto-cut output cannot earn mastery, perfect-log records or handcrafted-order
-  credit.
+  credit or Axeman XP.
+- Double/triple/quadruple strikes perform the announced number of valid slice
+  operations and stop when no valid continuation remains.
+- XP procs award once per completed manual log and cannot recursively multiply
+  themselves.
 - Delivered-log consumption and commodity output are atomic; a blocked output
   cannot destroy input.
 - Catalogue and contract progress never exceeds authored bounds.
@@ -1204,9 +1284,12 @@ touch or see.
 - Upgrade purchase order and unused options.
 - Active versus passive time to the next milestone.
 - Regions where supplier standing, delivery or yard queues are misunderstood.
-- How often players return to manual chopping after automation unlocks.
-- Auto-cut share of total volume versus manual share of total value, mastery and
-  Momentum.
+- Manual logs required to understand/certify each species and whether that power
+  phase stays exciting rather than becoming a grind.
+- Time from first encounter to certification, machine purchase and decisive
+  automated replacement.
+- Auto-cut share of total volume, including whether each solved species leaves
+  manual commodity production at the intended point.
 - Whether players notice the haul threshold, Momentum and current contract.
 
 The purpose is to find dead zones and unreadable systems, not to optimise
@@ -1227,7 +1310,8 @@ compulsion.
 - Random rare drops required for story progress.
 - Offline progress that completes the final Earth species or a first-time story
   event.
-- Background rates so strong that returning to the block is economically silly.
+- Background progress that discovers, masters or certifies an unknown species
+  before the player has personally worked it at the block.
 - A joke-first opening that spoils the earned shift from cozy yard to cosmic
   timber.
 
@@ -1261,8 +1345,8 @@ The following must be presented to Sam before implementation of their milestone.
 - Region list, species catalogue and supplier progression.
 - Delivery, queue and supplier-standing curves.
 - Transport rules and capacity costs.
-- First auto-cutter timing, input capacity, output rate, commodity value and
-  manual Momentum interaction.
+- First auto-cutter timing, certification scope, input capacity, output rate,
+  commodity value and optional Momentum interaction.
 - Definition of the trillion-scale unit: literal logs, timber mass, shipments
   or source-tree equivalents; clarify Sam's `4 × 3.04 trillion` target before it
   becomes saved data or a completion threshold.
@@ -1286,15 +1370,16 @@ The following must be presented to Sam before implementation of their milestone.
 2. Craft geometry is readable and fair.
 3. Skills create genuinely different hand-feel/build choices.
 4. A visible yard upgrade is more motivating than another multiplier.
-5. Staff automation makes returning to manual chopping *more* valuable.
+5. First automation makes mastering a wood by hand feel like the path out of its
+   manual power phase.
 
 ### Then prove scale
 
 6. A supplier region can be completed through clear discovery, delivery,
    chopping, contracts and mastery.
 7. Multiple regions remain understandable.
-8. Visible auto-cutters can own commodity volume while manual chopping remains
-   the best active lever and the only source of mastery/premium work.
+8. Visible auto-cutters decisively replace manual commodity output for certified
+   species while the next unknown wood still requires the chopping block.
 9. Trillion-scale progression stays readable and achievable without an idle
    wall.
 10. The final terrestrial species lands as an emotional/mechanical climax.
