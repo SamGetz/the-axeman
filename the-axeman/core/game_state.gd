@@ -42,6 +42,11 @@ signal skill_level_changed(skill_id: StringName, new_level: int)
 ## A wood was BOUGHT. Since 2026-08-02 species are owned, not derived (see
 ## `_owned_species`), so this is a real event rather than a threshold crossing.
 signal species_purchased(species_id: StringName)
+## Introductory order state is local progression, never an A7 cross-mode event.
+## The zero-argument repaint signal covers accept, progress and restore; the
+## completion signal carries the celebratory facts a HUD needs.
+signal order_state_changed
+signal order_completed(order_id: StringName, cash_bonus: int)
 
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
@@ -101,6 +106,11 @@ var _xp: int = 0
 ## Skill node id -> levels bought. Skill POINTS available are derived from level
 ## minus what this has cost, so there is no separate purse to drift out of step.
 var _skill_levels: Dictionary = {}
+## Exactly one patient order may be active in the introductory slice. Completed
+## ids are one-time history; progress is saved so leaving mid-load loses nothing.
+var _active_order: StringName = &""
+var _active_order_progress := 0
+var _completed_orders: Dictionary = {}
 
 ## ---------------------------------------------------------------- lifecycle
 func _ready() -> void:
@@ -259,6 +269,31 @@ func get_selected_species() -> StringName:
 	var start := SpeciesTable.starting_species()
 	return &"" if start == null else start.id
 
+
+## ------------------------------------------------------------- orders (M7A)
+func get_active_order_id() -> StringName:
+	return _active_order
+
+
+func get_active_order() -> OrderDef:
+	return Orders.by_id(_active_order) if _active_order != &"" else null
+
+
+func get_active_order_progress() -> int:
+	return _active_order_progress
+
+
+func has_completed_order(order_id: StringName) -> bool:
+	return _completed_orders.get(order_id, false)
+
+
+func get_completed_order_ids() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for order: OrderDef in Orders.all():
+		if order != null and has_completed_order(order.id):
+			out.append(order.id)
+	return out
+
 ## ------------------------------------------------- writes (public methods)
 ## Cash has no EventBus signal and does not get one: A7 is frozen, and a sale is
 ## a purely 2D-side event that never crosses into the action scene. The buyer and
@@ -401,6 +436,50 @@ func try_buy_species(species_id: StringName) -> bool:
 	return true
 
 
+## ------------------------------------------------ introductory order writes
+## Accept one authored order. Normal contracts wait patiently and are one-time;
+## a current job must be finished before another is taken, keeping the first
+## contract board a choice rather than a checklist that advances invisibly.
+func accept_order(order_id: StringName) -> bool:
+	var order := Orders.by_id(order_id)
+	if order == null:
+		push_error("GameState: no order named '%s' — acceptance refused." % order_id)
+		return false
+	if _active_order != &"" or has_completed_order(order_id):
+		return false
+	if not Orders.is_available(order):
+		return false
+	_active_order = order_id
+	_active_order_progress = 0
+	order_state_changed.emit()
+	return true
+
+
+## Credit one sold piece if it matches the active order. Returns true only when
+## progress moved. The completion premium is paid once, after history is recorded
+## and the active slot is cleared, so a signal listener cannot re-enter and claim
+## the same order twice.
+func record_order_piece(item_id: StringName) -> bool:
+	var order := get_active_order()
+	if order == null or not order.matches(item_id):
+		return false
+	_active_order_progress += 1
+	if _active_order_progress < order.required_count:
+		order_state_changed.emit()
+		return true
+
+	var completed_id := order.id
+	var bonus := order.cash_bonus
+	_completed_orders[completed_id] = true
+	_active_order = &""
+	_active_order_progress = 0
+	if bonus > 0:
+		add_cash(bonus)
+	order_state_changed.emit()
+	order_completed.emit(completed_id, bonus)
+	return true
+
+
 ## ------------------------------------------------------------ persistence
 ## GameState serialises ITSELF. SaveSystem orchestrates the file but never
 ## reaches into this state directly, so Directive 6 still holds: progression is
@@ -422,6 +501,9 @@ func to_save_dict() -> Dictionary:
 		"xp": _xp,
 		"owned_species": _owned_species.keys(),
 		"skill_levels": _skill_levels.duplicate(),
+		"active_order": String(_active_order),
+		"active_order_progress": _active_order_progress,
+		"completed_orders": _completed_orders.keys(),
 		"tool_tiers": _tool_tiers.duplicate(),
 		"building_tiers": _building_tiers.duplicate(),
 		"unlocked_biomes": _unlocked_biomes.keys(),
@@ -476,6 +558,24 @@ func apply_save_dict(data: Dictionary) -> void:
 			if def != null and lv > 0:
 				_skill_levels[nid] = mini(lv, def.max_level) if def.max_level > 0 else lv
 
+	_completed_orders = {}
+	var completed: Variant = data.get("completed_orders")
+	if completed is Array:
+		for id: Variant in completed as Array:
+			var order_id := StringName(String(id))
+			if Orders.by_id(order_id) != null:
+				_completed_orders[order_id] = true
+
+	_active_order = &""
+	_active_order_progress = 0
+	var saved_order := StringName(String(data.get("active_order", "")))
+	var order := Orders.by_id(saved_order)
+	if order != null and not has_completed_order(saved_order) and Orders.is_available(order):
+		_active_order = saved_order
+		# A save at or above the requirement is normalised just below completion;
+		# payout only happens from a newly settled piece, never while loading.
+		_active_order_progress = clampi(int(data.get("active_order_progress", 0)), 0, order.required_count - 1)
+
 	var tiers: Variant = data.get("tool_tiers")
 	if tiers is Dictionary:
 		_tool_tiers = {
@@ -508,6 +608,7 @@ func apply_save_dict(data: Dictionary) -> void:
 	selected_species_changed.emit(get_selected_species())
 	xp_changed.emit(_xp)
 	skill_points_changed.emit(get_skill_points_available())
+	order_state_changed.emit()
 
 
 func reset_to_defaults() -> void:
@@ -520,6 +621,9 @@ func reset_to_defaults() -> void:
 	_owned_species = {}
 	_xp = 0
 	_skill_levels = {}
+	_active_order = &""
+	_active_order_progress = 0
+	_completed_orders = {}
 	_tool_tiers = {
 		Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
 		Enums.ToolType.PICKAXE: DEFAULT_TOOL_TIER,
@@ -532,6 +636,7 @@ func reset_to_defaults() -> void:
 	selected_species_changed.emit(get_selected_species())
 	xp_changed.emit(0)
 	skill_points_changed.emit(0)
+	order_state_changed.emit()
 
 ## The XP curve, loaded once. Data, so the whole 99-level shape is one file
 ## edit — see LevelCurve for why the level is derived from it rather than

@@ -536,7 +536,9 @@ func _on_piece_landed(item_id: StringName) -> void:
 	GameState.add_to_yard_pile(item_id, 1)
 	if not auto_sell:
 		return
-	if Market.sell(item_id, 1) <= 0:
+	# Orders always pays through the unlimited Market first, then credits a
+	# matching contract. Unmatched work therefore follows the original path.
+	if Orders.settle_piece(item_id) <= 0:
 		# Priced at nothing, or nothing in stock to sell: the piece still stacks,
 		# so the yard never eats wood it did not pay for.
 		push_warning("chopping_minigame: '%s' landed on the pile but could not be sold." % item_id)

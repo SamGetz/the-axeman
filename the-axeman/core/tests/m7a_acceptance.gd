@@ -79,6 +79,7 @@ func _ready() -> void:
 	_test_25_progression_survives_a_save()
 	await _test_26_the_block_holds_the_chosen_wood()
 	await _test_27_a_finished_log_pays_experience()
+	_test_28_orders_route_pay_and_persist()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -423,6 +424,9 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var shop_button: Button = hud.get_node("YardPanel/Column/ShopButton")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
 	var next_goal: Label = hud.get_node("YardPanel/Column/NextGoal")
+	var orders_button: Button = hud.get_node("YardPanel/Column/OrdersButton")
+	var orders_panel: PanelContainer = hud.get_node("OrdersPanel")
+	var orders_list: VBoxContainer = hud.get_node("OrdersPanel/Column/Scroll/List")
 
 	_check(cash_label.text == "0", "a fresh yard reads 0 cash")
 	var goal_is_authored := false
@@ -476,6 +480,16 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(shop_panel.visible, "...the coin button opens it")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 	_check(not shop_panel.visible, "...and Close shuts it again")
+
+	_check(not orders_panel.visible, "the temporary contract board starts closed")
+	orders_button.pressed.emit()
+	_check(orders_panel.visible, "...and has a real yard button that opens it")
+	_check(orders_list.get_child_count() == Orders.all().size(),
+		"...with one data-driven card per authored order (%d)" % orders_list.get_child_count())
+	_check(orders_panel.get_theme_stylebox("panel") is StyleBoxFlat,
+		"...using a replaceable basic-material board treatment while final art is pending")
+	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
+	_check(not orders_panel.visible, "...and Close puts the board away")
 
 	hud.queue_free()
 	await get_tree().process_frame
@@ -1173,6 +1187,79 @@ func _test_27_a_finished_log_pays_experience() -> void:
 
 	game.queue_free()
 	await get_tree().process_frame
+	InventoryManager.apply_save_dict({})
+	GameState.reset_to_defaults()
+
+
+## Optional orders sit on TOP of the unlimited buyer: every piece still sells at
+## base price, only matching pieces advance, and the one-time premium/save state
+## cannot be duplicated by reaccepting or reloading.
+func _test_28_orders_route_pay_and_persist() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var authored := Orders.all()
+	_check(authored.size() == 3, "the introductory board has exactly three authored orders")
+
+	var ids: Dictionary = {}
+	var data_is_valid := true
+	for order: OrderDef in authored:
+		data_is_valid = data_is_valid and order != null and order.id != &""
+		data_is_valid = data_is_valid and order.required_count > 0 and order.cash_bonus > 0
+		data_is_valid = data_is_valid and not ids.has(order.id)
+		if order.required_item != &"":
+			data_is_valid = data_is_valid and Market.is_sellable(order.required_item)
+		ids[order.id] = true
+	_check(data_is_valid, "all three orders have unique ids, positive data and sellable requirements")
+
+	var aspen_order := Orders.by_id(&"aspen_hearth_load")
+	var pine_order := Orders.by_id(&"pine_campsite_load")
+	_check(aspen_order != null and Orders.is_available(aspen_order),
+		"the starting Aspen order is available on a fresh yard")
+	_check(pine_order != null and not Orders.is_available(pine_order),
+		"the Pine order waits until Eastern White Pine is actually owned")
+	_check(GameState.accept_order(aspen_order.id), "the player can accept one available order")
+	_check(not GameState.accept_order(authored[0].id), "a second order cannot replace the active load")
+
+	var completion_events: Array[StringName] = []
+	var on_completed := func(id: StringName, _bonus: int) -> void: completion_events.append(id)
+	GameState.order_completed.connect(on_completed)
+
+	# Wrong species: it is still bought, but the contract does not steal credit.
+	EventBus.resource_gathered.emit(&"pine_firewood", 1)
+	var pine_cash := Orders.settle_piece(&"pine_firewood")
+	_check(pine_cash == Market.get_price(&"pine_firewood"),
+		"unmatched Pine still auto-sells for its full base price (%d)" % pine_cash)
+	_check(GameState.get_active_order_progress() == 0,
+		"...without advancing the Aspen order")
+
+	# Make partial progress, persist it, wipe memory, and restore it.
+	for _i in range(2):
+		EventBus.resource_gathered.emit(&"aspen_firewood", 1)
+		Orders.settle_piece(&"aspen_firewood")
+	_check(GameState.get_active_order_progress() == 2, "two matching pieces advance the load to 2")
+	_check(SaveSystem.save_game(), "partial order progress saves")
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "the partial order save loads")
+	_check(GameState.get_active_order_id() == aspen_order.id
+			and GameState.get_active_order_progress() == 2,
+		"...restoring the same active order at 2 / %d" % aspen_order.required_count)
+
+	for _i in range(2, aspen_order.required_count):
+		EventBus.resource_gathered.emit(&"aspen_firewood", 1)
+		Orders.settle_piece(&"aspen_firewood")
+	var expected := (Market.get_price(&"pine_firewood")
+		+ Market.get_price(&"aspen_firewood") * aspen_order.required_count
+		+ aspen_order.cash_bonus)
+	_check(GameState.get_cash() == expected,
+		"completion keeps every base sale and adds the authored bonus exactly once (%d)" % expected)
+	_check(GameState.get_active_order_id() == &"" and GameState.has_completed_order(aspen_order.id),
+		"the finished load leaves the slot free and enters one-time history")
+	_check(completion_events == [aspen_order.id],
+		"completion announces exactly once (%s)" % str(completion_events))
+	_check(not GameState.accept_order(aspen_order.id), "a completed order cannot be claimed twice")
+
+	GameState.order_completed.disconnect(on_completed)
 	InventoryManager.apply_save_dict({})
 	GameState.reset_to_defaults()
 

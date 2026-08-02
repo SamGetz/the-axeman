@@ -121,7 +121,7 @@ values/placeholders and tune with Creative Director sign-off.
 
 ---
 
-## CURRENT PROJECT STATUS (as of 2026-08-02)
+## CURRENT PROJECT STATUS (as of 2026-08-03)
 
 Suite results, all re-run after the pivot on the shipping assets:
 
@@ -131,7 +131,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **224/224** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **245/245** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
@@ -511,10 +511,26 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   40 show at least one failure**. Run it after touching any of those numbers —
   arguing about the authored value is arguing about the wrong number.
 
-- Still to do in M7A: three authored orders and the tangible cash-purchase
-  catalogue. Both are blocked on Creative Director tuning/design calls. The
-  unlockable-species requirement is complete: the woodshed now carries Sam's
-  level-gated, cash-purchased 25-wood ladder.
+### M7A — introductory orders and the contract board (2026-08-03, tuning pending)
+
+- **THREE AUTHORED PLACEHOLDER ORDERS ARE LIVE:** Campfire Warm-up (10 any, +5),
+  Aspen Hearth Load (15 Aspen, +10) and Pine Campsite Load (20 Eastern White
+  Pine, +30). These six values are isolated in `data/order_table.tres` and are
+  explicitly awaiting Creative Director sign-off; no gameplay code asserts them.
+- `core/orders.gd` is stateless like Market/Shop. It pays every landed piece
+  through the unlimited Market first, then credits a matching active order, so
+  unmatched work always auto-sells and a failed sale can never earn contract
+  progress. One patient order may be active; completed orders are one-time.
+- Active id/progress and completion history live in GameState, survive save/load,
+  and emit local repaint/autosave signals without changing frozen A7.
+- The yard has a data-driven Contract Board. Its brown panel is deliberately a
+  native `StyleBoxFlat` placeholder; `hud_shot_2d_orders.png` proves all three
+  choices and an active progress bar fit together at 1280×720.
+- Verified by 21 added checks: `m7a_acceptance` is now **245/245**. M4 remains
+  **55/55** and the slicer remains **34/34**.
+- Still to do in M7A: the tangible cash-purchase catalogue. Its behaviours and
+  tuning remain a Creative Director call. The unlockable-species requirement is
+  complete through the level-gated, cash-purchased 25-wood ladder.
 
 ### Files the chopping game owns
 

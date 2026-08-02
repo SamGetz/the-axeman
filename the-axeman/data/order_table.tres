@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="OrderTable" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://data/order_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/order_def.gd" id="2_def"]
+
+; PLACEHOLDER TUNING — Sam signs off or replaces these six numbers.
+[sub_resource type="Resource" id="Order_any"]
+script = ExtResource("2_def")
+id = &"campfire_warmup"
+customer_name = "Campsite Manager"
+title = "Campfire Warm-up"
+description = "A small mixed bundle for tonight's first fires. Any split firewood counts."
+required_count = 10
+cash_bonus = 5
+
+[sub_resource type="Resource" id="Order_aspen"]
+script = ExtResource("2_def")
+id = &"aspen_hearth_load"
+customer_name = "Neighbour"
+title = "Aspen Hearth Load"
+description = "A light load of Quaking Aspen for a home hearth."
+required_item = &"aspen_firewood"
+required_species = &"quaking_aspen"
+required_count = 15
+cash_bonus = 10
+
+[sub_resource type="Resource" id="Order_pine"]
+script = ExtResource("2_def")
+id = &"pine_campsite_load"
+customer_name = "Campsite Manager"
+title = "Pine Campsite Load"
+description = "Eastern White Pine for a busy weekend at the campground."
+required_item = &"pine_firewood"
+required_species = &"eastern_white_pine"
+required_count = 20
+cash_bonus = 30
+
+[resource]
+script = ExtResource("1_table")
+orders = Array[ExtResource("2_def")]([SubResource("Order_any"), SubResource("Order_aspen"), SubResource("Order_pine")])

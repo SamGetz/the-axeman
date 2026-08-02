@@ -72,6 +72,17 @@ func _ready() -> void:
 	_save("_2c_skills")
 	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
 
+	# The contract board uses temporary native geometry/materials until Sam's yard
+	# art arrives. Show both the three authored cards and live progress on one.
+	GameState.accept_order(&"aspen_hearth_load")
+	for i in range(6):
+		EventBus.resource_gathered.emit(&"aspen_firewood", 1)
+		Orders.settle_piece(&"aspen_firewood")
+	hud.get_node("YardPanel/Column/OrdersButton").pressed.emit()
+	await get_tree().process_frame
+	_save("_2d_orders")
+	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
+
 	# Into the chopping game through the button the player uses.
 	hud.get_node("YardPanel/Column/ChopButton").pressed.emit()
 	for i in range(30):

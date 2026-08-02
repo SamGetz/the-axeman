@@ -106,6 +106,11 @@ const _COIN := preload("res://assets/ui/coin.png")
 @onready var _next_goal: Label = $YardPanel/Column/NextGoal
 @onready var _pile_progress_panel: PanelContainer = $PileProgress
 @onready var _pile_progress: ProgressBar = $PileProgress/Column/Progress
+@onready var _orders_button: Button = $YardPanel/Column/OrdersButton
+@onready var _orders_panel: PanelContainer = $OrdersPanel
+@onready var _orders_list: VBoxContainer = $OrdersPanel/Column/Scroll/List
+@onready var _orders_active: Label = $OrdersPanel/Column/Active
+@onready var _close_orders_button: Button = $OrdersPanel/Column/CloseButton
 
 
 func _ready() -> void:
@@ -117,6 +122,8 @@ func _ready() -> void:
 	_close_wood_button.pressed.connect(_on_close_wood_pressed)
 	_skills_button.pressed.connect(_on_skills_pressed)
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
+	_orders_button.pressed.connect(_on_orders_pressed)
+	_close_orders_button.pressed.connect(_on_close_orders_pressed)
 
 	GameState.cash_changed.connect(_on_cash_changed)
 	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
@@ -130,6 +137,7 @@ func _ready() -> void:
 	GameState.xp_changed.connect(_on_xp_changed)
 	GameState.skill_points_changed.connect(_on_skill_points_changed)
 	GameState.skill_level_changed.connect(_on_skill_level_changed)
+	GameState.order_state_changed.connect(_on_order_state_changed)
 	# A purchase moves a tier through A7's own signal, so the shelf repaints off
 	# the same event that recorded the sale.
 	EventBus.building_upgraded.connect(_on_building_upgraded)
@@ -141,6 +149,7 @@ func _ready() -> void:
 	_shop_panel.visible = false
 	_wood_panel.visible = false
 	_skill_panel.visible = false
+	_orders_panel.visible = false
 	_show_yard(true)
 	_refresh_stats()
 	_refresh_xp_bar()
@@ -149,6 +158,7 @@ func _ready() -> void:
 	_rebuild_shop()
 	_rebuild_woodshed()
 	_rebuild_skills()
+	_rebuild_orders()
 
 
 ## ------------------------------------------------------------------ entry flow
@@ -181,6 +191,7 @@ func _show_yard(yard_visible: bool) -> void:
 		_shop_panel.visible = false
 		_wood_panel.visible = false
 		_skill_panel.visible = false
+		_orders_panel.visible = false
 	# The stats bar stays up in BOTH modes on purpose: watching the cash climb
 	# while chopping is the whole "number go up" payoff.
 
@@ -278,6 +289,7 @@ func _on_selected_species_changed(_id: StringName) -> void:
 func _on_species_purchased(_id: StringName) -> void:
 	_rebuild_woodshed()
 	_refresh_next_purchase()
+	_rebuild_orders()
 
 
 ## XP moves the level, and the level is what puts a wood on sale — so the shed's
@@ -400,6 +412,85 @@ func _thousands(n: int) -> String:
 func _on_skills_pressed() -> void:
 	_skill_panel.visible = true
 	_rebuild_skills()
+
+
+## --------------------------------------------------------- contract board
+func _on_orders_pressed() -> void:
+	_orders_panel.visible = true
+	_rebuild_orders()
+
+
+func _on_close_orders_pressed() -> void:
+	_orders_panel.visible = false
+
+
+func _on_order_state_changed() -> void:
+	_rebuild_orders()
+
+
+func _rebuild_orders() -> void:
+	for child in _orders_list.get_children():
+		_orders_list.remove_child(child)
+		child.queue_free()
+
+	var active := GameState.get_active_order()
+	if active == null:
+		_orders_active.text = "No active order — ordinary chopping always pays."
+	else:
+		_orders_active.text = "Active: %s — %d / %d" % [
+			active.title, GameState.get_active_order_progress(), active.required_count]
+
+	for order: OrderDef in Orders.all():
+		if order != null:
+			_orders_list.add_child(_build_order_row(order))
+
+
+func _build_order_row(order: OrderDef) -> VBoxContainer:
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+
+	var heading := Label.new()
+	heading.text = "%s — %s" % [order.customer_name, order.title]
+	heading.add_theme_font_size_override("font_size", 17)
+	row.add_child(heading)
+
+	var detail := Label.new()
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.text = "%s\n%d pieces · +%s coin bonus" % [
+		order.description, order.required_count, _thousands(order.cash_bonus)]
+	row.add_child(detail)
+
+	if GameState.get_active_order_id() == order.id:
+		var progress := ProgressBar.new()
+		progress.max_value = order.required_count
+		progress.value = GameState.get_active_order_progress()
+		progress.show_percentage = false
+		row.add_child(progress)
+
+	var button := Button.new()
+	button.custom_minimum_size.y = 34
+	if GameState.has_completed_order(order.id):
+		button.text = "Completed"
+		button.disabled = true
+	elif GameState.get_active_order_id() == order.id:
+		button.text = "In progress"
+		button.disabled = true
+	elif GameState.get_active_order_id() != &"":
+		button.text = "Finish the active order first"
+		button.disabled = true
+	elif not Orders.is_available(order):
+		var species := SpeciesTable.by_id(order.required_species)
+		button.text = "Requires %s" % (String(order.required_species) if species == null else species.display_name)
+		button.disabled = true
+	else:
+		button.text = "Accept order"
+		button.pressed.connect(_on_accept_order_pressed.bind(order.id))
+	row.add_child(button)
+	return row
+
+
+func _on_accept_order_pressed(order_id: StringName) -> void:
+	GameState.accept_order(order_id)
 
 
 func _on_close_skill_pressed() -> void:

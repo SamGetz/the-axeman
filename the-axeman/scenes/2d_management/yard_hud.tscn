@@ -1,7 +1,19 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/2d_management/yard_hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/ui/coin.png" id="2_coin"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_contract_board"]
+bg_color = Color(0.19, 0.115, 0.055, 0.97)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.48, 0.29, 0.12, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
 
 [node name="YardHUD" type="Control"]
 anchors_preset = 15
@@ -97,6 +109,11 @@ text = "Next purchase"
 layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 2
+
+[node name="OrdersButton" type="Button" parent="YardPanel/Column"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Contract board"
 
 [node name="WoodButton" type="Button" parent="YardPanel/Column"]
 custom_minimum_size = Vector2(0, 44)
@@ -253,6 +270,55 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="CloseSkillButton" type="Button" parent="SkillPanel/Column"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Close"
+
+[node name="OrdersPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -300.0
+offset_right = 300.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_contract_board")
+
+[node name="Column" type="VBoxContainer" parent="OrdersPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="OrdersPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Contract Board"
+
+[node name="Blurb" type="Label" parent="OrdersPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Choose one patient order. Matching pieces still earn their normal price; finishing the load pays its bonus."
+
+[node name="Active" type="Label" parent="OrdersPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 14
+text = "No active order"
+
+[node name="Scroll" type="ScrollContainer" parent="OrdersPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="OrdersPanel/Column/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="CloseButton" type="Button" parent="OrdersPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Close"

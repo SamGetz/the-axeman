@@ -140,10 +140,10 @@ inside `the-axeman/`**, never from the repo root.
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
-Expected: M1 21/21, M2 24/24, M3 16/16, M4 42/42, M7A 139/139, slicer 34/34.
-**Those six numbers were confirmed on a fresh clone + double import on
-2026-08-02**, so they are what a correctly bootstrapped machine produces, not
-just what the desktop happens to produce.
+Expected: M1 21/21, M2 24/24, M3 16/16, M4 55/55, M7A 245/245, slicer 34/34.
+**The original suite was confirmed on a fresh clone + double import on
+2026-08-02; the expanded M4/M7A counts were confirmed on the desktop on
+2026-08-03.** They are the expected current shipping-asset results.
 
 Two of them will not behave headless, by design:
 

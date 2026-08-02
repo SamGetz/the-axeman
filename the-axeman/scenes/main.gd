@@ -39,6 +39,7 @@ func _ready() -> void:
 	GameState.xp_changed.connect(_queue_autosave.unbind(1))
 	GameState.skill_level_changed.connect(_queue_autosave.unbind(2))
 	GameState.species_purchased.connect(_queue_autosave.unbind(1))
+	GameState.order_state_changed.connect(_queue_autosave)
 
 	# Godot tears the window down the moment it is closed unless told otherwise,
 	# which would drop everything earned since the last save.
