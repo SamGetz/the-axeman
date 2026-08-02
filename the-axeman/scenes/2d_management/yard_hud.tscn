@@ -68,6 +68,11 @@ layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 2
 
+[node name="WoodButton" type="Button" parent="YardPanel/Column"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Wood"
+
 [node name="ShopButton" type="Button" parent="YardPanel/Column"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
@@ -125,6 +130,53 @@ autowrap_mode = 3
 text = "Nothing on the shelves yet."
 
 [node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Close"
+
+[node name="WoodPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -290.0
+offset_top = -210.0
+offset_right = 290.0
+offset_bottom = 210.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Column" type="VBoxContainer" parent="WoodPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="WoodTitle" type="Label" parent="WoodPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "The Woodshed"
+
+[node name="WoodBlurb" type="Label" parent="WoodPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Pick what goes on the block. Harder wood is worth more and fights back harder."
+
+[node name="WoodScroll" type="ScrollContainer" parent="WoodPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="WoodList" type="VBoxContainer" parent="WoodPanel/Column/WoodScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="NextWood" type="Label" parent="WoodPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
+
+[node name="CloseWoodButton" type="Button" parent="WoodPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Close"

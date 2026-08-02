@@ -4,9 +4,9 @@ extends Node
 ## (order 3, after EventBus).
 ##
 ## Owns ALL progression state: unlocked biomes, equipped tool tiers, building
-## tiers (A5), and — added for the cozy lumberyard roadmap — CASH and LIFETIME
-## WOOD CHOPPED. Writes occur ONLY here, either in response to EventBus signals
-## or through the public methods below.
+## tiers (A5), and — added for the cozy lumberyard roadmap — CASH, LIFETIME WOOD
+## CHOPPED and WHICH WOOD THE PLAYER IS CHOPPING. Writes occur ONLY here, either
+## in response to EventBus signals or through the public methods below.
 ## Other modules (M5 gear gating, M7 upgrade UI) use direct read-only getters.
 
 ## ------------------------------------------------------------------ signals
@@ -22,6 +22,16 @@ signal lifetime_wood_chopped_changed(new_total: int)
 ## the visible record of work done since the last load left, and it is progression
 ## state, so it lives here.
 signal yard_pile_changed(new_total: int)
+## A wood species has just been EARNED — `lifetime_wood_chopped` crossed its
+## `unlock_at` on this very gather. Fires once per species, ever, in ladder order
+## when a single gather crosses more than one threshold.
+##
+## Local, not EventBus, and not A7's `environment_unlocked` either: that signal
+## carries an `Enums.Biome`, the Biome enum is frozen at four values, and a wood
+## species is not a biome. Amendment 2's precedent again — A7 is untouched.
+signal species_unlocked(species_id: StringName)
+## The player chose a different wood to put on the block.
+signal selected_species_changed(species_id: StringName)
 
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
@@ -56,6 +66,17 @@ var _lifetime_wood_chopped: int = 0
 ## species so a restored pile shows the same mix of woods it had when the player
 ## left, and emptied wholesale when a load is hauled away.
 var _yard_pile: Dictionary = {}
+## Which wood the player has chosen to chop (a SpeciesDef.id, see
+## res://data/species_table.tres). Empty means "never chosen" and reads as the
+## starting species — see get_selected_species().
+##
+## THE UNLOCKED SET IS NOT STORED, and deliberately so: a species is unlocked
+## exactly when `_lifetime_wood_chopped >= unlock_at`, and that counter is
+## monotonic by construction (see _on_resource_gathered). Deriving it means there
+## is no second source of truth to drift, nothing extra to save, and an old save
+## re-derives the right set for free when the ladder is retuned. Only the
+## player's CHOICE has to persist, because nothing else can imply it.
+var _selected_species: StringName = &""
 
 ## ---------------------------------------------------------------- lifecycle
 func _ready() -> void:
@@ -104,6 +125,35 @@ func get_yard_pile_count() -> int:
 	for id: StringName in _yard_pile:
 		total += int(_yard_pile[id])
 	return total
+
+
+## ------------------------------------------------------- wood species (M7A)
+## Has the player chopped enough, ever, to have earned this wood? Derived, never
+## stored — see `_selected_species` for why.
+func is_species_unlocked(species_id: StringName) -> bool:
+	var def := SpeciesTable.by_id(species_id)
+	return def != null and def.is_unlocked(_lifetime_wood_chopped)
+
+
+## Every species earned so far, in ladder order.
+func get_unlocked_species() -> Array[SpeciesDef]:
+	return SpeciesTable.unlocked(_lifetime_wood_chopped)
+
+
+## The next wood still to earn, or null once the ladder is finished.
+func get_next_locked_species() -> SpeciesDef:
+	return SpeciesTable.next_locked(_lifetime_wood_chopped)
+
+
+## The wood that goes on the block. ALWAYS returns something choppable: a save
+## that predates the selector, a species id deleted from the table, or a choice
+## that a retuned ladder has put back out of reach all fall through to the
+## starting wood rather than leaving the block empty.
+func get_selected_species() -> StringName:
+	if _selected_species != &"" and is_species_unlocked(_selected_species):
+		return _selected_species
+	var start := SpeciesTable.starting_species()
+	return &"" if start == null else start.id
 
 ## ------------------------------------------------- writes (public methods)
 ## Cash has no EventBus signal and does not get one: A7 is frozen, and a sale is
@@ -155,6 +205,25 @@ func clear_yard_pile() -> void:
 	yard_pile_changed.emit(0)
 
 
+## ------------------------------------------------- choosing the wood (M7A)
+## Put a different wood on the block. Returns false and changes NOTHING — no
+## state, no signal — if the species is unknown or has not been earned yet, so a
+## stale HUD row or a crafted save can never hand the player Lignum Vitae on
+## their first log. Same all-or-nothing shape as try_spend_cash.
+func select_species(species_id: StringName) -> bool:
+	var def := SpeciesTable.by_id(species_id)
+	if def == null:
+		push_error("GameState: no wood species named '%s' — selection refused." % species_id)
+		return false
+	if not def.is_unlocked(_lifetime_wood_chopped):
+		return false
+	if _selected_species == species_id:
+		return true   # already on the block; not a failure, just nothing to do
+	_selected_species = species_id
+	selected_species_changed.emit(species_id)
+	return true
+
+
 ## ------------------------------------------------------------ persistence
 ## GameState serialises ITSELF. SaveSystem orchestrates the file but never
 ## reaches into this state directly, so Directive 6 still holds: progression is
@@ -167,6 +236,10 @@ func to_save_dict() -> Dictionary:
 		"cash": _cash,
 		"lifetime_wood_chopped": _lifetime_wood_chopped,
 		"yard_pile": pile,
+		# The player's CHOICE of wood. The unlocked SET is deliberately not saved:
+		# it is re-derived from lifetime_wood_chopped on load, so a retuned ladder
+		# applies to an existing save instead of freezing its old thresholds in.
+		"selected_species": String(_selected_species),
 		"tool_tiers": _tool_tiers.duplicate(),
 		"building_tiers": _building_tiers.duplicate(),
 		"unlocked_biomes": _unlocked_biomes.keys(),
@@ -189,6 +262,12 @@ func apply_save_dict(data: Dictionary) -> void:
 			var n := maxi(0, int((pile as Dictionary)[key]))
 			if n > 0:
 				_yard_pile[StringName(key)] = n
+
+	# Stored as a plain String through the file; every reader wants a StringName.
+	# NOT validated against the table here — get_selected_species() already falls
+	# back to the starting wood for anything unknown or not yet earned, so a save
+	# written before a species was renamed loads without losing anything else.
+	_selected_species = StringName(String(data.get("selected_species", "")))
 
 	var tiers: Variant = data.get("tool_tiers")
 	if tiers is Dictionary:
@@ -217,6 +296,9 @@ func apply_save_dict(data: Dictionary) -> void:
 	cash_changed.emit(_cash)
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
 	yard_pile_changed.emit(get_yard_pile_count())
+	# The RESOLVED choice, not the raw field: a save whose wood no longer exists
+	# must repaint the HUD as the wood that will actually be on the block.
+	selected_species_changed.emit(get_selected_species())
 
 
 func reset_to_defaults() -> void:
@@ -225,6 +307,7 @@ func reset_to_defaults() -> void:
 	_cash = DEFAULT_CASH
 	_lifetime_wood_chopped = 0
 	_yard_pile = {}
+	_selected_species = &""
 	_tool_tiers = {
 		Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
 		Enums.ToolType.PICKAXE: DEFAULT_TOOL_TIER,
@@ -234,6 +317,7 @@ func reset_to_defaults() -> void:
 	cash_changed.emit(_cash)
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
 	yard_pile_changed.emit(0)
+	selected_species_changed.emit(get_selected_species())
 
 ## ------------------------------------------- writes (EventBus-driven ONLY)
 func _on_gear_upgraded(tool_type: Enums.ToolType, new_tier: int) -> void:
@@ -275,8 +359,18 @@ func _on_resource_gathered(resource_id: StringName, amount: int) -> void:
 	var def: ItemDef = InventoryManager.get_item_def(resource_id)
 	if def == null or def.category != Enums.ItemCategory.RAW_WOOD:
 		return
+	var before := _lifetime_wood_chopped
 	_lifetime_wood_chopped += amount
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
+
+	# A gather is the ONLY thing that can earn a wood, because it is the only
+	# thing that moves the counter the unlock is derived from. Compare before and
+	# after rather than testing the new total alone: a single gather of six
+	# pieces can cross more than one threshold, and a species must announce
+	# itself exactly once, ever.
+	for s: SpeciesDef in SpeciesTable.all():
+		if s != null and s.unlock_at > before and s.unlock_at <= _lifetime_wood_chopped:
+			species_unlocked.emit(s.id)
 
 
 func _on_environment_unlocked(biome_id: Enums.Biome) -> void:

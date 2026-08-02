@@ -2,10 +2,14 @@ extends Node
 ## FILE: res://core/tools/species_shot.gd
 ## ATTACHES TO: the root Node of res://core/tools/species_shot.tscn.
 ##
-## DEV TOOL — RUN NON-HEADLESS. Renders every row of chopping_minigame's
-## _LOG_SPECIES table: the log standing fresh on the block, and again after two
-## cuts so the CUT FACE (which is generated at runtime, not authored on the FBX)
-## can be judged too.
+## DEV TOOL — RUN NON-HEADLESS. Renders every row of res://data/species_table.tres:
+## the log standing fresh on the block, and again after two cuts so the CUT FACE
+## (which is generated at runtime, not authored on the FBX) can be judged too.
+##
+## SINCE 2026-08-02 THIS IS ALSO THE ONLY WAY TO JUDGE `bark_tint`. 22 of the 25
+## woods have no art of their own and wear tinted oak, and whether a tint reads as
+## "a different wood" or as "oak with a filter on it" is not a thing any number
+## can answer. Run it on any tint change, not only on an art drop.
 ##
 ## This exists because a new log mesh can pass every numeric check and still be
 ## wrong on screen — the 14 m log, the wrongly-rotated cut plane and the
@@ -19,20 +23,31 @@ extends Node
 
 const _SCENE := preload("res://scenes/3d_action/chopping_minigame.tscn")
 
+## Ladder indices to shoot, or an empty array for the whole table. 25 woods across
+## their authored shapes is 124 PNGs, which is a fine thing to have after an art
+## drop and a poor thing to sit through after a tint tweak.
+const _ONLY_SPECIES: Array[int] = []
+## Shoot only each species' FIRST authored shape. The right setting when the
+## question is "does this wood read as its own wood" (one shape answers that);
+## turn it off when the question is "did this import land", which is per mesh.
+const _FIRST_MESH_ONLY := false
+
 
 func _ready() -> void:
-	# Read the table off a probe instance that is never added to the tree, so its
-	# _ready never runs and nothing is built. Constants are not readable off the
-	# GDScript resource directly.
-	var probe: Node = _SCENE.instantiate()
-	var species: Array = probe._LOG_SPECIES
-	probe.free()
+	# The table is a Resource now (res://data/species_table.tres), so it is read
+	# straight off SpeciesTable — no probe instance needed. It used to have to be
+	# lifted off a never-added-to-the-tree scene instance, because a const is not
+	# readable off the GDScript resource.
+	var species := SpeciesTable.all()
 	print("=== species_shot: %d species in the table ===" % species.size())
 
 	for i in range(species.size()):
-		var row: Dictionary = species[i]
-		var meshes: Array = row.get("meshes", [])
-		for m in range(meshes.size()):
+		if not _ONLY_SPECIES.is_empty() and not _ONLY_SPECIES.has(i):
+			continue
+		var row := species[i]
+		var meshes := row.meshes
+		var shapes := 1 if _FIRST_MESH_ONLY else meshes.size()
+		for m in range(shapes):
 			var game: Node = _SCENE.instantiate()
 			game.debug_forced_species = i
 			game.debug_forced_mesh = m
@@ -42,8 +57,8 @@ func _ready() -> void:
 
 			var mesh: Mesh = game._source_mesh
 			var size: Vector3 = mesh.get_aabb().size if mesh != null else Vector3.ZERO
-			print("[%d.%d] %s -> %s | on-block log aabb=%s" % [
-				i, m, String(meshes[m]).get_file(), row.get("yield_item", "?"), size,
+			print("[%d.%d] %s | %s -> %s | on-block log aabb=%s" % [
+				i, m, String(meshes[m]).get_file(), row.display_name, row.yield_item, size,
 			])
 			await _save("%d_%d_fresh" % [i, m])
 

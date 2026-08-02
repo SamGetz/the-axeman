@@ -15,6 +15,7 @@ extends Control
 ##   │       ├── Title (Label)
 ##   │       ├── Blurb (Label)
 ##   │       ├── Spacer (Control)
+##   │       ├── WoodButton (Button — names the wood currently on the block)
 ##   │       ├── ShopButton (Button — the coin icon)
 ##   │       └── ChopButton (Button)
 ##   ├── ShopPanel (PanelContainer, centred — hidden until the shop is opened)
@@ -23,6 +24,14 @@ extends Control
 ##   │       ├── ShopList (VBoxContainer)   <- rows are built at RUNTIME
 ##   │       ├── ShopEmpty (Label)
 ##   │       └── CloseShopButton (Button)
+##   ├── WoodPanel (PanelContainer, centred — hidden until the woodshed is opened)
+##   │   └── Column (VBoxContainer)
+##   │       ├── WoodTitle (Label)
+##   │       ├── WoodBlurb (Label)
+##   │       ├── WoodScroll (ScrollContainer)  <- 25 woods do not fit on a panel
+##   │       │   └── WoodList (VBoxContainer)  <- rows are built at RUNTIME
+##   │       ├── NextWood (Label — the next milestone)
+##   │       └── CloseWoodButton (Button)
 ##   └── BackButton (Button, bottom-left — chopping mode only)
 ##
 ## THERE IS NO SELLING TO DO HERE (Creative Director call, 2026-08-01). The yard
@@ -50,6 +59,21 @@ extends Control
 ## Costs and level caps in that file are placeholders awaiting Sam; the two 5%
 ## effect steps are his.
 ##
+## THE WOODSHED, added 2026-08-02 (Creative Director call: the player PICKS the
+## wood that goes on the block, rather than it being rolled). Same shape as the
+## shop — rows built at runtime from `res://data/species_table.tres`, so Sam's 25
+## woods needed no UI code per wood.
+##
+## IT SHOWS EARNED WOODS PLUS EXACTLY ONE LOCKED ONE. A wall of 24 greyed-out
+## rows would be a list of things the player cannot do; one named next goal with
+## the chops still to go is a reason to pick the axe back up. `SpeciesTable.
+## next_locked()` is what makes that one row cheap to find.
+##
+## THE SELECTOR NEVER DECIDES ANYTHING. `GameState.select_species()` refuses a
+## wood that has not been earned and changes nothing when it does, so a row left
+## stale by a background unlock cannot hand out Lignum Vitae — this file only
+## asks. Same division as the shop, where `Shop.buy()` owns the refusal.
+##
 ## Layout numbers and wording here are functional placeholders — art direction for
 ## the 2D side is still deferred (M2 sign-off).
 
@@ -64,6 +88,11 @@ const _COIN := preload("res://assets/ui/coin.png")
 @onready var _close_shop_button: Button = $ShopPanel/Column/CloseShopButton
 @onready var _chop_button: Button = $YardPanel/Column/ChopButton
 @onready var _back_button: Button = $BackButton
+@onready var _wood_button: Button = $YardPanel/Column/WoodButton
+@onready var _wood_panel: PanelContainer = $WoodPanel
+@onready var _wood_list: VBoxContainer = $WoodPanel/Column/WoodScroll/WoodList
+@onready var _next_wood: Label = $WoodPanel/Column/NextWood
+@onready var _close_wood_button: Button = $WoodPanel/Column/CloseWoodButton
 
 
 func _ready() -> void:
@@ -71,8 +100,16 @@ func _ready() -> void:
 	_back_button.pressed.connect(_on_back_pressed)
 	_shop_button.pressed.connect(_on_shop_pressed)
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
+	_wood_button.pressed.connect(_on_wood_pressed)
+	_close_wood_button.pressed.connect(_on_close_wood_pressed)
 
 	GameState.cash_changed.connect(_on_cash_changed)
+	# The woodshed's three live inputs, all local signals (Amendment 2's
+	# precedent), so nothing here polls: what the player picked, what they have
+	# just earned, and the counter the next milestone is measured against.
+	GameState.selected_species_changed.connect(_on_selected_species_changed)
+	GameState.species_unlocked.connect(_on_species_unlocked)
+	GameState.lifetime_wood_chopped_changed.connect(_on_lifetime_changed)
 	# A purchase moves a tier through A7's own signal, so the shelf repaints off
 	# the same event that recorded the sale.
 	EventBus.building_upgraded.connect(_on_building_upgraded)
@@ -82,9 +119,11 @@ func _ready() -> void:
 	# The game boots into 2D management mode (main.gd calls _enter_2d_mode), so the
 	# yard starts open, the shop closed and the back button hidden.
 	_shop_panel.visible = false
+	_wood_panel.visible = false
 	_show_yard(true)
 	_refresh_stats()
 	_rebuild_shop()
+	_rebuild_woodshed()
 
 
 ## ------------------------------------------------------------------ entry flow
@@ -111,7 +150,10 @@ func _show_yard(yard_visible: bool) -> void:
 	_yard_panel.visible = yard_visible
 	_back_button.visible = not yard_visible
 	if not yard_visible:
-		_shop_panel.visible = false   # the shop does not follow you to the block
+		# Neither counter follows you to the block: the wood is already chosen and
+		# on the stump by the time you are looking at it.
+		_shop_panel.visible = false
+		_wood_panel.visible = false
 	# The stats bar stays up in BOTH modes on purpose: watching the cash climb
 	# while chopping is the whole "number go up" payoff.
 
@@ -184,6 +226,108 @@ func _on_buy_pressed(id: StringName) -> void:
 	# Shop.buy is atomic: a refused purchase spends nothing and moves no tier, so
 	# there is nothing to undo here. The rebuild rides in on building_upgraded.
 	Shop.buy(id)
+
+
+## ---------------------------------------------------------------- the woodshed
+func _on_wood_pressed() -> void:
+	_wood_panel.visible = true
+	_rebuild_woodshed()   # a wood may have been earned while it was shut
+
+
+func _on_close_wood_pressed() -> void:
+	_wood_panel.visible = false
+
+
+## Driven by the SIGNALS rather than by the row that was clicked, so the button
+## and the list agree however the choice moved — including a selection GameState
+## refused, which emits nothing and correctly leaves the display alone.
+func _on_selected_species_changed(_id: StringName) -> void:
+	_refresh_wood_button()
+	if _wood_panel.visible:
+		_rebuild_woodshed()
+
+
+func _on_species_unlocked(_id: StringName) -> void:
+	_rebuild_woodshed()   # cheap, and it can fire mid-chop with the panel shut
+
+
+## The next milestone is measured against this counter, so the woodshed's "N more
+## to go" has to move with it. Only repaints while the panel is open — this fires
+## once per piece of firewood.
+func _on_lifetime_changed(_total: int) -> void:
+	if _wood_panel.visible:
+		_rebuild_woodshed()
+
+
+## One row per EARNED wood, plus exactly one locked row as the next goal.
+func _rebuild_woodshed() -> void:
+	for child in _wood_list.get_children():
+		_wood_list.remove_child(child)
+		child.queue_free()
+
+	var chosen := GameState.get_selected_species()
+	for def: SpeciesDef in GameState.get_unlocked_species():
+		_wood_list.add_child(_build_wood_row(def, def.id == chosen))
+
+	var next := GameState.get_next_locked_species()
+	if next == null:
+		_next_wood.text = "Every wood on Earth is yours."
+	else:
+		_next_wood.text = "Next: %s — %s more pieces to go." % [
+			next.display_name,
+			_thousands(next.chops_remaining(GameState.get_lifetime_wood_chopped())),
+		]
+	_refresh_wood_button()
+
+
+func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var name_label := Label.new()
+	name_label.text = def.display_name
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+
+	# What the player is actually choosing between: what it pays, and how hard it
+	# fights. Janka is the honest one-number answer to "how hard" and it is the
+	# number the whole ladder was derived from, so it is the one shown.
+	var stat := Label.new()
+	stat.text = "%s per piece   ·   %d lbf" % [_thousands(Market.get_price(def.yield_item)), def.janka]
+	stat.add_theme_font_size_override("font_size", 13)
+	row.add_child(stat)
+
+	var pick := Button.new()
+	pick.custom_minimum_size = Vector2(112, 32)
+	pick.text = "On the block" if is_chosen else "Chop this"
+	pick.disabled = is_chosen
+	if not is_chosen:
+		pick.pressed.connect(_on_wood_row_pressed.bind(def.id))
+	row.add_child(pick)
+	return row
+
+
+func _on_wood_row_pressed(id: StringName) -> void:
+	# select_species is atomic and refuses anything unearned, so there is nothing
+	# to undo here. The repaint rides in on selected_species_changed.
+	GameState.select_species(id)
+
+
+func _refresh_wood_button() -> void:
+	var def := SpeciesTable.by_id(GameState.get_selected_species())
+	_wood_button.text = "Wood:  %s" % ("—" if def == null else def.display_name)
+
+
+## 70000 -> "70,000". The late ladder deals in tens of thousands of pieces, and an
+## unpunctuated number that long stops being readable as a quantity.
+func _thousands(n: int) -> String:
+	var s := str(absi(n))
+	var out := ""
+	for i in range(s.length()):
+		if i > 0 and (s.length() - i) % 3 == 0:
+			out += ","
+		out += s[i]
+	return ("-" if n < 0 else "") + out
 
 
 ## ----------------------------------------------------------------- live view

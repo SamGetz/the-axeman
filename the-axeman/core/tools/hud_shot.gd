@@ -51,6 +51,16 @@ func _ready() -> void:
 	_save("_2_shop")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 
+	# The woodshed, mid-ladder: several woods earned, one still to come. The 40
+	# gathers above have already unlocked the first few rungs, so this is the real
+	# list rather than a staged one — the thing worth looking at is whether an
+	# earned wood, the wood on the block and the next milestone are all
+	# distinguishable at a glance.
+	hud.get_node("YardPanel/Column/WoodButton").pressed.emit()
+	await get_tree().process_frame
+	_save("_2b_woodshed")
+	hud.get_node("WoodPanel/Column/CloseWoodButton").pressed.emit()
+
 	# Into the chopping game through the button the player uses.
 	hud.get_node("YardPanel/Column/ChopButton").pressed.emit()
 	for i in range(30):

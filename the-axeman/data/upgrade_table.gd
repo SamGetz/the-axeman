@@ -6,7 +6,7 @@ extends Resource
 ##
 ## Everything the shop sells, in the order it is shown. Adding an upgrade is a
 ## row here plus whatever reads its level — no scene edit, exactly like adding a
-## wood species is a row in _LOG_SPECIES.
+## wood species is a row in res://data/species_table.tres.
 
 @export var upgrades: Array[UpgradeDef] = []
 

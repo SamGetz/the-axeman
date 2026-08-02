@@ -16,15 +16,17 @@ extends Node
 ## Headless is fine — no rendering, no pile animation, just the roll.
 
 const _LOGS_PER_SPECIES := 40
+## Ladder indices to measure, or an empty array for the whole table. There are 25
+## woods since 2026-08-02 and the full sweep is a thousand logs, so the usual
+## working pattern is to name the two or three you just retuned.
+const _ONLY_SPECIES: Array[int] = []
 
 
 func _ready() -> void:
 	print("=== SPLIT ODDS — measured over %d logs per species ===" % _LOGS_PER_SPECIES)
-	var probe: Node = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
-	var species_count: int = (probe._LOG_SPECIES as Array).size()
-	probe.free()
-
-	for species in range(species_count):
+	for species in range(SpeciesTable.count()):
+		if not _ONLY_SPECIES.is_empty() and not _ONLY_SPECIES.has(species):
+			continue
 		await _measure(species)
 	get_tree().quit()
 
@@ -36,8 +38,9 @@ func _measure(species: int) -> void:
 	await get_tree().process_frame
 
 	var first_chance: float = mg.debug_split_chance()
-	var yield_item: StringName = (mg._LOG_SPECIES[species] as Dictionary).get("yield_item", &"?")
-	var authored: float = (mg._LOG_SPECIES[species] as Dictionary).get("split_chance", mg.default_split_chance)
+	var row := SpeciesTable.at(species)
+	var yield_item: StringName = &"?" if row == null else row.yield_item
+	var authored: float = mg.default_split_chance if row == null else row.split_chance
 
 	var swings := 0
 	var fails := 0

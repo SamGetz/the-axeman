@@ -5,8 +5,30 @@
 [resource]
 script = ExtResource("1_price")
 base_prices = {
+&"aspen_firewood": 1,
 &"pine_firewood": 2,
-&"oak_firewood": 5,
-&"birch_firewood": 10,
+&"norway_spruce_firewood": 3,
+&"balsam_fir_firewood": 4,
+&"lodgepole_pine_firewood": 6,
+&"white_spruce_firewood": 8,
+&"black_spruce_firewood": 11,
+&"scots_pine_firewood": 15,
+&"hemlock_firewood": 20,
+&"red_pine_firewood": 28,
+&"douglas_fir_firewood": 38,
+&"black_ash_firewood": 52,
+&"birch_firewood": 70,
+&"oak_firewood": 95,
+&"silver_birch_firewood": 130,
+&"yellow_birch_firewood": 175,
+&"red_oak_firewood": 240,
+&"beech_firewood": 320,
+&"white_ash_firewood": 430,
+&"white_oak_firewood": 580,
+&"sugar_maple_firewood": 780,
+&"european_beech_firewood": 1050,
+&"river_red_gum_firewood": 1400,
+&"blue_gum_firewood": 1900,
+&"lignum_vitae_firewood": 2600,
 &"mahogany_firewood": 25
 }

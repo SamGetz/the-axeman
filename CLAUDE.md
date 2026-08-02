@@ -110,8 +110,8 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
-| M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **42/42** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **139/139** |
+| M4 | `--quit-after 20000 res://core/tests/m4_acceptance.tscn` | **40/40** |
+| M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **178/178** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -169,19 +169,19 @@ and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
   placement).
 - **Inventory wired:** a fully-chopped log deposits its species' item into
   InventoryManager — one `resource_gathered` per finished firewood piece, at the
-  batch-collect point (`_begin_stacking`). Wood type is data-driven: `_LOG_SPECIES`
-  in `chopping_minigame.gd` maps each log mesh → yield item, built to scale to
-  many woods (add a row) and many log SHAPES per wood (add a path). CURRENT
-  MAPPING: `log_01.fbx`→`oak_log`, `log_02.fbx`→`pine_log` (log_02 is pine only
-  to demo per-log yields and still wears oak art — remap freely),
-  `birch_log_01..06.fbx`→`birch_log` (six authored shapes, real birch art
-  throughout, added 2026-08-01).
+  batch-collect point (`_begin_stacking`). Wood type is data-driven: since
+  2026-08-02 the table is `res://data/species_table.tres` (it was a `_LOG_SPECIES`
+  const in `chopping_minigame.gd` until Sam's 25 woods landed — see the 25-wood
+  ladder section). A row maps log meshes → yield item, and scales to many woods
+  (add a row) and many log SHAPES per wood (add a path). CURRENT ART: only
+  `log_01/log_02.fbx` (oak) and `birch_log_01..06.fbx` (real birch art, six
+  authored shapes) exist; the other 22 species wear tinted oak via `bark_tint`.
 - **A row's `meshes` is a LIST on purpose.** Species is picked first, shape
   second, so log variety never changes how often a wood turns up — six birch
   meshes as six rows would have made three quarters of every yard birch.
-  `debug_forced_species` / `debug_forced_mesh` force either for tests and shots.
-  A row may also carry `inside_tex`/`inside_normal`/`inside_tint` for its cut
-  faces; omitted keys fall back to oak.
+  `debug_forced_species` (a LADDER INDEX) / `debug_forced_mesh` force either for
+  tests and shots. A row may also carry `inside_tex`/`inside_normal`/`inside_tint`
+  for its cut faces; empty falls back to oak.
   Cut materials are cached per species BY DESIGN, not just for speed:
   `MeshUtils.jag_cut` finds a piece's cut surface by comparing
   `material == _cut_mat` **by reference**, so a fresh instance per log would
@@ -422,10 +422,11 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   instead of luck. The new headless seam is `debug_swing_world`, with
   `debug_split_roll` forcing the outcome (-1 roll / 0 always fail / 1 always split).
 - **`split_chance_for(piece)` is the whole sum in one place:** the wood's own
-  `split_chance` (a new field in `_LOG_SPECIES` — **oak 0.55 is Sam's: "roughly
-  45% to start" on the starting log**; pine 0.75 and birch 0.4 are placeholders
-  set around it to follow the price ladder, so the wood that pays most resists
-  most), made easier as the piece gets smaller (`size_relief`), plus
+  `split_chance` (a field on `SpeciesDef` — **0.55 is Sam's: "roughly 45% to
+  start" on the STARTING LOG**, so on 2026-08-02 it moved with that role from oak
+  to Quaking Aspen; the other 24 are placeholders laid out down the Janka ladder,
+  so the wood that pays most resists most), made easier as the piece gets
+  smaller (`size_relief`), plus
   `scar_bonus` per scar already in it, plus `strength_step` per protein bar,
   clamped to `max_split_chance` (0.95) — a swing is NEVER a certainty, which is
   the thing Sam asked for by name. `m7a_acceptance` asserts the price/difficulty
@@ -491,8 +492,101 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   40 show at least one failure**. Run it after touching any of those numbers —
   arguing about the authored value is arguing about the wrong number.
 
-- Still to do in M7A: three authored orders, three more upgrades and an
-  unlockable second species. All are blocked on tuning values (Directive 3).
+### M7A — the 25-wood ladder (2026-08-02, no sign-off yet)
+
+**Creative Director call:** Sam named the 25 trees the finished game will use, in
+this order — Quaking Aspen, Eastern White Pine, Norway Spruce, Balsam Fir,
+Lodgepole Pine, White Spruce, Black Spruce, Scots Pine, Western Hemlock, Red
+Pine, Douglas Fir, Black Ash, Paper Birch, Pedunculate Oak, Silver Birch, Yellow
+Birch, Northern Red Oak, American Beech, White Ash, White Oak, Sugar Maple,
+European Beech, River Red Gum, Tasmanian Blue Gum, Lignum Vitae — and delegated
+pricing ("You can set the pricing") and naming. He also chose, from the options
+put to him: a wood is unlocked by a **lifetime-chopped milestone**, and the
+**player picks** which unlocked wood goes on the block.
+
+- **THAT LIST IS IN JANKA HARDNESS ORDER** (Aspen ~350 lbf to Lignum Vitae ~4500,
+  the hardest commercial timber on Earth). That is the spine the whole ladder is
+  derived from, and it makes Sam's already-approved rule fall out for free:
+  **harder wood → splits less often → pays more → unlocks later.** `SpeciesDef.
+  janka` carries the real-world figure as the DERIVATION RECORD, so a future
+  species is slotted in by looking up one number instead of guessing.
+- **`res://data/species_table.tres` + `species_def.gd` / `species_table.gd`
+  (`class_name SpeciesDef` / `SpeciesTable`) REPLACE the `_LOG_SPECIES` const**
+  that lived in `chopping_minigame.gd`. It had to move: 25 rows of dictionary
+  literal do not belong in a gameplay script, and the **yard HUD is 2D-side (A9)
+  and must never import the 3D mini-game** to find out what a wood is. `SpeciesTable`
+  is static and NOT an autoload, for the same reasons as Market/Shop/SaveSystem.
+- **THE LADDER ORDER IS LOAD-BEARING, not cosmetic:** the woodshed lists it top to
+  bottom, `next_locked()` walks it to find the player's next goal, and
+  `m7a_acceptance` asserts price, difficulty and unlock cost are all monotonic
+  along it — so a wood cannot ship as the most valuable AND the easiest.
+- **THE HOLE THIS CLOSED.** `_pick_species_index()` was `randi() % size`. With 25
+  woods that would have put **Lignum Vitae on the player's first log, free, at
+  2600 a piece**. It now reads the player's choice from GameState.
+- **THE UNLOCKED SET IS DERIVED, NEVER STORED** — a species is unlocked exactly
+  when `lifetime_wood_chopped >= unlock_at`, and that counter is already monotonic
+  by construction. No second source of truth to drift, nothing extra to save, and
+  **a retuned ladder applies to an existing save** instead of freezing its old
+  thresholds in. Only the player's CHOICE persists, because nothing else implies it.
+- **`GameState` gained `species_unlocked` and `selected_species_changed`** —
+  LOCAL signals, Amendment 2's precedent exactly. **A7 is untouched**, and
+  `environment_unlocked` was NOT reused: it carries an `Enums.Biome`, that enum is
+  frozen at four values, and a wood species is not a biome.
+- `select_species()` is atomic like `try_spend_cash`: an unknown or unearned wood
+  changes nothing and emits nothing. `get_selected_species()` ALWAYS resolves to
+  something choppable — a pre-selector save, a deleted species, or a choice a
+  retuned ladder put out of reach all fall back to the starting wood.
+- The unlock crossing compares **before and after**, not the new total alone: one
+  finished log deposits six pieces in one frame and can cross two milestones, and
+  a species must announce itself exactly once, ever.
+- **`res://scenes/2d_management/yard_hud`'s WOODSHED** lists earned woods with
+  price and hardness, plus **exactly one locked row** as the next goal. A wall of
+  24 greyed-out rows is a list of things the player cannot do; one named goal with
+  the chops still to go is a reason to pick the axe back up. Rows are built from
+  the table at runtime, so Sam's 25 woods needed no UI code per wood.
+- **`item_registry.tres` gained 22 firewood ids** and `price_table.tres` prices all
+  25. The three existing ids were **remapped onto the ladder rather than renamed,
+  so saves survive**: `pine_firewood`→Eastern White Pine, `birch_firewood`→Paper
+  Birch, `oak_firewood`→Pedunculate Oak.
+- **ART DEBT, THE BIG ONE: 22 of the 25 woods have no art.** Only oak (log_01/02)
+  and birch (6 shapes) exist, so every other species points at the oak FBXs and
+  leans on a new `bark_tint` to tell itself apart. `_apply_bark_tint` **duplicates
+  the material** — imported FBX materials are shared BY REFERENCE, so tinting in
+  place would repaint that wood for the whole process. WHITE means "has its own
+  art, leave it alone" and is where every row should end up. **Rendered and judged:
+  River Red Gum reads genuinely red, Lignum Vitae olive, Aspen pale.**
+- **Verified by 39 checks in `m7a_acceptance` (tests 18, 21–24)**, and all four new
+  guards are **proven to fail without their fix** (let selection ignore unlocks →
+  3 red; announce every earned wood on every gather → 3 red; restore the random
+  species roll → 2 red; drop the out-of-reach fallback → 2 red).
+- **NUMBERS THAT ARE SAM'S:** the 25 species and their order. The starting wood's
+  `split_chance` **0.55 is his** ("roughly 45% to start") — it belongs to the
+  STARTING LOG, so it moved with that role from oak to Quaking Aspen.
+- **NUMBERS THAT ARE PLACEHOLDERS (Directive 3), all in data:** the price ladder
+  (1 → 2600, ~1.35x a rung), the other 24 split chances (0.55 → 0.12), all 25
+  unlock thresholds (0 → 70,000 lifetime pieces) and every tint. The late
+  thresholds are deliberately beyond hand-chopping — M8 staff and the roadmap's
+  certified auto-cutting arrive first.
+- **KNOWN, and Sam's call:** the strength upgrade caps at +0.5 split chance over 10
+  levels, so the top of the ladder (0.12 base) needs `size_relief`, scars and the
+  shop together to stay playable. **Run `core/tools/split_odds.tscn` before
+  signing the curve off** — it measures the FELT failure rate, which is not the
+  authored one.
+- **The Janka check in `m7a_acceptance` is deliberately NOT strict per rung.**
+  Sam's order is authoritative and real hardness has near-ties inside it (Silver
+  Birch 1110 sits just above Pedunculate Oak 1120; both beeches are level with
+  Sugar Maple). Bending a real-world figure to satisfy a test would corrupt the
+  very record the ladder is derived from, so the check asserts no rung is
+  *dramatically* softer than the one below it.
+- **`m4_acceptance` moved 42 → 40 checks**, and is stronger for it: test 6's
+  per-species row checks are aggregated (25 woods, not 3) and the expensive live
+  spawn now runs once per DISTINCT MESH PATH — 22 rows share the same two oak
+  FBXs, so the old shape measured the same eight imports 25 times. Tests 3, 4, 16
+  and 17 **stopped hardcoding "species 0 is oak"**, which the reorder broke.
+
+- Still to do in M7A: three authored orders and three more upgrades. Both are
+  blocked on tuning values (Directive 3). The unlockable-species requirement is
+  **done and then some** — the roadmap asked for one, Sam specified 25.
 
 ### Files the chopping game owns
 
@@ -502,12 +596,18 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
 `canopy_gobo.gd`.
 
 `scenes/2d_management/`: `yard_hud.gd/.tscn` (the yard HUD, the basic buyer's
-front end and the entry flow) — the first thing this folder has ever held.
+front end, the shop, the woodshed and the entry flow) — the first thing this
+folder has ever held.
+
+`data/`: `species_def.gd`, `species_table.gd`, `species_table.tres` — the 25
+woods. The chopping game reads them; so does the yard HUD, which is the whole
+reason they are a Resource and not a const in the mini-game.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
 `pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `split_odds`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
-`species_shot` (renders EVERY row of `_LOG_SPECIES`, fresh and cut — run it on any
-log drop), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
+`species_shot` (renders EVERY row of `species_table.tres`, fresh and cut — run it
+on any log drop AND on any `bark_tint` change; `_ONLY_SPECIES`/`_FIRST_MESH_ONLY`
+narrow it from the full 124 PNGs), `inspect_fbx` (tree/size/material report), `inspect_materials` (the
 ACTUAL bound texture per surface — see the material-name trap below).
 
 ### A1 FINDING — CLOSED 2026-08-01 (Amendment 16)
@@ -767,9 +867,31 @@ against `get_instance_transform` can only ever fail.
 
 ## LOCKED ITEM IDS (res://data/item_registry.tres)
 
-`pine_firewood, oak_firewood, birch_firewood, mahogany_firewood, stone,
-copper_ore, iron_ore, amethyst, ruby, sapphire, wood_board, copper_ingot,
-iron_nail`
+**The 25 woods, in ladder order** (`res://data/species_table.tres` names the
+species; these are the FIREWOOD they yield):
+
+`aspen_firewood, pine_firewood, norway_spruce_firewood, balsam_fir_firewood,
+lodgepole_pine_firewood, white_spruce_firewood, black_spruce_firewood,
+scots_pine_firewood, hemlock_firewood, red_pine_firewood, douglas_fir_firewood,
+black_ash_firewood, birch_firewood, oak_firewood, silver_birch_firewood,
+yellow_birch_firewood, red_oak_firewood, beech_firewood, white_ash_firewood,
+white_oak_firewood, sugar_maple_firewood, european_beech_firewood,
+river_red_gum_firewood, blue_gum_firewood, lignum_vitae_firewood`
+
+Everything else: `mahogany_firewood, stone, copper_ore, iron_ore, amethyst, ruby,
+sapphire, wood_board, copper_ingot, iron_nail`
+
+**EXPANDED 2026-08-02** for Sam's 25 species. The three wood ids that already
+existed were **remapped onto the ladder rather than renamed**, so an existing save
+keeps its stock: `pine_firewood` is now Eastern White Pine (rung 2),
+`birch_firewood` is Paper Birch (rung 13) and `oak_firewood` is Pedunculate Oak
+(rung 14). Their display names changed to match; nothing asserts a display name.
+
+**`mahogany_firewood` IS ORPHANED.** Mahogany is not one of Sam's 25 trees. The id
+is still registered and still priced at 25 (a placeholder from before the ladder,
+now far below where a rare hardwood would sit), and no species yields it. Left in
+place rather than deleted — removing an id from the registry is a save-compat
+decision, and it is Sam's. **Ask before building anything on it.**
 
 **RENAMED 2026-08-01, Creative Director call ("we can call it firewood").** The
 four wood ids were `*_log`, which meant chopping a log *yielded logs* — the wrong
@@ -782,9 +904,12 @@ spawn on the block and are consumed by chopping. The roadmap's "log supply"
 upgrade family is about what spawns, not about a stored resource. If logs ever
 need to be stock (staff delivering them, say), add the ids then.
 
-Nothing in any test suite asserts this list — it is enforced by this document
-alone. The rename touched no logic at all, because `lifetime_wood_chopped`
-filters on `ItemCategory.RAW_WOOD` rather than on names.
+No test asserts this LIST as such, but since 2026-08-02 `m4_acceptance` does
+assert that every species in the ladder yields a REGISTERED id, and
+`m7a_acceptance` that the buyer prices all 25 — so a wood added to the table
+without an ItemDef or a price now goes red instead of silently vanishing on
+collection. The 2026-08-01 `*_log` → `*_firewood` rename touched no logic at all,
+because `lifetime_wood_chopped` filters on `ItemCategory.RAW_WOOD`, not on names.
 
 Known data flag (unresolved): the blueprint's management example mentions
 "Mahogany Boards" but the registry defines generic "Wood Boards". Ask Sam
@@ -813,7 +938,7 @@ whether boards become per-species before writing any upgrade data.
   on 2026-08-01 and is correctly on its own textures.)
 - **A log's CUT face is not the FBX's business.** Bark and authored ends come
   from the imported materials, but the cut face is generated at runtime from
-  `_LOG_SPECIES`'s `inside_tex`/`inside_normal`. Those must be **tileable** —
+  `SpeciesDef.inside_tex`/`inside_normal`. Those must be **tileable** —
   cut-face UVs are a metres-based tiling mapping, so a log-end "disc" texture
   repeats into a grid of discs. Oak and birch each have a `*_tilable` set.
 - Style: flat-shaded low-poly, vertex colors preferred over textures,

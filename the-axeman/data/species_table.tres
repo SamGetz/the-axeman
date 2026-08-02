@@ -1,0 +1,383 @@
+[gd_resource type="Resource" script_class="SpeciesTable" load_steps=28 format=3]
+
+[ext_resource type="Script" path="res://data/species_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/species_def.gd" id="2_def"]
+
+[sub_resource type="Resource" id="Resource_quaking_aspen"]
+resource_name = "quaking_aspen"
+script = ExtResource("2_def")
+id = &"quaking_aspen"
+display_name = "Quaking Aspen"
+yield_item = &"aspen_firewood"
+janka = 350
+unlock_at = 0
+split_chance = 0.55
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.12, 1.08, 0.94, 1)
+bark_tint = Color(1.1, 1.06, 0.92, 1)
+
+[sub_resource type="Resource" id="Resource_eastern_white_pine"]
+resource_name = "eastern_white_pine"
+script = ExtResource("2_def")
+id = &"eastern_white_pine"
+display_name = "Eastern White Pine"
+yield_item = &"pine_firewood"
+janka = 380
+unlock_at = 25
+split_chance = 0.54
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.08, 1.0, 0.84, 1)
+bark_tint = Color(1.06, 0.98, 0.82, 1)
+
+[sub_resource type="Resource" id="Resource_norway_spruce"]
+resource_name = "norway_spruce"
+script = ExtResource("2_def")
+id = &"norway_spruce"
+display_name = "Norway Spruce"
+yield_item = &"norway_spruce_firewood"
+janka = 380
+unlock_at = 60
+split_chance = 0.53
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.02, 0.96, 0.82, 1)
+bark_tint = Color(1.0, 0.94, 0.8, 1)
+
+[sub_resource type="Resource" id="Resource_balsam_fir"]
+resource_name = "balsam_fir"
+script = ExtResource("2_def")
+id = &"balsam_fir"
+display_name = "Balsam Fir"
+yield_item = &"balsam_fir_firewood"
+janka = 400
+unlock_at = 110
+split_chance = 0.52
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.98, 0.96, 0.86, 1)
+bark_tint = Color(0.96, 0.94, 0.84, 1)
+
+[sub_resource type="Resource" id="Resource_lodgepole_pine"]
+resource_name = "lodgepole_pine"
+script = ExtResource("2_def")
+id = &"lodgepole_pine"
+display_name = "Lodgepole Pine"
+yield_item = &"lodgepole_pine_firewood"
+janka = 480
+unlock_at = 180
+split_chance = 0.5
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.06, 0.96, 0.78, 1)
+bark_tint = Color(1.04, 0.94, 0.76, 1)
+
+[sub_resource type="Resource" id="Resource_white_spruce"]
+resource_name = "white_spruce"
+script = ExtResource("2_def")
+id = &"white_spruce"
+display_name = "White Spruce"
+yield_item = &"white_spruce_firewood"
+janka = 480
+unlock_at = 280
+split_chance = 0.49
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.04, 1.0, 0.88, 1)
+bark_tint = Color(1.02, 0.98, 0.86, 1)
+
+[sub_resource type="Resource" id="Resource_black_spruce"]
+resource_name = "black_spruce"
+script = ExtResource("2_def")
+id = &"black_spruce"
+display_name = "Black Spruce"
+yield_item = &"black_spruce_firewood"
+janka = 520
+unlock_at = 420
+split_chance = 0.47
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.88, 0.88, 0.82, 1)
+bark_tint = Color(0.86, 0.86, 0.8, 1)
+
+[sub_resource type="Resource" id="Resource_scots_pine"]
+resource_name = "scots_pine"
+script = ExtResource("2_def")
+id = &"scots_pine"
+display_name = "Scots Pine"
+yield_item = &"scots_pine_firewood"
+janka = 540
+unlock_at = 600
+split_chance = 0.46
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.02, 0.88, 0.68, 1)
+bark_tint = Color(1.0, 0.86, 0.66, 1)
+
+[sub_resource type="Resource" id="Resource_western_hemlock"]
+resource_name = "western_hemlock"
+script = ExtResource("2_def")
+id = &"western_hemlock"
+display_name = "Western Hemlock"
+yield_item = &"hemlock_firewood"
+janka = 540
+unlock_at = 850
+split_chance = 0.45
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.92, 0.86, 0.8, 1)
+bark_tint = Color(0.9, 0.84, 0.78, 1)
+
+[sub_resource type="Resource" id="Resource_red_pine"]
+resource_name = "red_pine"
+script = ExtResource("2_def")
+id = &"red_pine"
+display_name = "Red Pine"
+yield_item = &"red_pine_firewood"
+janka = 560
+unlock_at = 1200
+split_chance = 0.44
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.02, 0.82, 0.68, 1)
+bark_tint = Color(1.0, 0.8, 0.66, 1)
+
+[sub_resource type="Resource" id="Resource_douglas_fir"]
+resource_name = "douglas_fir"
+script = ExtResource("2_def")
+id = &"douglas_fir"
+display_name = "Douglas Fir"
+yield_item = &"douglas_fir_firewood"
+janka = 660
+unlock_at = 1650
+split_chance = 0.41
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.0, 0.84, 0.7, 1)
+bark_tint = Color(0.98, 0.82, 0.68, 1)
+
+[sub_resource type="Resource" id="Resource_black_ash"]
+resource_name = "black_ash"
+script = ExtResource("2_def")
+id = &"black_ash"
+display_name = "Black Ash"
+yield_item = &"black_ash_firewood"
+janka = 850
+unlock_at = 2250
+split_chance = 0.38
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.8, 0.76, 0.72, 1)
+bark_tint = Color(0.78, 0.74, 0.7, 1)
+
+[sub_resource type="Resource" id="Resource_paper_birch"]
+resource_name = "paper_birch"
+script = ExtResource("2_def")
+id = &"paper_birch"
+display_name = "Paper Birch"
+yield_item = &"birch_firewood"
+janka = 910
+unlock_at = 3000
+split_chance = 0.36
+meshes = PackedStringArray("res://assets/models/logs_export/birch_log_01.fbx", "res://assets/models/logs_export/birch_log_02.fbx", "res://assets/models/logs_export/birch_log_03.fbx", "res://assets/models/logs_export/birch_log_04.fbx", "res://assets/models/logs_export/birch_log_05.fbx", "res://assets/models/logs_export/birch_log_06.fbx")
+inside_tex = "res://assets/textures/wood_birch/birch_inside_tilable.png"
+inside_normal = "res://assets/textures/wood_birch/birch_inside_tilable_normal.png"
+inside_tint = Color(1, 1, 1, 1)
+bark_tint = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_pedunculate_oak"]
+resource_name = "pedunculate_oak"
+script = ExtResource("2_def")
+id = &"pedunculate_oak"
+display_name = "Pedunculate Oak"
+yield_item = &"oak_firewood"
+janka = 1120
+unlock_at = 4000
+split_chance = 0.33
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1, 1, 1, 1)
+bark_tint = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_silver_birch"]
+resource_name = "silver_birch"
+script = ExtResource("2_def")
+id = &"silver_birch"
+display_name = "Silver Birch"
+yield_item = &"silver_birch_firewood"
+janka = 1110
+unlock_at = 5300
+split_chance = 0.32
+meshes = PackedStringArray("res://assets/models/logs_export/birch_log_01.fbx", "res://assets/models/logs_export/birch_log_02.fbx", "res://assets/models/logs_export/birch_log_03.fbx", "res://assets/models/logs_export/birch_log_04.fbx", "res://assets/models/logs_export/birch_log_05.fbx", "res://assets/models/logs_export/birch_log_06.fbx")
+inside_tex = "res://assets/textures/wood_birch/birch_inside_tilable.png"
+inside_normal = "res://assets/textures/wood_birch/birch_inside_tilable_normal.png"
+inside_tint = Color(1.04, 1.04, 1.02, 1)
+bark_tint = Color(1.04, 1.04, 1.02, 1)
+
+[sub_resource type="Resource" id="Resource_yellow_birch"]
+resource_name = "yellow_birch"
+script = ExtResource("2_def")
+id = &"yellow_birch"
+display_name = "Yellow Birch"
+yield_item = &"yellow_birch_firewood"
+janka = 1260
+unlock_at = 7000
+split_chance = 0.3
+meshes = PackedStringArray("res://assets/models/logs_export/birch_log_01.fbx", "res://assets/models/logs_export/birch_log_02.fbx", "res://assets/models/logs_export/birch_log_03.fbx", "res://assets/models/logs_export/birch_log_04.fbx", "res://assets/models/logs_export/birch_log_05.fbx", "res://assets/models/logs_export/birch_log_06.fbx")
+inside_tex = "res://assets/textures/wood_birch/birch_inside_tilable.png"
+inside_normal = "res://assets/textures/wood_birch/birch_inside_tilable_normal.png"
+inside_tint = Color(1.0, 0.9, 0.68, 1)
+bark_tint = Color(1.0, 0.9, 0.7, 1)
+
+[sub_resource type="Resource" id="Resource_northern_red_oak"]
+resource_name = "northern_red_oak"
+script = ExtResource("2_def")
+id = &"northern_red_oak"
+display_name = "Northern Red Oak"
+yield_item = &"red_oak_firewood"
+janka = 1290
+unlock_at = 9200
+split_chance = 0.29
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.02, 0.84, 0.76, 1)
+bark_tint = Color(1.0, 0.82, 0.74, 1)
+
+[sub_resource type="Resource" id="Resource_american_beech"]
+resource_name = "american_beech"
+script = ExtResource("2_def")
+id = &"american_beech"
+display_name = "American Beech"
+yield_item = &"beech_firewood"
+janka = 1300
+unlock_at = 12000
+split_chance = 0.28
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.02, 0.94, 0.84, 1)
+bark_tint = Color(1.0, 0.92, 0.82, 1)
+
+[sub_resource type="Resource" id="Resource_white_ash"]
+resource_name = "white_ash"
+script = ExtResource("2_def")
+id = &"white_ash"
+display_name = "White Ash"
+yield_item = &"white_ash_firewood"
+janka = 1320
+unlock_at = 15500
+split_chance = 0.27
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.0, 0.96, 0.88, 1)
+bark_tint = Color(0.98, 0.94, 0.86, 1)
+
+[sub_resource type="Resource" id="Resource_white_oak"]
+resource_name = "white_oak"
+script = ExtResource("2_def")
+id = &"white_oak"
+display_name = "White Oak"
+yield_item = &"white_oak_firewood"
+janka = 1360
+unlock_at = 20000
+split_chance = 0.26
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.98, 0.94, 0.84, 1)
+bark_tint = Color(0.96, 0.92, 0.82, 1)
+
+[sub_resource type="Resource" id="Resource_sugar_maple"]
+resource_name = "sugar_maple"
+script = ExtResource("2_def")
+id = &"sugar_maple"
+display_name = "Sugar Maple"
+yield_item = &"sugar_maple_firewood"
+janka = 1450
+unlock_at = 26000
+split_chance = 0.24
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.08, 0.98, 0.82, 1)
+bark_tint = Color(1.05, 0.96, 0.8, 1)
+
+[sub_resource type="Resource" id="Resource_european_beech"]
+resource_name = "european_beech"
+script = ExtResource("2_def")
+id = &"european_beech"
+display_name = "European Beech"
+yield_item = &"european_beech_firewood"
+janka = 1450
+unlock_at = 33000
+split_chance = 0.23
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(1.02, 0.9, 0.8, 1)
+bark_tint = Color(1.0, 0.88, 0.78, 1)
+
+[sub_resource type="Resource" id="Resource_river_red_gum"]
+resource_name = "river_red_gum"
+script = ExtResource("2_def")
+id = &"river_red_gum"
+display_name = "River Red Gum"
+yield_item = &"river_red_gum_firewood"
+janka = 1900
+unlock_at = 42000
+split_chance = 0.2
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.94, 0.6, 0.52, 1)
+bark_tint = Color(0.92, 0.58, 0.5, 1)
+
+[sub_resource type="Resource" id="Resource_tasmanian_blue_gum"]
+resource_name = "tasmanian_blue_gum"
+script = ExtResource("2_def")
+id = &"tasmanian_blue_gum"
+display_name = "Tasmanian Blue Gum"
+yield_item = &"blue_gum_firewood"
+janka = 2020
+unlock_at = 53000
+split_chance = 0.18
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.88, 0.82, 0.82, 1)
+bark_tint = Color(0.86, 0.8, 0.8, 1)
+
+[sub_resource type="Resource" id="Resource_lignum_vitae"]
+resource_name = "lignum_vitae"
+script = ExtResource("2_def")
+id = &"lignum_vitae"
+display_name = "Lignum Vitae"
+yield_item = &"lignum_vitae_firewood"
+janka = 4500
+unlock_at = 70000
+split_chance = 0.12
+meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")
+inside_tex = ""
+inside_normal = ""
+inside_tint = Color(0.64, 0.72, 0.6, 1)
+bark_tint = Color(0.62, 0.7, 0.58, 1)
+
+[resource]
+script = ExtResource("1_table")
+species = Array[ExtResource("2_def")]([SubResource("Resource_quaking_aspen"), SubResource("Resource_eastern_white_pine"), SubResource("Resource_norway_spruce"), SubResource("Resource_balsam_fir"), SubResource("Resource_lodgepole_pine"), SubResource("Resource_white_spruce"), SubResource("Resource_black_spruce"), SubResource("Resource_scots_pine"), SubResource("Resource_western_hemlock"), SubResource("Resource_red_pine"), SubResource("Resource_douglas_fir"), SubResource("Resource_black_ash"), SubResource("Resource_paper_birch"), SubResource("Resource_pedunculate_oak"), SubResource("Resource_silver_birch"), SubResource("Resource_yellow_birch"), SubResource("Resource_northern_red_oak"), SubResource("Resource_american_beech"), SubResource("Resource_white_ash"), SubResource("Resource_white_oak"), SubResource("Resource_sugar_maple"), SubResource("Resource_european_beech"), SubResource("Resource_river_red_gum"), SubResource("Resource_tasmanian_blue_gum"), SubResource("Resource_lignum_vitae")])

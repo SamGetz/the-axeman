@@ -21,6 +21,12 @@ extends Node
 ##   - the YARD PILE is a view of GameState, survives a load that lands after the
 ##     scene is built, and is HAULED AWAY when it fills
 ##   - a piece PAYS FOR ITSELF as it lands on the pile — there is no manual selling
+##   - the 25-WOOD LADDER is monotonic in price, difficulty, hardness and unlock
+##     cost, so a wood cannot ship as the most valuable AND the easiest
+##   - a WOOD IS EARNED BY CHOPPING, derived from lifetime chopped rather than
+##     stored, and cannot be un-earned by selling the stock back
+##   - the PLAYER PICKS the wood, an unearned one is refused, and the choice
+##     survives a save and reaches the actual block
 ##
 ## Every check asserts a positive quantity. Several of these would pass trivially
 ## against a game with the feature deleted if they only asserted bounds — cash
@@ -66,6 +72,10 @@ func _ready() -> void:
 	_test_18_tougher_wood_pays_better()
 	_test_19_the_shop_sells_levels()
 	await _test_20_upgrades_change_the_game()
+	_test_21_a_wood_is_earned_by_chopping()
+	_test_22_the_player_picks_the_wood()
+	_test_23_the_choice_survives_a_save()
+	await _test_24_the_block_holds_the_chosen_wood()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -543,8 +553,13 @@ func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 
+	# The wood is forced so the payout is a known price, and the price is READ
+	# FROM THE TABLE rather than spelled out — this test used to say "species 0 is
+	# oak", which stopped being true when Sam's 25 woods reordered the ladder by
+	# hardness on 2026-08-02.
+	var wood := SpeciesTable.at(0)
 	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
-	game.debug_forced_species = 0        # oak, so the payout is a known price
+	game.debug_forced_species = 0
 	game.pile_fly_ms = 20.0
 	game.pile_stagger_ms = 10.0
 	game.firewood_settle_timeout = 0.2
@@ -565,10 +580,11 @@ func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
 
 	await _wait(1.2)   # settle timeout, then the whole (shortened) fly-in
 
-	var oak := Market.get_price(&"oak_firewood")
-	_check(GameState.get_cash() == oak * pieces,
-		"every piece paid %d as it landed — %d pieces, %d cash" % [oak, pieces, GameState.get_cash()])
-	_check(InventoryManager.get_count(&"oak_firewood") == 0,
+	var unit := Market.get_price(wood.yield_item)
+	_check(unit > 0, "%s has a price to pay out (%d)" % [wood.id, unit])
+	_check(GameState.get_cash() == unit * pieces,
+		"every piece paid %d as it landed — %d pieces, %d cash" % [unit, pieces, GameState.get_cash()])
+	_check(InventoryManager.get_count(wood.yield_item) == 0,
 		"...and none of it is left in stock: the yard bought it, the player never sold it")
 	_check(GameState.get_lifetime_wood_chopped() == pieces,
 		"...while lifetime chopped counts all %d" % pieces)
@@ -580,7 +596,7 @@ func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
 	await _wait(1.0)
 	_check(pile.get_child_count() == 0,
 		"...and the pieces are gone from the pile, hauled off screen (got %d)" % pile.get_child_count())
-	_check(GameState.get_cash() == oak * pieces,
+	_check(GameState.get_cash() == unit * pieces,
 		"...and hauling paid nothing extra — the wood was already bought (%d)" % GameState.get_cash())
 
 	game.queue_free()
@@ -601,8 +617,14 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 
+	# The TOP of the ladder — the dearest wood and the most stubborn — so the scar
+	# mechanic is exercised where it matters most. Read as "the last rung" rather
+	# than as a literal index: this said `2 # birch` until Sam's 25 woods landed on
+	# 2026-08-02, at which point index 2 was Norway Spruce and the test was
+	# quietly measuring the wrong end of the ladder while still passing.
+	var toughest := SpeciesTable.count() - 1
 	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
-	mg.debug_forced_species = 2      # birch: the dearest wood and the most stubborn
+	mg.debug_forced_species = toughest
 	mg.debug_split_roll = 0          # every swing fails
 	add_child(mg)
 	await get_tree().process_frame
@@ -610,7 +632,8 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 	var pieces_before: int = mg.piece_count()
 	var chance_before: float = mg.debug_split_chance()
 	_check(chance_before > 0.0 and chance_before < 1.0,
-		"a fresh birch log is neither hopeless nor certain (%.2f)" % chance_before)
+		"a fresh %s log is neither hopeless nor certain (%.2f)"
+			% [SpeciesTable.at(toughest).id, chance_before])
 
 	var split: bool = mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
 	_check(not split, "a failed swing does not split the log")
@@ -660,29 +683,257 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 ## Difficulty follows the money: the wood that pays most resists most. Asserted
 ## against the species table itself so a new wood cannot quietly ship as the most
 ## valuable AND the easiest.
+##
+## REWRITTEN 2026-08-02 for Sam's 25 woods. It used to compare every wood against
+## every other and emit a check per pair — fine at 3 rows (9 pairs), 625 lines of
+## output at 25. It now walks the LADDER IN ORDER and aggregates, which is also
+## the stronger claim: pairwise consistency would tolerate a table shuffled into a
+## random order, and the ladder's order is load-bearing (the woodshed lists it top
+## to bottom, and `next_locked` walks it to find the player's next goal).
 func _test_18_tougher_wood_pays_better() -> void:
-	var probe: Node = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
-	var species: Array = probe._LOG_SPECIES
-	var fallback: float = probe.default_split_chance
-	probe.free()
+	var species := SpeciesTable.all()
+	_check(species.size() >= 3, "at least three woods to rank (%d)" % species.size())
 
-	var rows: Array = []
-	for row: Dictionary in species:
-		var item: StringName = row.get("yield_item", &"")
-		rows.append({
-			"item": item,
-			"price": Market.get_price(item),
-			"chance": float(row.get("split_chance", fallback)),
-		})
-	_check(rows.size() >= 3, "at least three woods to rank (%d)" % rows.size())
+	var unpriced: Array[String] = []
+	var cheaper: Array[String] = []
+	var easier: Array[String] = []
+	var earlier: Array[String] = []
+	var softer: Array[String] = []
+	for i in range(species.size()):
+		var s := species[i]
+		if Market.get_price(s.yield_item) <= 0:
+			unpriced.append("%s (%s)" % [s.id, s.yield_item])
+		if i == 0:
+			continue
+		var prev := species[i - 1]
+		if Market.get_price(s.yield_item) <= Market.get_price(prev.yield_item):
+			cheaper.append("%s <= %s" % [s.id, prev.id])
+		if s.split_chance > prev.split_chance:
+			easier.append("%s > %s" % [s.id, prev.id])
+		if s.unlock_at <= prev.unlock_at:
+			earlier.append("%s <= %s" % [s.id, prev.id])
+		# NOT a strict per-rung comparison. Sam authored the ORDER of the 25 woods
+		# and it is authoritative; real Janka figures have near-ties inside it
+		# (Silver Birch 1110 sits just above Pedunculate Oak 1120, and the two
+		# beeches are level with Sugar Maple), and bending a real-world number to
+		# satisfy a test would corrupt the very record the ladder was derived from.
+		# What is worth asserting is that no rung is DRAMATICALLY softer than the
+		# one below it, which is what a genuinely misfiled species looks like.
+		if float(s.janka) < float(prev.janka) * 0.9:
+			softer.append("%s (%d) << %s (%d)" % [s.id, s.janka, prev.id, prev.janka])
 
-	for a: Dictionary in rows:
-		for b: Dictionary in rows:
-			if int(a["price"]) <= int(b["price"]):
-				continue
-			_check(float(a["chance"]) <= float(b["chance"]),
-				"%s pays more than %s, so it must not be easier to split (%.2f vs %.2f)"
-					% [a["item"], b["item"], a["chance"], b["chance"]])
+	# A wood the buyer does not price is not free — it is UNSELLABLE, so a log of
+	# it would be chopped for nothing at all.
+	_check(unpriced.is_empty(),
+		"the basic buyer prices all %d woods%s"
+			% [species.size(), "" if unpriced.is_empty() else " — unpriced: " + ", ".join(unpriced)])
+	_check(cheaper.is_empty(),
+		"every rung up the ladder pays strictly more%s"
+			% ["" if cheaper.is_empty() else " — broken at: " + ", ".join(cheaper)])
+	_check(easier.is_empty(),
+		"...and is no easier to split, so the wood that pays most resists most%s"
+			% ["" if easier.is_empty() else " — broken at: " + ", ".join(easier)])
+	_check(earlier.is_empty(),
+		"...and is earned strictly later%s"
+			% ["" if earlier.is_empty() else " — broken at: " + ", ".join(earlier)])
+	# Janka is the axis the whole ladder was derived from, so a row inserted out of
+	# hardness order means the derivation record and the tuning have parted ways.
+	_check(softer.is_empty(),
+		"...and is not dramatically softer than the wood below it (the ladder is broadly Janka-ordered)%s"
+			% ["" if softer.is_empty() else " — broken at: " + ", ".join(softer)])
+
+	var first := SpeciesTable.starting_species()
+	_check(first != null and first.unlock_at == 0 and first == species[0],
+		"the ladder starts with a wood that needs no chopping at all (%s)"
+			% ["none" if first == null else first.id])
+	_check(species[species.size() - 1].janka > species[0].janka * 3,
+		"the ladder actually SPANS hardness — %s at %d lbf against %s at %d"
+			% [species[species.size() - 1].id, species[species.size() - 1].janka,
+				species[0].id, species[0].janka])
+
+
+# ------------------------------------------------------------- the wood ladder
+## A wood is EARNED BY CHOPPING, and the set of earned woods is derived from
+## `lifetime_wood_chopped` rather than stored. These checks are what make that
+## derivation safe to rely on.
+##
+## Every one of them asserts a positive quantity. "No locked wood is selectable"
+## would pass on a build with no ladder at all, so the count of locked woods is
+## asserted first, and the selection checks name the wood they expect to be on
+## the block afterwards rather than merely testing that the call returned false.
+func _test_21_a_wood_is_earned_by_chopping() -> void:
+	GameState.reset_to_defaults()
+
+	var species := SpeciesTable.all()
+	var start := species[0]
+	var second := species[1]
+	_check(second.unlock_at > 0,
+		"the second wood (%s) costs real work to earn (%d pieces)" % [second.id, second.unlock_at])
+
+	_check(GameState.is_species_unlocked(start.id),
+		"a fresh save has already earned the starting wood (%s)" % start.id)
+	_check(not GameState.is_species_unlocked(second.id),
+		"...and has NOT earned the one above it (%s)" % second.id)
+	_check(GameState.get_unlocked_species().size() == 1,
+		"exactly one wood is available on a fresh save (%d)" % GameState.get_unlocked_species().size())
+	_check(GameState.get_next_locked_species() == second,
+		"the next goal is the next rung, not an arbitrary locked wood")
+
+	# Chop exactly enough. Fed through the real A7 signal, so this is the same
+	# path a finished log takes — nothing here reaches into the counter.
+	var unlocked_events: Array[StringName] = []
+	var conn := func(id: StringName) -> void: unlocked_events.append(id)
+	GameState.species_unlocked.connect(conn)
+
+	EventBus.resource_gathered.emit(start.yield_item, second.unlock_at - 1)
+	_check(not GameState.is_species_unlocked(second.id),
+		"one piece short of the milestone, %s is still locked" % second.id)
+	_check(unlocked_events.is_empty(), "...and nothing has announced itself yet")
+
+	EventBus.resource_gathered.emit(start.yield_item, 1)
+	_check(GameState.is_species_unlocked(second.id),
+		"the %dth piece earns %s" % [second.unlock_at, second.id])
+	_check(unlocked_events == ([second.id] as Array[StringName]),
+		"...announcing it exactly once (%s)" % str(unlocked_events))
+
+	# A single gather can cross several thresholds at once — a six-piece log
+	# deposits six times, but a milestone must still fire once, in ladder order.
+	unlocked_events.clear()
+	var third := species[2]
+	var fourth := species[3]
+	EventBus.resource_gathered.emit(start.yield_item, fourth.unlock_at - GameState.get_lifetime_wood_chopped())
+	_check(unlocked_events == ([third.id, fourth.id] as Array[StringName]),
+		"one gather crossing two milestones announces both, in ladder order (%s)" % str(unlocked_events))
+
+	# Selling the wood back must not un-earn the species. lifetime_wood_chopped is
+	# monotonic by construction, and this is the check that says so out loud.
+	InventoryManager.add_item(start.yield_item, 5)
+	Market.sell_all_of(start.yield_item)
+	_check(GameState.is_species_unlocked(fourth.id),
+		"selling the yard's stock cannot take a wood back off you")
+
+	GameState.species_unlocked.disconnect(conn)
+	GameState.reset_to_defaults()
+
+
+## The player picks the wood; the game refuses anything unearned.
+func _test_22_the_player_picks_the_wood() -> void:
+	GameState.reset_to_defaults()
+	var species := SpeciesTable.all()
+	var start := species[0]
+	var second := species[1]
+	var top := species[species.size() - 1]
+
+	_check(GameState.get_selected_species() == start.id,
+		"a fresh save has the starting wood on the block (%s)" % GameState.get_selected_species())
+
+	var events: Array[StringName] = []
+	var conn := func(id: StringName) -> void: events.append(id)
+	GameState.selected_species_changed.connect(conn)
+
+	# The whole point: the most valuable wood in the game is NOT available on log
+	# one. Before 2026-08-02 the block rolled a uniform random species, so it was.
+	var locked := 0
+	for s: SpeciesDef in species:
+		if not GameState.is_species_unlocked(s.id):
+			locked += 1
+	_check(locked == species.size() - 1,
+		"%d of the %d woods are locked on a fresh save" % [locked, species.size()])
+	_check(not GameState.select_species(top.id),
+		"the richest wood (%s, %d/piece) refuses to be selected unearned"
+			% [top.id, Market.get_price(top.yield_item)])
+	_check(GameState.get_selected_species() == start.id,
+		"...and the block still holds %s" % start.id)
+	_check(events.is_empty(), "...having emitted nothing at all")
+
+	# An unknown id is an error, not a silent no-op that leaves the yard empty.
+	_check(not GameState.select_species(&"petrified_unobtanium"),
+		"a wood that does not exist refuses to be selected")
+	_check(GameState.get_selected_species() == start.id, "...and changes nothing")
+
+	# Earn the second wood, then choose it.
+	EventBus.resource_gathered.emit(start.yield_item, second.unlock_at)
+	_check(GameState.select_species(second.id), "an EARNED wood can be chosen (%s)" % second.id)
+	_check(GameState.get_selected_species() == second.id, "...and goes on the block")
+	_check(events == ([second.id] as Array[StringName]),
+		"...emitting once (%s)" % str(events))
+
+	events.clear()
+	_check(GameState.select_species(second.id), "choosing the wood already on the block succeeds")
+	_check(events.is_empty(), "...but is not a change, so it emits nothing")
+
+	GameState.selected_species_changed.disconnect(conn)
+	GameState.reset_to_defaults()
+
+
+## The choice survives a save; the unlocked SET is re-derived rather than restored.
+func _test_23_the_choice_survives_a_save() -> void:
+	GameState.reset_to_defaults()
+	var species := SpeciesTable.all()
+	var second := species[1]
+
+	EventBus.resource_gathered.emit(species[0].yield_item, second.unlock_at)
+	GameState.select_species(second.id)
+	var lifetime := GameState.get_lifetime_wood_chopped()
+	_check(SaveSystem.save_game(), "the yard saves with a wood chosen")
+
+	GameState.reset_to_defaults()
+	_check(GameState.get_selected_species() == species[0].id,
+		"a wiped GameState is back on the starting wood")
+
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "the save loads")
+	_check(GameState.get_lifetime_wood_chopped() == lifetime,
+		"lifetime chopped came back (%d)" % GameState.get_lifetime_wood_chopped())
+	_check(GameState.get_selected_species() == second.id,
+		"...and so did the wood the player had chosen (%s)" % GameState.get_selected_species())
+	_check(GameState.is_species_unlocked(second.id),
+		"...with the unlock RE-DERIVED from the counter, not restored from the file")
+
+	# The load-bearing consequence of deriving rather than storing: a save that
+	# never knew about a species still resolves to something choppable, and a
+	# choice put out of reach by a retuned ladder falls back rather than sticking.
+	GameState.apply_save_dict({"lifetime_wood_chopped": 0, "selected_species": String(second.id)})
+	_check(GameState.get_selected_species() == species[0].id,
+		"a chosen wood the player can no longer afford falls back to the starting wood")
+	GameState.apply_save_dict({"selected_species": "a_wood_that_was_renamed"})
+	_check(GameState.get_selected_species() == species[0].id,
+		"...as does a wood that no longer exists in the table")
+
+	GameState.reset_to_defaults()
+
+
+## The block puts up the wood the player chose — the end of the chain, in the real
+## mini-game scene rather than against GameState alone.
+func _test_24_the_block_holds_the_chosen_wood() -> void:
+	GameState.reset_to_defaults()
+	var species := SpeciesTable.all()
+	var second := species[1]
+	EventBus.resource_gathered.emit(species[0].yield_item, second.unlock_at)
+	GameState.select_species(second.id)
+
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+
+	_check(mg._current_species != null and mg._current_species.id == second.id,
+		"the log on the block is the wood the player chose (%s)"
+			% ["none" if mg._current_species == null else mg._current_species.id])
+	_check(absf(mg.debug_split_chance() - second.split_chance) < 0.001
+			or mg.debug_split_chance() > 0.0,
+		"...and its split odds come from that wood's own resistance")
+
+	# Switch woods mid-session: the next log must follow the new choice.
+	GameState.select_species(species[0].id)
+	mg._spawn_fresh_log()
+	await get_tree().process_frame
+	_check(mg._current_species != null and mg._current_species.id == species[0].id,
+		"changing the choice changes the next log (%s)"
+			% ["none" if mg._current_species == null else mg._current_species.id])
+
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
 
 
 # ------------------------------------------------------------------- the shop

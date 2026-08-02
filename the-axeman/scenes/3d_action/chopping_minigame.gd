@@ -11,7 +11,8 @@ extends Node3D
 ## once the POC was feel-approved and folded in — no reason left to carry the POC
 ## name on the live script). When a log is fully chopped and its firewood settles,
 ## each finished piece is deposited into InventoryManager as the log species'
-## yield item (A7 resource_gathered — see _LOG_SPECIES and _begin_stacking).
+## yield item (A7 resource_gathered — see res://data/species_table.tres and
+## _begin_stacking).
 ##
 ## Amendment-6 SLICING PROOF-OF-CONCEPT, re-architected (2026-07-19) to match the
 ## reference firewood chopper's FEEL, not just its fall rules. The reference is
@@ -50,68 +51,32 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 ## here is unchanged — every helper below is the same implementation, relocated.
 const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 
-# --- log species (data-driven; scales to many woods) ----------------------
-## Each row is a WOOD SPECIES: the meshes a log of it can be cut from, and the
-## item it yields when chopped into firewood. This is the ONLY place a wood type
-## is declared — add a row to add a species, add a path to add log variety.
+# --- log species ---------------------------------------------------------
+## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
+## res://data/species_def.gd, read through SpeciesTable's static helpers.
 ##
-## `meshes` is a LIST, not a single path, so a species can have many authored log
-## shapes without skewing which wood turns up: the species is picked first and a
-## shape second. Six birch meshes as six rows would have made three quarters of
-## every yard birch.
+## Until 2026-08-02 this was a `_LOG_SPECIES` const right here — three rows of
+## dictionary literal. It moved the day Sam named all 25 woods of the finished
+## game, for two reasons a three-row const never had to answer:
+##   - twenty-five rows of literal do not belong in a gameplay script; and
+##   - the YARD HUD has to list species to let the player choose one, and it is
+##     2D-side (A9) — it must never import this file to find out what wood is.
 ##
-## `yield_item` MUST be a registered id (res://data/item_registry.tres); a
-## finished log deposits it into InventoryManager once per firewood piece (see
-## _begin_stacking).
+## Nothing about how a species is USED changed. A row is still picked first and a
+## SHAPE second, so a wood with six authored meshes never turns up more often
+## than a wood with one; `yield_item` is still what a finished piece deposits;
+## `inside_tex`/`inside_normal`/`inside_tint` still describe the cut face, which
+## is generated here at runtime and is not the FBX's business.
 ##
-## The log's OUTSIDE (bark and ends) comes from the FBX's own materials, so a new
-## species looks like itself the moment it is imported. The CUT FACE does not —
-## it is generated at runtime, so each row also names the inside look:
-##
-##   `inside_tex` / `inside_normal`  the exposed inside grain. These are sampled with
-##       a TILING, metres-based UV mapping (see the 2026-07-27 slicer bugfix note),
-##       so they MUST be tileable textures — a log-end "disc" texture repeats into
-##       a grid of discs and looks wrong. Omit to fall back to the oak set.
-##   `inside_tint`  albedo multiplier over that texture. PLACEHOLDER per Directive 3
-##       wherever it is not Color.WHITE: it is standing in for a species' real
-##       tileable inside texture until Sam authors one.
-##
-## log_02 is mapped to pine_firewood purely to DEMONSTRATE per-log yields — it still
-## wears oak art. Remap freely.
-## `split_chance` is how likely ONE swing is to cleave a WHOLE log of this wood
-## (2026-08-01: a swing is no longer a guaranteed split — see the Splitting group
-## below). PLACEHOLDERS per Directive 3, laid out to follow the price ladder, so
-## the wood that pays most resists most: pine 2 cash and easy, oak 5 and middling,
-## birch 10 and stubborn. Omitted = `default_split_chance`.
-const _LOG_SPECIES: Array[Dictionary] = [
-	{"meshes": ["res://assets/models/logs_export/log_01.fbx"], "yield_item": &"oak_firewood", "split_chance": 0.55},
-	{"meshes": ["res://assets/models/logs_export/log_02.fbx"], "yield_item": &"pine_firewood", "split_chance": 0.75},
-	# Birch (Sam's drop, 2026-08-01): SIX authored log shapes, one species. Bark
-	# and authored ends come from each FBX's own embedded materials; the CUT
-	# faces use Sam's tileable birch inside grain, so a split birch log is pale
-	# inside instead of oak-coloured.
-	{
-		"meshes": [
-			"res://assets/models/logs_export/birch_log_01.fbx",
-			"res://assets/models/logs_export/birch_log_02.fbx",
-			"res://assets/models/logs_export/birch_log_03.fbx",
-			"res://assets/models/logs_export/birch_log_04.fbx",
-			"res://assets/models/logs_export/birch_log_05.fbx",
-			"res://assets/models/logs_export/birch_log_06.fbx",
-		],
-		"yield_item": &"birch_firewood",
-		"split_chance": 0.4,
-		"inside_tex": "res://assets/textures/wood_birch/birch_inside_tilable.png",
-		"inside_normal": "res://assets/textures/wood_birch/birch_inside_tilable_normal.png",
-	},
-]
+## WHICH wood turns up is no longer random. The player chooses it in the yard and
+## GameState owns that choice — see _pick_species_index().
 
 # --- infrastructure (unchanged geometry/material setup) -------------------
 @export var log_height := 0.42            # finished height of a log standing on the block (m)
 @export var stump_scale := 0.376         # scales chopping_stump_a so its top sits at the log rest height (~0.5m)
 @export var camera_step_deg := 30.0
 @export var orbit_time := 0.25
-@export var debug_forced_species := -1   # -1 = random each log; >=0 forces a _LOG_SPECIES index (headless tests only)
+@export var debug_forced_species := -1   # -1 = whatever the player picked; >=0 forces a species_table.tres LADDER INDEX (headless tests + shots)
 @export var debug_forced_mesh := -1      # -1 = random shape within the species; >=0 forces one (tests + species_shot)
 
 # --- fall classification (the reference rule) -----------------------------
@@ -273,13 +238,14 @@ var _axe: AxeRig
 var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
+var _bark_mats: Dictionary = {}           # "species index|source material id" -> tinted duplicate (see _apply_bark_tint)
 var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
 var _scar_meshes: Dictionary = {}         # species index -> ArrayMesh: the gouge a failed swing leaves
 var _phys_mat: PhysicsMaterial
 var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut faces
 var _stump_top_y := 0.5
 var _stump_radius := 0.4
-var _current_species: Dictionary = {}   # the species row of the log currently on the block; drives the yield item
+var _current_species: SpeciesDef = null   # the species of the log currently on the block; drives the yield item
 
 
 func _ready() -> void:
@@ -427,8 +393,9 @@ func _pile_plan() -> Dictionary:
 	var yard := GameState.get_yard_pile()
 	var counts: Dictionary = {}
 	var total := 0
-	for i in range(_LOG_SPECIES.size()):
-		var item: StringName = _LOG_SPECIES[i].get("yield_item", &"")
+	var list := SpeciesTable.all()
+	for i in range(list.size()):
+		var item: StringName = &"" if list[i] == null else list[i].yield_item
 		if item == &"":
 			continue
 		var n := int(yard.get(item, 0))
@@ -472,13 +439,16 @@ func _specimens_for(species_index: int) -> Array:
 	if _specimens.has(species_index):
 		return _specimens[species_index]
 	var out: Array = []
-	var row: Dictionary = _LOG_SPECIES[species_index] if species_index >= 0 and species_index < _LOG_SPECIES.size() else {}
-	var paths: Array = row.get("meshes", [])
+	var row := SpeciesTable.at(species_index)
+	var paths := PackedStringArray() if row == null else row.meshes
 	var mat := _cut_mat_for(species_index)
 	# Two shapes is enough variety for a pile; six would be six FBX loads for
 	# pieces that are mostly buried in the stack.
 	for p_idx in range(mini(2, paths.size())):
-		var whole := MeshUtils.centered(_build_split_log(paths[p_idx]))
+		# Tinted like the log it came off, or a stand-in species' pile would be
+		# oak-coloured next to the oak-coloured billets it just chopped.
+		var whole := _apply_bark_tint(
+			MeshUtils.centered(_build_split_log(paths[p_idx])), species_index)
 		var billet := _quarter(whole, mat)
 		if billet != null:
 			out.append(billet)
@@ -595,7 +565,7 @@ func _begin_stacking() -> void:
 	# This is the single batch-collect point (it mirrors the retired authored
 	# block's collect semantics); unregistered ids are errored+ignored by
 	# InventoryManager, so an empty/typo yield is safe.
-	var yield_item: StringName = _current_species.get("yield_item", &"")
+	var yield_item: StringName = &"" if _current_species == null else _current_species.yield_item
 	if yield_item != &"":
 		for _p in proxies:
 			EventBus.resource_gathered.emit(yield_item, 1)
@@ -713,7 +683,7 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 ##   + the scars already in it, + every level of the strength upgrade,
 ##   capped so a swing is never a certainty.
 func split_chance_for(piece: Area3D) -> float:
-	var base: float = _current_species.get("split_chance", default_split_chance)
+	var base: float = default_split_chance if _current_species == null else _current_species.split_chance
 
 	# Size relief: a fresh log is the full fight, a small billet much less of one.
 	# Measured against the log this piece came from, so it is a fraction of THIS
@@ -843,11 +813,11 @@ func _scar_mesh() -> ArrayMesh:
 	return mesh
 
 
-func _species_index_of(row: Dictionary) -> int:
-	for i in range(_LOG_SPECIES.size()):
-		if _LOG_SPECIES[i] == row:
-			return i
-	return 0
+func _species_index_of(row: SpeciesDef) -> int:
+	if row == null:
+		return 0
+	var i := SpeciesTable.index_of(row.id)
+	return i if i >= 0 else 0
 
 
 ## Seconds the player must wait between swings, after the coffee. Compounding, so
@@ -1216,9 +1186,10 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	# Select the next log's species — the species is what this log will yield,
 	# and what its exposed end-grain looks like when it is cut.
 	var species_index := _pick_species_index()
-	_current_species = _LOG_SPECIES[species_index]
+	_current_species = SpeciesTable.at(species_index)
 	_cut_mat = _cut_mat_for(species_index)
-	_source_mesh = _center_mesh(_build_split_log(_pick_mesh(_current_species)))
+	_source_mesh = _apply_bark_tint(
+		_center_mesh(_build_split_log(_pick_mesh(_current_species))), species_index)
 
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
 	var rest_y := _stump_top_y + half_h
@@ -1302,17 +1273,60 @@ func _make_planar(tex: Texture2D) -> StandardMaterial3D:
 func _cut_mat_for(species_index: int) -> StandardMaterial3D:
 	if _cut_mats.has(species_index):
 		return _cut_mats[species_index]
-	var row: Dictionary = _LOG_SPECIES[species_index] if species_index >= 0 and species_index < _LOG_SPECIES.size() else {}
+	var row := SpeciesTable.at(species_index)
 	# Paths, not preloaded Textures, so a row reads the same way as its "mesh".
-	var albedo := _tex_or(row.get("inside_tex", ""), _TEX_INSIDE)
-	var normal := _tex_or(row.get("inside_normal", ""), _TEX_INSIDE_N)
+	var albedo := _tex_or("" if row == null else row.inside_tex, _TEX_INSIDE)
+	var normal := _tex_or("" if row == null else row.inside_normal, _TEX_INSIDE_N)
 	var mat := _make_planar(albedo)
 	mat.normal_enabled = true
 	mat.normal_texture = normal
 	mat.normal_scale = 1.0
-	mat.albedo_color = row.get("inside_tint", Color.WHITE)
+	mat.albedo_color = Color.WHITE if row == null else row.inside_tint
 	_cut_mats[species_index] = mat
 	return mat
+
+
+## Tint a log's OWN BARK, for a species that is wearing another wood's art.
+##
+## ART DEBT, 2026-08-02: Sam named 25 woods and there are two sets of log art
+## (oak and birch), so 22 species point at the oak FBXs. Identical logs would
+## make the wood selector meaningless — the player picks a wood and the block
+## must look like it changed — so each stand-in species carries a `bark_tint`
+## that multiplies the imported bark. WHITE means "this species has its own art,
+## leave it alone", and is where every row should end up once Sam has modelled it.
+##
+## THE MATERIAL MUST BE DUPLICATED, and this is the trap worth naming: an
+## imported FBX's materials are shared by REFERENCE — MeshUtils.transformed_by
+## carries `surface_get_material` straight across, and mesh_from_path re-reads
+## the same imported resource every time. Tinting in place would not tint this
+## log; it would tint that FBX's material for the whole process, so every species
+## sharing the art would drift to whichever wood was loaded last, and the change
+## would outlive the log. Duplicates are cached per (species, source material) for
+## the same reason `_cut_mat_for` caches: a fresh instance per log would be a
+## fresh material per log for the renderer to track.
+##
+## Safe against the `jag_cut` reference test, which finds a cut face by comparing
+## `material == _cut_mat`: bark is never the cut material, and a tinted duplicate
+## is still not it.
+func _apply_bark_tint(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
+	var row := SpeciesTable.at(species_index)
+	if row == null or row.bark_tint == Color.WHITE:
+		return mesh                       # this species has its own art
+	for si in range(mesh.get_surface_count()):
+		var src := mesh.surface_get_material(si)
+		if src == null:
+			continue
+		var key := "%d|%d" % [species_index, src.get_instance_id()]
+		if not _bark_mats.has(key):
+			var dup := src.duplicate() as BaseMaterial3D
+			if dup == null:
+				continue                  # a non-BaseMaterial3D (a shader) — leave it be
+			# MULTIPLY, never assign: the imported material may already carry an
+			# albedo of its own, and a tint is a filter over the art, not a repaint.
+			dup.albedo_color = dup.albedo_color * row.bark_tint
+			_bark_mats[key] = dup
+		mesh.surface_set_material(si, _bark_mats[key])
+	return mesh
 
 
 ## Load a texture path, falling back to `fallback` when the row omits it or the
@@ -1436,29 +1450,39 @@ func _translate_mesh(src: Mesh, offset: Vector3) -> ArrayMesh:
 	return MeshUtils.translated(src, offset)
 
 
-## Which species the next log will be: forced index for headless tests,
-## otherwise a random pick. The species row drives both the mesh and the yield.
+## Which species the next log will be.
+##
+## THE PLAYER CHOOSES THIS (Creative Director call, 2026-08-02 — the wood on the
+## block is picked in the yard, not rolled). It used to be `randi() % size`, which
+## by 2026-08-02 would have handed out Lignum Vitae — the last wood on the ladder
+## — on the player's very first log, for free, at 2600 a piece.
+##
+## GameState owns the choice, and its getter already resolves a save that predates
+## the selector, a deleted species or a choice a retuned ladder put back out of
+## reach, so there is nothing to validate here. `debug_forced_species` still wins,
+## so M4's suite and every shot tool drive an exact wood without touching
+## progression.
 func _pick_species_index() -> int:
-	if debug_forced_species >= 0 and debug_forced_species < _LOG_SPECIES.size():
+	if debug_forced_species >= 0 and debug_forced_species < SpeciesTable.count():
 		return debug_forced_species
-	return randi() % _LOG_SPECIES.size()
+	var index := SpeciesTable.index_of(GameState.get_selected_species())
+	return index if index >= 0 else 0
 
 
 ## Which authored log SHAPE of that species turns up. Picked separately from the
 ## species so log variety never changes how often a wood appears.
-func _pick_mesh(species_row: Dictionary) -> String:
-	var meshes: Array = species_row.get("meshes", [])
-	if meshes.is_empty():
-		push_error("chopping_minigame: species '%s' lists no meshes." % species_row.get("yield_item", "?"))
+func _pick_mesh(species: SpeciesDef) -> String:
+	if species == null or species.meshes.is_empty():
+		push_error("chopping_minigame: species '%s' lists no meshes." % ("?" if species == null else species.id))
 		return ""
-	if debug_forced_mesh >= 0 and debug_forced_mesh < meshes.size():
-		return meshes[debug_forced_mesh]
-	return meshes[randi() % meshes.size()]
+	if debug_forced_mesh >= 0 and debug_forced_mesh < species.meshes.size():
+		return species.meshes[debug_forced_mesh]
+	return species.meshes[randi() % species.meshes.size()]
 
 
 func _load_log_mesh(variant_path := "") -> Mesh:
 	if variant_path.is_empty():
-		variant_path = _pick_mesh(_LOG_SPECIES[_pick_species_index()])
+		variant_path = _pick_mesh(SpeciesTable.at(_pick_species_index()))
 	return MeshUtils.mesh_from_path(variant_path)
 
 

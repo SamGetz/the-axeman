@@ -128,33 +128,46 @@ func _test_2_slice_geometry_and_hit() -> void:
 	await _drop(mg)
 
 
+## The yield ids are READ FROM THE TABLE, never spelled out here. They used to be
+## literal `oak_firewood`/`pine_firewood`, which quietly encoded "species 0 is
+## oak" — a fact that stopped being true on 2026-08-02 when Sam's 25 woods
+## reordered the ladder by hardness and put Quaking Aspen at index 0. What these
+## tests are actually about is that THE LOG ON THE BLOCK DECIDES THE YIELD, which
+## is exactly as testable without naming the wood.
 func _test_3_chopdown_stocks_inventory() -> void:
-	var mg := await _make_minigame(0)   # species 0 -> oak_firewood
-	var before := InventoryManager.get_count(&"oak_firewood")
+	var item := SpeciesTable.at(0).yield_item
+	var mg := await _make_minigame(0)
+	var before := InventoryManager.get_count(item)
 	_gathered.clear()
 	var firewood := await _drive_to_completion(mg)
 	_check(firewood > 0, "chop-down produced firewood (%d pieces)" % firewood)
 
 	await _wait(2.2)   # settle-timeout (1.5s) + margin, so _begin_stacking runs and collects
-	var after := InventoryManager.get_count(&"oak_firewood")
+	var after := InventoryManager.get_count(item)
 	_check(after - before == firewood,
-		"each finished piece deposits 1 oak_firewood (inventory +%d for %d pieces)" % [after - before, firewood])
-	_check(int(_gathered.get(&"oak_firewood", 0)) == firewood,
-		"resource_gathered fired once per firewood piece (oak_firewood x%d)" % firewood)
-	_check(not _gathered.has(&"pine_firewood"), "an oak log yields no pine_firewood")
+		"each finished piece deposits 1 %s (inventory +%d for %d pieces)" % [item, after - before, firewood])
+	_check(int(_gathered.get(item, 0)) == firewood,
+		"resource_gathered fired once per firewood piece (%s x%d)" % [item, firewood])
+	_check(_gathered.size() == 1,
+		"the first wood on the ladder yields ONLY %s (%d ids gathered)" % [item, _gathered.size()])
 	await _drop(mg)
 
 
 func _test_4_species_drives_yield() -> void:
-	var mg := await _make_minigame(1)   # species 1 -> pine_firewood
-	var before := InventoryManager.get_count(&"pine_firewood")
+	var item := SpeciesTable.at(1).yield_item
+	var other := SpeciesTable.at(0).yield_item
+	_check(item != other,
+		"the first two woods on the ladder yield DIFFERENT items (%s vs %s)" % [other, item])
+
+	var mg := await _make_minigame(1)
+	var before := InventoryManager.get_count(item)
 	_gathered.clear()
 	var firewood := await _drive_to_completion(mg)
 	await _wait(2.2)
-	_check(InventoryManager.get_count(&"pine_firewood") - before == firewood,
-		"a pine log deposits pine_firewood, not oak (the species table drives the yield)")
-	_check(int(_gathered.get(&"pine_firewood", 0)) == firewood and not _gathered.has(&"oak_firewood"),
-		"only the chopped log's species is gathered")
+	_check(InventoryManager.get_count(item) - before == firewood,
+		"species 1's log deposits %s (the species table drives the yield)" % item)
+	_check(int(_gathered.get(item, 0)) == firewood and not _gathered.has(other),
+		"only the chopped log's species is gathered — no %s" % other)
 	await _drop(mg)
 
 
@@ -170,45 +183,94 @@ func _test_4_species_drives_yield() -> void:
 ## asserted first so an emptied table cannot satisfy the loop vacuously, and the
 ## height check asserts the log measures `log_height`, not merely "less than
 ## enormous" — the 2026-07-29 bug shipped a 14 m log past every relative check.
+##
+## SPLIT IN TWO on 2026-08-02, when Sam's 25 woods landed. The row checks still
+## run over EVERY species, but the expensive half — spawning a live scene and
+## measuring the built log — now runs once per DISTINCT MESH PATH rather than
+## once per species. That is not a shortcut, it is the more honest target: 22 of
+## the 25 rows currently point at the same two oak FBXs, so spawning 25 scenes
+## measured the same eight imports twenty-five times over. What can break here is
+## an IMPORT, and there are eight of those.
 func _test_6_species_table_integrity() -> void:
 	var probe: Node = _MINIGAME.instantiate()
-	var species: Array = probe._LOG_SPECIES
 	var target_height: float = probe.log_height
 	probe.free()
 
+	var species := SpeciesTable.all()
 	_check(species.size() >= 2,
 		"the species table holds at least the two shipped woods (%d rows)" % species.size())
 
+	# --- every row, cheaply: a species that yields nothing loses its wood silently
+	var seen_ids: Dictionary = {}
+	var mesh_paths: Array[String] = []
+	var bad_yield: Array[String] = []
+	var no_meshes: Array[String] = []
+	var dupe_ids: Array[String] = []
 	for i in range(species.size()):
-		var row: Dictionary = species[i]
-		var yield_item: StringName = row.get("yield_item", &"")
-		var meshes: Array = row.get("meshes", [])
+		var row := species[i]
+		if row == null:
+			_check(false, "species row %d is null" % i)
+			continue
+		if seen_ids.has(row.id):
+			dupe_ids.append(String(row.id))
+		seen_ids[row.id] = true
+		if row.yield_item == &"" or not InventoryManager.is_valid_id(row.yield_item):
+			bad_yield.append("%s -> '%s'" % [row.id, row.yield_item])
+		if row.meshes.is_empty():
+			no_meshes.append(String(row.id))
+		for p in row.meshes:
+			if not mesh_paths.has(p):
+				mesh_paths.append(p)
 
-		_check(yield_item != &"" and InventoryManager.is_valid_id(yield_item),
-			"species %d ('%s') yields a REGISTERED item id" % [i, yield_item])
-		_check(not meshes.is_empty(),
-			"species %d ('%s') lists at least one log mesh (%d)" % [i, yield_item, meshes.size()])
+	_check(bad_yield.is_empty(),
+		"all %d species yield a REGISTERED item id%s"
+			% [species.size(), "" if bad_yield.is_empty() else " — unregistered: " + ", ".join(bad_yield)])
+	_check(no_meshes.is_empty(),
+		"all %d species list at least one log mesh%s"
+			% [species.size(), "" if no_meshes.is_empty() else " — empty: " + ", ".join(no_meshes)])
+	_check(dupe_ids.is_empty(),
+		"every species id is unique%s"
+			% ["" if dupe_ids.is_empty() else " — repeated: " + ", ".join(dupe_ids)])
 
-		# One live scene per species, then every AUTHORED SHAPE of that species
-		# built through the same code path. Log variety is exactly where a bad
-		# import hides: five good meshes and one broken one still spawns fine
-		# five times out of six.
-		var mg := await _make_minigame(i)
-		_check(mg.cuttable_count() == 1,
-			"species %d ('%s') spawns exactly one cuttable piece" % [i, yield_item])
+	# --- every authored SHAPE, through the real code path. Log variety is exactly
+	# where a bad import hides: five good meshes and one broken one still spawns
+	# fine five times out of six.
+	_check(mesh_paths.size() >= 2,
+		"the table names at least two distinct log meshes (%d)" % mesh_paths.size())
 
-		for m in range(meshes.size()):
-			var label: String = String(meshes[m]).get_file()
-			var built: Mesh = mg._center_mesh(mg._build_split_log(meshes[m]))
-			if built == null:
-				_check(false, "  %s builds a log mesh" % label)
-				continue
-			var size: Vector3 = built.get_aabb().size
-			_check(absf(size.y - target_height) <= 0.001,
-				"  %s stands %.3f m on the block, as authored (%.2f m)" % [label, size.y, target_height])
-			_check(size.x > 0.05 and size.z > 0.05,
-				"  %s has real girth (%.3f x %.3f m), not a degenerate import" % [label, size.x, size.z])
-		await _drop(mg)
+	var mg := await _make_minigame(0)
+	_check(mg.cuttable_count() == 1, "the block spawns exactly one cuttable piece")
+	for path in mesh_paths:
+		var label := path.get_file()
+		var built: Mesh = mg._center_mesh(mg._build_split_log(path))
+		if built == null:
+			_check(false, "  %s builds a log mesh" % label)
+			continue
+		var size: Vector3 = built.get_aabb().size
+		_check(absf(size.y - target_height) <= 0.001,
+			"  %s stands %.3f m on the block, as authored (%.2f m)" % [label, size.y, target_height])
+		_check(size.x > 0.05 and size.z > 0.05,
+			"  %s has real girth (%.3f x %.3f m), not a degenerate import" % [label, size.x, size.z])
+	await _drop(mg)
+
+	# --- and every species still SPAWNS, which the row checks alone cannot prove:
+	# a row can name a registered item and a real mesh and still fail to reach the
+	# block. Cheap (no cutting, no physics), so it stays exhaustive.
+	var spawned := 0
+	var failed: Array[String] = []
+	for i in range(species.size()):
+		var one := await _make_minigame(i)
+		if one.cuttable_count() == 1:
+			spawned += 1
+		else:
+			failed.append("%d/%s" % [i, species[i].id])
+		one.queue_free()
+		await get_tree().process_frame
+	# Asserts the COUNT, not "nothing failed": an empty table, or a loop that
+	# silently stopped spawning, would satisfy a no-failures check vacuously.
+	_check(spawned == species.size() and spawned > 0,
+		"all %d species spawn a log on the block (%d did%s)"
+			% [species.size(), spawned, "" if failed.is_empty() else " — failed: " + ", ".join(failed)])
 
 
 func _test_5_budget_cap_and_timeout() -> void:
