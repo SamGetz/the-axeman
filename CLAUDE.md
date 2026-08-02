@@ -657,23 +657,57 @@ it, cash buys it" when asked directly.
   (0 → 300M), every `xp_reward` (8 → 56,000), and every skill cost/step except
   Sam's two 5%s. These want tuning together against real play, not one at a time.
 - **THE GREEN XP ORBS** (`res://scenes/3d_action/xp_orb.gd`, `class_name XPOrb`).
-  Two phases, because that is what reads as Minecraft: a SCATTER off the block on
-  a little ballistic arc, then a DRAW that accelerates into the camera (the
-  player). Script-animated, not physics — A12 caps active rigid bodies and
-  spending that budget on confetti would push real firewood out of the sim. One
-  shared mesh and material across every orb ever spawned. UNSHADED for the same
-  reason the failure scar is: an orb is a light source in the fiction, and a lit
-  one would go dim in the stump's shadow, which is exactly where they are born.
+  **REVISED 2026-08-02** (Creative Director call: *"the experience should explode
+  out a little and fall on to then bounce a little the ground near the log for a
+  moment before flying to camera"*, *"pop out the moment the final piece is split,
+  so all the collecting happens at once"*, *"arc towards the player, not just a
+  direct line"*, *"glow a tiny amount as well and be a little transparent"*). FOUR
+  phases now: BURST off the block, BOUNCE on the yard floor, a REST beat lying in
+  the dirt, then an ARCING DRAW into the camera. Script-animated, not physics —
+  A12 caps active rigid bodies and spending that budget on confetti would push
+  real firewood out of the sim. One shared mesh, halo and material across every
+  orb ever spawned. UNSHADED for the same reason the failure scar is: an orb is a
+  light source in the fiction, and a lit one would go dim in the stump's shadow,
+  which is exactly where they are born.
+- **The burst and the bounce are INTEGRATED, not lerped.** A bounce is the one
+  thing a keyframed path cannot fake — the second hop has to be a consequence of
+  the first landing, or every orb bounces identically. Only the rush home is eased
+  by hand, since that one is a magnet and not physics. The horizontal speed is
+  solved from each orb's OWN fall time so its first touchdown lands in a ring
+  OUTSIDE the stump: an orb that lands on the block it came off is the one thing
+  the effect cannot survive looking like.
+- **`orb_collect_at` is shared by the whole burst**, so the handful leaves the
+  ground together ("all the collecting happens at once"). The first cut of this had
+  a per-orb rest timer, which stacked on top of each orb's own landing time and
+  dribbled them home one at a time — visible instantly in `orb_shot`, invisible to
+  any counter. `orb_stagger` is now tiny (0.012) for the same reason: it exists
+  only so they do not all leave on one identical frame.
+- **`_ABSORB_DIST` (0.4 m) is not cosmetic trimming.** Flying to the camera's exact
+  position means arriving at zero distance, where angular size explodes and a 2 cm
+  bead becomes a flat green slab across a quarter of the screen. `orb_shot` caught
+  exactly that: every orb correct, two of them billboards in the lens.
+- **UNSHADED MEANS `emission` IS NEVER READ** — an unshaded surface outputs albedo
+  and nothing else, so the emission settings this shipped with did nothing. The
+  glow is a real object: a small additive billboard quad wearing a code-built
+  radial `GradientTexture2D`, because screen-space glow is not something to rely on
+  under gl_compatibility. `billboard_keep_scale` is load-bearing — billboarding
+  rebuilds the basis, and without it the draw phase's shrink is thrown away and the
+  halo arrives at the camera full size.
 - **THE ORB IS THE RECEIPT, NOT THE PAYMENT.** XP is banked the instant the log is
-  finished, never on absorption — quitting during the half-second of flight must
-  not cost the player the log they just chopped, and the save must not disagree
-  with what they watched happen.
+  finished, never on absorption — quitting during the second of flight must not
+  cost the player the log they just chopped, and the save must not disagree with
+  what they watched happen. Since 2026-08-02 that instant is the FINAL SPLIT
+  (the tail of `_perform_split`), not `_begin_stacking`: the settle wait is up to
+  `firewood_settle_timeout` long, so awarding there put the reward a beat behind
+  the swing that earned it. It is still ONE award per log.
 - **How many orbs is a CURVE, not a ratio:** `sqrt(xp) * density`, clamped 5–16.
   A log worth 8 XP and one worth 56,000 both have to read as "a handful"; one orb
   per XP would bury the late game in confetti.
 - **`core/tools/orb_shot.tscn` catches the burst MID-FLIGHT — RUN NON-HEADLESS.**
   A count of orbs proves nothing about an effect whose whole job is to feel like
-  being paid. Run it on any orb change.
+  being paid. It shoots all four phases; run it on any orb change. Both bugs in the
+  2026-08-02 revision (the dribbling wave, the orbs in the lens) were found in its
+  PNGs and were invisible everywhere else.
 
 - Still to do in M7A: three authored orders and three more upgrades. Both are
   blocked on tuning values (Directive 3). The unlockable-species requirement is

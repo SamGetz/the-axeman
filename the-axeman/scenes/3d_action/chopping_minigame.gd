@@ -85,8 +85,13 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 @export var orb_density := 2.2
 @export var orb_count_min := 5
 @export var orb_count_max := 16
-@export var orb_stagger := 0.035     # seconds between orbs leaving the block
-@export var orb_scatter_radius := 0.32
+## Tiny ON PURPOSE: the burst is ONE event ("all the collecting happens at once"),
+## and this exists only so the orbs do not leave on a single identical frame.
+@export var orb_stagger := 0.012     # seconds between orbs leaving the block
+## Age at which the whole handful lifts off the ground for the player, shared by
+## every orb in the burst — the beat they spend lying in the dirt. PLACEHOLDER.
+@export var orb_collect_at := 0.85
+@export var orb_scatter_radius := 0.32   # smallest ring the burst lands in; widened to clear the stump
 @export_group("")
 
 @export var debug_forced_species := -1   # -1 = whatever the player picked; >=0 forces a species_table.tres LADDER INDEX (headless tests + shots)
@@ -583,11 +588,8 @@ func _begin_stacking() -> void:
 		for _p in proxies:
 			EventBus.resource_gathered.emit(yield_item, 1)
 
-	# EXPERIENCE IS PER LOG, NOT PER PIECE (Creative Director call, 2026-08-02:
-	# the orbs drop "when the log is finally split"). One award, at the one moment
-	# the log is finished, which is also the moment the orbs burst — so the number
-	# going up and the thing on screen are the same event rather than two.
-	_award_log_xp()
+	# NOTE the experience is NOT awarded here. It is per log, not per piece, and it
+	# is paid at the final split — see the tail of _perform_split.
 
 	_stacking = true
 	# Each piece pays out as it comes to rest, so the cash ticks up in the same
@@ -596,6 +598,11 @@ func _begin_stacking() -> void:
 
 
 ## The finished log's experience, plus whatever the skill tree adds to it.
+##
+## EXPERIENCE IS PER LOG, NOT PER PIECE (Creative Director call, 2026-08-02: the
+## orbs drop "when the log is finally split"). ONE award, fired from the split that
+## empties the block — the same instant the orbs burst, so the number going up and
+## the thing on screen are one event rather than two.
 ##
 ## Gated on `auto_sell` with the cash payout: that flag means "the yard's payouts
 ## are live", and M4's suite switches it off because it is testing the YIELD
@@ -618,8 +625,12 @@ func _award_log_xp() -> void:
 ## player (Creative Director call, 2026-08-02).
 ##
 ## THE XP IS ALREADY BANKED by the time these spawn, and deliberately so — see
-## xp_orb.gd. Quitting during the half-second of flight must not cost the player
-## the log they just chopped. The orbs are the receipt, not the payment.
+## xp_orb.gd. Quitting during the second of flight must not cost the player the log
+## they just chopped. The orbs are the receipt, not the payment.
+##
+## They burst, bounce on the floor beside the block and lie there a beat before
+## being drawn in (Creative Director call, 2026-08-02) — so the stump's own radius
+## and the yard floor go with them, and they land NEAR the log rather than on it.
 ##
 ## HOW MANY is a curve, not a ratio: a log worth 8 XP and one worth 56,000 both
 ## have to read as "a handful", so the count grows with the LOG's worth but is
@@ -633,7 +644,8 @@ func _burst_xp_orbs(amount: int) -> void:
 		var orb := XPOrb.new()
 		orb.name = "XPOrb%d" % i
 		add_child(orb)
-		orb.setup(from, _camera, float(i) * orb_stagger, orb_scatter_radius)
+		orb.setup(from, _camera, float(i) * orb_stagger, orb_scatter_radius,
+			pile_ground_y, _stump_radius, orb_collect_at)
 
 
 # --------------------------------------------------------------- input
@@ -939,6 +951,14 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	if _on_block.is_empty():
 		_awaiting_stack = true
 		_await_since = Time.get_ticks_msec() / 1000.0
+		# THE XP LANDS ON THE SPLIT ITSELF, not when the firewood has settled
+		# (Creative Director call, 2026-08-02: *"pop out the moment the final piece
+		# is split, so all the collecting happens at once"*). The settle wait is up
+		# to `firewood_settle_timeout` long, so awarding at _begin_stacking put the
+		# reward a beat behind the swing that earned it, and the orbs then arrived
+		# on their own instead of inside the same burst of activity as the pieces
+		# flying to the pile.
+		_award_log_xp()
 	return true
 
 
