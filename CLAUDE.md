@@ -689,8 +689,16 @@ it, cash buys it" when asked directly.
 - **THE ORB BACKS OFF ALONG THE CAMERA'S VIEW AXIS, NOT ALONG ITS OWN APPROACH.**
   Backing off the way it came looks obvious and is wrong: every orb starts on the
   ground, so that line comes up from below and the whole burst converged UNDER the
-  lens — Sam: *"it just flys to the players feet"*. The absorb point is now dead
-  centre of the view, which is what reads as flying into the player.
+  lens — Sam: *"it just flys to the players feet"*.
+- **AN ORB THAT SHRINKS AS IT CONVERGES ON THE MIDDLE OF THE FRAME IS AN ORB GOING
+  AWAY**, however fast it travels — Sam read exactly that as *"being absorbed in to
+  the log"*. Three things carry "it is coming at me", and all three are load-bearing:
+  it **shrinks by less than it closes** (`_DRAW_SHRINK` 0.25 against a trip that
+  ends at `_ABSORB_DIST` 0.45 m), so apparent size roughly triples; it ends on a
+  **disc** (`_ABSORB_SPREAD`) rather than a point, so the burst fans across the
+  frame the way anything passing a camera does; and the ease is **quadratic, not
+  cubic**, so the approach is 35 frames of visible closing instead of three.
+  `orb_probe` measures all of it — the numbers are the check, the PNG is the judge.
 - **UNSHADED MEANS `emission` IS NEVER READ** — an unshaded surface outputs albedo
   and nothing else, so the emission settings this shipped with did nothing. The
   glow is a real object: a small additive billboard quad wearing a code-built
@@ -717,9 +725,16 @@ it, cash buys it" when asked directly.
   per XP would bury the late game in confetti.
 - **`core/tools/orb_shot.tscn` catches the burst MID-FLIGHT — RUN NON-HEADLESS.**
   A count of orbs proves nothing about an effect whose whole job is to feel like
-  being paid. It shoots all four phases; run it on any orb change. Both bugs in the
-  2026-08-02 revision (the dribbling wave, the orbs in the lens) were found in its
-  PNGs and were invisible everywhere else.
+  being paid. It shoots all seven beats; run it on any orb change. Every bug in the
+  2026-08-02 revision (the dribbling wave, the orbs in the lens, the flat halo, the
+  approach that read as retreat) was found in its PNGs or `orb_probe`'s numbers, and
+  none of them was visible anywhere else.
+- **A SHOT LIST COUNTED IN FRAMES LIES.** Writing a PNG costs tens of milliseconds,
+  so each save pushes the next shot further out of step with an effect that runs on
+  real time: this tool's later shots walked clean past the end of the burst and
+  photographed an empty yard, which reads exactly like an orb bug that is not there.
+  It now waits on ELAPSED TIME and writes every image after the run. Anything else
+  in this project that shoots a timed effect wants the same shape.
 
 - Still to do in M7A: three authored orders and three more upgrades. Both are
   blocked on tuning values (Directive 3). The unlockable-species requirement is

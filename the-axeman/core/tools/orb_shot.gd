@@ -30,18 +30,26 @@ func _ready() -> void:
 	# and a pile animation in front of the thing being photographed.
 	game._burst_xp_orbs(120)
 
-	for tag: Array in [["burst", 5], ["bounce", 12], ["resting", 30], ["draw", 18], ["arriving", 12]]:
-		for i in range(int(tag[1])):
+	# TIMED, NOT FRAME-COUNTED, and that is not fussiness. Writing a PNG costs tens
+	# of milliseconds, so a shot list counted in frames drifts further out of step
+	# with the orbs after every save — the first version of this walked its later
+	# shots past the end of the whole effect and photographed an empty yard, which
+	# reads exactly like an orb bug that is not there. The images are held in memory
+	# and written after the run for the same reason.
+	var shots: Array = []
+	var t0 := float(Time.get_ticks_msec())
+	for tag: Array in [["burst", 0.10], ["bounce", 0.35], ["resting", 0.70],
+			["draw", 1.00], ["closing", 1.15], ["passing", 1.28], ["arriving", 1.40]]:
+		while (float(Time.get_ticks_msec()) - t0) / 1000.0 < float(tag[1]):
 			await get_tree().process_frame
-		await _save(String(tag[0]))
+		await RenderingServer.frame_post_draw
+		shots.append([String(tag[0]), get_viewport().get_texture().get_image(),
+			(float(Time.get_ticks_msec()) - t0) / 1000.0])
+
+	for s: Array in shots:
+		var path := "user://orb_shot_%s.png" % s[0]
+		(s[1] as Image).save_png(path)
+		print("  SHOT %s (t=%.2fs) -> %s" % [s[0], s[2], ProjectSettings.globalize_path(path)])
 
 	print("=== orb_shot: done ===")
 	get_tree().quit()
-
-
-func _save(tag: String) -> void:
-	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	var path := "user://orb_shot_%s.png" % tag
-	img.save_png(path)
-	print("  SHOT %s -> %s" % [tag, ProjectSettings.globalize_path(path)])

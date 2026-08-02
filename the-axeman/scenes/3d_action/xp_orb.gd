@@ -72,10 +72,25 @@ const _FLIGHT_TIMEOUT := 2.5    # hard stop, so a stray orb can never hover fore
 const _COLLECT_JITTER := 0.07   # how far out of step one orb may leave the ground
 ## HOW SHORT OF THE CAMERA THE ORB IS SWALLOWED (m), and it is not cosmetic
 ## trimming: flying to the camera's exact position means arriving at zero distance,
-## where angular size explodes and a 2 cm bead fills a quarter of the screen as a
-## flat green slab. Caught in orb_shot — every orb was correct and two of them were
-## billboards in the lens. It absorbs at arm's length instead.
-const _ABSORB_DIST := 0.4
+## where angular size explodes and a 2 cm bead fills a quarter of the screen. Caught
+## in orb_shot — every orb was correct and two of them were billboards in the lens.
+## It absorbs at arm's length instead.
+const _ABSORB_DIST := 0.45
+## ...and NOT all at the same point. Each orb ends somewhere on a disc this wide
+## around the view axis, so the burst FANS OUT across the frame as it arrives, the
+## way anything passing a camera does. Converging on one pixel in the middle of the
+## screen is what made it look like the log was eating them.
+##
+## Sized against the frustum, not by eye: at `_ABSORB_DIST` this is about 24 deg off
+## the view axis, so the orbs spread wide but stay ON SCREEN to the end. The first
+## try was 0.34 and pushed most of the burst out past the frame edge, where being
+## collected is indistinguishable from being lost.
+const _ABSORB_SPREAD := 0.2
+## How much of its size an orb gives up on the way in. It is deliberately LESS than
+## the distance it closes, so apparent size still GROWS — see _process. Measured
+## with orb_probe: the orb roughly triples on screen across the draw (about 4.7 deg
+## of arc to about 13), which is what the eye reads as "it is coming at me".
+const _DRAW_SHRINK := 0.25
 const _BOB_RATE := 7.0
 const _BOB_HEIGHT := 0.006
 
@@ -93,6 +108,7 @@ var _draw_from := Vector3.ZERO
 var _draw_time := 0.55
 var _arc_up := 0.18                 # control point height, as a fraction of the trip
 var _arc_side := 0.0                # ...and its lean, signed so the burst fans out
+var _absorb_off := Vector2.ZERO     # where on the absorb disc THIS orb passes the lens
 var _spin := 0.0
 
 
@@ -207,6 +223,11 @@ func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
 	_draw_time = 0.42 + randf() * 0.24
 	_arc_up = randf_range(0.14, 0.30)
 	_arc_side = randf_range(-0.22, 0.22)
+	var off_angle := randf() * TAU
+	# sqrt keeps the draw even across the disc rather than crowding the middle,
+	# which is where the "all into one point" look came from.
+	var off_reach := sqrt(randf()) * _ABSORB_SPREAD
+	_absorb_off = Vector2(cos(off_angle), sin(off_angle)) * off_reach
 	_spin = randf_range(-6.0, 6.0)
 
 	var up := randf_range(_POP_SPEED_MIN, _POP_SPEED_MAX)
@@ -248,13 +269,21 @@ func _process(delta: float) -> void:
 				_begin_draw()
 		Phase.DRAW:
 			var k := clampf(_phase_age / _draw_time, 0.0, 1.0)
-			# Accelerating INTO the player (cubic), which is the whole feel of being
-			# collected: it hesitates, then snaps home.
-			var eased := k * k * k
+			# Accelerating INTO the player, which is the feel of being collected: it
+			# hesitates, then comes. QUADRATIC, not cubic — orb_probe showed a cubic
+			# ease left the orb almost stationary for the first 20 frames of the draw
+			# and then crossed the last half of the trip in three, so the approach was
+			# over before the eye could read it as an approach at all.
+			var eased := k * k
 			position = _draw_curve(_absorb_point(), eased)
-			# Shrink as it arrives so it vanishes into the player rather than
-			# clipping through the near plane as a full-size ball.
-			var s := maxf(0.05, 1.0 - eased * 0.9)
+			# IT SHRINKS BY LESS THAN IT CLOSES, so apparent size (scale / distance)
+			# GROWS the whole way in. This is the entire read of "coming at the
+			# player": the first cut shrank to a twentieth while converging on the
+			# middle of the frame, and an object that gets smaller as it reaches the
+			# centre of the screen is an object going AWAY — Sam saw it as the orbs
+			# being absorbed into the log. The shrink that is left only keeps the
+			# last few frames from becoming a wall of green.
+			var s := maxf(0.05, 1.0 - eased * _DRAW_SHRINK)
 			scale = Vector3(s, s, s)
 			if k >= 1.0:
 				queue_free()
@@ -274,7 +303,8 @@ func _process(delta: float) -> void:
 ## is standing.
 func _absorb_point() -> Vector3:
 	var cam := _target.global_transform
-	return cam.origin - cam.basis.z * _ABSORB_DIST
+	return cam.origin - cam.basis.z * _ABSORB_DIST \
+		+ cam.basis.x * _absorb_off.x + cam.basis.y * _absorb_off.y
 
 
 ## THE RUSH HOME IS A CURVE, NOT A LINE (Creative Director call, 2026-08-02: *"I

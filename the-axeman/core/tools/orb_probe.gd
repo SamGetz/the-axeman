@@ -61,9 +61,60 @@ func _ready() -> void:
 	for f in range(4):
 		await get_tree().process_frame
 	await _save("halo_ladder")
+	for c in get_children():
+		if c is MeshInstance3D:
+			c.queue_free()
+
+	await _draw_telemetry(game, cam)
 
 	print("=== orb_probe: done ===")
 	get_tree().quit()
+
+
+## THE APPROACH, IN NUMBERS. A still cannot tell you how many FRAMES an orb spends
+## looking like it is coming at you, and that is the whole question when the burst
+## is meant to fly INTO the player rather than into the scenery.
+##
+## Prints, per frame, how many orbs are being drawn in, how close the nearest is,
+## and its apparent size on screen. Apparent size must GROW: if it falls, the orb is
+## shrinking faster than it closes and will read as going away however fast it moves.
+func _draw_telemetry(game: Node3D, cam: Camera3D) -> void:
+	game.orbs_enabled = true
+	game._burst_xp_orbs(120)
+	var frames := 0
+	var seen_big := 0
+	var prev_ang := -1.0
+	var ever_drew := false
+	print("  frame  drawing  nearest(m)  apparent(deg)")
+	while frames < 140:
+		await get_tree().process_frame
+		frames += 1
+		var drawing := 0
+		var nearest := INF
+		var ang := 0.0
+		for o in game.get_children():
+			if not (o is XPOrb) or o._phase != XPOrb.Phase.DRAW:
+				continue
+			drawing += 1
+			var d: float = o.global_position.distance_to(cam.global_position)
+			if d < nearest:
+				nearest = d
+				# Small-angle apparent diameter of the HALO, which is the part the
+				# eye actually reads.
+				ang = rad_to_deg(2.0 * 0.018 * 3.5 * o.scale.x / maxf(d, 0.01))
+		if drawing == 0:
+			# The burst spends its first second bursting, bouncing and resting; only
+			# stop once the draw has actually happened and finished.
+			if ever_drew:
+				break
+			continue
+		ever_drew = true
+		if ang >= 3.0:
+			seen_big += 1
+		var trend := "" if prev_ang < 0.0 else ("  up" if ang > prev_ang else "  DOWN")
+		prev_ang = ang
+		print("   %4d  %7d  %10.2f  %13.2f%s" % [frames, drawing, nearest, ang, trend])
+	print("  frames with the nearest orb at 3 deg or more: %d" % seen_big)
 
 
 func _save(tag: String) -> void:
