@@ -25,9 +25,10 @@ extends Node
 ## (A11: Engine.time_scale 0.05), and the animation crawls through it while this
 ## tool's clock keeps real time.
 ##
-## Output: user://axe_shot_<tag>.png
+## Output: user://axe_shot_<tag>.png, or user://axe_bounce_shot_<tag>.png
 ##
 ## Run: "<godot>" --path . --quit-after 12000 res://core/tools/axe_shot.tscn
+## Failed-strike branch: append `-- --bounce` to that command.
 
 const _SCENE := preload("res://scenes/3d_action/chopping_minigame.tscn")
 
@@ -36,11 +37,12 @@ const _CLICK := Vector2(640.0, 360.0)
 
 
 func _ready() -> void:
+	var show_bounce := "--bounce" in OS.get_cmdline_user_args()
 	var game: Node3D = _SCENE.instantiate()
 	game.debug_forced_species = 0
 	game.debug_forced_mesh = 0
 	game.auto_sell = false          # no economy in shot of an animation
-	game.debug_split_roll = 1       # ALWAYS split: the shot is of a connecting swing
+	game.debug_split_roll = 0 if show_bounce else 1
 	game.orbs_enabled = false       # confetti in front of the thing being photographed
 	add_child(game)
 	for i in range(30):
@@ -51,8 +53,9 @@ func _ready() -> void:
 		printerr("axe_shot: no AxeViewmodelAnchor under the camera — nothing to shoot.")
 		get_tree().quit()
 		return
-	print("=== axe_shot: swing %.3fs, contact key at %.3fs ==="
-		% [axe.swing_duration(), axe.contact_time()])
+	var shot_name := "axe_bounce_shot" if show_bounce else "axe_shot"
+	print("=== %s: swing %.3fs, contact key at %.3fs ==="
+		% [shot_name, axe.swing_duration(), axe.contact_time()])
 
 	# The real click path, not _swing_axe(): this tool has to see the wood break on
 	# the contact frame, and only a real strike is pending when that key fires.
@@ -66,9 +69,16 @@ func _ready() -> void:
 	# The first shot is DELIBERATELY at the very first frame of the swing: the axe
 	# enters within about a twentieth of a second, so a shot 0.05s in has already
 	# missed the empty frame it exists to prove.
-	for tag: Array in [["1_offscreen", 0.0], ["2_entering", 0.08], ["3_dropping", 0.14],
-			["4_contact", 0.20], ["5_follow", 0.30], ["6_recovery", 0.42],
-			["7_gone", 0.62]]:
+	var beats: Array = [
+		["1_offscreen", 0.0], ["2_entering", 0.08], ["3_dropping", 0.14],
+		["4_contact", 0.19], ["5_recoil", 0.24], ["6_overhead", 0.31],
+		["7_gone", 0.55],
+	] if show_bounce else [
+		["1_offscreen", 0.0], ["2_entering", 0.08], ["3_dropping", 0.14],
+		["4_contact", 0.20], ["5_follow", 0.30], ["6_recovery", 0.42],
+		["7_gone", 0.62],
+	]
+	for tag: Array in beats:
 		while (float(Time.get_ticks_msec()) - t0) / 1000.0 < float(tag[1]):
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
@@ -76,10 +86,10 @@ func _ready() -> void:
 			(float(Time.get_ticks_msec()) - t0) / 1000.0, game.piece_count()])
 
 	for s: Array in shots:
-		var path := "user://axe_shot_%s.png" % s[0]
+		var path := "user://%s_%s.png" % [shot_name, s[0]]
 		(s[1] as Image).save_png(path)
 		print("  SHOT %s (t=%.2fs, pieces=%d) -> %s"
 			% [s[0], s[2], s[3], ProjectSettings.globalize_path(path)])
 
-	print("=== axe_shot: done ===")
+	print("=== %s: done ===" % shot_name)
 	get_tree().quit()

@@ -45,6 +45,9 @@ signal swing_finished
 ## Name of the swing in the AnimationPlayer's library. The method track inside it
 ## is what fires `contact`; see res://core/tools/build_axe_swing.gd.
 @export var swing_anim := &"swing"
+## Post-contact recoil played only when the landed strike does not split the wood.
+## It starts from the swing's exact contact pose, then reverses the overhead entry.
+@export var bounce_anim := &"bounce"
 
 @export_group("Reach")
 ## How much further past the grip the head reaches, in metres. Creative Director
@@ -132,6 +135,21 @@ func swing(aim := Vector2.ZERO) -> void:
 	_anim.seek(0.0, true)   # true = update now, so frame one is the rest pose
 
 
+## Branch away from the successful follow-through after the mini-game has resolved
+## the contact roll. Returns false if the editable animation has been removed; the
+## current swing then simply continues, which is a safe visual fallback.
+func bounce() -> bool:
+	if _anim == null or not _anim.has_animation(bounce_anim):
+		push_warning("AxeViewmodel: no '%s' animation — failed strike has no recoil." % bounce_anim)
+		return false
+	if _root != null:
+		_root.visible = true
+	_anim.speed_scale = _speed
+	_anim.play(bounce_anim)
+	_anim.seek(0.0, true)
+	return true
+
+
 ## How much faster than authored the swing plays. The mini-game drives this off
 ## the swing-speed skill so "5% faster between swings" speeds up the SWING, not
 ## just a dead wait after it — an upgrade you can see is worth more than one you
@@ -172,7 +190,7 @@ func _on_swing_contact() -> void:
 
 
 func _on_animation_finished(anim_name: StringName) -> void:
-	if anim_name != swing_anim:
+	if anim_name != swing_anim and anim_name != bounce_anim:
 		return
 	if _root != null:
 		_root.visible = false

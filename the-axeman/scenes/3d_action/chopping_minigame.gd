@@ -1391,7 +1391,9 @@ func _resolve_pending() -> void:
 	var pd := _pending
 	_pending = {}
 	if is_instance_valid(pd.piece) and pd.piece in _on_block:
-		_resolve_strike(pd.piece, pd.world_point, pd.normal, pd.dir)
+		var split := _resolve_strike(pd.piece, pd.world_point, pd.normal, pd.dir)
+		if not split and _axe != null:
+			_axe.bounce()
 
 
 ## How long a strike may stay in flight before the failsafe spends it. Comfortably

@@ -321,7 +321,10 @@ func _test_7_axe_viewmodel_drives_the_strike() -> void:
 		"the animated child is named AxeAnimationRoot (the tracks address it by name)")
 	_check(axe.get_node_or_null("AnimationPlayer") is AnimationPlayer,
 		"the rig carries its own AnimationPlayer")
+	var player: AnimationPlayer = axe.get_node("AnimationPlayer")
 	_check(axe.swing_duration() > 0.0, "the swing animation exists and has a length")
+	_check(player.has_animation(axe.bounce_anim),
+		"the rig carries a separate failed-strike bounce animation")
 	# has_contact_key() hunts the method track for the name the script implements,
 	# so this is the two halves of the seam checked against each other, not a
 	# restatement of either.
@@ -376,15 +379,15 @@ func _test_7_axe_viewmodel_drives_the_strike() -> void:
 	var mg2 := await _make_minigame(0)
 	mg2.debug_split_roll = 1
 	var axe2: Node = mg2.get_node("CameraPivot/Camera3D/AxeViewmodelAnchor")
-	var player: AnimationPlayer = axe2.get_node("AnimationPlayer")
-	var maimed: Animation = player.get_animation(axe2.swing_anim).duplicate(true)
+	var player2: AnimationPlayer = axe2.get_node("AnimationPlayer")
+	var maimed: Animation = player2.get_animation(axe2.swing_anim).duplicate(true)
 	for track in range(maimed.get_track_count() - 1, -1, -1):
 		if maimed.track_get_type(track) == Animation.TYPE_METHOD:
 			maimed.remove_track(track)
 	var lib := AnimationLibrary.new()
 	lib.add_animation(axe2.swing_anim, maimed)
-	player.remove_animation_library(&"")
-	player.add_animation_library(&"", lib)
+	player2.remove_animation_library(&"")
+	player2.add_animation_library(&"", lib)
 	_check(not axe2.has_contact_key(), "(setup) the copy really has lost its contact key")
 
 	await _wait(0.6)

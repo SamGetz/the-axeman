@@ -18,6 +18,25 @@ tracks/1/interp = 1
 tracks/1/loop_wrap = true
 tracks/1/keys = PackedFloat32Array(0, 1, 0.15090036, 0.98231846, 0.10952811, -0.01682533)
 
+[sub_resource type="Animation" id="Animation_bounce"]
+resource_name = "bounce"
+length = 0.32
+step = 0.01
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AxeAnimationRoot")
+tracks/0/interp = 2
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 0.18, -0.58, -0.72, 0.07, 1, 0.013969064, -0.56000006, -0.48000002, 0.14, 1, 0.14255077, -0.24725878, -0.050177693, 0.3, 1, 0.66, -0.56, -0.45)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("AxeAnimationRoot")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, -0.11699248, 0.9611848, -0.24804251, -0.030190982, 0.07, 1, 0.07880382, 0.97949547, -0.18481752, 0.014869216, 0.14, 1, 0.15090036, 0.98231846, 0.10952811, -0.01682533, 0.3, 1, 0.15090036, 0.98231846, 0.10952811, -0.01682533)
+
 [sub_resource type="Animation" id="Animation_y28a3"]
 resource_name = "swing"
 length = 0.48
@@ -54,5 +73,6 @@ tracks/2/keys = {
 [resource]
 _data = {
 &"RESET": SubResource("Animation_iw3cp"),
+&"bounce": SubResource("Animation_bounce"),
 &"swing": SubResource("Animation_y28a3")
 }

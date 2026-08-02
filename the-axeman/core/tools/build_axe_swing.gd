@@ -3,7 +3,8 @@ extends SceneTree
 ## ATTACHES TO: nothing — a SceneTree dev tool, run with -s. Not shipped.
 ##
 ## Authors the DEFAULT overhead axe swing and writes it to
-## res://data/axe_swing_lib.tres (an AnimationLibrary holding "swing" + "RESET").
+## res://data/axe_swing_lib.tres (an AnimationLibrary holding "swing", "bounce"
+## and "RESET").
 ##
 ##   godot --headless --path . -s res://core/tools/build_axe_swing.gd
 ##
@@ -92,6 +93,7 @@ const _SWING_PLANE_NORMAL := Vector3.RIGHT
 func _init() -> void:
 	var lib := AnimationLibrary.new()
 	lib.add_animation(&"swing", _build_swing())
+	lib.add_animation(&"bounce", _build_bounce())
 	lib.add_animation(&"RESET", _build_reset())
 	var err := ResourceSaver.save(lib, _OUT)
 	if err != OK:
@@ -131,6 +133,32 @@ func _build_swing() -> Animation:
 	var method := anim.add_track(Animation.TYPE_METHOD)
 	anim.track_set_path(method, NodePath("."))
 	anim.track_insert_key(method, _CONTACT_T, {"method": _CONTACT_METHOD, "args": []})
+	return anim
+
+
+## A failed strike reaches the SAME contact pose, then springs back through the
+## overhead approach instead of using the successful below-the-log follow-through.
+## The contact/entry/raised poses come from `_KEYS`, so regenerating the default
+## library cannot produce a bounce whose first frame disagrees with its swing.
+func _build_bounce() -> Animation:
+	var anim := Animation.new()
+	anim.resource_name = "bounce"
+	anim.length = 0.32
+	anim.loop_mode = Animation.LOOP_NONE
+	anim.step = 0.01
+
+	var pos := anim.add_track(Animation.TYPE_POSITION_3D)
+	anim.track_set_path(pos, NodePath(_TARGET))
+	anim.track_set_interpolation_type(pos, Animation.INTERPOLATION_CUBIC)
+	var rot := anim.add_track(Animation.TYPE_ROTATION_3D)
+	anim.track_set_path(rot, NodePath(_TARGET))
+	anim.track_set_interpolation_type(rot, Animation.INTERPOLATION_CUBIC)
+
+	var source: Array[Dictionary] = [_KEYS[2], _KEYS[1], _KEYS[0], _KEYS[4]]
+	var times: Array[float] = [0.0, 0.07, 0.14, 0.30]
+	for i in range(source.size()):
+		anim.position_track_insert_key(pos, times[i], source[i].grip)
+		anim.rotation_track_insert_key(rot, times[i], _pose(source[i].handle))
 	return anim
 
 

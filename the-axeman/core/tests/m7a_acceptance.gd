@@ -624,6 +624,29 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 	# 2026-08-02, at which point index 2 was Norway Spruce and the test was
 	# quietly measuring the wrong end of the ladder while still passing.
 	var toughest := SpeciesTable.count() - 1
+
+	# Exercise the REAL click/contact path once. A failed roll must branch away
+	# from the successful follow-through into the authored bounce animation on the
+	# same contact beat that leaves the scar.
+	var bounce_game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	bounce_game.debug_forced_species = toughest
+	bounce_game.debug_split_roll = 0
+	add_child(bounce_game)
+	await _wait(0.6)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var axe: Node = bounce_game.get_node("CameraPivot/Camera3D/AxeViewmodelAnchor")
+	var axe_player: AnimationPlayer = axe.get_node("AnimationPlayer")
+	var bounce_pieces_before: int = bounce_game.piece_count()
+	bounce_game._on_click(get_viewport().get_visible_rect().size * 0.5)
+	await _wait(axe.contact_time() + 0.04)
+	_check(axe_player.current_animation == axe.bounce_anim and axe.is_swinging(),
+		"a failed contact branches into the axe's bounce animation")
+	_check(bounce_game.piece_count() == bounce_pieces_before and bounce_game.debug_scar_count() == 1,
+		"the bounce accompanies one intact, newly scarred log")
+	bounce_game.queue_free()
+	await get_tree().process_frame
+
 	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
 	mg.debug_forced_species = toughest
 	mg.debug_split_roll = 0          # every swing fails

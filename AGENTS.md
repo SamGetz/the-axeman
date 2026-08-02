@@ -481,6 +481,12 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   no contract moved) and failures pass `false`. A11's hit-pause stays the
   punctuation of a real split, so the two outcomes feel different before the
   player has read a single number.
+- **A failed swing now BOUNCES OFF THE LOG.** The split roll resolves on the
+  `swing` animation's contact key; a success keeps Sam's authored follow-through,
+  while a failure immediately branches to the editable `bounce` animation in
+  `axe_swing_lib.tres`. Its first key is the exact contact pose, then it reverses
+  the overhead approach, so the scar, thud, shake and recoil are one event. Run
+  `core/tools/axe_shot.tscn -- --bounce` non-headless to render the failure beats.
 - **The swing cooldown did not exist before this.** The game was gated only by one
   strike at a time plus the anticipation window, so there was nothing for "5%
   faster between swings" to shorten. `swing_cooldown` (0.3 s, PLACEHOLDER and the
