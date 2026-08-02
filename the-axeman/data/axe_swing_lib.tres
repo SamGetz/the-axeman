@@ -1,0 +1,58 @@
+[gd_resource type="AnimationLibrary" format=3 uid="uid://pyg4245tqpsu"]
+
+[sub_resource type="Animation" id="Animation_iw3cp"]
+resource_name = "RESET"
+length = 0.001
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AxeAnimationRoot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, 1, 0.66, -0.56, -0.45)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("AxeAnimationRoot")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, 0.15090036, 0.98231846, 0.10952811, -0.01682533)
+
+[sub_resource type="Animation" id="Animation_y28a3"]
+resource_name = "swing"
+length = 0.48
+step = 0.01
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("AxeAnimationRoot")
+tracks/0/interp = 2
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(-0.01, 1, 0.14255077, -0.24725878, -0.050177693, 0.06, 1, 0.013969064, -0.56000006, -0.48000002, 0.18, 1, 0.18, -0.58, -0.72, 0.24, 1, 0.16, -0.6, -0.62, 0.46, 1, 0.66, -0.56, -0.45)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("AxeAnimationRoot")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, 1, 0.15090036, 0.98231846, 0.10952811, -0.01682533, 0.06, 1, 0.07880382, 0.97949547, -0.18481752, 0.014869216, 0.18, 1, -0.11699248, 0.9611848, -0.24804251, -0.030190982, 0.24, 1, -0.13335505, 0.8687408, -0.47145355, -0.07236994, 0.46, 1, 0.15090036, 0.98231846, 0.10952811, -0.01682533)
+tracks/2/type = "method"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath(".")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0.18),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"_on_swing_contact"
+}]
+}
+
+[resource]
+_data = {
+&"RESET": SubResource("Animation_iw3cp"),
+&"swing": SubResource("Animation_y28a3")
+}

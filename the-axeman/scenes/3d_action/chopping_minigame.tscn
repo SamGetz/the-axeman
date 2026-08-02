@@ -3,6 +3,9 @@
 [ext_resource type="Script" uid="uid://d2xfogqelkaw3" path="res://scenes/3d_action/chopping_minigame.gd" id="1_mg"]
 [ext_resource type="PackedScene" uid="uid://bkjcipib43xh8" path="res://assets/models/forest_floor/forest_floor_a.fbx" id="2_30w1t"]
 [ext_resource type="Script" uid="uid://cv4gwxgawlaok" path="res://scenes/3d_action/canopy_gobo.gd" id="3_gobo"]
+[ext_resource type="Script" uid="uid://5fw56tr40cmk" path="res://scenes/3d_action/axe_viewmodel.gd" id="4_axevm"]
+[ext_resource type="PackedScene" uid="uid://ckgruj1y75quo" path="res://assets/models/axe_basic/axe_basic.fbx" id="5_axefbx"]
+[ext_resource type="AnimationLibrary" uid="uid://pyg4245tqpsu" path="res://data/axe_swing_lib.tres" id="6_axelib"]
 
 [sub_resource type="Environment" id="Environment_mg"]
 background_mode = 1
@@ -16,7 +19,6 @@ size = Vector3(60, 2, 60)
 
 [node name="Chopping_Minigame" type="Node3D" unique_id=1574814684]
 script = ExtResource("1_mg")
-swing_time = 1.0
 
 [node name="CameraPivot" type="Node3D" parent="." unique_id=1325982870]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
@@ -24,6 +26,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
 [node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=1381852308]
 transform = Transform3D(1, 0, 0, 0, 0.84165555, 0.5400148, 0, -0.5400148, 0.84165555, 0, 0.76330715, 1.0039457)
 current = true
+
+[node name="AxeViewmodelAnchor" type="Node3D" parent="CameraPivot/Camera3D" unique_id=2102622142]
+script = ExtResource("4_axevm")
+
+[node name="AxeAnimationRoot" type="Node3D" parent="CameraPivot/Camera3D/AxeViewmodelAnchor" unique_id=105540647]
+transform = Transform3D(-0.9538919, 0.30014986, -8.527564e-08, 0.29277867, 0.9304645, 0.22026055, 0.06611139, 0.21010485, -0.9754396, 0.66, -0.56, -0.45)
+
+[node name="axe_basic" parent="CameraPivot/Camera3D/AxeViewmodelAnchor/AxeAnimationRoot" unique_id=876170848 instance=ExtResource("5_axefbx")]
+transform = Transform3D(1.4, 0, 0, 0, 1.4, 0, 0, 0, 1.4, 0, 0, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="CameraPivot/Camera3D/AxeViewmodelAnchor" unique_id=1244316318]
+libraries/ = ExtResource("6_axelib")
 
 [node name="AreaLight3D" type="AreaLight3D" parent="." unique_id=1223300488]
 transform = Transform3D(1.1599525, -0.24794768, 0.41322234, -0.24676746, -0.8338354, 2.1959567, 0.051464804, 1.5902923, 1.2158293, 1.2598009, 1.3775764, 0.6787071)

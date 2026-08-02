@@ -44,6 +44,7 @@ func _ready() -> void:
 	await _test_4_species_drives_yield()
 	await _test_5_budget_cap_and_timeout()
 	await _test_6_species_table_integrity()
+	await _test_7_axe_viewmodel_drives_the_strike()
 	print("=== M4 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
 		print("=== ALL M4 ACCEPTANCE CRITERIA PASS ===")
@@ -298,3 +299,101 @@ func _test_5_budget_cap_and_timeout() -> void:
 	solo.queue_free()
 	budget.queue_free()
 	await get_tree().process_frame
+
+
+## The camera-mounted axe (2026-08-02) and THE THING THAT MAKES IT MORE THAN ART:
+## the swing animation's own method key is what breaks the wood. The rig itself is
+## a picture and pictures are judged in core/tools/axe_shot.tscn, but the seam
+## between the picture and the mechanic is exactly the sort of thing that rots
+## silently — a re-keyed animation that drops the contact key would leave every
+## click hanging, and nothing else in this suite would notice.
+func _test_7_axe_viewmodel_drives_the_strike() -> void:
+	var mg := await _make_minigame(0)
+	var axe: Node = mg.get_node_or_null("CameraPivot/Camera3D/AxeViewmodelAnchor")
+	_check(axe is AxeViewmodel, "the axe rig hangs off the camera as AxeViewmodelAnchor")
+	if axe == null:
+		await _drop(mg)
+		return
+	# The node names are the contract between the scene and the animation: the
+	# transform tracks address "AxeAnimationRoot" by name, so a rename in the scene
+	# alone silently animates nothing at all.
+	_check(axe.get_node_or_null("AxeAnimationRoot") != null,
+		"the animated child is named AxeAnimationRoot (the tracks address it by name)")
+	_check(axe.get_node_or_null("AnimationPlayer") is AnimationPlayer,
+		"the rig carries its own AnimationPlayer")
+	_check(axe.swing_duration() > 0.0, "the swing animation exists and has a length")
+	# has_contact_key() hunts the method track for the name the script implements,
+	# so this is the two halves of the seam checked against each other, not a
+	# restatement of either.
+	_check(axe.has_contact_key(),
+		"the swing carries a contact key calling a method the viewmodel implements")
+	_check(axe.contact_time() > 0.0 and axe.contact_time() < axe.swing_duration(),
+		"the contact key lands INSIDE the swing, not at either end")
+
+	# Idle means invisible: a viewmodel left on screen between swings is an axe
+	# standing in the middle of the yard.
+	var root: Node3D = axe.get_node("AxeAnimationRoot")
+	_check(not root.visible, "the axe is hidden while nothing is swinging")
+
+	# THE STRIKE LANDS ON THE KEY, AND IT IS THE KEY THAT LANDS IT. The failsafe
+	# resolves a strike too, so a check that merely waits long enough cannot tell
+	# the two apart — push the failsafe far out of reach and anything that resolves
+	# inside the swing can only have come from the contact key.
+	mg.strike_timeout_slack = 20.0
+	# FORCE THE ROLL. This test is about WHEN the strike resolves, not whether it
+	# goes through — and a real roll on the first wood fails about 45% of the time
+	# (Sam's number), so leaving it to luck would make the check below flake on a
+	# scar, which is a perfectly correct outcome.
+	mg.debug_split_roll = 1
+
+	# THE ONLY RAYCAST IN THIS SUITE, and it needs two things the slice tests never
+	# did: the piece's Area3D actually registered in the physics space (a process
+	# frame is not enough — the query runs against the physics server), and the log
+	# settled at rest rather than still dropping in from `drop_height`.
+	await _wait(0.6)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var before: int = mg.piece_count()
+	mg._on_click(get_viewport().get_visible_rect().size * 0.5)
+	await get_tree().process_frame
+	_check(axe.is_swinging(), "a click starts the swing")
+	_check(root.visible, "the axe is on screen while it swings")
+	_check(mg.piece_count() == before,
+		"the wood is INTACT while the axe is still travelling (%d pieces)" % mg.piece_count())
+	await _wait(axe.contact_time() * 0.55)
+	_check(mg.piece_count() == before,
+		"still intact past the halfway point of the swing")
+	await _wait(axe.contact_time() * 0.7)
+	_check(mg.piece_count() > before,
+		"the wood comes apart on the contact key, with the failsafe %.1fs away (%d -> %d)"
+			% [axe.contact_time() * 20.0, before, mg.piece_count()])
+	await _drop(mg)
+
+	# THE FAILSAFE, proven rather than assumed. Strip the contact key out of a copy
+	# of the swing and install it: the strike must still resolve, because a pending
+	# strike that never lands blocks every future click and stops the game dead.
+	var mg2 := await _make_minigame(0)
+	mg2.debug_split_roll = 1
+	var axe2: Node = mg2.get_node("CameraPivot/Camera3D/AxeViewmodelAnchor")
+	var player: AnimationPlayer = axe2.get_node("AnimationPlayer")
+	var maimed: Animation = player.get_animation(axe2.swing_anim).duplicate(true)
+	for track in range(maimed.get_track_count() - 1, -1, -1):
+		if maimed.track_get_type(track) == Animation.TYPE_METHOD:
+			maimed.remove_track(track)
+	var lib := AnimationLibrary.new()
+	lib.add_animation(axe2.swing_anim, maimed)
+	player.remove_animation_library(&"")
+	player.add_animation_library(&"", lib)
+	_check(not axe2.has_contact_key(), "(setup) the copy really has lost its contact key")
+
+	await _wait(0.6)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var before2: int = mg2.piece_count()
+	mg2._on_click(get_viewport().get_visible_rect().size * 0.5)
+	await _wait(axe2.swing_duration() + 0.3)
+	_check(mg2.piece_count() > before2,
+		"a swing with NO contact key still resolves on the failsafe (%d -> %d)"
+			% [before2, mg2.piece_count()])
+	await _drop(mg2)

@@ -130,7 +130,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
-| M4 | `--quit-after 20000 res://core/tests/m4_acceptance.tscn` | **40/40** |
+| M4 | `--quit-after 20000 res://core/tests/m4_acceptance.tscn` | **54/54** |
 | M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **212/212** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
@@ -209,12 +209,16 @@ and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
 - `assets/models/logs_export/` also holds `log_2.fbx`, an unused duplicate, and
   `maya_working/` still has unimported `log_03/04/05.fbx`. CLAUDE.md previously
   claimed log_01…log_05 were live; they were not, and are not.
-- **Acceptance:** `m4_acceptance.tscn` 16/16 — drives `debug_slice_world` to
+- **Acceptance:** `m4_acceptance.tscn` **54/54** — drives `debug_slice_world` to
   completion, checks inventory deposit == firewood count, per-species yield, one
-  hit per slice, the A12 budget. It calls `get_tree().quit()` on finish, so run
-  headless with a generous `--quit-after` backstop (e.g. 8000). NOTE: **the
-  click-to-chop input layer is still NOT headless-verifiable** — Sam eyeball-tests
-  clicking in F5/F6.
+  hit per slice, the A12 budget, and (since 2026-08-02) the axe viewmodel's contact
+  key and its failsafe. It calls `get_tree().quit()` on finish, so run headless
+  with a generous `--quit-after` backstop (e.g. 20000).
+  **The click layer IS partly headless-verifiable now.** Test 7 calls `_on_click`
+  for real, which is the suite's ONLY raycast — and it needs `await physics_frame`
+  plus a settle wait first, because the query runs against the physics server and
+  the log is still dropping in from `drop_height` a process frame after spawn. The
+  FEEL of clicking is still Sam's eyeball test in F5/F6.
 - KNOWN: firewood uses the mini-game's own `max_firewood` (40) soft cap for
   feel, not `fragment_physics_budget` (A12's nominal 24) — reconcile at tuning.
 - **BUGFIX 2026-07-23 — sliced pieces shaded darker than the uncut log.**
@@ -760,12 +764,95 @@ it, cash buys it" when asked directly.
   blocked on tuning values (Directive 3). The unlockable-species requirement is
   **done and then some** — the roadmap asked for one, Sam specified 25.
 
+### M4 — the axe became a CAMERA VIEWMODEL on an AnimationPlayer (2026-08-02)
+
+**Creative Director call:** *"Currently the axe swing in the game looks bad, the
+animation feels clunky and I want a little more create control over it. It should
+look as if the axe is being over-head swung from where the camera."* Sam specified
+the node tree and the four beats himself, and then, seeing the first pass:
+*"the axe can just swing down from off screen, we dont need to see it rise in to
+frame, it looks weird."*
+
+- **`res://scenes/3d_action/axe_viewmodel.gd` (`class_name AxeViewmodel`) REPLACES
+  `axe_rig.gd`, which is DELETED** (recoverable from git). The old rig was a
+  world-space axe that flew from the impact point to the wood along a hand-built
+  Bezier between two hardcoded euler poses. Nothing about it could be keyframed,
+  which is exactly the "no creative control" Sam is describing. The rig is now
+  authored in `chopping_minigame.tscn`, hanging off the camera:
+
+  ```
+  Camera3D
+  └── AxeViewmodelAnchor      (axe_viewmodel.gd — fixed to the camera, aims the swing)
+      ├── AxeAnimationRoot    (the ONLY node the animation moves)
+      │   └── axe_basic.fbx   (scale 1.4 lives here)
+      └── AnimationPlayer     (plays "swing" from res://data/axe_swing_lib.tres)
+  ```
+
+- **THE ANIMATION OWNS THE GAMEPLAY BEAT, and that is the point of the rebuild.**
+  `swing` carries a METHOD TRACK whose key calls `AxeViewmodel._on_swing_contact()`
+  at the frame the blade bites; that emits `contact`, and `chopping_minigame` runs
+  `_resolve_pending()` there. Move the key in the editor and the wood breaks
+  somewhere else. **This closed a real bug:** the scene carried `swing_time = 1.0`
+  while the split fired off a separate `anticipation_sec = 0.1` timer, so the log
+  came apart while the axe was still up in the air. Two owners for one moment.
+- **The method key is DEFERRED** (AnimationMixer's default). The split adds and
+  frees nodes; doing that from inside the mixer's own process is asking for it.
+- **THE FAILSAFE IS LOAD-BEARING, and it is proven.** The mini-game does not trust
+  the signal: `contact` comes from a key in an editable data file, and a `swing`
+  re-keyed without one would leave a strike pending forever — which blocks every
+  future click and stops the game dead. `_strike_timeout()` arms a deadline from
+  `contact_time() * strike_timeout_slack`, and `_resolve_pending()` clears
+  `_pending` FIRST so the key and the deadline can never spend the same strike.
+  `m4_acceptance` strips the method track out of a copy of the animation and
+  asserts the wood still splits.
+- **`anticipation_sec` survives only as the no-viewmodel fallback.** A missing
+  anchor is a warning, not an error — a scene stripped down for a test should not
+  need a viewmodel to chop wood.
+- **The swing IS the cooldown now.** A click is refused while `is_swinging()`, so
+  `swing_cooldown` is a floor beneath the animation rather than the whole gate. The
+  swing-speed skill therefore drives `AxeViewmodel.set_speed()` (the ratio
+  `swing_cooldown / current_swing_cooldown()`), so "5% faster between swings"
+  speeds up the SWING — an upgrade you can see beats one you can only measure.
+- **THERE IS NO WINDUP IN FRAME.** The swing starts already raised and parked past
+  the right edge; the first thing the player sees is the head coming down. Total
+  0.46 s, contact at 0.18 s — deleting the raise took the dead time at the front of
+  a click with it.
+- **`res://core/tools/build_axe_swing.gd` authors the default swing**, because a
+  `rotation_3d` track stores QUATERNIONS and nobody should be typing or reading
+  those. A pose is written the way it is thought about — where the hand is, which
+  way the handle points — and the quaternion falls out. **It is a default-builder,
+  NOT a build step: running it again overwrites Sam's tuning.**
+- **The roll is DERIVED, not authored** (`handle x swing_plane_normal`). Authoring
+  "which way is the edge facing" per pose was tried first and produced a spin,
+  because that sense flips as the handle passes vertical.
+- **TWO FRAMING RULES, both learned from PNGs and invisible in every number:**
+  (1) *the grip moves, the head is what swings* — the first pass drove the head
+  from 0.27 m to 1.15 m from the lens in 0.09 s, and a 4x change in apparent size
+  reads as the axe shrinking away from you, not as a chop; (2) *the handle butt is
+  never on screen* — the second pass left the butt floating mid-frame and it read
+  as a fence post. `build_axe_swing`'s report prints the grip's SCREEN position for
+  every key and flags any that is inside the frame, so rule 2 is checked rather
+  than hoped for.
+- **`core/tools/axe_shot.tscn` shoots all seven beats — RUN NON-HEADLESS**, and run
+  it on any change to the swing. Every problem above was found in its PNGs and none
+  of them was visible anywhere else. It waits on ELAPSED TIME and writes the images
+  after the run (the lesson `orb_shot` paid for), and it spaces the post-contact
+  shots generously because A11's hit-pause fires there.
+- **The aim lean** (`aim_yaw_deg` 6, `aim_pitch_deg` 4, PLACEHOLDERS) tips the whole
+  anchor toward the click before the animation plays, so a swing does not land in
+  the same pixel however far off-centre you clicked. Set both to 0 for a rigidly
+  fixed viewmodel; the authored motion is never touched either way.
+- **PLACEHOLDERS (Directive 3):** every pose, both timings and the axe's 1.4 scale.
+  These are a starting point for Sam to re-key in the animation editor — which is
+  the whole reason the motion moved into a data file.
+
 ### Files the chopping game owns
 
 `scenes/3d_action/`: `chopping_minigame.gd/.tscn`, `chopping_minigame_harness.tscn`,
 `mesh_slicer.gd`, `mesh_utils.gd`, `fragment_piece.gd/.tscn`,
-`fragment_physics_budget.gd`, `piece_animator.gd`, `wood_pile.gd`, `axe_rig.gd`,
-`canopy_gobo.gd`.
+`fragment_physics_budget.gd`, `piece_animator.gd`, `wood_pile.gd`,
+`axe_viewmodel.gd` (**replaced `axe_rig.gd`, deleted 2026-08-02**), `canopy_gobo.gd`,
+`xp_orb.gd`.
 
 `scenes/2d_management/`: `yard_hud.gd/.tscn` (the yard HUD, the basic buyer's
 front end, the shop, the woodshed and the entry flow) — the first thing this
@@ -773,10 +860,15 @@ folder has ever held.
 
 `data/`: `species_def.gd`, `species_table.gd`, `species_table.tres` — the 25
 woods. The chopping game reads them; so does the yard HUD, which is the whole
-reason they are a Resource and not a const in the mini-game.
+reason they are a Resource and not a const in the mini-game. Plus
+`axe_swing_lib.tres` — the axe's `swing` animation, which owns both the motion and
+the frame the wood breaks on.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
 `pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `split_odds`, `jag_shot`,
+`axe_shot` (the swing, beat by beat — run it on ANY change to the swing animation),
+`build_axe_swing` (authors the DEFAULT swing into `data/axe_swing_lib.tres`; it is
+a default-builder, NOT a build step — re-running it overwrites Sam's tuning),
 `orb_shot` (the burst, all four phases), `orb_probe` (the halo taken apart —
 texture vs blend), `inspect_log`, `inspect_stump`, `probe_log`,
 `species_shot` (renders EVERY row of `species_table.tres`, fresh and cut — run it

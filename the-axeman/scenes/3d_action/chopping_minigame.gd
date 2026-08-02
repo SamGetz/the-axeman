@@ -27,8 +27,9 @@ extends Node3D
 ##   1. Click a piece on the block. If it's too thin along the current cut axis,
 ##      the camera snaps 90 deg to the perpendicular (long) axis instead of cutting
 ##      — forcing firewood-sized chunks rather than shaving off slivers.
-##   2. The axe swings from the impact point. After `anticipation_sec`, the wood
-##      actually splits (the pause makes the axe visibly *connect* first).
+##   2. The camera-mounted axe plays its overhead swing. The wood splits ON THE
+##      ANIMATION'S OWN CONTACT KEY (see axe_viewmodel.gd), so the break lands on
+##      the frame the blade bites however the swing is re-timed in the editor.
 ##   3. On the split: camera shake + hit-pause fire via EventBus.action_hit_
 ##      registered (GameFeel owns both). Each half is judged independently:
 ##        * volume <= min_vol OR aspect > aspect_limit -> FIREWOOD (physics, thrown
@@ -46,10 +47,6 @@ extends Node3D
 
 const _PieceAnimator := preload("res://scenes/3d_action/piece_animator.gd")
 const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
-## Mesh maths and the axe motion were lifted into shared helpers during M5 so the
-## felling mini-game reuses this exact code instead of a second copy. Behaviour
-## here is unchanged — every helper below is the same implementation, relocated.
-const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 
 # --- log species ---------------------------------------------------------
 ## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
@@ -106,7 +103,11 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 
 # --- chop feel (the animation-driven core; reference values) --------------
 @export_group("Chop feel")
-@export var anticipation_sec := 0.1      # ref: axe connects, THEN 0.1s later the wood splits
+## Seconds between the click and the wood coming apart WHEN THERE IS NO AXE
+## VIEWMODEL in the scene. With one — which is every shipping path since
+## 2026-08-02 — the animation's own contact key decides that moment instead, so
+## this is only what a stripped-down test harness falls back to.
+@export var anticipation_sec := 0.1
 @export var jostle_radius := 0.381       # ref 15in: falloff radius for the shockwave that jostles nearby pieces
 @export var half_push := 0.0254          # ref 1in: how far the two fresh halves pop apart from the cut
 @export var jostle_push := 0.0127        # ref Zu=0.5in: max outward nudge on a nearby piece (x falloff)
@@ -170,12 +171,24 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 @export var auto_sell := true
 
 # --- axe ------------------------------------------------------------------
+## THE AXE IS A CAMERA VIEWMODEL AND ITS MOTION LIVES IN AN ANIMATION, not here
+## (2026-08-02, Creative Director call: *"the animation feels clunky and I want a
+## little more create control over it. It should look as if the axe is being
+## over-head swung from where the camera."*). The rig is authored in
+## chopping_minigame.tscn under CameraPivot/Camera3D — see axe_viewmodel.gd for
+## the node tree — and the swing is res://data/axe_swing_lib.tres, editable in the
+## animation editor. The old code-built world-space `AxeRig` is deleted.
+##
+## Nothing about the swing's shape or timing is exported here on purpose: two
+## owners for one motion is how the game ended up splitting logs while the axe was
+## still in the air (`swing_time` was 1.0 s in the scene, `anticipation_sec` 0.1 s).
 @export_group("Axe")
-@export var axe_scale := 1.4
-@export var axe_hover := 0.45            # how far above the impact the axe starts its swing (m)
-@export var axe_hidden_euler := Vector3(-1.1, 0.0, 0.15)
-@export var axe_struck_euler := Vector3(0.15, 0.0, 0.1)
-@export var swing_time := 0.16
+## Belt-and-braces only: the strike is resolved by the animation's contact key
+## (see _on_axe_contact). This is how long after the swing STARTS the mini-game
+## gives up waiting for that key and resolves anyway, as a fraction of the swing's
+## own length — so a `swing` re-keyed without a contact key still chops, badly,
+## instead of soft-locking the game with a strike that never lands.
+@export var strike_timeout_slack := 1.35
 
 # --- splitting: a swing can FAIL and leave a scar -------------------------
 ## Creative Director call, 2026-08-01: *"we should make sure the player doesn't
@@ -227,7 +240,6 @@ const _AxeRig := preload("res://scenes/3d_action/axe_rig.gd")
 
 const _TEX_INSIDE := preload("res://assets/textures/wood_oak/wood_oak_inside_tilable_diffColor.jpg")
 const _TEX_INSIDE_N := preload("res://assets/textures/wood_oak/wood_oak_inside_tilable_normals.jpg")
-const _AXE_FBX := preload("res://assets/models/axe_basic/axe_basic.fbx")
 const _STUMP_FBX := preload("res://assets/models/chopping_stump_a/chopping_stump_a.fbx")
 
 const _PICK_LAYER := 1 << 1              # on-block pieces sit on this layer for ray-picking only
@@ -243,7 +255,7 @@ var _pile_root: Node3D                    # frozen stacked firewood proxies live
 var _haul_root: Node3D                    # a load on its way out of the yard; NOT part of the pile any more
 var _on_block: Array = []                 # Array[Area3D] — script-animated pieces on the block
 var _firewood: Array = []                 # Array[RigidBody3D] — the only physics pieces
-var _pending: Dictionary = {}             # in-flight strike waiting out anticipation_sec
+var _pending: Dictionary = {}             # strike in flight, waiting for the axe's contact key
 var _cooldown_left := 0.0                 # seconds until the axe can swing again (what coffee shortens)
 var _stacking := false                    # firewood is flying into the pile
 var _awaiting_stack := false              # log done; waiting for firewood to settle before stacking
@@ -252,7 +264,7 @@ var _await_since := 0.0                   # sec timestamp the wait began
 var _source_mesh: Mesh
 var _yaw_steps := 0
 var _orbit_tween: Tween
-var _axe: AxeRig
+var _axe: AxeViewmodel                    # the camera-mounted rig; null only in a scene without one
 var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
@@ -321,13 +333,14 @@ func _process(delta: float) -> void:
 	if _cooldown_left > 0.0:
 		_cooldown_left -= delta
 
+	# The FAILSAFE, not the normal path: the axe's contact key resolves the strike
+	# (_on_axe_contact). This only fires if that key never arrives — an animation
+	# re-keyed without one, or no viewmodel in the scene at all — because a pending
+	# strike that never resolves blocks every further click and stops the game dead.
 	if not _pending.is_empty():
 		_pending.timer -= delta
 		if _pending.timer <= 0.0:
-			var pd := _pending
-			_pending = {}
-			if is_instance_valid(pd.piece) and pd.piece in _on_block:
-				_resolve_strike(pd.piece, pd.world_point, pd.normal, pd.dir)
+			_resolve_pending()
 
 	if _awaiting_stack and _firewood_settled():
 		_begin_stacking()
@@ -663,6 +676,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_click(screen_pos: Vector2) -> void:
 	if not _pending.is_empty():
 		return   # one strike resolves at a time (matches reference _pendingSplit gate)
+	if _axe != null and _axe.is_swinging():
+		return   # mid-swing, including the recovery: you only have the one axe
 	if _cooldown_left > 0.0:
 		return   # still getting the axe back up — this is what the coffee shortens
 	var from := _camera.project_ray_origin(screen_pos)
@@ -698,11 +713,11 @@ func _on_click(screen_pos: Vector2) -> void:
 			_turn_cross_axis(-1 if screen_pos.x < half_w else 1)
 			return
 	var world_point: Vector3 = hit.position
-	_swing_axe(world_point, normal)
+	_swing_axe(world_point, normal, screen_pos)
 	_cooldown_left = current_swing_cooldown()
 	_pending = {
 		"piece": piece, "world_point": world_point, "normal": normal,
-		"dir": _dir_from_normal(normal), "timer": anticipation_sec,
+		"dir": _dir_from_normal(normal), "timer": _strike_timeout(),
 	}
 
 
@@ -1314,21 +1329,83 @@ func _build_stump() -> void:
 
 
 # ------------------------------------------------------------------- axe
+## The rig is AUTHORED IN THE SCENE now, under the camera, so all this does is find
+## it and subscribe to the frame the blade bites. Built in code it could not be
+## keyframed, which is the whole point of the 2026-08-02 rebuild.
+##
+## A missing anchor is a WARNING, not an error: the mini-game still plays (the
+## strike falls back to `anticipation_sec`), because a scene stripped down for a
+## test should not have to carry a viewmodel to chop wood.
 func _build_axe() -> void:
-	_axe = _AxeRig.new()
-	_axe.hidden_euler = axe_hidden_euler
-	_axe.struck_euler = axe_struck_euler
-	_axe.hover = axe_hover
-	_axe.swing_time = swing_time
-	add_child(_axe)
-	_axe.setup(_AXE_FBX, axe_scale)
+	_axe = _camera.get_node_or_null("AxeViewmodelAnchor") as AxeViewmodel
+	if _axe == null:
+		push_warning("chopping_minigame: no AxeViewmodelAnchor under the camera — "
+			+ "swinging invisibly, strikes resolve on anticipation_sec.")
+		return
+	_axe.contact.connect(_on_axe_contact)
 
 
-## Swing the axe from the impact point (reference playFromImpact). Defaults let
-## dev tools call _swing_axe() with no args.
-func _swing_axe(world_point := Vector3(0.0, _stump_top_y, 0.0), _normal := Vector3.RIGHT) -> void:
-	if _axe != null:
-		_axe.swing(world_point)
+## Swing the axe at `world_point`. `screen_pos` is where the player clicked, and is
+## only used to lean the rig that way — the motion itself is the authored animation
+## and does not chase the impact point around. Defaults let dev tools call
+## _swing_axe() with no args.
+func _swing_axe(world_point := Vector3(0.0, _stump_top_y, 0.0), _normal := Vector3.RIGHT,
+		screen_pos := Vector2(-1.0, -1.0)) -> void:
+	if _axe == null:
+		return
+	# The upgrade speeds up the SWING, not a dead wait after it. `swing_cooldown` is
+	# the authored rate and current_swing_cooldown() is what the skill tree has
+	# bought it down to, so the ratio is exactly what the player paid for.
+	var base := maxf(current_swing_cooldown(), 0.001)
+	_axe.set_speed(clampf(swing_cooldown / base, 0.25, 4.0))
+	_axe.swing(_aim_from_screen(screen_pos, world_point))
+
+
+## Where to lean the swing, as -1..1 from the centre of the frame. Prefers the
+## actual click; falls back to projecting the impact point, so a dev tool or a
+## headless caller that has no mouse position still aims at the wood.
+func _aim_from_screen(screen_pos: Vector2, world_point: Vector3) -> Vector2:
+	var rect := get_viewport().get_visible_rect().size
+	var p := screen_pos
+	if p.x < 0.0 or p.y < 0.0:
+		if _camera == null or _camera.is_position_behind(world_point):
+			return Vector2.ZERO
+		p = _camera.unproject_position(world_point)
+	if rect.x <= 0.0 or rect.y <= 0.0:
+		return Vector2.ZERO
+	# y is flipped: screen y grows downward, aim y is up-positive like the camera's.
+	return Vector2(p.x / rect.x * 2.0 - 1.0, 1.0 - p.y / rect.y * 2.0)
+
+
+## The animation reached the frame the blade bites. THIS is when the wood breaks.
+func _on_axe_contact() -> void:
+	_resolve_pending()
+
+
+## Resolve whatever strike is in flight, exactly once. Clears `_pending` FIRST so
+## the failsafe in _process and the contact key can never both spend the same
+## strike, whichever of them gets there.
+func _resolve_pending() -> void:
+	if _pending.is_empty():
+		return
+	var pd := _pending
+	_pending = {}
+	if is_instance_valid(pd.piece) and pd.piece in _on_block:
+		_resolve_strike(pd.piece, pd.world_point, pd.normal, pd.dir)
+
+
+## How long a strike may stay in flight before the failsafe spends it. Comfortably
+## past the animation's own contact key, so a swing that is merely slow (hit-pause,
+## a frame spike) is never cut short.
+func _strike_timeout() -> float:
+	if _axe == null:
+		return anticipation_sec
+	var t := _axe.contact_time()
+	if t < 0.0:
+		# No contact key in the animation at all. Fall back to the swing's length so
+		# the wood at least breaks somewhere inside the motion rather than instantly.
+		return maxf(_axe.swing_duration(), anticipation_sec)
+	return t * strike_timeout_slack
 
 
 # --------------------------------------------------------------- audio
