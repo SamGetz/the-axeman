@@ -684,8 +684,13 @@ it, cash buys it" when asked directly.
   only so they do not all leave on one identical frame.
 - **`_ABSORB_DIST` (0.4 m) is not cosmetic trimming.** Flying to the camera's exact
   position means arriving at zero distance, where angular size explodes and a 2 cm
-  bead becomes a flat green slab across a quarter of the screen. `orb_shot` caught
+  bead becomes a green slab across a quarter of the screen. `orb_shot` caught
   exactly that: every orb correct, two of them billboards in the lens.
+- **THE ORB BACKS OFF ALONG THE CAMERA'S VIEW AXIS, NOT ALONG ITS OWN APPROACH.**
+  Backing off the way it came looks obvious and is wrong: every orb starts on the
+  ground, so that line comes up from below and the whole burst converged UNDER the
+  lens — Sam: *"it just flys to the players feet"*. The absorb point is now dead
+  centre of the view, which is what reads as flying into the player.
 - **UNSHADED MEANS `emission` IS NEVER READ** — an unshaded surface outputs albedo
   and nothing else, so the emission settings this shipped with did nothing. The
   glow is a real object: a small additive billboard quad wearing a code-built
@@ -693,6 +698,13 @@ it, cash buys it" when asked directly.
   under gl_compatibility. `billboard_keep_scale` is load-bearing — billboarding
   rebuilds the basis, and without it the draw phase's shrink is thrown away and the
   halo arrives at the camera full size.
+- **AN ADDITIVE SURFACE FADES BY GOING BLACK, NOT BY GOING TRANSPARENT.** This is
+  the "square exp bubble" (Sam, 2026-08-02) and it is the trap to remember: additive
+  blending ADDS the source RGB, so a gradient that fades only its ALPHA still adds
+  full green out to the rim and renders as a hard flat CARD. The halo gradient now
+  fades its COLOUR to black; alpha rides along. Diagnosed with `orb_probe`, which
+  proved the texture correct (centre alpha 0.53, corner 0.0) while the quads on
+  screen were squares — art vs blend, settled in one run.
 - **THE ORB IS THE RECEIPT, NOT THE PAYMENT.** XP is banked the instant the log is
   finished, never on absorption — quitting during the second of flight must not
   cost the player the log they just chopped, and the save must not disagree with
@@ -729,7 +741,9 @@ woods. The chopping game reads them; so does the yard HUD, which is the whole
 reason they are a Resource and not a const in the mini-game.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
-`pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `split_odds`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,
+`pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `split_odds`, `jag_shot`,
+`orb_shot` (the burst, all four phases), `orb_probe` (the halo taken apart —
+texture vs blend), `inspect_log`, `inspect_stump`, `probe_log`,
 `species_shot` (renders EVERY row of `species_table.tres`, fresh and cut — run it
 on any log drop AND on any `bark_tint` change; `_ONLY_SPECIES`/`_FIRST_MESH_ONLY`
 narrow it from the full 124 PNGs), `inspect_fbx` (tree/size/material report), `inspect_materials` (the

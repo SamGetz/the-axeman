@@ -143,13 +143,23 @@ static func _shared() -> Array:
 
 ## A soft round falloff, built in code rather than authored — it is 64 px of green
 ## fog and does not want to be an art dependency.
+##
+## THE FALLOFF IS IN THE COLOUR, NOT THE ALPHA, AND THAT IS THE WHOLE BUG THIS FIXES.
+## An additive surface adds its RGB to what is behind it; fading only the alpha out
+## to the rim left the corners still carrying full green, so every halo rendered as
+## a hard flat SQUARE — which is the "square exp bubble". Black adds nothing, so the
+## colour is what has to fade. The alpha is carried along for the ride.
+##
+## Diagnosed with core/tools/orb_probe.tscn, which parks halos at known distances:
+## the texture dumped correct (centre alpha 0.53, corner 0.0) while the quads on
+## screen were flat cards, which is what pinned it on the blend rather than the art.
 static func _halo_texture() -> GradientTexture2D:
 	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	grad.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
 	grad.colors = PackedColorArray([
-		Color(0.7, 1.0, 0.6, 0.55),
-		Color(0.45, 1.0, 0.38, 0.22),
-		Color(0.3, 0.9, 0.28, 0.0),
+		Color(0.62, 1.0, 0.52, 1.0),
+		Color(0.16, 0.34, 0.13, 0.35),
+		Color(0.0, 0.0, 0.0, 0.0),
 	])
 	var tex := GradientTexture2D.new()
 	tex.gradient = grad
@@ -253,15 +263,18 @@ func _process(delta: float) -> void:
 	rotate_y(_spin * delta)
 
 
-## Where the orb actually ends: `_ABSORB_DIST` short of the player, on the line it
-## was approaching from. Combined with the shrink, it is gone before it is close
-## enough to be a wall of green.
+## Where the orb actually ends: `_ABSORB_DIST` short of the player, ON THE CAMERA'S
+## VIEW AXIS — which is the middle of the screen, and therefore reads as flying INTO
+## the player.
+##
+## It used to back off along the line the orb was travelling, and since every orb
+## starts on the ground that line came up from below: the burst converged under the
+## lens and looked like it was being collected by the player's FEET (Creative
+## Director, 2026-08-02). Where the orb came from should not decide where the player
+## is standing.
 func _absorb_point() -> Vector3:
-	var eye := _target.global_position
-	var back := _draw_from - eye
-	if back.length_squared() < 0.000001:
-		return eye
-	return eye + back.normalized() * _ABSORB_DIST
+	var cam := _target.global_transform
+	return cam.origin - cam.basis.z * _ABSORB_DIST
 
 
 ## THE RUSH HOME IS A CURVE, NOT A LINE (Creative Director call, 2026-08-02: *"I

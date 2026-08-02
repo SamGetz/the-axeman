@@ -30,7 +30,7 @@ func _ready() -> void:
 	# and a pile animation in front of the thing being photographed.
 	game._burst_xp_orbs(120)
 
-	for tag: Array in [["burst", 5], ["bounce", 12], ["resting", 30], ["draw", 18]]:
+	for tag: Array in [["burst", 5], ["bounce", 12], ["resting", 30], ["draw", 18], ["arriving", 12]]:
 		for i in range(int(tag[1])):
 			await get_tree().process_frame
 		await _save(String(tag[0]))
