@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="LevelCurve" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/level_curve.gd" id="1_curve"]
+
+[resource]
+script = ExtResource("1_curve")
+base_xp = 40
+curve_power = 1.8

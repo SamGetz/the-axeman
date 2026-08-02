@@ -78,32 +78,18 @@ static func by_yield_item(item_id: StringName) -> SpeciesDef:
 
 
 ## ---------------------------------------------------------------- the ladder
-## The wood a fresh save starts on: the first species that needs no chopping at
-## all. Falls back to index 0 so a table where someone has priced every wood
-## behind a threshold still boots with something on the block.
+## The wood a fresh save starts on: the first species that is free at level 1.
+## Falls back to index 0 so a table where someone has put a gate on every wood
+## still boots with something on the block.
+##
+## OWNERSHIP of every other wood now lives in GameState (it is a purchase, not a
+## derivation), which is why the "which woods does the player have" helpers that
+## used to sit here are gone — see GameState.get_owned_species().
 static func starting_species() -> SpeciesDef:
 	for s: SpeciesDef in all():
-		if s != null and s.unlock_at <= 0:
+		if s != null and s.is_starting_wood():
 			return s
 	return at(0)
-
-
-## Every species the player has earned, in ladder order.
-static func unlocked(lifetime_wood_chopped: int) -> Array[SpeciesDef]:
-	var out: Array[SpeciesDef] = []
-	for s: SpeciesDef in all():
-		if s != null and s.is_unlocked(lifetime_wood_chopped):
-			out.append(s)
-	return out
-
-
-## The next wood the player has NOT earned, or null once the ladder is finished.
-## This is the goal the HUD dangles: one wood ahead, never a wall of locked rows.
-static func next_locked(lifetime_wood_chopped: int) -> SpeciesDef:
-	for s: SpeciesDef in all():
-		if s != null and not s.is_unlocked(lifetime_wood_chopped):
-			return s
-	return null
 
 
 ## ---------------------------------------------------------------- internals

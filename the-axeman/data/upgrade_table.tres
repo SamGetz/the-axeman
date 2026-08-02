@@ -1,28 +1,8 @@
-[gd_resource type="Resource" script_class="UpgradeTable" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="UpgradeTable" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://data/upgrade_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/upgrade_def.gd" id="2_def"]
 
-[sub_resource type="Resource" id="Resource_coffee"]
-resource_name = "coffee"
-script = ExtResource("2_def")
-id = &"coffee"
-display_name = "Coffee"
-description = "A hot cup between swings. You get the axe back up 5% sooner."
-base_cost = 25
-cost_growth = 1.6
-max_level = 10
-
-[sub_resource type="Resource" id="Resource_strength"]
-resource_name = "strength"
-script = ExtResource("2_def")
-id = &"strength"
-display_name = "Protein Bar"
-description = "Heavier shoulders behind every blow. 5% more likely to split a log clean through."
-base_cost = 40
-cost_growth = 1.7
-max_level = 10
-
 [resource]
 script = ExtResource("1_table")
-upgrades = Array[ExtResource("2_def")]([SubResource("Resource_coffee"), SubResource("Resource_strength")])
+upgrades = Array[ExtResource("2_def")]([])

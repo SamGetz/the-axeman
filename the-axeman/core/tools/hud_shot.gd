@@ -61,6 +61,17 @@ func _ready() -> void:
 	_save("_2b_woodshed")
 	hud.get_node("WoodPanel/Column/CloseWoodButton").pressed.emit()
 
+	# The skill tree, part way up: enough levels to have points in hand and to
+	# have opened a second rank, so the indent, the "Needs X" rows and the
+	# affordable rows are all on screen at once.
+	GameState.add_xp(30000)
+	SkillTree.buy(&"quick_hands")
+	SkillTree.buy(&"strong_arms")
+	hud.get_node("YardPanel/Column/SkillsButton").pressed.emit()
+	await get_tree().process_frame
+	_save("_2c_skills")
+	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
+
 	# Into the chopping game through the button the player uses.
 	hud.get_node("YardPanel/Column/ChopButton").pressed.emit()
 	for i in range(30):

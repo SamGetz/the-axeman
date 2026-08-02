@@ -5,8 +5,10 @@ extends Node
 ##
 ## Owns ALL progression state: unlocked biomes, equipped tool tiers, building
 ## tiers (A5), and — added for the cozy lumberyard roadmap — CASH, LIFETIME WOOD
-## CHOPPED and WHICH WOOD THE PLAYER IS CHOPPING. Writes occur ONLY here, either
-## in response to EventBus signals or through the public methods below.
+## CHOPPED, WHICH WOODS THE PLAYER OWNS AND IS CHOPPING, and (2026-08-02) XP,
+## the level derived from it, and the skill tree that level pays for. Writes
+## occur ONLY here, either in response to EventBus signals or through the public
+## methods below.
 ## Other modules (M5 gear gating, M7 upgrade UI) use direct read-only getters.
 
 ## ------------------------------------------------------------------ signals
@@ -22,16 +24,24 @@ signal lifetime_wood_chopped_changed(new_total: int)
 ## the visible record of work done since the last load left, and it is progression
 ## state, so it lives here.
 signal yard_pile_changed(new_total: int)
-## A wood species has just been EARNED — `lifetime_wood_chopped` crossed its
-## `unlock_at` on this very gather. Fires once per species, ever, in ladder order
-## when a single gather crosses more than one threshold.
-##
-## Local, not EventBus, and not A7's `environment_unlocked` either: that signal
-## carries an `Enums.Biome`, the Biome enum is frozen at four values, and a wood
-## species is not a biome. Amendment 2's precedent again — A7 is untouched.
-signal species_unlocked(species_id: StringName)
 ## The player chose a different wood to put on the block.
 signal selected_species_changed(species_id: StringName)
+## Experience earned (2026-08-02). Carries the new TOTAL, like every other counter
+## signal here, so a bar can repaint from one argument.
+signal xp_changed(new_total: int)
+## A LEVEL WAS GAINED. Fires once per level even when a single award crosses
+## several, in ascending order — the same rule the wood milestones used, and for
+## the same reason: a level-up is a moment, and three moments at once still owe
+## the player three of them.
+signal level_gained(new_level: int)
+## Skill points available to spend changed — earned by levelling, spent in the
+## tree. Separate from `level_gained` because spending moves it too.
+signal skill_points_changed(available: int)
+## A skill node's level moved.
+signal skill_level_changed(skill_id: StringName, new_level: int)
+## A wood was BOUGHT. Since 2026-08-02 species are owned, not derived (see
+## `_owned_species`), so this is a real event rather than a threshold crossing.
+signal species_purchased(species_id: StringName)
 
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
@@ -70,13 +80,23 @@ var _yard_pile: Dictionary = {}
 ## res://data/species_table.tres). Empty means "never chosen" and reads as the
 ## starting species — see get_selected_species().
 ##
-## THE UNLOCKED SET IS NOT STORED, and deliberately so: a species is unlocked
-## exactly when `_lifetime_wood_chopped >= unlock_at`, and that counter is
-## monotonic by construction (see _on_resource_gathered). Deriving it means there
-## is no second source of truth to drift, nothing extra to save, and an old save
-## re-derives the right set for free when the ladder is retuned. Only the
-## player's CHOICE has to persist, because nothing else can imply it.
 var _selected_species: StringName = &""
+## Species ids the player has BOUGHT. Stored, and this is a deliberate reversal:
+## until 2026-08-02 the unlocked set was derived from `_lifetime_wood_chopped`,
+## which was safe because that counter is monotonic and could not disagree with
+## itself. Sam then made a wood a LEVEL-GATED CASH PURCHASE, and a purchase is a
+## discrete event that nothing else implies — the player's level says they *may*
+## buy it, never that they *did*. So this has to persist.
+##
+## The starting wood is never in here; `owns_species()` grants it, so a fresh save
+## and a corrupted one both still have something to chop.
+var _owned_species: Dictionary = {}
+## Total experience, monotonic — nothing takes XP away, which is what lets the
+## LEVEL be derived from it (see LevelCurve) rather than stored alongside it.
+var _xp: int = 0
+## Skill node id -> levels bought. Skill POINTS available are derived from level
+## minus what this has cost, so there is no separate purse to drift out of step.
+var _skill_levels: Dictionary = {}
 
 ## ---------------------------------------------------------------- lifecycle
 func _ready() -> void:
@@ -127,22 +147,98 @@ func get_yard_pile_count() -> int:
 	return total
 
 
+## ---------------------------------------------------- experience and levels
+func get_xp() -> int:
+	return _xp
+
+
+## DERIVED from XP, never stored — XP is monotonic, so a level computed from it
+## cannot disagree with it, and retuning the curve re-levels an existing save
+## instead of leaving it on thresholds that no longer exist.
+func get_level() -> int:
+	return _level_curve().level_for_xp(_xp)
+
+
+## 0..1 through the current level. 1.0 at the cap, so a bar reads full.
+func get_level_progress() -> float:
+	return _level_curve().progress_through_level(_xp)
+
+
+func get_xp_to_next_level() -> int:
+	return _level_curve().xp_remaining(_xp)
+
+
+func is_max_level() -> bool:
+	return get_level() >= LevelCurve.MAX_LEVEL
+
+
+## Skill points EARNED over the run: one per level gained, so level 1 has none and
+## level 99 has 98. Derived from the level, which is derived from XP.
+func get_skill_points_earned() -> int:
+	return maxi(0, get_level() - 1)
+
+
+func get_skill_points_spent() -> int:
+	var spent := 0
+	for id: StringName in _skill_levels:
+		var def := SkillTree.get_node_def(id)
+		if def != null:
+			spent += def.cost * int(_skill_levels[id])
+	return spent
+
+
+## What is left to spend. Computed rather than banked so a retuned tree or a
+## renamed node cannot leave the player holding points for a skill that is gone.
+func get_skill_points_available() -> int:
+	return maxi(0, get_skill_points_earned() - get_skill_points_spent())
+
+
+func get_skill_level(skill_id: StringName) -> int:
+	return int(_skill_levels.get(skill_id, 0))
+
+
+func get_skill_levels() -> Dictionary:
+	return _skill_levels.duplicate()
+
+
 ## ------------------------------------------------------- wood species (M7A)
-## Has the player chopped enough, ever, to have earned this wood? Derived, never
-## stored — see `_selected_species` for why.
-func is_species_unlocked(species_id: StringName) -> bool:
+## Does the player OWN this wood? The starting species is always owned, so a fresh
+## save, a wiped one and a save whose purchases were corrupted all still have
+## something to put on the block.
+func owns_species(species_id: StringName) -> bool:
+	if SpeciesTable.by_id(species_id) == null:
+		return false
+	var start := SpeciesTable.starting_species()
+	if start != null and start.id == species_id:
+		return true
+	return _owned_species.get(species_id, false)
+
+
+## Is the player high enough level for this wood to be FOR SALE? Separate from
+## owning it: the level gate says a wood may be bought, never that it was.
+func can_species_be_bought(species_id: StringName) -> bool:
 	var def := SpeciesTable.by_id(species_id)
-	return def != null and def.is_unlocked(_lifetime_wood_chopped)
+	if def == null or owns_species(species_id):
+		return false
+	return get_level() >= def.unlock_level
 
 
-## Every species earned so far, in ladder order.
-func get_unlocked_species() -> Array[SpeciesDef]:
-	return SpeciesTable.unlocked(_lifetime_wood_chopped)
+## Every species the player owns, in ladder order.
+func get_owned_species() -> Array[SpeciesDef]:
+	var out: Array[SpeciesDef] = []
+	for s: SpeciesDef in SpeciesTable.all():
+		if s != null and owns_species(s.id):
+			out.append(s)
+	return out
 
 
-## The next wood still to earn, or null once the ladder is finished.
-func get_next_locked_species() -> SpeciesDef:
-	return SpeciesTable.next_locked(_lifetime_wood_chopped)
+## The next wood up the ladder the player does not own — the goal the woodshed
+## dangles, whether it is affordable yet or not.
+func get_next_unowned_species() -> SpeciesDef:
+	for s: SpeciesDef in SpeciesTable.all():
+		if s != null and not owns_species(s.id):
+			return s
+	return null
 
 
 ## The wood that goes on the block. ALWAYS returns something choppable: a save
@@ -150,7 +246,7 @@ func get_next_locked_species() -> SpeciesDef:
 ## that a retuned ladder has put back out of reach all fall through to the
 ## starting wood rather than leaving the block empty.
 func get_selected_species() -> StringName:
-	if _selected_species != &"" and is_species_unlocked(_selected_species):
+	if _selected_species != &"" and owns_species(_selected_species):
 		return _selected_species
 	var start := SpeciesTable.starting_species()
 	return &"" if start == null else start.id
@@ -215,12 +311,85 @@ func select_species(species_id: StringName) -> bool:
 	if def == null:
 		push_error("GameState: no wood species named '%s' — selection refused." % species_id)
 		return false
-	if not def.is_unlocked(_lifetime_wood_chopped):
+	if not owns_species(species_id):
 		return false
 	if _selected_species == species_id:
 		return true   # already on the block; not a failure, just nothing to do
 	_selected_species = species_id
 	selected_species_changed.emit(species_id)
+	return true
+
+
+## ------------------------------------------------ experience (public writes)
+## Award experience. Monotonic on purpose — there is no `spend_xp`, because the
+## level is DERIVED from this number and taking XP away would silently un-level
+## the player and strand skill points they had already spent.
+##
+## Levels are announced ONE AT A TIME even when a single award crosses several: a
+## fat log at low level can jump two, and two level-ups still owe the player two
+## moments. Same rule the wood milestones used before they became purchases.
+func add_xp(amount: int) -> bool:
+	if amount <= 0:
+		push_error("GameState: add_xp amount must be > 0 (got %d) — ignored." % amount)
+		return false
+	var before := get_level()
+	_xp += amount
+	xp_changed.emit(_xp)
+	var after := get_level()
+	if after > before:
+		for level in range(before + 1, after + 1):
+			level_gained.emit(level)
+		skill_points_changed.emit(get_skill_points_available())
+	return true
+
+
+## Can the player cover `amount` skill points right now?
+##
+## DELIBERATELY NOT `try_spend_*`, which everywhere else in this file means "take
+## it or change nothing". There is no pool to take from: points spent are DERIVED
+## by summing what the owned skills cost, so recording the skill IS the spend, and
+## a method named `try_spend` that decremented nothing would be a lie a reader
+## would have to go and disprove. Atomicity still holds — SkillTree.buy() asks
+## this and then calls set_skill_level(), and nothing observes the gap.
+func can_afford_skill_points(amount: int) -> bool:
+	if amount <= 0:
+		push_error("GameState: can_afford_skill_points amount must be > 0 (got %d) — ignored." % amount)
+		return false
+	return get_skill_points_available() >= amount
+
+
+## Records a bought skill level. Called by SkillTree.buy(), which has already
+## checked cost, cap and prerequisites — Directive 6: the tree decides, the owner
+## of progression writes.
+func set_skill_level(skill_id: StringName, new_level: int) -> void:
+	var current := get_skill_level(skill_id)
+	if new_level <= current:
+		push_warning("GameState: set_skill_level for '%s' with non-increasing level %d (current %d) — ignored."
+			% [skill_id, new_level, current])
+		return
+	_skill_levels[skill_id] = new_level
+	skill_level_changed.emit(skill_id, new_level)
+	skill_points_changed.emit(get_skill_points_available())
+
+
+## ------------------------------------------------- buying a wood (2026-08-02)
+## Buys a species outright. ATOMIC and ordered so it cannot half-happen: refuse an
+## unknown wood, one already owned, one the player is too low a level for, or one
+## they cannot afford — then take the cash, and only once it is actually gone,
+## grant the wood. Granting first and failing to charge would be a free hardwood.
+func try_buy_species(species_id: StringName) -> bool:
+	var def := SpeciesTable.by_id(species_id)
+	if def == null:
+		push_error("GameState: no wood species named '%s' — purchase refused." % species_id)
+		return false
+	if owns_species(species_id):
+		return false
+	if get_level() < def.unlock_level:
+		return false
+	if not try_spend_cash(def.unlock_cost):
+		return false
+	_owned_species[species_id] = true
+	species_purchased.emit(species_id)
 	return true
 
 
@@ -240,6 +409,11 @@ func to_save_dict() -> Dictionary:
 		# it is re-derived from lifetime_wood_chopped on load, so a retuned ladder
 		# applies to an existing save instead of freezing its old thresholds in.
 		"selected_species": String(_selected_species),
+		# XP is saved; the LEVEL is not, because it is derived from XP and a
+		# saved level would be a second opinion that could disagree.
+		"xp": _xp,
+		"owned_species": _owned_species.keys(),
+		"skill_levels": _skill_levels.duplicate(),
 		"tool_tiers": _tool_tiers.duplicate(),
 		"building_tiers": _building_tiers.duplicate(),
 		"unlocked_biomes": _unlocked_biomes.keys(),
@@ -268,6 +442,31 @@ func apply_save_dict(data: Dictionary) -> void:
 	# back to the starting wood for anything unknown or not yet earned, so a save
 	# written before a species was renamed loads without losing anything else.
 	_selected_species = StringName(String(data.get("selected_species", "")))
+	_xp = maxi(0, int(data.get("xp", 0)))
+
+	_owned_species = {}
+	var owned: Variant = data.get("owned_species")
+	if owned is Array:
+		for id: Variant in owned as Array:
+			# String through the file, StringName to every reader — the same trap
+			# the building tiers hit. A wood no longer in the table is dropped
+			# rather than kept, so a renamed species cannot haunt the woodshed.
+			var sid := StringName(String(id))
+			if SpeciesTable.by_id(sid) != null:
+				_owned_species[sid] = true
+
+	_skill_levels = {}
+	var skills: Variant = data.get("skill_levels")
+	if skills is Dictionary:
+		for key: Variant in skills as Dictionary:
+			var nid := StringName(String(key))
+			var lv := maxi(0, int((skills as Dictionary)[key]))
+			# Clamp to the node's CURRENT cap and drop skills that no longer
+			# exist: a retuned tree must not leave the player owing more points
+			# than they have earned, which would read as a negative balance.
+			var def := SkillTree.get_node_def(nid)
+			if def != null and lv > 0:
+				_skill_levels[nid] = mini(lv, def.max_level) if def.max_level > 0 else lv
 
 	var tiers: Variant = data.get("tool_tiers")
 	if tiers is Dictionary:
@@ -299,6 +498,8 @@ func apply_save_dict(data: Dictionary) -> void:
 	# The RESOLVED choice, not the raw field: a save whose wood no longer exists
 	# must repaint the HUD as the wood that will actually be on the block.
 	selected_species_changed.emit(get_selected_species())
+	xp_changed.emit(_xp)
+	skill_points_changed.emit(get_skill_points_available())
 
 
 func reset_to_defaults() -> void:
@@ -308,6 +509,9 @@ func reset_to_defaults() -> void:
 	_lifetime_wood_chopped = 0
 	_yard_pile = {}
 	_selected_species = &""
+	_owned_species = {}
+	_xp = 0
+	_skill_levels = {}
 	_tool_tiers = {
 		Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
 		Enums.ToolType.PICKAXE: DEFAULT_TOOL_TIER,
@@ -318,6 +522,23 @@ func reset_to_defaults() -> void:
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
 	yard_pile_changed.emit(0)
 	selected_species_changed.emit(get_selected_species())
+	xp_changed.emit(0)
+	skill_points_changed.emit(0)
+
+## The XP curve, loaded once. Data, so the whole 99-level shape is one file
+## edit — see LevelCurve for why the level is derived from it rather than
+## stored beside it.
+const _LEVEL_CURVE_PATH := "res://data/level_curve.tres"
+static var _curve: LevelCurve = null
+
+func _level_curve() -> LevelCurve:
+	if _curve == null:
+		_curve = load(_LEVEL_CURVE_PATH) as LevelCurve
+		if _curve == null:
+			push_error("GameState: failed to load '%s'; falling back to defaults." % _LEVEL_CURVE_PATH)
+			_curve = LevelCurve.new()
+	return _curve
+
 
 ## ------------------------------------------- writes (EventBus-driven ONLY)
 func _on_gear_upgraded(tool_type: Enums.ToolType, new_tier: int) -> void:
@@ -359,18 +580,8 @@ func _on_resource_gathered(resource_id: StringName, amount: int) -> void:
 	var def: ItemDef = InventoryManager.get_item_def(resource_id)
 	if def == null or def.category != Enums.ItemCategory.RAW_WOOD:
 		return
-	var before := _lifetime_wood_chopped
 	_lifetime_wood_chopped += amount
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
-
-	# A gather is the ONLY thing that can earn a wood, because it is the only
-	# thing that moves the counter the unlock is derived from. Compare before and
-	# after rather than testing the new total alone: a single gather of six
-	# pieces can cross more than one threshold, and a species must announce
-	# itself exactly once, ever.
-	for s: SpeciesDef in SpeciesTable.all():
-		if s != null and s.unlock_at > before and s.unlock_at <= _lifetime_wood_chopped:
-			species_unlocked.emit(s.id)
 
 
 func _on_environment_unlocked(biome_id: Enums.Biome) -> void:

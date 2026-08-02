@@ -93,6 +93,13 @@ const _COIN := preload("res://assets/ui/coin.png")
 @onready var _wood_list: VBoxContainer = $WoodPanel/Column/WoodScroll/WoodList
 @onready var _next_wood: Label = $WoodPanel/Column/NextWood
 @onready var _close_wood_button: Button = $WoodPanel/Column/CloseWoodButton
+@onready var _xp_level_label: Label = $XPBar/Column/LevelLabel
+@onready var _xp_progress: ProgressBar = $XPBar/Column/Progress
+@onready var _skills_button: Button = $YardPanel/Column/SkillsButton
+@onready var _skill_panel: PanelContainer = $SkillPanel
+@onready var _skill_list: VBoxContainer = $SkillPanel/Column/SkillScroll/SkillList
+@onready var _points_label: Label = $SkillPanel/Column/PointsLabel
+@onready var _close_skill_button: Button = $SkillPanel/Column/CloseSkillButton
 
 
 func _ready() -> void:
@@ -102,14 +109,20 @@ func _ready() -> void:
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
 	_wood_button.pressed.connect(_on_wood_pressed)
 	_close_wood_button.pressed.connect(_on_close_wood_pressed)
+	_skills_button.pressed.connect(_on_skills_pressed)
+	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 
 	GameState.cash_changed.connect(_on_cash_changed)
 	# The woodshed's three live inputs, all local signals (Amendment 2's
 	# precedent), so nothing here polls: what the player picked, what they have
 	# just earned, and the counter the next milestone is measured against.
 	GameState.selected_species_changed.connect(_on_selected_species_changed)
-	GameState.species_unlocked.connect(_on_species_unlocked)
-	GameState.lifetime_wood_chopped_changed.connect(_on_lifetime_changed)
+	GameState.species_purchased.connect(_on_species_purchased)
+	# XP moves the level, the level opens woods AND pays for skills, so both
+	# panels and the bar ride on it.
+	GameState.xp_changed.connect(_on_xp_changed)
+	GameState.skill_points_changed.connect(_on_skill_points_changed)
+	GameState.skill_level_changed.connect(_on_skill_level_changed)
 	# A purchase moves a tier through A7's own signal, so the shelf repaints off
 	# the same event that recorded the sale.
 	EventBus.building_upgraded.connect(_on_building_upgraded)
@@ -120,10 +133,13 @@ func _ready() -> void:
 	# yard starts open, the shop closed and the back button hidden.
 	_shop_panel.visible = false
 	_wood_panel.visible = false
+	_skill_panel.visible = false
 	_show_yard(true)
 	_refresh_stats()
+	_refresh_xp_bar()
 	_rebuild_shop()
 	_rebuild_woodshed()
+	_rebuild_skills()
 
 
 ## ------------------------------------------------------------------ entry flow
@@ -154,6 +170,7 @@ func _show_yard(yard_visible: bool) -> void:
 		# on the stump by the time you are looking at it.
 		_shop_panel.visible = false
 		_wood_panel.visible = false
+		_skill_panel.visible = false
 	# The stats bar stays up in BOTH modes on purpose: watching the cash climb
 	# while chopping is the whole "number go up" payoff.
 
@@ -247,36 +264,56 @@ func _on_selected_species_changed(_id: StringName) -> void:
 		_rebuild_woodshed()
 
 
-func _on_species_unlocked(_id: StringName) -> void:
-	_rebuild_woodshed()   # cheap, and it can fire mid-chop with the panel shut
+func _on_species_purchased(_id: StringName) -> void:
+	_rebuild_woodshed()
 
 
-## The next milestone is measured against this counter, so the woodshed's "N more
-## to go" has to move with it. Only repaints while the panel is open — this fires
-## once per piece of firewood.
-func _on_lifetime_changed(_total: int) -> void:
+## XP moves the level, and the level is what puts a wood on sale — so the shed's
+## "needs level N" rows can go live without the player touching anything. Only
+## repaints an OPEN panel: this fires once per finished log.
+func _on_xp_changed(_total: int) -> void:
+	_refresh_xp_bar()
 	if _wood_panel.visible:
 		_rebuild_woodshed()
+	if _skill_panel.visible:
+		_rebuild_skills()
 
 
-## One row per EARNED wood, plus exactly one locked row as the next goal.
+func _on_skill_points_changed(_available: int) -> void:
+	_refresh_xp_bar()
+	if _skill_panel.visible:
+		_rebuild_skills()
+
+
+func _on_skill_level_changed(_id: StringName, _level: int) -> void:
+	_rebuild_skills()
+
+
+## THE WOODSHED IS A STORE since 2026-08-02: one row per wood the player OWNS,
+## plus exactly one row for the next wood up the ladder — showing either its price
+## or the level still to reach. A wall of 24 locked rows would be a list of things
+## the player cannot do; one named next wood is a reason to keep chopping.
 func _rebuild_woodshed() -> void:
 	for child in _wood_list.get_children():
 		_wood_list.remove_child(child)
 		child.queue_free()
 
 	var chosen := GameState.get_selected_species()
-	for def: SpeciesDef in GameState.get_unlocked_species():
+	for def: SpeciesDef in GameState.get_owned_species():
 		_wood_list.add_child(_build_wood_row(def, def.id == chosen))
 
-	var next := GameState.get_next_locked_species()
+	var next := GameState.get_next_unowned_species()
 	if next == null:
 		_next_wood.text = "Every wood on Earth is yours."
 	else:
-		_next_wood.text = "Next: %s — %s more pieces to go." % [
-			next.display_name,
-			_thousands(next.chops_remaining(GameState.get_lifetime_wood_chopped())),
-		]
+		var levels := next.levels_remaining(GameState.get_level())
+		if levels > 0:
+			_next_wood.text = "Next: %s — reach level %d to put it up for sale (%d to go)." % [
+				next.display_name, next.unlock_level, levels]
+		else:
+			_wood_list.add_child(_build_wood_row(next, false))
+			_next_wood.text = "%s is in stock at the gate — %s to buy it." % [
+				next.display_name, _thousands(next.unlock_cost)]
 	_refresh_wood_button()
 
 
@@ -299,18 +336,34 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
 
 	var pick := Button.new()
 	pick.custom_minimum_size = Vector2(112, 32)
-	pick.text = "On the block" if is_chosen else "Chop this"
-	pick.disabled = is_chosen
-	if not is_chosen:
-		pick.pressed.connect(_on_wood_row_pressed.bind(def.id))
+	if not GameState.owns_species(def.id):
+		# The one for-sale row. Its price is the cash sink the whole economy feeds.
+		pick.text = str(_thousands(def.unlock_cost))
+		pick.icon = _COIN
+		pick.expand_icon = true
+		pick.disabled = not GameState.can_afford_cash(def.unlock_cost)
+		pick.pressed.connect(_on_buy_wood_pressed.bind(def.id))
+	else:
+		pick.text = "On the block" if is_chosen else "Chop this"
+		pick.disabled = is_chosen
+		if not is_chosen:
+			pick.pressed.connect(_on_wood_row_pressed.bind(def.id))
 	row.add_child(pick)
 	return row
 
 
 func _on_wood_row_pressed(id: StringName) -> void:
-	# select_species is atomic and refuses anything unearned, so there is nothing
+	# select_species is atomic and refuses anything unowned, so there is nothing
 	# to undo here. The repaint rides in on selected_species_changed.
 	GameState.select_species(id)
+
+
+func _on_buy_wood_pressed(id: StringName) -> void:
+	# try_buy_species is atomic and ordered — under-level, unaffordable or already
+	# owned all change nothing. Buying it also puts it on the block, because a
+	# player who just spent their yard on a wood means to chop it.
+	if GameState.try_buy_species(id):
+		GameState.select_species(id)
 
 
 func _refresh_wood_button() -> void:
@@ -328,6 +381,119 @@ func _thousands(n: int) -> String:
 			out += ","
 		out += s[i]
 	return ("-" if n < 0 else "") + out
+
+
+## ------------------------------------------------------------- the skill tree
+func _on_skills_pressed() -> void:
+	_skill_panel.visible = true
+	_rebuild_skills()
+
+
+func _on_close_skill_pressed() -> void:
+	_skill_panel.visible = false
+
+
+## THE TREE IS DRAWN AS AN INDENTED LIST, not as a graph with lines. A real node
+## graph is a layout problem and a design pass of its own; what the player needs
+## to answer right now is "what can I take next and what does it need", and depth
+## plus a named prerequisite says that without either. The DATA is a real DAG
+## (SkillNodeDef.requires, validated for cycles at load), so a graph view later is
+## a rendering change, not a rewrite.
+func _rebuild_skills() -> void:
+	if _skill_list == null:
+		return   # _ready has not run yet; the initial build is at the end of it
+	for child in _skill_list.get_children():
+		_skill_list.remove_child(child)
+		child.queue_free()
+
+	var available := GameState.get_skill_points_available()
+	_points_label.text = "%d point%s to spend   ·   level %d" % [
+		available, "" if available == 1 else "s", GameState.get_level()]
+
+	# Roots first, then each node under the prerequisite that opens it, so the
+	# order on screen is the order the player can actually take them in.
+	for node: SkillNodeDef in SkillTree.get_nodes():
+		if node != null and node.is_root():
+			_add_skill_row(node, 0)
+
+
+func _add_skill_row(def: SkillNodeDef, depth: int) -> void:
+	_skill_list.add_child(_build_skill_row(def, depth))
+	for child: SkillNodeDef in SkillTree.children_of(def.id):
+		# A node with two prerequisites (Woodsman needs both branches) would
+		# otherwise be listed twice — show it under the LAST one it needs, so it
+		# never appears above something it depends on.
+		if child.requires[child.requires.size() - 1] == def.id:
+			_add_skill_row(child, depth + 1)
+
+
+func _build_skill_row(def: SkillNodeDef, depth: int) -> HBoxContainer:
+	var level := SkillTree.get_level(def.id)
+	var maxed := def.is_maxed(level)
+	var locked := not SkillTree.prerequisites_met(def.id)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var indent := Control.new()
+	indent.custom_minimum_size = Vector2(depth * 22, 0)
+	row.add_child(indent)
+
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 0)
+	var name_label := Label.new()
+	name_label.text = "%s   (%d/%d)" % [def.display_name, level, def.max_level]
+	text.add_child(name_label)
+	var blurb := Label.new()
+	blurb.add_theme_font_size_override("font_size", 12)
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if locked:
+		var missing: Array[StringName] = SkillTree.missing_prerequisites(def.id)
+		var names: Array[String] = []
+		for m: StringName in missing:
+			var req := SkillTree.get_node_def(m)
+			names.append(def.display_name if req == null else req.display_name)
+		blurb.text = "Needs %s." % " and ".join(names)
+	else:
+		blurb.text = def.description
+	text.add_child(blurb)
+	row.add_child(text)
+
+	var buy := Button.new()
+	buy.custom_minimum_size = Vector2(96, 32)
+	if maxed:
+		buy.text = "Mastered"
+		buy.disabled = true
+	elif locked:
+		buy.text = "Locked"
+		buy.disabled = true
+	else:
+		buy.text = "%d pt%s" % [def.cost, "" if def.cost == 1 else "s"]
+		buy.disabled = not SkillTree.can_buy(def.id)
+		buy.pressed.connect(_on_buy_skill_pressed.bind(def.id))
+	row.add_child(buy)
+	return row
+
+
+func _on_buy_skill_pressed(id: StringName) -> void:
+	# SkillTree.buy is atomic — an unaffordable or gated node spends nothing and
+	# moves nothing. The repaint rides in on skill_level_changed.
+	SkillTree.buy(id)
+
+
+func _refresh_xp_bar() -> void:
+	if _xp_level_label == null:
+		return
+	var level := GameState.get_level()
+	_xp_progress.value = GameState.get_level_progress()
+	if GameState.is_max_level():
+		_xp_level_label.text = "Level %d — master axeman" % level
+		return
+	var available := GameState.get_skill_points_available()
+	var points := "   ·   %d pt%s" % [available, "" if available == 1 else "s"] if available > 0 else ""
+	_xp_level_label.text = "Level %d   ·   %s XP to go%s" % [
+		level, _thousands(GameState.get_xp_to_next_level()), points]
 
 
 ## ----------------------------------------------------------------- live view

@@ -142,6 +142,15 @@ static func sell_batch(lines: Array) -> int:
 	if payout <= 0:
 		return 0
 
+	# THE PLAYER'S REPUTATION, priced in. Master Axeman and its kin add a fraction
+	# on top of the base prices, which is exactly the layering the price table was
+	# kept separate for: the market's base value is one thing, what THIS axeman
+	# gets for it is another. Applied to the whole basket after it is priced, so a
+	# sale is still all-or-nothing and rounding cannot make a line free.
+	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.CASH_GAIN)
+	if bonus > 0.0:
+		payout = maxi(payout, int(round(float(payout) * (1.0 + bonus))))
+
 	# Stock first: if the player cannot cover the basket, remove_items changes
 	# nothing and we are done before any money exists.
 	if not InventoryManager.remove_items(lines):

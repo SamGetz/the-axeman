@@ -70,12 +70,13 @@ func _ready() -> void:
 	await _test_16_pieces_pay_as_they_land_and_the_load_is_hauled()
 	await _test_17_a_swing_can_fail_and_scars_the_log()
 	_test_18_tougher_wood_pays_better()
-	_test_19_the_shop_sells_levels()
-	await _test_20_upgrades_change_the_game()
-	_test_21_a_wood_is_earned_by_chopping()
-	_test_22_the_player_picks_the_wood()
-	_test_23_the_choice_survives_a_save()
-	await _test_24_the_block_holds_the_chosen_wood()
+	_test_21_experience_makes_levels()
+	_test_22_the_skill_tree_spends_levels()
+	await _test_23_skills_change_the_game()
+	_test_24_woods_are_level_gated_purchases()
+	_test_25_progression_survives_a_save()
+	await _test_26_the_block_holds_the_chosen_wood()
+	await _test_27_a_finished_log_pays_experience()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -680,16 +681,10 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 	await get_tree().process_frame
 
 
-## Difficulty follows the money: the wood that pays most resists most. Asserted
-## against the species table itself so a new wood cannot quietly ship as the most
-## valuable AND the easiest.
-##
-## REWRITTEN 2026-08-02 for Sam's 25 woods. It used to compare every wood against
-## every other and emit a check per pair — fine at 3 rows (9 pairs), 625 lines of
-## output at 25. It now walks the LADDER IN ORDER and aggregates, which is also
-## the stronger claim: pairwise consistency would tolerate a table shuffled into a
-## random order, and the ladder's order is load-bearing (the woodshed lists it top
-## to bottom, and `next_locked` walks it to find the player's next goal).
+## Difficulty follows the money: the wood that pays most resists most, costs most
+## and is gated highest. Asserted against the ladder IN ORDER, so a table shuffled
+## into a random order fails where pairwise consistency would not — the order is
+## load-bearing (the woodshed walks it to find the player's next wood).
 func _test_18_tougher_wood_pays_better() -> void:
 	var species := SpeciesTable.all()
 	_check(species.size() >= 3, "at least three woods to rank (%d)" % species.size())
@@ -698,11 +693,15 @@ func _test_18_tougher_wood_pays_better() -> void:
 	var cheaper: Array[String] = []
 	var easier: Array[String] = []
 	var earlier: Array[String] = []
+	var free_wood: Array[String] = []
+	var no_xp: Array[String] = []
 	var softer: Array[String] = []
 	for i in range(species.size()):
 		var s := species[i]
 		if Market.get_price(s.yield_item) <= 0:
 			unpriced.append("%s (%s)" % [s.id, s.yield_item])
+		if s.xp_reward <= 0:
+			no_xp.append(String(s.id))
 		if i == 0:
 			continue
 		var prev := species[i - 1]
@@ -710,15 +709,18 @@ func _test_18_tougher_wood_pays_better() -> void:
 			cheaper.append("%s <= %s" % [s.id, prev.id])
 		if s.split_chance > prev.split_chance:
 			easier.append("%s > %s" % [s.id, prev.id])
-		if s.unlock_at <= prev.unlock_at:
+		if s.unlock_level <= prev.unlock_level:
 			earlier.append("%s <= %s" % [s.id, prev.id])
-		# NOT a strict per-rung comparison. Sam authored the ORDER of the 25 woods
-		# and it is authoritative; real Janka figures have near-ties inside it
-		# (Silver Birch 1110 sits just above Pedunculate Oak 1120, and the two
-		# beeches are level with Sugar Maple), and bending a real-world number to
-		# satisfy a test would corrupt the very record the ladder was derived from.
-		# What is worth asserting is that no rung is DRAMATICALLY softer than the
-		# one below it, which is what a genuinely misfiled species looks like.
+		if s.unlock_cost <= prev.unlock_cost:
+			free_wood.append("%s <= %s" % [s.id, prev.id])
+		if s.xp_reward <= prev.xp_reward:
+			no_xp.append("%s teaches no more than %s" % [s.id, prev.id])
+		# NOT a strict per-rung comparison. Sam authored the ORDER and it is
+		# authoritative; real Janka has near-ties inside it (Silver Birch 1110 sits
+		# just above Pedunculate Oak 1120, and both beeches are level with Sugar
+		# Maple), and bending a real-world figure to satisfy a test would corrupt
+		# the very record the ladder was derived from. What is worth asserting is
+		# that no rung is DRAMATICALLY softer, which is what a misfiled wood is.
 		if float(s.janka) < float(prev.janka) * 0.9:
 			softer.append("%s (%d) << %s (%d)" % [s.id, s.janka, prev.id, prev.janka])
 
@@ -734,17 +736,21 @@ func _test_18_tougher_wood_pays_better() -> void:
 		"...and is no easier to split, so the wood that pays most resists most%s"
 			% ["" if easier.is_empty() else " — broken at: " + ", ".join(easier)])
 	_check(earlier.is_empty(),
-		"...and is earned strictly later%s"
+		"...and goes on sale at a strictly higher level%s"
 			% ["" if earlier.is_empty() else " — broken at: " + ", ".join(earlier)])
-	# Janka is the axis the whole ladder was derived from, so a row inserted out of
-	# hardness order means the derivation record and the tuning have parted ways.
+	_check(free_wood.is_empty(),
+		"...and costs strictly more to buy%s"
+			% ["" if free_wood.is_empty() else " — broken at: " + ", ".join(free_wood)])
+	_check(no_xp.is_empty(),
+		"...and teaches strictly more (higher woods drop more XP)%s"
+			% ["" if no_xp.is_empty() else " — broken at: " + ", ".join(no_xp)])
 	_check(softer.is_empty(),
-		"...and is not dramatically softer than the wood below it (the ladder is broadly Janka-ordered)%s"
+		"...and is not dramatically softer than the wood below it%s"
 			% ["" if softer.is_empty() else " — broken at: " + ", ".join(softer)])
 
 	var first := SpeciesTable.starting_species()
-	_check(first != null and first.unlock_at == 0 and first == species[0],
-		"the ladder starts with a wood that needs no chopping at all (%s)"
+	_check(first != null and first.is_starting_wood() and first == species[0],
+		"the ladder starts with a wood that is free at level 1 (%s)"
 			% ["none" if first == null else first.id])
 	_check(species[species.size() - 1].janka > species[0].janka * 3,
 		"the ladder actually SPANS hardness — %s at %d lbf against %s at %d"
@@ -752,163 +758,292 @@ func _test_18_tougher_wood_pays_better() -> void:
 				species[0].id, species[0].janka])
 
 
-# ------------------------------------------------------------- the wood ladder
-## A wood is EARNED BY CHOPPING, and the set of earned woods is derived from
-## `lifetime_wood_chopped` rather than stored. These checks are what make that
-## derivation safe to rely on.
-##
-## Every one of them asserts a positive quantity. "No locked wood is selectable"
-## would pass on a build with no ladder at all, so the count of locked woods is
-## asserted first, and the selection checks name the wood they expect to be on
-## the block afterwards rather than merely testing that the call returned false.
-func _test_21_a_wood_is_earned_by_chopping() -> void:
+# ------------------------------------------------------------- XP and levels
+## Levelling is the spine of the 2026-08-02 direction: XP gates woods and pays for
+## the skill tree. The LEVEL IS DERIVED from XP, so these checks are what make
+## that derivation safe to build two systems on.
+func _test_21_experience_makes_levels() -> void:
+	GameState.reset_to_defaults()
+	_check(GameState.get_xp() == 0 and GameState.get_level() == 1,
+		"a fresh axeman is level 1 on 0 XP (level %d)" % GameState.get_level())
+	_check(GameState.get_skill_points_available() == 0,
+		"...with no skill points to spend yet (%d)" % GameState.get_skill_points_available())
+
+	var levels: Array[int] = []
+	var conn := func(l: int) -> void: levels.append(l)
+	GameState.level_gained.connect(conn)
+
+	var to_2 := GameState.get_xp_to_next_level()
+	_check(to_2 > 0, "level 2 costs a positive amount of XP (%d)" % to_2)
+
+	GameState.add_xp(to_2 - 1)
+	_check(GameState.get_level() == 1, "one XP short is still level 1")
+	_check(levels.is_empty(), "...and nothing has levelled up")
+	_check(GameState.get_level_progress() > 0.9,
+		"...but the bar is nearly full (%.2f)" % GameState.get_level_progress())
+
+	GameState.add_xp(1)
+	_check(GameState.get_level() == 2, "the last XP levels the axeman to 2")
+	_check(levels == [2], "...announcing exactly one level (%s)" % str(levels))
+	_check(GameState.get_skill_points_available() == 1,
+		"...and paying exactly one skill point (%d)" % GameState.get_skill_points_available())
+
+	# A big log at low level can cross several levels at once, and three level-ups
+	# still owe the player three moments.
+	GameState.reset_to_defaults()
+	levels.clear()
+	var curve_target := 0
+	for l in range(1, 5):
+		curve_target += _xp_between(l, l + 1)
+	GameState.add_xp(curve_target)
+	_check(GameState.get_level() == 5, "one fat award reaches level 5 (%d)" % GameState.get_level())
+	_check(levels == [2, 3, 4, 5],
+		"...announcing every level it passed, in order (%s)" % str(levels))
+
+	# XP is monotonic BY CONSTRUCTION: there is no spend, so a level can never be
+	# taken back and skill points already spent can never go negative.
+	_check(not GameState.add_xp(0), "add_xp(0) is rejected")
+	_check(not GameState.add_xp(-500), "add_xp(-500) is rejected — XP never goes down")
+	_check(GameState.get_level() == 5, "...and neither rejection moved the level")
+
+	# The cap is Sam's number and must actually hold.
+	GameState.add_xp(999999999)
+	_check(GameState.get_level() == LevelCurve.MAX_LEVEL,
+		"an absurd award caps at level %d, Sam's maximum (%d)"
+			% [LevelCurve.MAX_LEVEL, GameState.get_level()])
+	_check(GameState.get_xp_to_next_level() == 0 and GameState.get_level_progress() == 1.0,
+		"...with nothing left to earn and the bar reading full")
+	_check(GameState.get_skill_points_available() == LevelCurve.MAX_LEVEL - 1,
+		"...and %d skill points earned over the run (%d)"
+			% [LevelCurve.MAX_LEVEL - 1, GameState.get_skill_points_available()])
+
+	GameState.level_gained.disconnect(conn)
 	GameState.reset_to_defaults()
 
-	var species := SpeciesTable.all()
-	var start := species[0]
-	var second := species[1]
-	_check(second.unlock_at > 0,
-		"the second wood (%s) costs real work to earn (%d pieces)" % [second.id, second.unlock_at])
 
-	_check(GameState.is_species_unlocked(start.id),
-		"a fresh save has already earned the starting wood (%s)" % start.id)
-	_check(not GameState.is_species_unlocked(second.id),
-		"...and has NOT earned the one above it (%s)" % second.id)
-	_check(GameState.get_unlocked_species().size() == 1,
-		"exactly one wood is available on a fresh save (%d)" % GameState.get_unlocked_species().size())
-	_check(GameState.get_next_locked_species() == second,
-		"the next goal is the next rung, not an arbitrary locked wood")
+func _xp_between(from_level: int, to_level: int) -> int:
+	var curve: LevelCurve = load("res://data/level_curve.tres")
+	return curve.total_xp_for_level(to_level) - curve.total_xp_for_level(from_level)
 
-	# Chop exactly enough. Fed through the real A7 signal, so this is the same
-	# path a finished log takes — nothing here reaches into the counter.
-	var unlocked_events: Array[StringName] = []
-	var conn := func(id: StringName) -> void: unlocked_events.append(id)
-	GameState.species_unlocked.connect(conn)
 
-	EventBus.resource_gathered.emit(start.yield_item, second.unlock_at - 1)
-	_check(not GameState.is_species_unlocked(second.id),
-		"one piece short of the milestone, %s is still locked" % second.id)
-	_check(unlocked_events.is_empty(), "...and nothing has announced itself yet")
+## The skill tree: a real DAG, bought with levels rather than cash.
+func _test_22_the_skill_tree_spends_levels() -> void:
+	GameState.reset_to_defaults()
+	var nodes := SkillTree.get_nodes()
+	_check(nodes.size() >= 3, "the tree has nodes to spend on (%d)" % nodes.size())
 
-	EventBus.resource_gathered.emit(start.yield_item, 1)
-	_check(GameState.is_species_unlocked(second.id),
-		"the %dth piece earns %s" % [second.unlock_at, second.id])
-	_check(unlocked_events == ([second.id] as Array[StringName]),
-		"...announcing it exactly once (%s)" % str(unlocked_events))
+	var roots := 0
+	var gated := 0
+	for n: SkillNodeDef in nodes:
+		if n.is_root():
+			roots += 1
+		else:
+			gated += 1
+	_check(roots > 0, "...at least one root, or the tree cannot be entered (%d)" % roots)
+	_check(gated > 0, "...and at least one gated node, or it is not a tree (%d)" % gated)
 
-	# A single gather can cross several thresholds at once — a six-piece log
-	# deposits six times, but a milestone must still fire once, in ladder order.
-	unlocked_events.clear()
-	var third := species[2]
-	var fourth := species[3]
-	EventBus.resource_gathered.emit(start.yield_item, fourth.unlock_at - GameState.get_lifetime_wood_chopped())
-	_check(unlocked_events == ([third.id, fourth.id] as Array[StringName]),
-		"one gather crossing two milestones announces both, in ladder order (%s)" % str(unlocked_events))
+	# Broke: a node the player cannot pay for must change nothing.
+	var root: SkillNodeDef = null
+	for n: SkillNodeDef in nodes:
+		if n.is_root():
+			root = n
+			break
+	_check(SkillTree.get_level(root.id) == 0, "%s starts unbought" % root.id)
+	_check(not SkillTree.can_buy(root.id), "...and cannot be bought on 0 points")
+	_check(SkillTree.buy(root.id) == -1, "...so the purchase is refused")
+	_check(SkillTree.get_level(root.id) == 0, "...leaving it at level 0")
 
-	# Selling the wood back must not un-earn the species. lifetime_wood_chopped is
-	# monotonic by construction, and this is the check that says so out loud.
-	InventoryManager.add_item(start.yield_item, 5)
-	Market.sell_all_of(start.yield_item)
-	_check(GameState.is_species_unlocked(fourth.id),
-		"selling the yard's stock cannot take a wood back off you")
+	# Earn a point and take it.
+	GameState.add_xp(_xp_between(1, 2))
+	_check(GameState.get_skill_points_available() == 1, "one level, one point")
+	_check(SkillTree.buy(root.id) == 1, "%s can now be bought" % root.id)
+	_check(SkillTree.get_level(root.id) == 1, "...and is owned at level 1")
+	_check(GameState.get_skill_points_available() == 0,
+		"...spending the point (%d left)" % GameState.get_skill_points_available())
 
-	GameState.species_unlocked.disconnect(conn)
+	# A gated node stays shut until its prerequisites are owned, however rich the
+	# player is — this is the difference between a tree and a shopping list.
+	var deep: SkillNodeDef = null
+	for n: SkillNodeDef in nodes:
+		if not n.is_root() and not SkillTree.prerequisites_met(n.id):
+			deep = n
+			break
+	_check(deep != null, "there is a node whose prerequisites are not met")
+	GameState.add_xp(999999999)   # max level: every point in the game
+	_check(GameState.get_skill_points_available() > deep.cost,
+		"the player can afford %s many times over" % deep.id)
+	_check(not SkillTree.can_buy(deep.id),
+		"...but %s is still shut, because its prerequisites are not met" % deep.id)
+	_check(SkillTree.buy(deep.id) == -1, "...and buying it is refused")
+	_check(not SkillTree.missing_prerequisites(deep.id).is_empty(),
+		"...and it can say what it is waiting for (%s)" % str(SkillTree.missing_prerequisites(deep.id)))
+
+	# Caps hold.
+	for i in range(root.max_level + 5):
+		SkillTree.buy(root.id)
+	_check(SkillTree.get_level(root.id) == root.max_level,
+		"%s stops at its cap of %d" % [root.id, root.max_level])
+	_check(SkillTree.buy(root.id) == -1, "...and a mastered skill refuses to sell again")
+
 	GameState.reset_to_defaults()
 
 
-## The player picks the wood; the game refuses anything unearned.
-func _test_22_the_player_picks_the_wood() -> void:
+## The tree actually changes the game — the effects the cash shop used to sell.
+func _test_23_skills_change_the_game() -> void:
+	GameState.reset_to_defaults()
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+
+	var cooldown0: float = mg.current_swing_cooldown()
+	var chance0: float = mg.debug_split_chance()
+	GameState.add_xp(999999999)   # max level, so every root is affordable
+
+	_check(SkillTree.buy(&"quick_hands") == 1, "Quick Hands is bought")
+	var cooldown1: float = mg.current_swing_cooldown()
+	_check(absf(cooldown1 - cooldown0 * (1.0 - mg.coffee_step)) < 0.0001,
+		"one level cuts the wait between swings by 5%% (%.3fs -> %.3fs)" % [cooldown0, cooldown1])
+	_check(cooldown1 < cooldown0, "...which is genuinely shorter, not merely different")
+
+	_check(SkillTree.buy(&"strong_arms") == 1, "Strong Arms is bought")
+	_check(absf((mg.debug_split_chance() - chance0) - 0.05) < 0.001,
+		"one level adds 5 points to the odds of splitting (%.2f -> %.2f)"
+			% [chance0, mg.debug_split_chance()])
+
+	# Two nodes feeding the same effect must SUM, which is the whole reason the
+	# tree is queried by effect kind rather than by node id.
+	SkillTree.buy(&"splitter")
+	_check(SkillTree.total_levels(SkillNodeDef.Effect.SPLIT_STRENGTH) == 2,
+		"two different nodes both feed split strength")
+	_check(SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH) > 0.05,
+		"...and their contributions sum (%.3f)"
+			% SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH))
+
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+
+
+# --------------------------------------------------------- buying a wood
+## A wood is LEVEL-GATED and BOUGHT (Creative Director call, 2026-08-02). This
+## replaced the lifetime-chopped milestone, and the consequence worth testing is
+## that ownership is now real state: the level says a wood MAY be bought, and only
+## the purchase says it was.
+func _test_24_woods_are_level_gated_purchases() -> void:
 	GameState.reset_to_defaults()
 	var species := SpeciesTable.all()
 	var start := species[0]
 	var second := species[1]
 	var top := species[species.size() - 1]
 
+	_check(GameState.owns_species(start.id), "a fresh save owns the starting wood (%s)" % start.id)
+	_check(GameState.get_owned_species().size() == 1,
+		"...and only that one (%d)" % GameState.get_owned_species().size())
+	_check(not GameState.owns_species(second.id), "...not the one above it")
+	_check(GameState.get_next_unowned_species() == second,
+		"the next wood is the next rung, not an arbitrary one")
 	_check(GameState.get_selected_species() == start.id,
-		"a fresh save has the starting wood on the block (%s)" % GameState.get_selected_species())
+		"...and the starting wood is on the block")
 
+	# Too low a level: refused even with the cash in hand.
+	_check(second.unlock_level > 1, "%s is gated above level 1 (%d)" % [second.id, second.unlock_level])
+	GameState.add_cash(second.unlock_cost * 10)
+	var purse := GameState.get_cash()
+	_check(not GameState.can_species_be_bought(second.id),
+		"%s is not for sale at level 1" % second.id)
+	_check(not GameState.try_buy_species(second.id), "...so buying it is refused")
+	_check(GameState.get_cash() == purse, "...and it cost nothing (%d)" % GameState.get_cash())
+	_check(not GameState.owns_species(second.id), "...and is still not owned")
+
+	# High enough, but broke: also refused, and atomically.
+	GameState.reset_to_defaults()
+	GameState.add_xp(999999999)
+	_check(GameState.can_species_be_bought(second.id),
+		"at max level %s is on sale" % second.id)
+	_check(GameState.get_cash() == 0, "...but the purse is empty")
+	_check(not GameState.try_buy_species(second.id), "...so the purchase is refused")
+	_check(not GameState.owns_species(second.id), "...and nothing was granted")
+
+	# Paid for: owned, and the cash is gone.
+	GameState.add_cash(second.unlock_cost)
 	var events: Array[StringName] = []
 	var conn := func(id: StringName) -> void: events.append(id)
-	GameState.selected_species_changed.connect(conn)
+	GameState.species_purchased.connect(conn)
+	_check(GameState.try_buy_species(second.id), "with the money in hand, %s is bought" % second.id)
+	_check(GameState.owns_species(second.id), "...and owned")
+	_check(GameState.get_cash() == 0, "...having cost exactly %d" % second.unlock_cost)
+	_check(events == [second.id], "...emitting once (%s)" % str(events))
+	_check(not GameState.try_buy_species(second.id), "...and it cannot be bought twice")
+	GameState.species_purchased.disconnect(conn)
 
-	# The whole point: the most valuable wood in the game is NOT available on log
-	# one. Before 2026-08-02 the block rolled a uniform random species, so it was.
-	var locked := 0
-	for s: SpeciesDef in species:
-		if not GameState.is_species_unlocked(s.id):
-			locked += 1
-	_check(locked == species.size() - 1,
-		"%d of the %d woods are locked on a fresh save" % [locked, species.size()])
-	_check(not GameState.select_species(top.id),
-		"the richest wood (%s, %d/piece) refuses to be selected unearned"
-			% [top.id, Market.get_price(top.yield_item)])
-	_check(GameState.get_selected_species() == start.id,
-		"...and the block still holds %s" % start.id)
-	_check(events.is_empty(), "...having emitted nothing at all")
+	# The richest wood in the game is never a first-log accident.
+	_check(not GameState.owns_species(top.id),
+		"the richest wood (%s, %d/piece) is not owned" % [top.id, Market.get_price(top.yield_item)])
+	_check(not GameState.select_species(top.id), "...and cannot be put on the block")
+	_check(GameState.get_selected_species() != top.id, "...so the block does not hold it")
 
-	# An unknown id is an error, not a silent no-op that leaves the yard empty.
-	_check(not GameState.select_species(&"petrified_unobtanium"),
-		"a wood that does not exist refuses to be selected")
-	_check(GameState.get_selected_species() == start.id, "...and changes nothing")
-
-	# Earn the second wood, then choose it.
-	EventBus.resource_gathered.emit(start.yield_item, second.unlock_at)
-	_check(GameState.select_species(second.id), "an EARNED wood can be chosen (%s)" % second.id)
+	_check(GameState.select_species(second.id), "an OWNED wood can be chosen")
 	_check(GameState.get_selected_species() == second.id, "...and goes on the block")
-	_check(events == ([second.id] as Array[StringName]),
-		"...emitting once (%s)" % str(events))
-
-	events.clear()
-	_check(GameState.select_species(second.id), "choosing the wood already on the block succeeds")
-	_check(events.is_empty(), "...but is not a change, so it emits nothing")
-
-	GameState.selected_species_changed.disconnect(conn)
 	GameState.reset_to_defaults()
 
 
-## The choice survives a save; the unlocked SET is re-derived rather than restored.
-func _test_23_the_choice_survives_a_save() -> void:
+## Ownership, XP and skills all survive a save — and the derived things are
+## re-derived rather than restored.
+func _test_25_progression_survives_a_save() -> void:
 	GameState.reset_to_defaults()
 	var species := SpeciesTable.all()
 	var second := species[1]
 
-	EventBus.resource_gathered.emit(species[0].yield_item, second.unlock_at)
+	GameState.add_xp(999999999)
+	GameState.add_cash(second.unlock_cost)
+	GameState.try_buy_species(second.id)
 	GameState.select_species(second.id)
-	var lifetime := GameState.get_lifetime_wood_chopped()
-	_check(SaveSystem.save_game(), "the yard saves with a wood chosen")
+	SkillTree.buy(&"strong_arms")
+	var xp := GameState.get_xp()
+	var spent := GameState.get_skill_points_spent()
+	_check(spent > 0, "a skill point was spent (%d)" % spent)
+	_check(SaveSystem.save_game(), "the yard saves")
 
 	GameState.reset_to_defaults()
-	_check(GameState.get_selected_species() == species[0].id,
-		"a wiped GameState is back on the starting wood")
+	_check(GameState.get_level() == 1 and not GameState.owns_species(second.id),
+		"a wiped GameState is back to level 1 with one wood")
 
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "the save loads")
-	_check(GameState.get_lifetime_wood_chopped() == lifetime,
-		"lifetime chopped came back (%d)" % GameState.get_lifetime_wood_chopped())
-	_check(GameState.get_selected_species() == second.id,
-		"...and so did the wood the player had chosen (%s)" % GameState.get_selected_species())
-	_check(GameState.is_species_unlocked(second.id),
-		"...with the unlock RE-DERIVED from the counter, not restored from the file")
+	_check(GameState.get_xp() == xp, "XP came back (%d)" % GameState.get_xp())
+	_check(GameState.get_level() == LevelCurve.MAX_LEVEL,
+		"...and the LEVEL was re-derived from it, not restored (%d)" % GameState.get_level())
+	_check(GameState.owns_species(second.id), "the bought wood came back")
+	_check(GameState.get_selected_species() == second.id, "...and is still on the block")
+	_check(SkillTree.get_level(&"strong_arms") == 1, "the bought skill came back")
+	_check(GameState.get_skill_points_spent() == spent,
+		"...and still costs what it cost (%d)" % GameState.get_skill_points_spent())
 
-	# The load-bearing consequence of deriving rather than storing: a save that
-	# never knew about a species still resolves to something choppable, and a
-	# choice put out of reach by a retuned ladder falls back rather than sticking.
-	GameState.apply_save_dict({"lifetime_wood_chopped": 0, "selected_species": String(second.id)})
+	# A save naming a wood that no longer exists must not strand the player.
+	GameState.apply_save_dict({"owned_species": ["a_wood_that_was_renamed"], "selected_species": "gone"})
 	_check(GameState.get_selected_species() == species[0].id,
-		"a chosen wood the player can no longer afford falls back to the starting wood")
-	GameState.apply_save_dict({"selected_species": "a_wood_that_was_renamed"})
-	_check(GameState.get_selected_species() == species[0].id,
-		"...as does a wood that no longer exists in the table")
+		"a save full of woods that no longer exist still puts the starting wood on the block")
+	_check(not GameState.owns_species(&"a_wood_that_was_renamed"),
+		"...and does not resurrect the missing one")
+
+	# A skill that left the tree must not leave the player owing points.
+	GameState.apply_save_dict({"xp": 0, "skill_levels": {"a_skill_that_was_cut": 5}})
+	_check(GameState.get_skill_points_spent() == 0,
+		"a skill that is no longer in the tree costs nothing (%d)" % GameState.get_skill_points_spent())
+	_check(GameState.get_skill_points_available() >= 0,
+		"...so the player is never in skill-point debt (%d)" % GameState.get_skill_points_available())
 
 	GameState.reset_to_defaults()
 
 
-## The block puts up the wood the player chose — the end of the chain, in the real
-## mini-game scene rather than against GameState alone.
-func _test_24_the_block_holds_the_chosen_wood() -> void:
+## The block puts up the wood the player chose, and a finished log pays XP.
+func _test_26_the_block_holds_the_chosen_wood() -> void:
 	GameState.reset_to_defaults()
 	var species := SpeciesTable.all()
 	var second := species[1]
-	EventBus.resource_gathered.emit(species[0].yield_item, second.unlock_at)
+	GameState.add_xp(999999999)
+	GameState.add_cash(second.unlock_cost)
+	GameState.try_buy_species(second.id)
 	GameState.select_species(second.id)
 
 	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
@@ -919,11 +1054,7 @@ func _test_24_the_block_holds_the_chosen_wood() -> void:
 	_check(mg._current_species != null and mg._current_species.id == second.id,
 		"the log on the block is the wood the player chose (%s)"
 			% ["none" if mg._current_species == null else mg._current_species.id])
-	_check(absf(mg.debug_split_chance() - second.split_chance) < 0.001
-			or mg.debug_split_chance() > 0.0,
-		"...and its split odds come from that wood's own resistance")
 
-	# Switch woods mid-session: the next log must follow the new choice.
 	GameState.select_species(species[0].id)
 	mg._spawn_fresh_log()
 	await get_tree().process_frame
@@ -936,81 +1067,43 @@ func _test_24_the_block_holds_the_chosen_wood() -> void:
 	GameState.reset_to_defaults()
 
 
-# ------------------------------------------------------------------- the shop
-func _test_19_the_shop_sells_levels() -> void:
-	GameState.reset_to_defaults()
-	var upgrades := Shop.get_upgrades()
-	_check(upgrades.size() == 2, "the shop stocks exactly the two things Sam named (%d)" % upgrades.size())
-	_check(Shop.get_upgrade(GameState.UPGRADE_COFFEE) != null
-			and Shop.get_upgrade(GameState.UPGRADE_STRENGTH) != null,
-		"...coffee and the protein bar")
-	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == 0,
-		"a fresh game owns level 0 of everything, despite building tiers starting at 1")
-
-	# Broke: the purchase must change NOTHING.
-	var cost := Shop.get_next_cost(GameState.UPGRADE_COFFEE)
-	_check(cost > 0, "the first coffee costs %d" % cost)
-	_check(not Shop.can_buy(GameState.UPGRADE_COFFEE), "...which 0 cash cannot cover")
-	_check(Shop.buy(GameState.UPGRADE_COFFEE) == -1, "...so the purchase is refused")
-	_check(GameState.get_cash() == 0 and Shop.get_level(GameState.UPGRADE_COFFEE) == 0,
-		"...spending nothing and granting nothing")
-
-	GameState.add_cash(cost)
-	_check(Shop.buy(GameState.UPGRADE_COFFEE) == 1, "with the money in hand, coffee reaches level 1")
-	_check(GameState.get_cash() == 0, "...and it cost exactly what it said (0 left)")
-	_check(Shop.get_next_cost(GameState.UPGRADE_COFFEE) > cost,
-		"...the next cup costs more than the first")
-
-	# Levels are building tiers, so they persist through the save that already exists.
-	SaveSystem.delete_save()
-	_check(SaveSystem.save_game(), "the yard saves with an upgrade owned")
-	GameState.reset_to_defaults()
-	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == 0, "state trashed before loading")
-	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "...the save reloads")
-	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == 1, "...and the coffee level came back")
-	SaveSystem.delete_save()
-
-
-## The two upgrades have to actually DO their 5%, or they are just a cash sink.
-func _test_20_upgrades_change_the_game() -> void:
+## A FINISHED LOG PAYS EXPERIENCE — once, for the whole log, which is the moment
+## the orbs burst (Creative Director call: "when the log is finally split").
+func _test_27_a_finished_log_pays_experience() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 
-	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
-	mg.debug_forced_species = 2
-	mg.debug_split_roll = 0
-	add_child(mg)
+	var wood := SpeciesTable.at(0)
+	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	game.debug_forced_species = 0
+	game.pile_fly_ms = 20.0
+	game.pile_stagger_ms = 10.0
+	game.firewood_settle_timeout = 0.2
+	add_child(game)
 	await get_tree().process_frame
 
-	var cooldown0: float = mg.current_swing_cooldown()
-	var chance0: float = mg.debug_split_chance()
+	_check(wood.xp_reward > 0, "%s is worth XP (%d)" % [wood.id, wood.xp_reward])
+	_check(GameState.get_xp() == 0, "no XP before the log is chopped")
 
-	GameState.add_cash(100000)
-	Shop.buy(GameState.UPGRADE_COFFEE)
-	Shop.buy(GameState.UPGRADE_STRENGTH)
+	var safety := 0
+	while game.cuttable_count() > 0 and safety < 60:
+		game.debug_slice_world(Plane(Vector3.RIGHT if safety % 2 == 0 else Vector3.BACK, 0.0))
+		safety += 1
+		await get_tree().process_frame
+	var pieces: int = game.piece_count()
+	_check(pieces > 1, "the log chopped into %d pieces" % pieces)
+	await _wait(1.2)
 
-	var cooldown1: float = mg.current_swing_cooldown()
-	_check(absf(cooldown1 - cooldown0 * (1.0 - mg.coffee_step)) < 0.0001,
-		"one coffee cuts the wait between swings by 5%% (%.3fs -> %.3fs)" % [cooldown0, cooldown1])
-	_check(cooldown1 < cooldown0, "...which is genuinely shorter, not merely different")
+	# ONE award for the whole log, not one per piece — the count is the check that
+	# says so, since a per-piece award would read as a multiple.
+	_check(GameState.get_xp() == wood.xp_reward,
+		"a finished log paid exactly its %d XP once, not once per piece (got %d)"
+			% [wood.xp_reward, GameState.get_xp()])
 
-	_check(absf((mg.debug_split_chance() - chance0) - mg.strength_step) < 0.001,
-		"one protein bar adds 5 points to the odds of splitting (%.2f -> %.2f)"
-			% [chance0, mg.debug_split_chance()])
-
-	# Buying the shelf out must stop somewhere.
-	var def := Shop.get_upgrade(GameState.UPGRADE_COFFEE)
-	for i in range(def.max_level + 5):
-		Shop.buy(GameState.UPGRADE_COFFEE)
-	_check(Shop.get_level(GameState.UPGRADE_COFFEE) == def.max_level,
-		"coffee stops at its cap of %d levels" % def.max_level)
-	_check(Shop.buy(GameState.UPGRADE_COFFEE) == -1, "...and a maxed upgrade refuses to sell again")
-	_check(mg.current_swing_cooldown() > 0.0, "...with the swing rate still a positive number of seconds")
-
-	mg.queue_free()
+	game.queue_free()
 	await get_tree().process_frame
+	InventoryManager.apply_save_dict({})
 	GameState.reset_to_defaults()
-
 
 # ------------------------------------------------------------------ fixture
 func _stash_real_save() -> void:

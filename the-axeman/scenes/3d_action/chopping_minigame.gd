@@ -570,10 +570,33 @@ func _begin_stacking() -> void:
 		for _p in proxies:
 			EventBus.resource_gathered.emit(yield_item, 1)
 
+	# EXPERIENCE IS PER LOG, NOT PER PIECE (Creative Director call, 2026-08-02:
+	# the orbs drop "when the log is finally split"). One award, at the one moment
+	# the log is finished, which is also the moment the orbs burst — so the number
+	# going up and the thing on screen are the same event rather than two.
+	_award_log_xp()
+
 	_stacking = true
 	# Each piece pays out as it comes to rest, so the cash ticks up in the same
 	# cascade the player is watching land.
 	_pile.start_stacking(proxies, Callable(), _on_piece_landed.bind(yield_item))
+
+
+## The finished log's experience, plus whatever the skill tree adds to it.
+##
+## Gated on `auto_sell` with the cash payout: that flag means "the yard's payouts
+## are live", and M4's suite switches it off because it is testing the YIELD
+## contract and must not have the economy moving underneath it.
+func _award_log_xp() -> void:
+	if not auto_sell or _current_species == null:
+		return
+	var base := _current_species.xp_reward
+	if base <= 0:
+		return
+	# Woodsman and its kin ADD a fraction, so the bonus scales with the wood —
+	# a percentage of Lignum Vitae is worth having, a percentage of aspen is not.
+	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.XP_GAIN)
+	GameState.add_xp(maxi(1, int(round(float(base) * (1.0 + bonus)))))
 
 
 # --------------------------------------------------------------- input
@@ -692,7 +715,12 @@ func split_chance_for(piece: Area3D) -> float:
 	base += (1.0 - base) * (1.0 - frac) * size_relief
 
 	base += float(_scars_on(piece)) * scar_bonus
-	base += float(Shop.get_level(GameState.UPGRADE_STRENGTH)) * strength_step
+	# THE SKILL TREE, not the cash shop (Creative Director call, 2026-08-02:
+	# player enhancements are bought with levels, cash buys axes, auto-cutters
+	# and woods). `strength_step` stays as the mini-game's own fallback and as
+	# the record of Sam's 5%; the live magnitude is the tree's to decide, and
+	# it SUMS because split chance is a flat probability.
+	base += SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH)
 	return clampf(base, 0.0, max_split_chance)
 
 
@@ -823,7 +851,10 @@ func _species_index_of(row: SpeciesDef) -> int:
 ## Seconds the player must wait between swings, after the coffee. Compounding, so
 ## each cup is 5% off what the last one left rather than 5% off the original.
 func current_swing_cooldown() -> float:
-	var level := Shop.get_level(GameState.UPGRADE_COFFEE)
+	# COMPOUNDING, which is why this asks the tree for LEVELS rather than for a
+	# summed magnitude: ten levels of 5% off is 40% of the original wait, not
+	# zero. Only the caller knows what its number means.
+	var level := SkillTree.total_levels(SkillNodeDef.Effect.SWING_SPEED)
 	return swing_cooldown * pow(1.0 - coffee_step, float(level))
 
 

@@ -111,7 +111,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 20000 res://core/tests/m4_acceptance.tscn` | **40/40** |
-| M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **178/178** |
+| M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **212/212** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
@@ -583,6 +583,81 @@ put to him: a wood is unlocked by a **lifetime-chopped milestone**, and the
   spawn now runs once per DISTINCT MESH PATH — 22 rows share the same two oak
   FBXs, so the old shape measured the same eight imports 25 times. Tests 3, 4, 16
   and 17 **stopped hardcoding "species 0 is oak"**, which the reorder broke.
+
+### M7B — XP, levels to 99 and the skill tree (2026-08-02, no sign-off yet)
+
+**Creative Director call, and it RESHAPES the progression spine built earlier the
+same day:** *"instead of just a single currency for everything, I want an
+experience bar (with a max level of 99) that every level contributes to a 'skill
+tree' so the currency we generate goes to things like new axes, auto cutters,
+unlocking new logs etc and the skill tree goes towards player enhancements, like
+cutting speed, swing timers, strength"*, plus *"when the log is finally split,
+the log should also drop a bunch of green 'exp orbs' that get absorbed in to the
+player (like in minecraft) higher skill logs drop more exp, high levels require
+more exp to level up"*.
+
+**TWO ECONOMIES NOW, and the split is the whole point.** Cash buys things in the
+world (woods today; axes and auto-cutters when they are designed). Skill points,
+earned by levelling, buy things about the PLAYER.
+
+- **`res://data/level_curve.gd/.tres`.** `MAX_LEVEL = 99` IS SAM'S. The level is
+  **DERIVED from total XP, never stored** — XP is monotonic, so a derived level
+  cannot disagree with it, and retuning the curve **re-levels an existing save**
+  instead of stranding it on thresholds that no longer exist. Same principle the
+  wood ladder used before woods became purchases.
+- **`res://core/skill_tree.gd` + `data/skill_node_def.gd` / `skill_tree.tres`.**
+  Static, not an autoload (Market/Shop/SaveSystem precedent). It is a **REAL DAG**
+  (Sam chose branching over a flat list): `requires` gates nodes, and
+  `_validate()` hunts dangling prerequisites and CYCLES at load, because a cycle
+  is invisible until someone reaches that branch and then just looks expensive.
+- **Effects are a named KIND plus a step, never code per node.** The caller asks
+  `SkillTree.total_effect(kind)` or `total_levels(kind)` and decides what the
+  number means — swing speed COMPOUNDS (ten 5% cuts are not 50%), split strength
+  SUMS. A new node is a row; only a new KIND of effect needs code.
+- **COFFEE AND THE PROTEIN BAR LEFT THE CASH SHOP** and became Quick Hands and
+  Strong Arms, keeping Sam's 5% steps. `upgrade_table.tres` is now EMPTY on
+  purpose — axes and auto-cutters are named in the direction but not designed, and
+  inventing rows for them would be Directive 3 all over again.
+- **Skill points are DERIVED too**: earned = level - 1, spent = the sum of what the
+  owned nodes cost. So there is no purse to drift, and a retuned tree or a deleted
+  node cannot leave the player in point debt (`apply_save_dict` drops unknown
+  skills and clamps to the current cap).
+- **`GameState.can_afford_skill_points` is deliberately NOT named `try_spend_*`**,
+  which everywhere else in that file means "take it or change nothing". There is no
+  pool to take from — recording the skill IS the spend.
+- **XP IS PER LOG, NOT PER PIECE** ("when the log is *finally split*"). One award
+  at `_begin_stacking`, gated on `auto_sell` with the cash payout, so M4 still
+  tests the yield contract with the economy switched off.
+- **`SpeciesDef.xp_reward`** climbs the Janka ladder — the wood that resists most
+  teaches most.
+
+### M7B — woods became level-gated purchases (2026-08-02) — REVERSES M7A
+
+**The morning's lifetime-chopped milestone gate is GONE.** Sam chose "level gates
+it, cash buys it" when asked directly.
+
+- `SpeciesDef.unlock_at` becomes **`unlock_level` + `unlock_cost`**.
+- **THE OWNED SET IS NOW STORED, and that reversal is the important part.** The
+  derived set was safe *because* `lifetime_wood_chopped` is monotonic and could not
+  disagree with itself. A purchase is a discrete event that nothing else implies —
+  a level says a wood MAY be bought, never that it WAS — so `_owned_species` has to
+  persist. The starting wood is granted by `owns_species()` rather than stored, so
+  a fresh, wiped or corrupted save always has something to chop.
+- `try_buy_species` is atomic and ordered: refuse unknown / already owned /
+  under-level / unaffordable, take the cash, and only then grant the wood.
+- **`GameState.species_unlocked` is deleted**; `species_purchased` replaces it.
+- The **woodshed is a store**: owned woods to choose from, plus exactly one row for
+  the next wood — its price if it is on sale, or the level still to reach.
+- **Verified by 34 new checks in `m7a_acceptance` (now 212/212)**, and the four
+  load-bearing guards are **proven to fail without their fix** (ignore the level
+  gate → 3 red; ignore skill prerequisites → 1 red; pay XP per piece → 1 red;
+  store the level instead of deriving it → 2 red).
+- **PLACEHOLDERS (Directive 3):** the whole level curve (`base_xp` 40,
+  `curve_power` 1.8), every `unlock_level` (1 → 96), every `unlock_cost`
+  (0 → 300M), every `xp_reward` (8 → 56,000), and every skill cost/step except
+  Sam's two 5%s. These want tuning together against real play, not one at a time.
+- **STILL TO DO from this direction: the green XP orbs.** The award lands and the
+  numbers move; the Minecraft-style burst that carries it does not exist yet.
 
 - Still to do in M7A: three authored orders and three more upgrades. Both are
   blocked on tuning values (Directive 3). The unlockable-species requirement is

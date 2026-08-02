@@ -55,18 +55,30 @@ extends Resource
 ## it is shown in the wood selector because "how hard is this wood" is exactly
 ## what the player is choosing between.
 @export var janka: int = 350
-## Lifetime wood chopped required before this species can be selected. 0 = the
-## starting wood, available on a fresh save.
+## PLAYER LEVEL at which this wood goes ON SALE, and what it then costs.
 ##
-## PLACEHOLDER per Directive 3. The whole ladder is one curve, so these want
-## tuning together in live play rather than one at a time — and the late
-## thresholds are deliberately beyond what hand-chopping alone should reach,
-## because M8's staff and the roadmap's certified auto-cutting arrive first.
-@export var unlock_at: int = 0
+## REPLACED `unlock_at` (a lifetime-chopped milestone) on 2026-08-02, when Sam
+## made cash the thing that buys woods and levels the thing that gates them:
+## "the currency we generate goes to things like new axes, auto cutters,
+## unlocking new logs etc". The level says a wood MAY be bought; only the
+## purchase says it was, which is why owned species are now saved rather than
+## derived (see GameState._owned_species).
+##
+## Level 1 + cost 0 = the starting wood, owned on a fresh save.
+##
+## PLACEHOLDERS per Directive 3, both of them. The ladder is one curve and these
+## want tuning together in live play against the XP curve, not one at a time.
+@export var unlock_level: int = 1
+@export var unlock_cost: int = 0
 ## Odds that ONE swing cleaves a WHOLE log of this wood, before size relief,
 ## scars and the strength upgrade are added (see chopping_minigame.split_chance_
 ## for, which is where the whole sum lives). Descends as `janka` climbs.
 @export_range(0.0, 1.0, 0.01) var split_chance: float = 0.55
+## Experience a FINISHED log of this wood awards, dropped as orbs when the last
+## piece becomes firewood (Creative Director call, 2026-08-02: "higher skill logs
+## drop more exp"). PLACEHOLDER per Directive 3, laid out up the Janka ladder so
+## the wood that resists most teaches most.
+@export var xp_reward: int = 10
 
 @export_group("Art")
 ## The authored log SHAPES this species can be cut from. A LIST on purpose (the
@@ -129,11 +141,11 @@ extends Resource
 @export var bark_uv_scale: float = 1.0
 
 
-## Has the player chopped enough, ever, to have earned this wood?
-func is_unlocked(lifetime_wood_chopped: int) -> bool:
-	return lifetime_wood_chopped >= unlock_at
+## Is this the wood a fresh save starts on — free and available at level 1?
+func is_starting_wood() -> bool:
+	return unlock_level <= 1 and unlock_cost <= 0
 
 
-## Pieces still to chop before this species unlocks. 0 once it is earned.
-func chops_remaining(lifetime_wood_chopped: int) -> int:
-	return maxi(0, unlock_at - lifetime_wood_chopped)
+## Player levels still to gain before this wood goes on sale. 0 once it has.
+func levels_remaining(player_level: int) -> int:
+	return maxi(0, unlock_level - player_level)
