@@ -24,8 +24,14 @@ func _ready() -> void:
 	print("PASS: log fully chopped in %d cuts" % cuts if poc.cuttable_count() == 0 \
 		else "FAIL: still cuttable after %d cuts" % cuts)
 
-	# Let firewood settle, then the pile animate, then a fresh log spawn.
-	for i in range(300):
+	# Let firewood settle, then the pile animate, then a fresh log spawn. These
+	# systems run on Time.get_ticks_msec(), so a frame count is not a duration:
+	# hidden/non-headless runs can produce 300 frames before 1.5 real seconds have
+	# elapsed. Poll the outcome against a real-time DEV timeout instead.
+	var deadline_ms := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < deadline_ms:
+		if poc.get_node("Pile").get_child_count() > 0 and poc.cuttable_count() == 1:
+			break
 		await get_tree().process_frame
 
 	var pile_children: int = poc.get_node("Pile").get_child_count()

@@ -134,7 +134,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **224/224** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
-| Pile smoke | `res://core/tools/pile_smoke.tscn` | **must run NON-headless** — its last check waits out the pile animation, which runs on a real-time clock that uncapped headless frames outrun |
+| Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
 
 Engine binary: `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe`.
 Godot project: `C:\Users\Sam\Documents\the_axeman\the-axeman\`.
