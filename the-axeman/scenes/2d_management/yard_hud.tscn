@@ -29,9 +29,9 @@ script = ExtResource("1_hud")
 
 [node name="TopBar" type="PanelContainer" parent="."]
 offset_left = 16.0
-offset_top = 44.0
+offset_top = 36.0
 offset_right = 180.0
-offset_bottom = 94.0
+offset_bottom = 86.0
 mouse_filter = 2
 
 [node name="CashRow" type="HBoxContainer" parent="TopBar"]
@@ -57,7 +57,7 @@ text = "0"
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 32.0
+offset_bottom = 24.0
 grow_horizontal = 2
 mouse_filter = 2
 

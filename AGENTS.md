@@ -344,7 +344,7 @@ pushed into data instead of invented. **Still no sign-off.**
   skills and shop are four 56×56 icon buttons at bottom-right of the chopping
   view. Their SVG icons are native project assets; the shop keeps Sam's coin.
 - **THE XP BAR SPANS THE FULL TOP EDGE** (Creative Director call, 2026-08-04).
-  Its level/XP text is centred inside the 32 px strip and the cash counter sits
+  Its level/XP text is centred inside the 24 px strip and the cash counter sits
   below it. `XPOrb.COLOR` owns the translucent green reward colour used by both
   the orbs and the bar fill, so the two visuals cannot drift apart.
 - **THERE IS NO MANUAL SELLING** (Creative Director call, 2026-08-01 — see the

@@ -434,8 +434,10 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 
 	_check(cash_label.text == "0", "a fresh chopping session reads 0 cash")
 	_check(is_equal_approx(xp_bar.position.x, 0.0)
-			and is_equal_approx(xp_bar.size.x, hud.size.x),
-		"the XP bar spans the full width of the top edge (%d px)" % int(xp_bar.size.x))
+			and is_equal_approx(xp_bar.size.x, hud.size.x)
+			and is_equal_approx(xp_bar.size.y, 24.0),
+		"the XP bar is a full-width 1280x24 top strip (%dx%d)" % [
+			int(xp_bar.size.x), int(xp_bar.size.y)])
 	var xp_fill := xp_progress.get_theme_stylebox("fill") as StyleBoxFlat
 	_check(xp_fill != null and xp_fill.bg_color == XPOrb.COLOR,
 		"the XP fill uses the orb's exact reward colour (%s)" % XPOrb.COLOR)
