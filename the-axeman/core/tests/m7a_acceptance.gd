@@ -16,10 +16,11 @@ extends Node
 ##     player's yard
 ##   - the ALWAYS-AVAILABLE BASIC BUYER pays the price table, refuses anything it
 ##     is not priced for, and settles a sale atomically in both directions
-##   - the YARD HUD shows cash live, derives one next-purchase goal from the real
-##     catalogues, and carries the REAL entry flow that replaced the M key
-##   - the chopping HUD shows a contextual haul progress bar from the pile's one
-##     approved capacity, without restoring permanent pile/lifetime counters
+##   - the CHOPPING HUD shows cash live and keeps contracts, wood, skills and shop
+##     in compact icon buttons over the only production view
+##   - panel Back buttons and outside clicks dismiss to chopping without emitting
+##     a mode change or allowing a click through to the axe
+##   - the haul-away has no progress UI; the physical pile is its own cue
 ##   - the YARD PILE is a view of GameState, survives a load that lands after the
 ##     scene is built, and is HAULED AWAY when it fills
 ##   - a piece PAYS FOR ITSELF as it lands on the pile — there is no manual selling
@@ -67,7 +68,7 @@ func _ready() -> void:
 	_test_11_a_sale_is_atomic()
 	_test_12_sell_everything_is_one_transaction()
 	await _test_13_yard_hud_is_live_and_shops()
-	await _test_14_hud_carries_the_entry_flow()
+	await _test_14_hud_panels_dismiss_to_chopping()
 	await _test_15_the_pile_is_a_view_of_stock()
 	await _test_16_pieces_pay_as_they_land_and_the_load_is_hauled()
 	await _test_17_a_swing_can_fail_and_scars_the_log()
@@ -421,38 +422,38 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 
 	var cash_label: Label = hud.get_node("TopBar/CashRow/CashLabel")
 	var cash_icon: TextureRect = hud.get_node("TopBar/CashRow/CashIcon")
-	var shop_button: Button = hud.get_node("YardPanel/Column/ShopButton")
+	var quick_menu: HBoxContainer = hud.get_node("QuickMenu")
+	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
-	var next_goal: Label = hud.get_node("YardPanel/Column/NextGoal")
-	var orders_button: Button = hud.get_node("YardPanel/Column/OrdersButton")
+	var backdrop: ColorRect = hud.get_node("ModalBackdrop")
+	var orders_button: Button = hud.get_node("QuickMenu/OrdersButton")
 	var orders_panel: PanelContainer = hud.get_node("OrdersPanel")
 	var orders_list: VBoxContainer = hud.get_node("OrdersPanel/Column/Scroll/List")
 
-	_check(cash_label.text == "0", "a fresh yard reads 0 cash")
-	var goal_is_authored := false
-	for def: UpgradeDef in Shop.get_upgrades():
-		if (def != null
-				and next_goal.text.contains(def.display_name)
-				and next_goal.text.contains(str(Shop.get_next_cost(def.id)))):
-			goal_is_authored = true
-	var next_wood := GameState.get_next_unowned_species()
-	if (next_wood != null
-			and next_goal.text.contains(next_wood.display_name)
-			and next_goal.text.contains(str(next_wood.unlock_cost))):
-		goal_is_authored = true
-	_check(goal_is_authored,
-		"the yard names a real next purchase and its data-authored cost: '%s'" % next_goal.text)
+	_check(cash_label.text == "0", "a fresh chopping session reads 0 cash")
+	_check(quick_menu.visible and quick_menu.get_child_count() == 4,
+		"contracts, wood, skills and shop are always available in one bottom-right dock")
+	var square_icons := true
+	for child in quick_menu.get_children():
+		var button := child as Button
+		square_icons = square_icons and button != null \
+			and button.custom_minimum_size.x == button.custom_minimum_size.y \
+			and button.custom_minimum_size.x > 0.0 and button.text.is_empty() \
+			and button.icon != null
+	_check(square_icons, "all four dock actions are compact square icon buttons")
 
 	# Cash is the only number on screen; the pile count and the lifetime total are
 	# background stats now, still counted and still saved but never shown.
 	_check(hud.get_node_or_null("TopBar/PileLabel") == null
 			and hud.get_node_or_null("TopBar/LifetimeLabel") == null,
-		"the yard-pile and lifetime readouts are GONE from the HUD")
+		"the yard-pile and lifetime readouts remain absent from the HUD")
+	_check(hud.get_node_or_null("PileProgress") == null,
+		"the next-haul progress bar is GONE — the pile and animation are the cue")
 
 	# There is nothing to sell by hand any more: the yard buys a piece as it lands.
-	_check(hud.get_node_or_null("YardPanel/Column/StockList") == null
-			and hud.get_node_or_null("YardPanel/Column/SellAllButton") == null,
-		"the manual sell rows and 'Sell all' are GONE from the yard panel")
+	_check(hud.find_child("StockList", true, false) == null
+			and hud.find_child("SellAllButton", true, false) == null,
+		"the manual sell rows and 'Sell all' remain absent")
 
 	# A finished log the way the mini-game reports it: the A7 gather, the sale, and
 	# the piece landing on the pile.
@@ -475,43 +476,46 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(shop_button.icon != null and shop_button.icon.resource_path.ends_with("coin.png"),
 		"the shop button wears the coin icon (%s)" % ("none" if shop_button.icon == null else shop_button.icon.resource_path))
 	_check(cash_icon.texture != null, "...and the cash readout has a coin beside it")
-	_check(not shop_panel.visible, "the shop starts closed")
+	_check(not shop_panel.visible and not backdrop.visible, "the shop starts closed over the live chopping view")
 	shop_button.pressed.emit()
-	_check(shop_panel.visible, "...the coin button opens it")
+	_check(shop_panel.visible and backdrop.visible, "...the coin button opens it with an outside-click catcher")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
-	_check(not shop_panel.visible, "...and Close shuts it again")
+	_check(not shop_panel.visible and not backdrop.visible, "...and Back returns straight to chopping")
 
-	_check(not orders_panel.visible, "the temporary contract board starts closed")
+	_check(not orders_panel.visible, "the contract board starts closed")
 	orders_button.pressed.emit()
-	_check(orders_panel.visible, "...and has a real yard button that opens it")
+	_check(orders_panel.visible, "...and its square icon opens it")
 	_check(orders_list.get_child_count() == Orders.all().size(),
 		"...with one data-driven card per authored order (%d)" % orders_list.get_child_count())
 	_check(orders_panel.get_theme_stylebox("panel") is StyleBoxFlat,
 		"...using a replaceable basic-material board treatment while final art is pending")
 	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
-	_check(not orders_panel.visible, "...and Close puts the board away")
+	_check(not orders_panel.visible, "...and Back puts the board away")
 
 	hud.queue_free()
 	await get_tree().process_frame
 
 
-## The M key is gone; these two buttons are the only way in and out now, so they
-## are worth a check that fails loudly if either comes unwired.
-func _test_14_hud_carries_the_entry_flow() -> void:
+## Management is an overlay, not another mode. Both dismissal paths must close
+## the panel without sending the chopping world away.
+func _test_14_hud_panels_dismiss_to_chopping() -> void:
 	GameState.reset_to_defaults()
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
 	await get_tree().process_frame
 
-	var yard_panel: PanelContainer = hud.get_node("YardPanel")
-	var chop: Button = hud.get_node("YardPanel/Column/ChopButton")
-	var back: Button = hud.get_node("BackButton")
-	var pile_panel: PanelContainer = hud.get_node("PileProgress")
-	var pile_progress: ProgressBar = hud.get_node("PileProgress/Column/Progress")
+	var backdrop: ColorRect = hud.get_node("ModalBackdrop")
+	var skill_panel: PanelContainer = hud.get_node("SkillPanel")
+	var wood_panel: PanelContainer = hud.get_node("WoodPanel")
+	var skills: Button = hud.get_node("QuickMenu/SkillsButton")
+	var wood: Button = hud.get_node("QuickMenu/WoodButton")
 
-	_check(yard_panel.visible and not back.visible,
-		"the game opens in the yard: the panel is up, the back button is not")
-	_check(not pile_panel.visible, "the haul cue stays off the management view")
+	_check(hud.get_node_or_null("YardPanel") == null
+			and hud.get_node_or_null("BackButton") == null
+			and hud.find_child("ChopButton", true, false) == null,
+		"the separate yard screen and its Go/Back navigation are GONE")
+	_check(backdrop.mouse_filter == Control.MOUSE_FILTER_STOP,
+		"the outside-click catcher consumes dismissal clicks before they reach the axe")
 
 	var entered: Array[int] = []
 	var exited := [0]
@@ -520,22 +524,22 @@ func _test_14_hud_carries_the_entry_flow() -> void:
 	EventBus.minigame_entered.connect(on_enter)
 	EventBus.minigame_exited.connect(on_exit)
 
-	chop.pressed.emit()
-	_check(entered.size() == 1 and entered[0] == Enums.Biome.PINE_FOREST,
-		"'Go chopping' emits minigame_entered once — the same A7 path the M key used")
-	_check(not yard_panel.visible and back.visible,
-		"...and the HUD swapped to chopping mode off the SIGNAL, not off the click")
-	_check(pile_panel.visible
-			and int(pile_progress.max_value) == GameState.get_yard_pile_capacity(),
-		"...where one contextual bar explains the %d-piece haul" % GameState.get_yard_pile_capacity())
-	GameState.add_to_yard_pile(&"oak_firewood", 7)
-	_check(int(pile_progress.value) == 7,
-		"...and that bar repaints from yard_pile_changed (7 pieces shown)")
+	skills.pressed.emit()
+	_check(skill_panel.visible and backdrop.visible, "the skills icon opens its panel over chopping")
+	var outside_click := InputEventMouseButton.new()
+	outside_click.button_index = MOUSE_BUTTON_LEFT
+	outside_click.pressed = true
+	backdrop.gui_input.emit(outside_click)
+	_check(not skill_panel.visible and not backdrop.visible,
+		"clicking outside the panel dismisses it straight back to chopping")
 
-	back.pressed.emit()
-	_check(exited[0] == 1, "'Back to the yard' emits minigame_exited once")
-	_check(yard_panel.visible and not back.visible, "...and the yard panel is back up")
-	_check(not pile_panel.visible, "...so the contextual haul cue leaves with chopping mode")
+	wood.pressed.emit()
+	_check(wood_panel.visible and backdrop.visible, "the wood icon opens its panel over chopping")
+	hud.get_node("WoodPanel/Column/CloseWoodButton").pressed.emit()
+	_check(not wood_panel.visible and not backdrop.visible,
+		"the panel's Back button dismisses it straight back to chopping")
+	_check(entered.is_empty() and exited[0] == 0,
+		"opening and closing management never emits a 2D/3D mode change")
 
 	EventBus.minigame_entered.disconnect(on_enter)
 	EventBus.minigame_exited.disconnect(on_exit)

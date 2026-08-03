@@ -151,10 +151,10 @@ on a clean clone on 2026-08-02.
 - **M2 (main scene shell + pixel pipeline): DONE, functionality accepted;
   art direction deferred by Sam.** Known: SpotLight3D `light_projector` gobo
   does not render under gl_compatibility (see Amendment 9 — replaced in the
-  chopping scene by an animated shadow-cutout gobo). The game boots into 2D
-  management mode by design; since M7A that mode is no longer empty — it shows
-  the yard HUD, and its "Go chopping" button is the real entry into the 3D
-  scene. **The temp M key is GONE** (2026-08-01).
+  chopping scene by an animated shadow-cutout gobo). Since 2026-08-03 the game
+  boots directly into the chopping view; management is an overlay on that view,
+  not a separate mode. A10's 2D/3D switch remains intact for future transitions.
+  **The temp M key is GONE** (2026-08-01).
 - **M3 (GameFeel): code DONE, awaiting Creative Director sign-off.** 16/16.
   GameFeel is the 4th autoload (Amendment 5). Hit-pause overlap guard, trauma
   camera shake (h/v offset), `register_impact`, A7 wiring all verified. Temp
@@ -174,9 +174,9 @@ on a clean clone on 2026-08-02.
 `main.tscn`'s `3D_World_Root` instances
 `res://scenes/3d_action/chopping_minigame.tscn` (root Node3D runs
 `chopping_minigame.gd`). `chopping_minigame_harness.tscn` is an F6 feel-test
-harness that instances the same scene inside a viewport. Enter it from the main
-scene with the yard HUD's **"Go chopping"** button, which emits `minigame_entered`
-and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
+harness that instances the same scene inside a viewport. The main scene boots
+straight into this chopping game. The temp M key and the later Go/Back yard
+navigation are both gone.
 
 - **The slicer is Amendment 6's runtime plane cut.** Each click cuts the log
   along a camera-inferred angle and caps the cut face; sliver cuts round up to
@@ -307,7 +307,7 @@ asset. Suite: `m7a_acceptance` 85/85.
   a save from outside. Note it is a SCENE, not a `-s` script: a `-s` script
   replaces the main loop and the autoloads are never instantiated.
 
-### M7A — the basic buyer, the yard HUD and the real entry flow (2026-08-01)
+### M7A — the basic buyer and chopping HUD (2026-08-01; revised 2026-08-03)
 
 The second M7A slice, and again everything in it that needed a tuning value was
 pushed into data instead of invented. **Still no sign-off.**
@@ -340,9 +340,9 @@ pushed into data instead of invented. **Still no sign-off.**
 - **`res://scenes/2d_management/yard_hud.tscn/.gd`** is instanced under
   `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). Cash is the only
   permanent economy number; pile and lifetime totals remain saved background
-  stats. The yard panel derives one next useful cash purchase from the live
-  shop/woodshed catalogues, including a wood's level prerequisite, so it cannot
-  drift from authored data. Chopping mode alone shows the haul progress bar.
+  stats. The old yard panel and its next-purchase text are gone: contracts, wood,
+  skills and shop are four 56×56 icon buttons at bottom-right of the chopping
+  view. Their SVG icons are native project assets; the shop keeps Sam's coin.
 - **THERE IS NO MANUAL SELLING** (Creative Director call, 2026-08-01 — see the
   auto-sell section below). The per-species sell rows and "Sell all" this HUD
   shipped with on the same day are GONE; `Market` is still the buyer, it is just
@@ -351,19 +351,20 @@ pushed into data instead of invented. **Still no sign-off.**
   the shop's icon on the button and on its header; the panel itself says what
   will be sold there. Upgrades and new woods are blocked on Sam's numbers
   (Directive 3), so this is the door and the counter, with nothing on the shelves.
-- **THE TEMP M KEY IS GONE.** "Go chopping" / "Back to the yard" emit the same A7
-  `minigame_entered` / `minigame_exited` the key did, so `main.gd`'s A10 mode
-  switch is unchanged and is now driven by the production path. The HUD switches
-  its own view off the SIGNALS, not off the clicks.
-- **`core/tools/hud_shot.tscn` renders the real main scene to PNGs** (yard,
-  chopping, sold) — RUN NON-HEADLESS. Every numeric check here is green on a UI
-  that is off-screen or covering the chopping block; this is `shot_runner` applied
-  to the 2D side. It stashes the real save for the run.
-- **SEEN IN THE SHOTS, Sam's call:** coming back from chopping leaves the last
-  rendered 3D frame frozen behind the yard panel (A10 stops the viewport
-  rendering, it does not clear it). It reads fine — the yard IS the chopping site
-  — but if you want the yard to be its own view, that is a design decision, not a
-  bug fix.
+- **THERE IS NO YARD NAVIGATION** (Creative Director call, 2026-08-03).
+  `main.gd` boots the chopping world live. Each management icon opens a centred
+  overlay without emitting `minigame_entered` or `minigame_exited`; its Back
+  button, Escape, or a click outside closes it straight back to chopping. A
+  full-screen `ModalBackdrop` consumes outside clicks, so dismissal cannot also
+  swing the axe. The A7 mode signals and A10 implementation remain available for
+  future transitions, but normal HUD use no longer drives them.
+- **`core/tools/hud_shot.tscn` renders the real main scene to PNGs** (chopping,
+  each management overlay, pile and haul-away) — RUN NON-HEADLESS. Every numeric
+  check here is green on a UI that is off-screen or covering the chopping block;
+  this is `shot_runner` applied to the 2D side. It stashes the real save for the run.
+- **RENDERED 2026-08-03:** the four square buttons sit cleanly at bottom-right;
+  the chopping block remains visible behind the darkened shop, woodshed, skills
+  and contract panels; no haul meter remains on the production view.
 ### M7A — the pile pays as it lands, and the load is hauled away (2026-08-01)
 
 **Creative Director call, and it REPLACED the model shipped earlier the same day:**
@@ -421,10 +422,10 @@ chopped."*
   (`auto_sell = false` kills the payout checks; disarming the threshold leaves the
   load sitting in the yard). RENDERED: `hud_shot` shoots the shop, a 40-piece pile
   and the haul CAUGHT MID-FLIGHT, which no counter could have told us.
-- **The haul threshold is now discoverable without reviving a permanent pile
-  counter.** Chopping mode shows a numberless "Next haul-away" progress bar. Its
-  maximum and the production pile both inherit `GameState.YARD_PILE_CAPACITY`
-  (Sam's 50), so the threshold still has one owner.
+- **THE HAUL-AWAY HAS NO UI METER** (Creative Director call, 2026-08-03). The
+  numberless "Next haul-away" progress bar was removed as clutter. The physical
+  pile still grows and `GameState.YARD_PILE_CAPACITY` (Sam's 50) still owns the
+  production threshold; only the redundant advance warning is gone.
 
 ### M7A — a swing is a ROLL, and the shop sells the odds (2026-08-01)
 
@@ -539,8 +540,8 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
 `fragment_physics_budget.gd`, `piece_animator.gd`, `wood_pile.gd`, `axe_rig.gd`,
 `canopy_gobo.gd`.
 
-`scenes/2d_management/`: `yard_hud.gd/.tscn` (the yard HUD, the basic buyer's
-front end and the entry flow) — the first thing this folder has ever held.
+`scenes/2d_management/`: `yard_hud.gd/.tscn` (the always-on chopping HUD and the
+basic buyer's overlay front end) — the first thing this folder has ever held.
 
 `core/tools/`: `test_slicer`, `chopping_smoke`, `chop_diag`, `pile_smoke`,
 `pile_shot`, `shot_runner`, `hud_shot`, `scar_shot`, `split_odds`, `jag_shot`, `inspect_log`, `inspect_stump`, `probe_log`,

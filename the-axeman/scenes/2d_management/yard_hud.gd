@@ -4,20 +4,9 @@ extends Control
 ## That scene is instanced under Main/UI_Overlay (A9: ALL gameplay UI lives in
 ## UI_Overlay, never inside UI_Canvas, which is the render pipeline's own layer).
 ##
-## FULL NODE TREE (yard_hud.tscn):
-##   YardHUD (Control, full rect, mouse_filter = IGNORE)
-##   ├── TopBar (PanelContainer, top-left, mouse_filter = IGNORE)
-##   │   └── CashRow (HBoxContainer)
-##   │       ├── CashIcon (TextureRect — the coin)
-##   │       └── CashLabel (Label)
-##   ├── YardPanel (PanelContainer, right column — 2D management mode only)
-##   │   └── Column (VBoxContainer)
-##   │       ├── Title (Label)
-##   │       ├── Blurb (Label)
-##   │       ├── Spacer (Control)
-##   │       ├── WoodButton (Button — names the wood currently on the block)
-##   │       ├── ShopButton (Button — the coin icon)
-##   │       └── ChopButton (Button)
+## ALWAYS-ON CHOPPING HUD (Creative Director call, 2026-08-03). There is no
+## separate yard screen. Contracts, wood, skills and shop live in four square
+## icon buttons at bottom-right while the chopping game stays on screen.
 ##   ├── ShopPanel (PanelContainer, centred — hidden until the shop is opened)
 ##   │   └── Column (VBoxContainer)
 ##   │       ├── Header (HBoxContainer) → ShopIcon (TextureRect), ShopTitle (Label)
@@ -32,17 +21,13 @@ extends Control
 ##   │       │   └── WoodList (VBoxContainer)  <- rows are built at RUNTIME
 ##   │       ├── NextWood (Label — the next milestone)
 ##   │       └── CloseWoodButton (Button)
-##   └── BackButton (Button, bottom-left — chopping mode only)
+##   ├── ModalBackdrop (ColorRect — catches clicks outside an open panel)
+##   └── QuickMenu (HBoxContainer — four square icon buttons, bottom-right)
 ##
 ## THERE IS NO SELLING TO DO HERE (Creative Director call, 2026-08-01). The yard
 ## buys every piece of firewood the moment it lands on the pile, so the player
 ## never manages stock — they chop, the money goes up, and they spend it in the
 ## shop. The sell rows and the "Sell all" button this HUD shipped with are gone.
-##
-## THE REAL ENTRY FLOW (M7A). "Go chopping" and "Back to the yard" emit the same
-## A7 signals the temporary M key used to — `minigame_entered` /
-## `minigame_exited` — so main.gd's A10 mode switch is driven by exactly the path
-## it was always meant to be driven by. The M key is gone with this scene.
 ##
 ## CASH IS THE ONLY PERMANENT ECONOMY NUMBER ON SCREEN (Creative Director call,
 ## 2026-08-01: "we
@@ -50,9 +35,9 @@ extends Control
 ## chopped in your lifetime, those can stay as background stats"). Both are still
 ## counted and still saved — `GameState.get_yard_pile_count()` and
 ## `get_lifetime_wood_chopped()` are unchanged, and the pile itself is still the
-## visible record of the stack. They simply have no readout. Chopping mode has a
-## numberless progress bar toward the approved haul threshold, so the animation
-## has an understandable cause without reviving either hidden statistic.
+## visible record of the stack. They simply have no readout. The haul-away has no
+## progress bar either (Creative Director call, 2026-08-03): the physical pile
+## and its animation communicate the event without another UI meter.
 ##
 ## LIVE, NEVER POLLED: it listens to GameState.cash_changed, which is precisely
 ## what that local signal exists for (Amendment 2's precedent).
@@ -83,39 +68,32 @@ extends Control
 const _COIN := preload("res://assets/ui/coin.png")
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
-@onready var _yard_panel: PanelContainer = $YardPanel
 @onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopList
 @onready var _shop_empty: Label = $ShopPanel/Column/ShopEmpty
 @onready var _shop_panel: PanelContainer = $ShopPanel
-@onready var _shop_button: Button = $YardPanel/Column/ShopButton
+@onready var _shop_button: Button = $QuickMenu/ShopButton
 @onready var _close_shop_button: Button = $ShopPanel/Column/CloseShopButton
-@onready var _chop_button: Button = $YardPanel/Column/ChopButton
-@onready var _back_button: Button = $BackButton
-@onready var _wood_button: Button = $YardPanel/Column/WoodButton
+@onready var _wood_button: Button = $QuickMenu/WoodButton
 @onready var _wood_panel: PanelContainer = $WoodPanel
 @onready var _wood_list: VBoxContainer = $WoodPanel/Column/WoodScroll/WoodList
 @onready var _next_wood: Label = $WoodPanel/Column/NextWood
 @onready var _close_wood_button: Button = $WoodPanel/Column/CloseWoodButton
 @onready var _xp_level_label: Label = $XPBar/Column/LevelLabel
 @onready var _xp_progress: ProgressBar = $XPBar/Column/Progress
-@onready var _skills_button: Button = $YardPanel/Column/SkillsButton
+@onready var _skills_button: Button = $QuickMenu/SkillsButton
 @onready var _skill_panel: PanelContainer = $SkillPanel
 @onready var _skill_list: VBoxContainer = $SkillPanel/Column/SkillScroll/SkillList
 @onready var _points_label: Label = $SkillPanel/Column/PointsLabel
 @onready var _close_skill_button: Button = $SkillPanel/Column/CloseSkillButton
-@onready var _next_goal: Label = $YardPanel/Column/NextGoal
-@onready var _pile_progress_panel: PanelContainer = $PileProgress
-@onready var _pile_progress: ProgressBar = $PileProgress/Column/Progress
-@onready var _orders_button: Button = $YardPanel/Column/OrdersButton
+@onready var _orders_button: Button = $QuickMenu/OrdersButton
 @onready var _orders_panel: PanelContainer = $OrdersPanel
 @onready var _orders_list: VBoxContainer = $OrdersPanel/Column/Scroll/List
 @onready var _orders_active: Label = $OrdersPanel/Column/Active
 @onready var _close_orders_button: Button = $OrdersPanel/Column/CloseButton
+@onready var _modal_backdrop: ColorRect = $ModalBackdrop
 
 
 func _ready() -> void:
-	_chop_button.pressed.connect(_on_chop_pressed)
-	_back_button.pressed.connect(_on_back_pressed)
 	_shop_button.pressed.connect(_on_shop_pressed)
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
 	_wood_button.pressed.connect(_on_wood_pressed)
@@ -124,9 +102,9 @@ func _ready() -> void:
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 	_orders_button.pressed.connect(_on_orders_pressed)
 	_close_orders_button.pressed.connect(_on_close_orders_pressed)
+	_modal_backdrop.gui_input.connect(_on_modal_backdrop_gui_input)
 
 	GameState.cash_changed.connect(_on_cash_changed)
-	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
 	# The woodshed's three live inputs, all local signals (Amendment 2's
 	# precedent), so nothing here polls: what the player picked, what they have
 	# just earned, and the counter the next milestone is measured against.
@@ -141,74 +119,57 @@ func _ready() -> void:
 	# A purchase moves a tier through A7's own signal, so the shelf repaints off
 	# the same event that recorded the sale.
 	EventBus.building_upgraded.connect(_on_building_upgraded)
-	EventBus.minigame_entered.connect(_on_minigame_entered)
-	EventBus.minigame_exited.connect(_on_minigame_exited)
 
-	# The game boots into 2D management mode (main.gd calls _enter_2d_mode), so the
-	# yard starts open, the shop closed and the back button hidden.
-	_shop_panel.visible = false
-	_wood_panel.visible = false
-	_skill_panel.visible = false
-	_orders_panel.visible = false
-	_show_yard(true)
+	_close_panels()
 	_refresh_stats()
 	_refresh_xp_bar()
-	_refresh_next_purchase()
-	_refresh_pile_progress()
 	_rebuild_shop()
 	_rebuild_woodshed()
 	_rebuild_skills()
 	_rebuild_orders()
 
 
-## ------------------------------------------------------------------ entry flow
-func _on_chop_pressed() -> void:
-	EventBus.minigame_entered.emit(Enums.Biome.PINE_FOREST)
+## -------------------------------------------------------------- modal panels
+func _open_panel(panel: Control) -> void:
+	_close_panels()
+	_modal_backdrop.visible = true
+	panel.visible = true
 
 
-func _on_back_pressed() -> void:
-	EventBus.minigame_exited.emit()
+func _close_panels() -> void:
+	_shop_panel.visible = false
+	_wood_panel.visible = false
+	_skill_panel.visible = false
+	_orders_panel.visible = false
+	_modal_backdrop.visible = false
 
 
-## Driven by the SIGNAL, not by the button, so the view is correct however the
-## mode changed — a future cutscene, a save load or a test emitting it directly
-## all land here.
-func _on_minigame_entered(_biome: Enums.Biome) -> void:
-	_show_yard(false)
+## The backdrop consumes the outside click after closing the panel, so dismissing
+## a window can never swing the axe at the same time.
+func _on_modal_backdrop_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_close_panels()
+		accept_event()
 
 
-func _on_minigame_exited() -> void:
-	_show_yard(true)
-
-
-func _show_yard(yard_visible: bool) -> void:
-	_yard_panel.visible = yard_visible
-	_back_button.visible = not yard_visible
-	_pile_progress_panel.visible = not yard_visible
-	if not yard_visible:
-		# Neither counter follows you to the block: the wood is already chosen and
-		# on the stump by the time you are looking at it.
-		_shop_panel.visible = false
-		_wood_panel.visible = false
-		_skill_panel.visible = false
-		_orders_panel.visible = false
-	# The stats bar stays up in BOTH modes on purpose: watching the cash climb
-	# while chopping is the whole "number go up" payoff.
+func _unhandled_input(event: InputEvent) -> void:
+	if _modal_backdrop.visible and event.is_action_pressed("ui_cancel"):
+		_close_panels()
+		get_viewport().set_input_as_handled()
 
 
 ## ------------------------------------------------------------------- the shop
 func _on_shop_pressed() -> void:
-	_shop_panel.visible = true
+	_open_panel(_shop_panel)
 	_rebuild_shop()   # levels and affordability may have moved while it was shut
 
 
 func _on_close_shop_pressed() -> void:
-	_shop_panel.visible = false
+	_close_panels()
 
 
 func _on_building_upgraded(_id: StringName, _tier: int) -> void:
 	_rebuild_shop()
-	_refresh_next_purchase()
 
 
 ## One row per upgrade, straight from the table: what it is, what it does, what
@@ -269,12 +230,12 @@ func _on_buy_pressed(id: StringName) -> void:
 
 ## ---------------------------------------------------------------- the woodshed
 func _on_wood_pressed() -> void:
-	_wood_panel.visible = true
+	_open_panel(_wood_panel)
 	_rebuild_woodshed()   # a wood may have been earned while it was shut
 
 
 func _on_close_wood_pressed() -> void:
-	_wood_panel.visible = false
+	_close_panels()
 
 
 ## Driven by the SIGNALS rather than by the row that was clicked, so the button
@@ -288,7 +249,6 @@ func _on_selected_species_changed(_id: StringName) -> void:
 
 func _on_species_purchased(_id: StringName) -> void:
 	_rebuild_woodshed()
-	_refresh_next_purchase()
 	_rebuild_orders()
 
 
@@ -297,7 +257,6 @@ func _on_species_purchased(_id: StringName) -> void:
 ## repaints an OPEN panel: this fires once per finished log.
 func _on_xp_changed(_total: int) -> void:
 	_refresh_xp_bar()
-	_refresh_next_purchase()
 	if _wood_panel.visible:
 		_rebuild_woodshed()
 	if _skill_panel.visible:
@@ -393,7 +352,7 @@ func _on_buy_wood_pressed(id: StringName) -> void:
 
 func _refresh_wood_button() -> void:
 	var def := SpeciesTable.by_id(GameState.get_selected_species())
-	_wood_button.text = "Wood:  %s" % ("—" if def == null else def.display_name)
+	_wood_button.tooltip_text = "Wood: %s" % ("—" if def == null else def.display_name)
 
 
 ## 70000 -> "70,000". The late ladder deals in tens of thousands of pieces, and an
@@ -410,18 +369,18 @@ func _thousands(n: int) -> String:
 
 ## ------------------------------------------------------------- the skill tree
 func _on_skills_pressed() -> void:
-	_skill_panel.visible = true
+	_open_panel(_skill_panel)
 	_rebuild_skills()
 
 
 ## --------------------------------------------------------- contract board
 func _on_orders_pressed() -> void:
-	_orders_panel.visible = true
+	_open_panel(_orders_panel)
 	_rebuild_orders()
 
 
 func _on_close_orders_pressed() -> void:
-	_orders_panel.visible = false
+	_close_panels()
 
 
 func _on_order_state_changed() -> void:
@@ -494,7 +453,7 @@ func _on_accept_order_pressed(order_id: StringName) -> void:
 
 
 func _on_close_skill_pressed() -> void:
-	_skill_panel.visible = false
+	_close_panels()
 
 
 ## THE TREE IS DRAWN AS AN INDENTED LIST, not as a graph with lines. A real node
@@ -603,77 +562,9 @@ func _refresh_xp_bar() -> void:
 ## ----------------------------------------------------------------- live view
 func _on_cash_changed(_new_amount: int) -> void:
 	_refresh_stats()
-	_refresh_next_purchase()
 	if _shop_panel.visible:
 		_rebuild_shop()   # what you can afford changed while you were looking at it
 
 
 func _refresh_stats() -> void:
 	_cash_label.text = str(GameState.get_cash())
-
-
-## The pile owns one approved capacity in GameState. This bar is contextual to
-## chopping mode, so the player can discover what the growing physical stack is
-## building toward without putting another permanent counter on the yard HUD.
-func _on_yard_pile_changed(_new_total: int) -> void:
-	_refresh_pile_progress()
-
-
-func _refresh_pile_progress() -> void:
-	var capacity := GameState.get_yard_pile_capacity()
-	_pile_progress.max_value = capacity
-	_pile_progress.value = mini(GameState.get_yard_pile_count(), capacity)
-
-
-## Keep one attainable cash target in view. The choice is derived from the live
-## catalogues: the cheapest unmaxed shop item or the next level-eligible wood.
-## That makes this a view of authored data, not a second progression table.
-func _refresh_next_purchase() -> void:
-	var goal := _next_cash_purchase()
-	if goal.is_empty():
-		var next_wood := GameState.get_next_unowned_species()
-		if next_wood == null:
-			_next_goal.text = "Every available purchase is owned."
-		else:
-			_next_goal.text = "Next wood: %s unlocks at level %d." % [
-				next_wood.display_name, next_wood.unlock_level]
-		return
-
-	var cost := int(goal["cost"])
-	var name := String(goal["name"])
-	var place := String(goal["place"])
-	var unlock_level := int(goal.get("unlock_level", 0))
-	if unlock_level > GameState.get_level():
-		_next_goal.text = "Next purchase: %s — level %d, then %s coins." % [
-			name, unlock_level, _thousands(cost)]
-		return
-	if GameState.can_afford_cash(cost):
-		_next_goal.text = "Ready now: %s — visit the %s." % [name, place]
-	else:
-		_next_goal.text = "Next purchase: %s — %s coins (%s to go)." % [
-			name, _thousands(cost), _thousands(cost - GameState.get_cash())]
-
-
-func _next_cash_purchase() -> Dictionary:
-	var best: Dictionary = {}
-	for def: UpgradeDef in Shop.get_upgrades():
-		if def == null or def.is_maxed(Shop.get_level(def.id)):
-			continue
-		var cost := Shop.get_next_cost(def.id)
-		if cost > 0 and (best.is_empty() or cost < int(best["cost"])):
-			best = {"name": def.display_name, "cost": cost, "place": "shop"}
-
-	var next_wood := GameState.get_next_unowned_species()
-	if next_wood != null:
-		var cost := next_wood.unlock_cost
-		if GameState.can_species_be_bought(next_wood.id):
-			if cost > 0 and (best.is_empty() or cost < int(best["cost"])):
-				best = {"name": next_wood.display_name, "cost": cost, "place": "woodshed"}
-		elif best.is_empty() and cost > 0:
-			best = {
-				"name": next_wood.display_name,
-				"cost": cost,
-				"place": "woodshed",
-				"unlock_level": next_wood.unlock_level,
-			}
-	return best

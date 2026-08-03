@@ -8,7 +8,9 @@ extends Node
 ## No gameplay logic lives here. Gameplay UI goes in UI_Overlay (A9), never
 ## UI_Canvas.
 ##
-## M7A's yard buttons own entry/exit; the old temporary M key is gone.
+## The chopping game is now the default and only production view. A10's mode
+## switch remains available for future transitions, but management opens as HUD
+## panels over the live chopping scene instead of entering a separate 2D mode.
 
 var _save_queued := false
 
@@ -19,7 +21,7 @@ var _save_queued := false
 func _ready() -> void:
 	EventBus.minigame_entered.connect(_on_minigame_entered)
 	EventBus.minigame_exited.connect(_on_minigame_exited)
-	_enter_2d_mode()
+	_enter_3d_mode()
 
 	# Boot the player's yard back up. Autoloads have already run their _ready by
 	# now, so the registry is parsed and both serialisers are safe to call.
@@ -113,11 +115,10 @@ func _enter_3d_mode() -> void:
 
 
 # ---------------------------------------------------------------------------
-# The M2 TEMPORARY DEBUG M-key toggle is GONE (2026-08-01). M7A's real entry
-# flow replaced it: YardHUD's "Go chopping" and "Back to the yard" buttons
-# (res://scenes/2d_management/yard_hud.gd, instanced under UI_Overlay) emit the
-# same A7 signals the key did, so the mode switch above is unchanged and is now
-# driven by the production path.
+# The M2 TEMPORARY DEBUG M-key toggle is GONE (2026-08-01). Since 2026-08-03,
+# chopping is the production default and YardHUD opens its management panels
+# directly over it. The A7 mode signals remain wired for future transitions and
+# for the frozen A10 contract; ordinary HUD use no longer emits either one.
 #
 # The T key that swapped between the chopping block and the tree-felling scene
 # went with the tree game in the pivot; the chopping mini-game is the only thing

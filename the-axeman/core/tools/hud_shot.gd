@@ -3,14 +3,14 @@ extends Node
 ## ATTACHES TO: root Node of res://core/tools/hud_shot.tscn. DEV TOOL, not shipped.
 ##
 ## RUN NON-HEADLESS (F6, or with the scene path and no --headless): it renders the
-## real main.tscn — yard HUD, shop, stockpile and haul-away — to PNGs in user://,
+## real main.tscn — chopping HUD, panels, stockpile and haul-away — to PNGs in user://,
 ## because every numeric check in this project can be green on a UI that is
 ## off-screen, unreadably small, or covering the chopping block. This is the
 ## shot_runner pattern applied to the 2D side.
 ##
 ## It drives the REAL scene and the REAL signals: firewood arrives via A7
-## resource_gathered exactly as the mini-game deposits it, the mode change comes
-## from pressing the HUD's own button, and the haul-away is the production one.
+## resource_gathered exactly as the mini-game deposits it, panels open through
+## the HUD's own icon buttons, and the haul-away is the production one.
 ##
 ## SAFETY: main.tscn autosaves, so this moves any existing save aside for the run
 ## and puts it back afterwards. A dev screenshot must not be able to overwrite
@@ -32,7 +32,8 @@ func _ready() -> void:
 	var mg: Node3D = main.get_node(
 		"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame")
 
-	# A yard part way through a working day: cash earned, wood chopped, and a load
+	# A chopping session part way through a working day: cash earned, wood chopped,
+	# the compact action dock visible and a load
 	# stacked. The pile pieces go in the way the game adds them, one at a time.
 	GameState.add_cash(370)
 	for i in range(26):
@@ -43,10 +44,10 @@ func _ready() -> void:
 		GameState.add_to_yard_pile(&"oak_firewood", 1)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_save("_1_yard")
+	_save("_1_chopping")
 
 	# The shop: Sam's coin on the button and on the counter.
-	hud.get_node("YardPanel/Column/ShopButton").pressed.emit()
+	hud.get_node("QuickMenu/ShopButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_2_shop")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
@@ -56,7 +57,7 @@ func _ready() -> void:
 	# list rather than a staged one — the thing worth looking at is whether an
 	# earned wood, the wood on the block and the next milestone are all
 	# distinguishable at a glance.
-	hud.get_node("YardPanel/Column/WoodButton").pressed.emit()
+	hud.get_node("QuickMenu/WoodButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_2b_woodshed")
 	hud.get_node("WoodPanel/Column/CloseWoodButton").pressed.emit()
@@ -67,7 +68,7 @@ func _ready() -> void:
 	GameState.add_xp(30000)
 	SkillTree.buy(&"quick_hands")
 	SkillTree.buy(&"strong_arms")
-	hud.get_node("YardPanel/Column/SkillsButton").pressed.emit()
+	hud.get_node("QuickMenu/SkillsButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_2c_skills")
 	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
@@ -78,16 +79,10 @@ func _ready() -> void:
 	for i in range(6):
 		EventBus.resource_gathered.emit(&"aspen_firewood", 1)
 		Orders.settle_piece(&"aspen_firewood")
-	hud.get_node("YardPanel/Column/OrdersButton").pressed.emit()
+	hud.get_node("QuickMenu/OrdersButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_2d_orders")
 	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
-
-	# Into the chopping game through the button the player uses.
-	hud.get_node("YardPanel/Column/ChopButton").pressed.emit()
-	for i in range(30):
-		await get_tree().process_frame
-	_save("_3_chopping")
 
 	# The load is full and leaves the yard. This is the production haul, caught
 	# mid-flight — the point of the shot is that the wood is IN THE AIR and on its

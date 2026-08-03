@@ -1,7 +1,10 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scenes/2d_management/yard_hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/ui/coin.png" id="2_coin"]
+[ext_resource type="Texture2D" path="res://assets/ui/contracts_icon.svg" id="3_contracts"]
+[ext_resource type="Texture2D" path="res://assets/ui/wood_icon.svg" id="4_wood"]
+[ext_resource type="Texture2D" path="res://assets/ui/skills_icon.svg" id="5_skills"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_contract_board"]
 bg_color = Color(0.19, 0.115, 0.055, 0.97)
@@ -74,68 +77,60 @@ max_value = 1.0
 step = 0.001
 show_percentage = false
 
-[node name="YardPanel" type="PanelContainer" parent="."]
+[node name="QuickMenu" type="HBoxContainer" parent="."]
 anchor_left = 1.0
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -344.0
-offset_top = 118.0
+offset_left = -264.0
+offset_top = -72.0
 offset_right = -16.0
 offset_bottom = -16.0
 grow_horizontal = 0
-grow_vertical = 2
-
-[node name="Column" type="VBoxContainer" parent="YardPanel"]
-layout_mode = 2
+grow_vertical = 0
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="YardPanel/Column"]
+[node name="OrdersButton" type="Button" parent="QuickMenu"]
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "The Yard"
+tooltip_text = "Contracts"
+icon = ExtResource("3_contracts")
+expand_icon = true
+icon_max_width = 34
 
-[node name="Blurb" type="Label" parent="YardPanel/Column"]
+[node name="WoodButton" type="Button" parent="QuickMenu"]
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-autowrap_mode = 3
-text = "Every piece you split is bought the moment it hits the pile. When the pile is full, the load is hauled away."
+tooltip_text = "Wood"
+icon = ExtResource("4_wood")
+expand_icon = true
+icon_max_width = 34
 
-[node name="NextGoal" type="Label" parent="YardPanel/Column"]
+[node name="SkillsButton" type="Button" parent="QuickMenu"]
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 13
-text = "Next purchase"
+tooltip_text = "Skills"
+icon = ExtResource("5_skills")
+expand_icon = true
+icon_max_width = 34
 
-[node name="Spacer" type="Control" parent="YardPanel/Column"]
+[node name="ShopButton" type="Button" parent="QuickMenu"]
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="OrdersButton" type="Button" parent="YardPanel/Column"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-text = "Contract board"
-
-[node name="WoodButton" type="Button" parent="YardPanel/Column"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-text = "Wood"
-
-[node name="SkillsButton" type="Button" parent="YardPanel/Column"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-text = "Skills"
-
-[node name="ShopButton" type="Button" parent="YardPanel/Column"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-text = "  Shop"
+tooltip_text = "Shop"
 icon = ExtResource("2_coin")
 expand_icon = true
+icon_max_width = 38
 
-[node name="ChopButton" type="Button" parent="YardPanel/Column"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
-text = "Go chopping"
+[node name="ModalBackdrop" type="ColorRect" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0, 0, 0, 0.28)
 
 [node name="ShopPanel" type="PanelContainer" parent="."]
 anchors_preset = 8
@@ -184,7 +179,7 @@ text = "Nothing on the shelves yet."
 [node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-text = "Close"
+text = "Back"
 
 [node name="WoodPanel" type="PanelContainer" parent="."]
 anchors_preset = 8
@@ -231,7 +226,7 @@ theme_override_font_sizes/font_size = 13
 [node name="CloseWoodButton" type="Button" parent="WoodPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-text = "Close"
+text = "Back"
 
 [node name="SkillPanel" type="PanelContainer" parent="."]
 anchors_preset = 8
@@ -272,7 +267,7 @@ theme_override_constants/separation = 8
 [node name="CloseSkillButton" type="Button" parent="SkillPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-text = "Close"
+text = "Back"
 
 [node name="OrdersPanel" type="PanelContainer" parent="."]
 anchors_preset = 8
@@ -321,48 +316,4 @@ theme_override_constants/separation = 8
 [node name="CloseButton" type="Button" parent="OrdersPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
-text = "Close"
-
-[node name="BackButton" type="Button" parent="."]
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -60.0
-offset_right = 176.0
-offset_bottom = -16.0
-grow_vertical = 0
-text = "Back to the yard"
-
-[node name="PileProgress" type="PanelContainer" parent="."]
-visible = false
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -170.0
-offset_top = -64.0
-offset_right = 170.0
-offset_bottom = -16.0
-grow_horizontal = 2
-grow_vertical = 0
-mouse_filter = 2
-
-[node name="Column" type="VBoxContainer" parent="PileProgress"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="Label" type="Label" parent="PileProgress/Column"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = "Next haul-away"
-horizontal_alignment = 1
-
-[node name="Progress" type="ProgressBar" parent="PileProgress/Column"]
-custom_minimum_size = Vector2(300, 9)
-layout_mode = 2
-mouse_filter = 2
-max_value = 1.0
-step = 1.0
-show_percentage = false
+text = "Back"
