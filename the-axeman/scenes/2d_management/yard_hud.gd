@@ -78,8 +78,8 @@ const _COIN := preload("res://assets/ui/coin.png")
 @onready var _wood_list: VBoxContainer = $WoodPanel/Column/WoodScroll/WoodList
 @onready var _next_wood: Label = $WoodPanel/Column/NextWood
 @onready var _close_wood_button: Button = $WoodPanel/Column/CloseWoodButton
-@onready var _xp_level_label: Label = $XPBar/Column/LevelLabel
-@onready var _xp_progress: ProgressBar = $XPBar/Column/Progress
+@onready var _xp_level_label: Label = $XPBar/LevelLabel
+@onready var _xp_progress: ProgressBar = $XPBar/Progress
 @onready var _skills_button: Button = $QuickMenu/SkillsButton
 @onready var _skill_panel: PanelContainer = $SkillPanel
 @onready var _skill_list: VBoxContainer = $SkillPanel/Column/SkillScroll/SkillList
@@ -121,12 +121,21 @@ func _ready() -> void:
 	EventBus.building_upgraded.connect(_on_building_upgraded)
 
 	_close_panels()
+	_apply_xp_orb_color()
 	_refresh_stats()
 	_refresh_xp_bar()
 	_rebuild_shop()
 	_rebuild_woodshed()
 	_rebuild_skills()
 	_rebuild_orders()
+
+
+## XPOrb owns the reward colour. The HUD reads it rather than copying the value,
+## so a future orb art pass cannot leave the progress bar behind.
+func _apply_xp_orb_color() -> void:
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = XPOrb.COLOR
+	_xp_progress.add_theme_stylebox_override("fill", fill)
 
 
 ## -------------------------------------------------------------- modal panels

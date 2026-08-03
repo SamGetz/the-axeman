@@ -131,7 +131,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **245/245** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **247/247** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
@@ -343,6 +343,10 @@ pushed into data instead of invented. **Still no sign-off.**
   stats. The old yard panel and its next-purchase text are gone: contracts, wood,
   skills and shop are four 56×56 icon buttons at bottom-right of the chopping
   view. Their SVG icons are native project assets; the shop keeps Sam's coin.
+- **THE XP BAR SPANS THE FULL TOP EDGE** (Creative Director call, 2026-08-04).
+  Its level/XP text is centred inside the 32 px strip and the cash counter sits
+  below it. `XPOrb.COLOR` owns the translucent green reward colour used by both
+  the orbs and the bar fill, so the two visuals cannot drift apart.
 - **THERE IS NO MANUAL SELLING** (Creative Director call, 2026-08-01 — see the
   auto-sell section below). The per-species sell rows and "Sell all" this HUD
   shipped with on the same day are GONE; `Market` is still the buyer, it is just
@@ -527,7 +531,7 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
 - The yard has a data-driven Contract Board. Its brown panel is deliberately a
   native `StyleBoxFlat` placeholder; `hud_shot_2d_orders.png` proves all three
   choices and an active progress bar fit together at 1280×720.
-- Verified by 21 added checks: `m7a_acceptance` is now **245/245**. M4 remains
+- Verified by 21 added checks: `m7a_acceptance` is now **247/247**. M4 remains
   **55/55** and the slicer remains **34/34**.
 - Still to do in M7A: the tangible cash-purchase catalogue. Its behaviours and
   tuning remain a Creative Director call. The unlockable-species requirement is

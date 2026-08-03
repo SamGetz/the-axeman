@@ -60,6 +60,9 @@ static var _halo_mesh: QuadMesh = null
 static var _halo_mat: StandardMaterial3D = null
 
 const _RADIUS := 0.018
+## The core reward colour, shared with the full-width HUD bar. The orb owns it:
+## changing the reward pickup must repaint its receipt on the HUD as well.
+const COLOR := Color(0.55, 1.0, 0.42, 0.78)
 
 # --- tuning (PLACEHOLDERS, Directive 3) ----------------------------------
 const _GRAVITY := 9.0           # m/s^2 — the scene is ~0.5 m tall, so this reads brisk
@@ -133,7 +136,7 @@ static func _shared() -> Array:
 		# A LITTLE TRANSPARENT (Creative Director call, 2026-08-02), so the orb reads
 		# as light rather than as a painted bead.
 		_shared_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_shared_mat.albedo_color = Color(0.55, 1.0, 0.42, 0.78)
+		_shared_mat.albedo_color = COLOR
 
 		_halo_mesh = QuadMesh.new()
 		_halo_mesh.size = Vector2(_RADIUS * 7.0, _RADIUS * 7.0)

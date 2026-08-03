@@ -33,9 +33,10 @@ func _ready() -> void:
 		"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame")
 
 	# A chopping session part way through a working day: cash earned, wood chopped,
-	# the compact action dock visible and a load
+	# the compact action dock visible, the XP strip half full, and a load
 	# stacked. The pile pieces go in the way the game adds them, one at a time.
 	GameState.add_cash(370)
+	GameState.add_xp(20)
 	for i in range(26):
 		EventBus.resource_gathered.emit(&"birch_firewood", 1)
 		GameState.add_to_yard_pile(&"birch_firewood", 1)

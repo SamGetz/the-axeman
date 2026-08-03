@@ -422,6 +422,8 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 
 	var cash_label: Label = hud.get_node("TopBar/CashRow/CashLabel")
 	var cash_icon: TextureRect = hud.get_node("TopBar/CashRow/CashIcon")
+	var xp_bar: Control = hud.get_node("XPBar")
+	var xp_progress: ProgressBar = hud.get_node("XPBar/Progress")
 	var quick_menu: HBoxContainer = hud.get_node("QuickMenu")
 	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
@@ -431,6 +433,12 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var orders_list: VBoxContainer = hud.get_node("OrdersPanel/Column/Scroll/List")
 
 	_check(cash_label.text == "0", "a fresh chopping session reads 0 cash")
+	_check(is_equal_approx(xp_bar.position.x, 0.0)
+			and is_equal_approx(xp_bar.size.x, hud.size.x),
+		"the XP bar spans the full width of the top edge (%d px)" % int(xp_bar.size.x))
+	var xp_fill := xp_progress.get_theme_stylebox("fill") as StyleBoxFlat
+	_check(xp_fill != null and xp_fill.bg_color == XPOrb.COLOR,
+		"the XP fill uses the orb's exact reward colour (%s)" % XPOrb.COLOR)
 	_check(quick_menu.visible and quick_menu.get_child_count() == 4,
 		"contracts, wood, skills and shop are always available in one bottom-right dock")
 	var square_icons := true

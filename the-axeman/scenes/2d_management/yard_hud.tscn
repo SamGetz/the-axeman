@@ -29,9 +29,9 @@ script = ExtResource("1_hud")
 
 [node name="TopBar" type="PanelContainer" parent="."]
 offset_left = 16.0
-offset_top = 12.0
+offset_top = 44.0
 offset_right = 180.0
-offset_bottom = 62.0
+offset_bottom = 94.0
 mouse_filter = 2
 
 [node name="CashRow" type="HBoxContainer" parent="TopBar"]
@@ -53,29 +53,38 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 26
 text = "0"
 
-[node name="XPBar" type="PanelContainer" parent="."]
-offset_left = 16.0
-offset_top = 68.0
-offset_right = 300.0
-offset_bottom = 110.0
+[node name="XPBar" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 32.0
+grow_horizontal = 2
 mouse_filter = 2
 
-[node name="Column" type="VBoxContainer" parent="XPBar"]
-layout_mode = 2
+[node name="Progress" type="ProgressBar" parent="XPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="LevelLabel" type="Label" parent="XPBar/Column"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "Level 1"
-
-[node name="Progress" type="ProgressBar" parent="XPBar/Column"]
-custom_minimum_size = Vector2(0, 10)
-layout_mode = 2
 max_value = 1.0
 step = 0.001
 show_percentage = false
+
+[node name="LevelLabel" type="Label" parent="XPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 14
+text = "Level 1"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="QuickMenu" type="HBoxContainer" parent="."]
 anchor_left = 1.0
