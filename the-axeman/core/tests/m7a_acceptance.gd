@@ -1343,14 +1343,16 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 			and game.debug_split_chance() > base_chance,
 		"the Balanced Axe immediately weights split reliability without granting a skill")
 	var axe: AxeViewmodel = game.get_node("CameraPivot/Camera3D/AxeViewmodelAnchor")
-	_check(axe.find_child("BalancedGrip", true, false) != null,
-		"the purchased axe immediately gains a visible greybox grip")
+	_check(axe.has_balanced_color_variant(),
+		"the purchased axe immediately recolours the existing authored asset")
 
 	_check(Shop.buy(GameState.UPGRADE_REINFORCED_BLOCK) == 1
 			and game.current_work_radius() > base_radius,
 		"the first block rank immediately broadens the manual work surface")
 	_check(presenter.has_physical(GameState.UPGRADE_REINFORCED_BLOCK),
 		"the reinforced block immediately appears in the yard")
+	_check(presenter.has_block_color_variant(),
+		"...as a colour variant of the existing authored chopping block")
 
 	var first := Orders.by_id(&"campfire_warmup")
 	_check(GameState.accept_order(first.id), "the introductory order is the route to the Ledger")
@@ -1390,6 +1392,14 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 		"the Thermos is permanent one-time equipment, not a consumable")
 	_check(Shop.get_visible_upgrades().size() == approved.size(),
 		"all five owned catalogue rows remain visible after their gates are behind the player")
+	var missing_art_is_visible := true
+	for id: StringName in [GameState.UPGRADE_SUPPLIER_LEDGER,
+			GameState.UPGRADE_HANDCART, GameState.UPGRADE_COFFEE_THERMOS]:
+		var art_target := presenter.get_node_or_null(String(id))
+		missing_art_is_visible = missing_art_is_visible and art_target != null \
+			and String(art_target.get_meta("art_status", "")).begins_with("greybox_missing_authored_")
+	_check(missing_art_is_visible,
+		"every purchase missing authored art stays visible and tagged for artist replacement")
 
 	game.queue_free()
 	await get_tree().process_frame

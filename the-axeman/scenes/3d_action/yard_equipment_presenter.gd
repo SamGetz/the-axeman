@@ -6,14 +6,16 @@ extends Node3D
 ##
 ## Physical view of shop-owned progression. It owns no state: every refresh reads
 ## Shop/GameState, and it refreshes both after a purchase and after save restore.
-## The primitive props are approved greyboxes while final authored art/audio are
-## absent. Compatibility-safe native MeshInstance3D nodes only.
+## Axe/block reuse existing assets as temporary colour variants. The remaining
+## primitive props are deliberately visible greyboxes while final authored
+## art/audio are absent. Compatibility-safe native MeshInstance3D nodes only.
 
 const _WOOD := Color(0.32, 0.17, 0.07, 1.0)
 const _DARK_WOOD := Color(0.14, 0.07, 0.025, 1.0)
 const _METAL := Color(0.28, 0.32, 0.34, 1.0)
 const _PAPER := Color(0.82, 0.72, 0.48, 1.0)
 const _COFFEE := Color(0.16, 0.30, 0.25, 1.0)
+const _REINFORCED_BLOCK_TINT := Color(0.58, 0.72, 0.86, 1.0)
 
 
 func _ready() -> void:
@@ -33,8 +35,8 @@ func refresh() -> void:
 	if axe != null:
 		axe.set_balanced_upgrade(Shop.get_level(GameState.UPGRADE_BALANCED_AXE) > 0)
 
-	if Shop.get_level(GameState.UPGRADE_REINFORCED_BLOCK) > 0:
-		_build_reinforced_block(game)
+	_set_reinforced_block_variant(game,
+		Shop.get_level(GameState.UPGRADE_REINFORCED_BLOCK) > 0)
 	if Shop.get_level(GameState.UPGRADE_SUPPLIER_LEDGER) > 0:
 		_build_ledger()
 	if Shop.get_level(GameState.UPGRADE_HANDCART) > 0:
@@ -47,26 +49,43 @@ func has_physical(id: StringName) -> bool:
 	return get_node_or_null(String(id)) != null
 
 
-func _build_reinforced_block(game: Node) -> void:
+## For now the upgrade is the existing authored stump with a cool reinforced
+## colour treatment. No replacement geometry is invented; a marker child keeps
+## the visible state discoverable to tests and artists in the scene tree.
+func _set_reinforced_block_variant(game: Node, enabled: bool) -> void:
 	var stump: MeshInstance3D = game.get_node_or_null("StumpMesh")
 	if stump == null or stump.mesh == null:
 		return
-	var aabb := stump.mesh.get_aabb()
-	var top_y := stump.position.y + aabb.position.y + aabb.size.y
-	var base_radius := maxf(aabb.size.x, aabb.size.z) * 0.5
-	var bonus := Shop.total_effect(UpgradeDef.Effect.WORK_RADIUS)
-	var radius := base_radius * (1.0 + bonus)
+	for surface in range(stump.mesh.get_surface_count()):
+		stump.set_surface_override_material(surface, null)
+	if not enabled:
+		stump.remove_meta("art_status")
+		return
+	stump.set_meta("art_status", "temporary_colour_variant_existing_chopping_block")
+	for surface in range(stump.mesh.get_surface_count()):
+		stump.set_surface_override_material(surface,
+			_tinted_material(stump.get_active_material(surface), _REINFORCED_BLOCK_TINT))
 	var root := Node3D.new()
 	root.name = String(GameState.UPGRADE_REINFORCED_BLOCK)
+	root.set_meta("art_status", "temporary_colour_variant_existing_chopping_block")
 	add_child(root)
-	_cylinder(root, "WorkSurface", radius, 0.035, Vector3(0, top_y - 0.0175, 0), _WOOD)
-	_cylinder(root, "UpperBand", base_radius * 1.02, 0.035, Vector3(0, top_y - 0.10, 0), _METAL)
-	_cylinder(root, "LowerBand", base_radius * 1.02, 0.035, Vector3(0, top_y - 0.30, 0), _METAL)
+
+
+func has_block_color_variant() -> bool:
+	var game := get_parent()
+	var stump: MeshInstance3D = game.get_node_or_null("StumpMesh")
+	if stump == null or stump.mesh == null:
+		return false
+	for surface in range(stump.mesh.get_surface_count()):
+		if stump.get_surface_override_material(surface) != null:
+			return true
+	return false
 
 
 func _build_ledger() -> void:
 	var root := Node3D.new()
 	root.name = String(GameState.UPGRADE_SUPPLIER_LEDGER)
+	root.set_meta("art_status", "greybox_missing_authored_ledger_asset")
 	root.position = Vector3(-0.68, 0.055, 0.28)
 	root.rotation_degrees = Vector3(-8, -18, 0)
 	add_child(root)
@@ -77,6 +96,7 @@ func _build_ledger() -> void:
 func _build_handcart() -> void:
 	var root := Node3D.new()
 	root.name = String(GameState.UPGRADE_HANDCART)
+	root.set_meta("art_status", "greybox_missing_authored_handcart_asset")
 	root.position = Vector3(0.72, 0.17, 0.38)
 	root.rotation_degrees.y = -18.0
 	add_child(root)
@@ -91,6 +111,7 @@ func _build_handcart() -> void:
 func _build_thermos() -> void:
 	var root := Node3D.new()
 	root.name = String(GameState.UPGRADE_COFFEE_THERMOS)
+	root.set_meta("art_status", "greybox_missing_authored_thermos_asset")
 	root.position = Vector3(-0.54, 0.17, 0.48)
 	add_child(root)
 	_cylinder(root, "Body", 0.065, 0.30, Vector3.ZERO, _COFFEE)
@@ -156,3 +177,16 @@ func _material(colour: Color, transparent := false) -> StandardMaterial3D:
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return mat
+
+
+func _tinted_material(source: Material, tint: Color) -> Material:
+	if source is BaseMaterial3D:
+		var material := source.duplicate() as BaseMaterial3D
+		var colour := material.albedo_color
+		material.albedo_color = Color(colour.r * tint.r, colour.g * tint.g,
+			colour.b * tint.b, colour.a)
+		return material
+	var fallback := StandardMaterial3D.new()
+	fallback.albedo_color = tint
+	fallback.roughness = 0.8
+	return fallback

@@ -137,6 +137,13 @@ Major items are physical; the approved Ledger configuration also includes a
 physical prop. Greybox native-node props are allowed while final authored art
 and audio are absent.
 
+**Interim art call, 2026-08-04:** Balanced Axe and Reinforced Chopping Block
+reuse their current authored meshes/textures as clearly different colour
+variants; do not invent replacement geometry for them yet. Supplier Ledger,
+Handcart and Coffee Thermos have no art-directed assets and must remain visibly
+represented by named greybox props (with `art_status` metadata) so artists can
+inspect and replace every missing target in the live yard.
+
 The prototype skill migration is also approved for the next M7C work: retain
 Strong Arms as Strength foundation and Quick Hands as Speed foundation; rename
 Keen Edge to Ready Stance under Speed; replace Splitter with Double Strike
@@ -169,7 +176,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **271/271** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **273/273** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |

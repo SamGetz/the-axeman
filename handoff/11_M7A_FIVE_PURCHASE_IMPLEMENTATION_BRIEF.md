@@ -7,10 +7,18 @@
 
 **Implementation checkpoint, 4 August 2026:** The approved structure, gates,
 greybox physical consequences, shop presentation, save support, pacing probe and
-acceptance coverage are implemented. M1–M4, M7A (271/271), slicer, chopping
+acceptance coverage are implemented. M1–M4, M7A (273/273), slicer, chopping
 smoke and non-headless pile smoke are green under Godot 4.7.1 Compatibility.
 Final authored art/audio and the measured 30-minute tuning/sign-off session are
 still outstanding; all shop prices and effect magnitudes remain candidate data.
+
+**Interim art direction, 4 August 2026:** Balanced Axe and Reinforced Chopping
+Block are colour variants of the existing authored axe and stump assets. Their
+runtime material overrides preserve the original meshes and textures. Supplier
+Ledger, Handcart and Coffee Thermos still lack art-directed assets, so their
+named native-node greyboxes remain visible in the live yard and carry explicit
+`art_status` metadata for replacement by the art team. Missing final art is not
+allowed to make a purchased object disappear.
 
 ## Approved boundaries carried into this proposal
 

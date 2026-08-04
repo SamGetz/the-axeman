@@ -84,6 +84,10 @@ signal swing_finished
 ## authored model scale is applied. Keep this beside the one place that uses it:
 ## it turns a designer-facing distance in metres into a scale multiplier.
 const _RAW_AXE_REACH := 0.502
+## Temporary art treatment approved 2026-08-04: reuse the current axe mesh and
+## textures, multiplying them toward a cool blue variant until an art-directed
+## upgraded asset exists.
+const _BALANCED_AXE_TINT := Color(0.62, 0.82, 1.0, 1.0)
 
 var _speed := 1.0
 var _authored_model_scale := Vector3.ONE
@@ -122,35 +126,57 @@ func _apply_extra_reach() -> void:
 	_axe_model.scale = _authored_model_scale * (1.0 + extra_reach / authored_reach)
 
 
-## Immediate greybox consequence for the Balanced Axe purchase. Final sign-off
-## requires Sam's authored replacement model; this collar makes ownership visible
-## without mutating the imported FBX or its shared materials.
+## Immediate colour-variant consequence for the Balanced Axe purchase. Surface
+## overrides are duplicated per instance, so the imported FBX and its shared
+## materials remain untouched and can still be replaced by final authored art.
 func set_balanced_upgrade(enabled: bool) -> void:
 	_balanced_enabled = enabled
 	if _axe_model == null:
 		return
-	var existing := _axe_model.get_node_or_null("BalancedGrip")
+	var parts: Array[MeshInstance3D] = []
+	for node in _axe_model.find_children("*", "MeshInstance3D", true, false):
+		parts.append(node as MeshInstance3D)
+	for part: MeshInstance3D in parts:
+		if part.mesh == null:
+			continue
+		for surface in range(part.mesh.get_surface_count()):
+			part.set_surface_override_material(surface, null)
 	if not enabled:
-		if existing != null:
-			existing.queue_free()
+		_axe_model.remove_meta("art_status")
 		return
-	if existing != null:
-		return
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.025
-	mesh.bottom_radius = 0.025
-	mesh.height = 0.16
-	mesh.radial_segments = 12
-	var marker := MeshInstance3D.new()
-	marker.name = "BalancedGrip"
-	marker.mesh = mesh
-	marker.position = Vector3(0, 0.11, 0)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.18, 0.42, 0.56, 1.0)
-	mat.metallic = 0.25
-	mat.roughness = 0.5
-	marker.material_override = mat
-	_axe_model.add_child(marker)
+	_axe_model.set_meta("art_status", "temporary_colour_variant_existing_axe")
+	for part: MeshInstance3D in parts:
+		if part.mesh == null:
+			continue
+		for surface in range(part.mesh.get_surface_count()):
+			part.set_surface_override_material(surface,
+				_tinted_material(part.get_active_material(surface), _BALANCED_AXE_TINT))
+
+
+func has_balanced_color_variant() -> bool:
+	if _axe_model == null:
+		return false
+	for node in _axe_model.find_children("*", "MeshInstance3D", true, false):
+		var part := node as MeshInstance3D
+		if part == null or part.mesh == null:
+			continue
+		for surface in range(part.mesh.get_surface_count()):
+			if part.get_surface_override_material(surface) != null:
+				return true
+	return false
+
+
+func _tinted_material(source: Material, tint: Color) -> Material:
+	if source is BaseMaterial3D:
+		var material := source.duplicate() as BaseMaterial3D
+		var colour := material.albedo_color
+		material.albedo_color = Color(colour.r * tint.r, colour.g * tint.g,
+			colour.b * tint.b, colour.a)
+		return material
+	var fallback := StandardMaterial3D.new()
+	fallback.albedo_color = tint
+	fallback.roughness = 0.75
+	return fallback
 
 
 ## Play the swing. `aim` is the click in normalised screen coordinates — (0,0) is
