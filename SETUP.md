@@ -56,10 +56,10 @@ to wherever you actually put the binary on that machine.)
 git clone <your-remote-url> the_axeman
 ```
 
-The repo root is the clone — `CLAUDE.md`, `AGENTS.md`, the `handoff/` pack,
-`images/` and `maya_working/` all sit at the top level, and **the Godot project
-is the `the-axeman/` subfolder inside it.** That distinction has cost this
-project real time before; see the trap in section 5.
+The repo root is the clone — `CLAUDE.md`, the `handoff/` pack, `images/` and
+`maya_working/` all sit at the top level, and **the Godot project is the
+`the-axeman/` subfolder inside it.** That distinction has cost this project
+real time before; see the trap in section 5.
 
 The clone is roughly 160 MB of working tree and 130 MB of history, dominated by
 the FBX logs and the source PNGs. That is well inside GitHub's limits — the
@@ -213,10 +213,9 @@ one:
   then never thinks about it again.
 - `.claude/settings.local.json` is per-machine and gitignored. Permissions meant
   to apply everywhere go in `.claude/settings.json`, which is committed.
-- The stale root-level `core/` and `data/` folders are **not** the live code —
-  the canonical copies are inside `the-axeman/`. They are kept because
-  `handoff/00_OVERVIEW.md` says not to delete them, and they are a standing
-  invitation to edit the wrong file. Check your path before you edit.
+- The stale root-level `core/` and `data/` folders (old duplicates of the M1
+  drop, a standing invitation to edit the wrong file) were deleted 2026-08-04.
+  The canonical copies are, and always were, inside `the-axeman/`.
 
 ---
 
@@ -224,7 +223,7 @@ one:
 
 | File | What |
 |---|---|
-| `CLAUDE.md` / `AGENTS.md` | The operative source of truth: current status, frozen contracts, amendment log, every bug this project has paid for. Read first. |
+| `CLAUDE.md` | The operative source of truth: current status, frozen contracts, amendment log, every bug this project has paid for. Read first. |
 | `handoff/00_OVERVIEW.md` | The handoff pack's index. |
 | `handoff/02_M4_CHOPPING_BLOCK.md` | The live chopping implementation. |
 | `handoff/07_M4_SLICING_POC.md` | Render and debug traps for the slicer. |

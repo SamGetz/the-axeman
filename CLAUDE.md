@@ -51,17 +51,24 @@ starting new work.
 Sam approved the full cozy-lumberyard recommendation and the roadmap in
 `handoff/08_COZY_LUMBERYARD_ROADMAP.md`:
 
-1. **M6 ore mining is retired from the active roadmap.** Its old spec and live
-   data files remain archival until Sam separately asks to delete them. Mining
-   must not be implemented as a second action loop.
+1. **M6 ore mining is fully removed, not archival.** Retired from the roadmap
+   2026-08-01; on 2026-08-04 Sam asked directly to strip it out ("this is logs
+   only") and its spec, data class (`OreVeinDef`) and registry items were
+   deleted outright. `ItemCategory.MINERAL`/`GEM`, `ToolType.PICKAXE` and the
+   `MOSSY_QUARRY`/`VOLCANIC_CAVERN` biomes are gone from the frozen A6 enums —
+   see the amendment log. Mining must not be reintroduced as a second action
+   loop unless Sam separately reverses this.
 2. **M7 is re-scoped to lightweight lumberyard progression and orders.** Cash,
    firewood stock, reputation and lifetime wood chopped are the progression
    spine. The yard grows visibly alongside the counters.
-3. **M8 is reinterpreted as optional yard staff and logistics.** Staff may
-   deliver logs, gather, stack, bundle, ship and run passive secondary
-   production. M8 also introduces the first certified Mechanical Splitter:
-   staff do not discover woods, but machinery intentionally replaces routine
-   manual commodity chopping once the player has mastered a species.
+3. **M8 is reinterpreted as certified automation, with no yard-staff layer.**
+   Sam removed the villagers/yard-staff concept 2026-08-04 — unlocking and
+   purchasing stay driven entirely by the existing shop (the same Items/Trees
+   tabs M7A already built), not by a hired roster. M8's scope is the first
+   certified Mechanical Splitter: once a species is mastered, its cutting
+   profile is bought directly through the shop like every other purchase, and
+   the machinery then replaces routine manual commodity chopping for that
+   solved wood while the player moves to the next unknown species.
 4. **Biomes may return only as wood-supply regions**, not explorable FPS forest
    levels. They unlock species, customers and contracts.
 5. **Tone is cozy lumberyard first**, with restrained absurd escalation only
@@ -112,16 +119,23 @@ Exact prices, payout multipliers, timing values and upgrade magnitudes are still
 tuning decisions. Do not invent them in code: present them to Sam as resource
 values/placeholders and tune with Creative Director sign-off.
 
-### OPEN — cleanup calls, do not invent answers
+### CLEANUP — resolved 2026-08-04
 
-1. `slice_poc.tscn` still sits in `scenes/3d_action/` — a leftover from the
-   2026-07-22 rename, a second harness pointing at `chopping_minigame.tscn` at
-   the old 960×540. Harmless, probably wants deleting; not touched in the pivot
-   because it is an M4 file, not a tree file.
-2. The stale root-level `core/` and `data/` duplicates (see ASSET PIPELINE) had
-   `data/tree_def.gd` removed as part of the pivot, because Sam said "any and
-   all files relating to the tree game". The rest of that stale mirror is
-   untouched, and `handoff/00_OVERVIEW.md` still says not to delete it.
+Both items formerly tracked here as open Creative Director calls were resolved
+by Sam's direct request to strip deprecated/unused elements from the repo:
+
+1. `slice_poc.tscn` (the pre-Amendment-8 960×540 harness, superseded by
+   `chopping_minigame_harness.tscn`) — **deleted**. Recoverable from git.
+2. The stale root-level `core/` and `data/` duplicates of the M1 drop —
+   **deleted**. The canonical copies are the only copies now: `the-axeman/core/`
+   and `the-axeman/data/`. `handoff/00_OVERVIEW.md` is stale on this point (it
+   still describes the old "don't delete" stance, preserved there as history).
+
+Also removed in the same pass: the stale, drifted `AGENTS.md` (a duplicate of
+this file that had fallen out of sync — CLAUDE.md is the sole source of truth),
+`assets/models/logs_export/log_2.fbx` (the unused duplicate noted below), a
+stray unrelated `java_script_working_example.js` bundle at the repo root, and
+a tracked `.DS_Store`.
 
 ---
 
@@ -210,9 +224,10 @@ and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
   `MeshUtils.jag_cut` finds a piece's cut surface by comparing
   `material == _cut_mat` **by reference**, so a fresh instance per log would
   leave anything cut before the swap unroughenable.
-- `assets/models/logs_export/` also holds `log_2.fbx`, an unused duplicate, and
-  `maya_working/` still has unimported `log_03/04/05.fbx`. CLAUDE.md previously
-  claimed log_01…log_05 were live; they were not, and are not.
+- `log_2.fbx`, an unused duplicate that used to sit in `assets/models/logs_export/`,
+  was deleted 2026-08-04. `maya_working/` still has unimported `log_03/04/05.fbx`
+  (raw Maya exports, never referenced from the project — see ASSET PIPELINE).
+  CLAUDE.md previously claimed log_01…log_05 were live; they were not, and are not.
 - **Acceptance:** `m4_acceptance.tscn` **54/54** — drives `debug_slice_world` to
   completion, checks inventory deposit == firewood count, per-species yield, one
   hit per slice, the A12 budget, and (since 2026-08-02) the axe viewmodel's contact
@@ -279,8 +294,7 @@ asset. Suite: `m7a_acceptance` 85/85.
   `ItemCategory.RAW_WOOD` rather than a list of wood ids **on purpose**: that
   survives the still-open `*_log` vs `*_firewood` rename, and picks up a new
   species for free. Monotonic by construction — it never sees removals, so
-  selling stock cannot un-chop wood. **Revisit at M8:** it counts wood
-  *gathered*, so staff who gather wood would be credited to the player.
+  selling stock cannot un-chop wood.
 - **Two LOCAL signals** on GameState — `cash_changed`, `lifetime_wood_chopped_
   changed` — following Amendment 2's precedent exactly: NOT on EventBus, A7
   untouched, they never cross the 2D/3D boundary, and they exist so the M7 UI
@@ -598,8 +612,8 @@ put to him: a wood is unlocked by a **lifetime-chopped milestone**, and the
 - **NUMBERS THAT ARE PLACEHOLDERS (Directive 3), all in data:** the price ladder
   (1 → 2600, ~1.35x a rung), the other 24 split chances (0.55 → 0.12), all 25
   unlock thresholds (0 → 70,000 lifetime pieces) and every tint. The late
-  thresholds are deliberately beyond hand-chopping — M8 staff and the roadmap's
-  certified auto-cutting arrive first.
+  thresholds are deliberately beyond hand-chopping — M8's certified auto-cutting
+  (the Mechanical Splitter, bought through the shop) arrives first.
 - **KNOWN, and Sam's call:** the strength upgrade caps at +0.5 split chance over 10
   levels, so the top of the ladder (0.12 base) needs `size_relief`, scars and the
   shop together to stay playable. **Run `core/tools/split_odds.tscn` before
@@ -1011,15 +1025,19 @@ blueprint document is in the repo, it wins on any discrepancy.)
   discrete/stepped keyframes only. **See the OPEN A1 FINDING above — what is
   authored here is not what runs.**
 - **A2 destructibles:** pre-authored fracture states only. (Its trees clause is
-  moot — the tree game is gone. Ore, if it is ever built, still falls under it.)
+  moot — the tree game is gone. Its ore clause is moot too — ore mining is gone,
+  see Amendment 17.)
 - **A3 size rule:** the ONLY size test anywhere is
   `piece.size_tier > GameFeelConfig.size_threshold`.
 - **A4 folders:** `res://core/`, `res://data/`, `res://scenes/2d_management/`,
   `res://scenes/3d_action/`, `res://assets/`.
-- **A6 enums** (in `res://core/enums.gd`, class_name `Enums`):
+- **A6 enums** (in `res://core/enums.gd`, class_name `Enums`; **trimmed by
+  Amendment 17, 2026-08-04** — was `ItemCategory{RAW_WOOD,MINERAL,GEM,REFINED}`,
+  `ToolType{AXE,PICKAXE}`, `Biome{PINE_FOREST,MAHOGANY_FOREST,MOSSY_QUARRY,
+  VOLCANIC_CAVERN}`):
   `ChopDirection{LEFT,RIGHT,UP,DOWN}`,
-  `ItemCategory{RAW_WOOD,MINERAL,GEM,REFINED}`, `ToolType{AXE,PICKAXE}`,
-  `Biome{PINE_FOREST,MAHOGANY_FOREST,MOSSY_QUARRY,VOLCANIC_CAVERN}`.
+  `ItemCategory{RAW_WOOD,REFINED}`, `ToolType{AXE}`,
+  `Biome{PINE_FOREST,MAHOGANY_FOREST}`.
 - **A7 EventBus signals (exact, frozen):** `resource_gathered(StringName,int)`,
   `building_upgraded(StringName,int)`, `environment_unlocked(Enums.Biome)`,
   `action_hit_registered(Vector3,int,Enums.ChopDirection)`,
@@ -1146,6 +1164,47 @@ anyone reading old commits.
     - `m2_acceptance` now asserts the base canvas and `Action_Viewport.size` are
       **equal**, not merely each correct, so a future divergence goes red instead
       of quietly reintroducing a hidden upscale.
+17. **A6 enums trimmed: ore mining and yard-staff support removed** (Creative
+    Director call, 2026-08-04 — Sam: "Get all that ore mining stuff out of
+    there, this is logs only" and "I think the villagers stuff we can remove
+    as well - the purchasing can be driven from the shops we have currently
+    an unlocked via purchases in those shops"). This is a genuine Part A
+    contract change under Directive 2, not a data-only edit:
+    `Enums.ItemCategory` lost `MINERAL`/`GEM` (kept `RAW_WOOD`, `REFINED` —
+    `REFINED` shifted from value 3 to value 1, so `item_registry.tres`'s
+    surviving `wood_board` row was updated to match), `Enums.ToolType` lost
+    `PICKAXE` (kept `AXE`), and `Enums.Biome` lost `MOSSY_QUARRY`/
+    `VOLCANIC_CAVERN` (kept `PINE_FOREST`, `MAHOGANY_FOREST` — both trailing
+    values, so nothing shifted).
+    Deleted outright: `data/ore_vein_def.gd` (`OreVeinDef`, never had a live
+    `.tres`), `data/villager_def.gd` (`VillagerDef`, same), the item-registry
+    rows `stone`/`copper_ore`/`iron_ore`/`amethyst`/`ruby`/`sapphire`/
+    `copper_ingot`/`iron_nail`, and `handoff/04_M6_ORE_MINING.md` /
+    `handoff/06_M8_VILLAGERS.md`.
+    `m1_acceptance.gd` and `m7a_acceptance.gd` used several of those ore ids
+    (`stone`, `ruby`, `iron_nail`, `copper_ingot`) purely as convenient
+    "some other registered item" fixtures for generic InventoryManager/Market
+    mechanics unrelated to ore as a feature — duplicate-cost aggregation,
+    atomic remove, the unsellable/unpriced-item path. Those were recast onto
+    real wood items instead (`wood_board`, which is already unpriced, and
+    spare firewood species) rather than removed, since the mechanics they
+    verify are still real. The `MOSSY_QUARRY` save-restore check in
+    `m7a_acceptance.gd` became `MAHOGANY_FOREST` for the same reason — any
+    second biome would have proven the point.
+    M8's "yard staff" framing (deliver/gather/stack/bundle/ship, morale) is
+    gone with `VillagerDef`; M8's certified-automation pillar (the Mechanical
+    Splitter) is unchanged, just reframed as a direct shop purchase with no
+    staff intermediary — see the M8 line in APPROVED POST-PIVOT DIRECTION and
+    MODULE ORDER & SCOPE above.
+    Sam separately confirmed the long-horizon "staff" design pillar running
+    through M9–M14 in `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` should be
+    cut too, not just the near-term M8 villager concept. That document's
+    "Staff and automation" section (Yard staff / Supplier and route staff /
+    Space staff) and every other staff/crew/hire mention across it were
+    rewritten the same day into purchased, installed automation tiers bought
+    through the shop — same mechanic, no named characters or roster.
+    **Not touched by this amendment:** `RecipeDef`/`BuildingDef` (generic
+    crafting schema, not ore-specific).
 
 ### Retired amendments (tree game only — see git `29bcd6f`)
 
@@ -1179,8 +1238,11 @@ yellow_birch_firewood, red_oak_firewood, beech_firewood, white_ash_firewood,
 white_oak_firewood, sugar_maple_firewood, european_beech_firewood,
 river_red_gum_firewood, blue_gum_firewood, lignum_vitae_firewood`
 
-Everything else: `mahogany_firewood, stone, copper_ore, iron_ore, amethyst, ruby,
-sapphire, wood_board, copper_ingot, iron_nail`
+Everything else: `mahogany_firewood, wood_board`
+
+**REDUCED 2026-08-04.** `stone, copper_ore, iron_ore, amethyst, ruby, sapphire,
+copper_ingot, iron_nail` were deleted along with ore mining — see the amendment
+log. `wood_board` remains: it is wood, just unpriced and unsold today.
 
 **EXPANDED 2026-08-02** for Sam's 25 species. The three wood ids that already
 existed were **remapped onto the ladder rather than renamed**, so an existing save
@@ -1203,7 +1265,7 @@ it is no longer pending.
 There are deliberately **no `*_log` items**. Logs are not inventory today — they
 spawn on the block and are consumed by chopping. The roadmap's "log supply"
 upgrade family is about what spawns, not about a stored resource. If logs ever
-need to be stock (staff delivering them, say), add the ids then.
+need to be stock, add the ids then.
 
 No test asserts this LIST as such, but since 2026-08-02 `m4_acceptance` does
 assert that every species in the ladder yields a REGISTERED id, and
@@ -1256,8 +1318,7 @@ whether boards become per-species before writing any upgrade data.
 | Path | What |
 |---|---|
 | `C:\Users\Sam\Documents\the_axeman\` | **Repo root — now a git repo.** CLAUDE.md, handoff pack, source images, Maya files. |
-| `...\the_axeman\the-axeman\` | **The Godot project.** Everything shipped goes here. |
-| `...\the_axeman\core\`, `...\data\` | **Stale duplicates** of the M1 drop. Canonical copies are inside `the-axeman\`. Sam has not approved deleting these (only `data/tree_def.gd` went, in the pivot). |
+| `...\the_axeman\the-axeman\` | **The Godot project.** Everything shipped goes here. The stale root-level `core/` and `data/` duplicates that used to sit beside it were deleted 2026-08-04 — `the-axeman\core\` and `the-axeman\data\` are now the only copies. |
 | `...\the_axeman\maya_working\models\` | Sam's Maya sources + FBX exports. Copy FBX into `res://assets/models/` when needed; never reference `maya_working` from the project. |
 | `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe` | The engine binary. |
 
@@ -1271,16 +1332,18 @@ The binding post-pivot roadmap is
 1. **M1–M4:** existing contracts, shell, GameFeel and chopping. Preserve and
    finish Creative Director tuning/sign-off.
 2. **M5:** tree felling — deleted and retired.
-3. **M6:** ore mining — retired from the active roadmap. Archival files may
-   stay, but nothing builds from `04_M6_ORE_MINING.md`.
+3. **M6:** ore mining — deleted and retired 2026-08-04. This is logs only; do
+   not reintroduce it unless Sam separately reverses this.
 4. **M7A:** first cozy progression slice — always-available basic buyer, three
    authored orders, cash, firewood stock, lifetime chopped, five tangible
    upgrades, one unlockable wood species and a visibly growing stockpile.
 5. **M7B:** craftsmanship and expanded lumberyard — reputation, cut-quality
    bonuses, size/species orders, customer families and meaningful yard/axe/
    supply/transport upgrades. Imperfect pieces always remain sellable.
-6. **M8:** first certified Mechanical Splitter plus optional yard staff/logistics
-   — prove that automation replaces commodity hand production for a solved wood.
+6. **M8:** first certified Mechanical Splitter — prove that automation, bought
+   directly through the existing shop, replaces commodity hand production for
+   a solved wood. No yard-staff/villager roster; unlocking and purchasing stay
+   shop-driven the way M7A already built them.
 7. **M9–M11:** regional supplier network, national/continental automation
    growth, global wood mastery and the final terrestrial-species
    showcase. Regions deliver logs; there is no felling or forest-depletion layer.
@@ -1293,7 +1356,10 @@ The detailed long-horizon order is binding in
 `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`, but it is not permission to
 start a later module before the current one is signed off.
 
-The old `05_M7_MANAGEMENT.md` and `06_M8_VILLAGERS.md` are historical inputs,
-not build specs. Their replacement scope lives in the cozy roadmap. Continue to
-use `02_M4_CHOPPING_BLOCK.md` and `07_M4_SLICING_POC.md` for the live chopping
-implementation and render/debug traps.
+The old `05_M7_MANAGEMENT.md` was historical input, not a build spec — its
+replacement scope lives in the cozy roadmap. `06_M8_VILLAGERS.md` and
+`04_M6_ORE_MINING.md` were deleted outright 2026-08-04 along with the villager
+and ore-mining concepts they described (see the amendment log); they are not
+even historical inputs any more. Continue to use `02_M4_CHOPPING_BLOCK.md` and
+`07_M4_SLICING_POC.md` for the live chopping implementation and render/debug
+traps.

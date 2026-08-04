@@ -145,8 +145,7 @@ func _test_3_lifetime_counts_wood_only() -> void:
 
 	# Category filter, not an id list. That choice is what let the whole registry
 	# be renamed *_log -> *_firewood without touching a line of the counter.
-	EventBus.resource_gathered.emit(&"stone", 50)
-	EventBus.resource_gathered.emit(&"ruby", 5)
+	EventBus.resource_gathered.emit(&"wood_board", 55)
 	_check(GameState.get_lifetime_wood_chopped() == 7,
 		"55 units of non-wood do not inflate the wood counter (still 7)")
 	_check(_lifetime_events.size() == 2,
@@ -178,7 +177,7 @@ func _test_5_save_round_trip() -> void:
 	EventBus.resource_gathered.emit(&"birch_firewood", 9)
 	EventBus.gear_upgraded.emit(Enums.ToolType.AXE, 3)
 	EventBus.building_upgraded.emit(&"wood_shed", 2)
-	EventBus.environment_unlocked.emit(Enums.Biome.MOSSY_QUARRY)
+	EventBus.environment_unlocked.emit(Enums.Biome.MAHOGANY_FOREST)
 	GameState.record_haul_away()
 
 	_check(SaveSystem.save_game(), "save_game() reports success")
@@ -200,7 +199,7 @@ func _test_5_save_round_trip() -> void:
 		"building tier restored to 2 (StringName keys survive the file)")
 	_check(GameState.get_haul_aways_completed() == 1,
 		"the physical haul-away milestone restored exactly once")
-	_check(GameState.is_biome_unlocked(Enums.Biome.MOSSY_QUARRY), "unlocked biome restored")
+	_check(GameState.is_biome_unlocked(Enums.Biome.MAHOGANY_FOREST), "unlocked biome restored")
 	_check(GameState.is_biome_unlocked(Enums.Biome.PINE_FOREST), "the starting biome is still unlocked")
 
 
@@ -337,9 +336,9 @@ func _test_10_buyer_prices_only_what_it_wants() -> void:
 	# The load-bearing one: an item with no entry in the price table must read as
 	# UNSELLABLE, not as free. A buyer that returns 0 and sells anyway would mint
 	# stock into nothing.
-	_check(Market.get_price(&"stone") == 0,
+	_check(Market.get_price(&"wood_board") == 0,
 		"an item the table does not price reads as 0, not as a free sale")
-	_check(not Market.is_sellable(&"stone"), "...and is refused by is_sellable()")
+	_check(not Market.is_sellable(&"wood_board"), "...and is refused by is_sellable()")
 	_check(Market.get_price(&"unobtanium") == 0, "an unregistered id prices at 0")
 
 	InventoryManager.apply_save_dict({})
@@ -371,22 +370,22 @@ func _test_11_a_sale_is_atomic() -> void:
 	_check(GameState.get_lifetime_wood_chopped() == 0,
 		"a sale never touches the lifetime chopped counter")
 
-	InventoryManager.add_item(&"stone", 10)
-	_check(Market.sell(&"stone", 10) == 0, "an unpriced item cannot be sold")
-	_check(InventoryManager.get_count(&"stone") == 10, "...and none of it left the yard")
+	InventoryManager.add_item(&"wood_board", 10)
+	_check(Market.sell(&"wood_board", 10) == 0, "an unpriced item cannot be sold")
+	_check(InventoryManager.get_count(&"wood_board") == 10, "...and none of it left the yard")
 
 	# The mixed basket is where an unpriced line actually costs the player: the
 	# priced half makes the payout positive, so only the per-line price check
-	# stops the stone being handed over for nothing.
+	# stops the wood boards being handed over for nothing.
 	InventoryManager.add_item(&"oak_firewood", 3)
 	var mixed: Array = [
 		{"item_id": &"oak_firewood", "amount": 3},
-		{"item_id": &"stone", "amount": 10},
+		{"item_id": &"wood_board", "amount": 10},
 	]
 	_check(Market.sell_batch(mixed) == 0,
 		"a basket with one unsellable line is refused WHOLE, not part-sold")
 	_check(InventoryManager.get_count(&"oak_firewood") == 3
-			and InventoryManager.get_count(&"stone") == 10,
+			and InventoryManager.get_count(&"wood_board") == 10,
 		"...and neither line left the yard")
 
 
@@ -395,23 +394,23 @@ func _test_12_sell_everything_is_one_transaction() -> void:
 	InventoryManager.apply_save_dict({})
 	InventoryManager.add_item(&"oak_firewood", 3)
 	InventoryManager.add_item(&"birch_firewood", 2)
-	InventoryManager.add_item(&"stone", 7)   # priced by nobody — must be left alone
+	InventoryManager.add_item(&"wood_board", 7)   # priced by nobody — must be left alone
 
 	var expected := Market.get_price(&"oak_firewood") * 3 + Market.get_price(&"birch_firewood") * 2
 	_check(expected > 0, "the two-species basket is worth a positive %d" % expected)
 	_check(Market.get_stock_value() == expected,
-		"stock value ignores the unsellable stone (%d)" % expected)
+		"stock value ignores the unsellable wood boards (%d)" % expected)
 
 	var rows := Market.get_sellable_stock()
-	_check(rows.size() == 2, "the sellable stock lists exactly the 2 priced species, not the stone")
+	_check(rows.size() == 2, "the sellable stock lists exactly the 2 priced species, not the wood boards")
 
 	_check(Market.sell_everything() == expected, "selling everything earns exactly %d" % expected)
 	_check(GameState.get_cash() == expected, "...and the purse agrees")
 	_check(InventoryManager.get_count(&"oak_firewood") == 0
 			and InventoryManager.get_count(&"birch_firewood") == 0,
 		"...both species are sold out")
-	_check(InventoryManager.get_count(&"stone") == 7,
-		"...and the 7 stone the buyer does not want is still there")
+	_check(InventoryManager.get_count(&"wood_board") == 7,
+		"...and the 7 wood boards the buyer does not want are still there")
 	_check(Market.sell_everything() == 0, "selling an empty yard again earns 0 and is harmless")
 
 

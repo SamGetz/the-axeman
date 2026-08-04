@@ -5,7 +5,7 @@
 art/audio replacements and future retuning are follow-up content work; they do
 not block M7C preparation.
 **Decision source:** Sam's completed 4 August 2026 creative-direction workbook.
-**Technical source:** `AGENTS.md`, the live Godot project, and the two current roadmaps.
+**Technical source:** `CLAUDE.md`, the live Godot project, and the two current roadmaps.
 **Catalogue order:** Balanced Axe → Reinforced Chopping Block → Supplier Ledger → Handcart → Coffee Thermos.
 
 **Implementation checkpoint, 4 August 2026:** The approved structure, gates,

@@ -52,7 +52,7 @@ never invent it.**
 |---|---|
 | `C:\Users\Sam\Documents\the_axeman\` | Repo root. **A git repo since the 2026-08-01 pivot** — commit as you work. CLAUDE.md, this pack, source images, Maya files. |
 | `...\the_axeman\the-axeman\` | **The actual Godot project.** Everything you ship goes here. |
-| `...\the_axeman\core\`, `...\data\` | **Stale duplicates** of the M1 drop. Canonical copies are inside `the-axeman\`. Sam hasn't approved deleting these — don't. (`data/tree_def.gd` went in the 2026-08-01 pivot; the rest stands.) |
+| ~~`...\the_axeman\core\`, `...\data\`~~ | Stale duplicates of the M1 drop that used to sit here — **deleted 2026-08-04**. Canonical copies are, and always were, inside `the-axeman\`. |
 | `...\the_axeman\maya_working\models\` | Sam's Maya sources + FBX exports (`chopping_stump_a.fbx`, `log_a.fbx` exist today). Copy FBX into `res://assets/models/` when a module needs them; never reference `maya_working` from the project. |
 | `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe` | The engine binary. |
 
@@ -202,11 +202,13 @@ every module — it's how a fresh session recovers state fast.
 | `01_M3_GAMEFEEL.md` | M3 | Hit-pause, noise camera shake, `register_impact` |
 | `02_M4_CHOPPING_BLOCK.md` | M4 | Firewood chopping mini-game — **this is the game now** |
 | `07_M4_SLICING_POC.md` | M4 | Slicer state, render-to-PNG debug workflow, Compatibility material traps |
-| `08_COZY_LUMBERYARD_ROADMAP.md` | M7+ | **Binding:** cozy orders, progression, upgrades, later logistics staff |
+| `08_COZY_LUMBERYARD_ROADMAP.md` | M7+ | **Binding:** cozy orders, progression, shop-driven upgrades and automation |
 | `10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` | M7–M14+ | **Binding extension:** skills, global log suppliers, certified auto-cutting, Earth wood mastery, launch programme and alien logs |
-| `04_M6_ORE_MINING.md` | M6 | **Retired:** historical ore-mining direction; do not build |
 | `05_M7_MANAGEMENT.md` | old M7 | **Superseded:** historical village-management direction; do not build |
-| `06_M8_VILLAGERS.md` | old M8 | **Superseded:** historical villager/morale direction; do not build |
+
+`04_M6_ORE_MINING.md` and `06_M8_VILLAGERS.md` — ore mining and the
+villager/staff direction they described — were deleted outright 2026-08-04,
+not merely retired. See CLAUDE.md's amendment log.
 
 `03_M5_TREE_FELLING.md`, `08_FPS_FOREST.md` and `09_TRUNK_SEAMS_AND_ROOTS.md`
 were deleted in the 2026-08-01 pivot along with the code they specified.

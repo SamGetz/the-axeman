@@ -46,8 +46,8 @@ escalation may arrive much later, after the grounded fantasy is established.
    currencies just to manufacture progression.
 5. **Orders guide rather than grant permission.** There is always a basic,
    unlimited buyer so the player can relax and chop freely.
-6. **Automation conquers solved work.** Staff remove logistics friction and
-   cutters eventually out-produce the player on certified commodity woods.
+6. **Automation conquers solved work.** Certified cutters, bought directly
+   through the shop, eventually out-produce the player on commodity woods.
    Machines cannot discover, master or certify a new species.
 
 ## Core loop
@@ -160,24 +160,19 @@ These are experience targets, not locked test thresholds or final timing:
 The exact cadence must be tuned with Sam in live play rather than enforced from
 these illustrative ranges.
 
-## Automation and yard staff (M8)
+## Automation (M8)
 
-Staff may eventually:
-
-- deliver fresh logs to the block;
-- gather and stack finished firewood;
-- bundle and ship completed orders;
-- sell excess stock according to player rules;
-- run passive secondary production;
-- maintain supply while the player is away, if offline progress is later
-  approved.
+**2026-08-04:** the yard-staff/villager concept is removed. There is no hired
+roster, no logistics delivery layer and no morale system — unlocking and
+purchasing stay driven entirely by the shop, the same way M7A already built it.
 
 The first slow Mechanical Splitter is part of M8. It arrives after the first
 small group of woods has been manually mastered/certified, making the central
 promise legible early: **learn it, automate it, move upward**. A cutter cannot
 accept an unknown species or award Axeman XP/mastery, but after certification it
-should decisively surpass manual commodity output. Later cutters, logistics and
-profiles scale that proven loop toward the trillion-scale target.
+should decisively surpass manual commodity output, bought and installed as a
+direct shop purchase like every other upgrade. Later cutters and profiles scale
+that proven loop toward the trillion-scale target.
 
 ## Approved module sequence
 
@@ -192,10 +187,11 @@ the pivot.
 Tree felling, forest traversal and bucking were deleted in the pivot and remain
 recoverable from git only.
 
-### M6 — retired from the active roadmap
+### M6 — deleted
 
-Do not build ore mining. `04_M6_ORE_MINING.md`, `OreVeinDef` and related files
-are archival until Sam makes a separate deletion call.
+Do not build ore mining. This is logs only (Creative Director call,
+2026-08-04). `04_M6_ORE_MINING.md`, `OreVeinDef` and every ore/mineral/gem item
+were deleted outright, not just left archival — see CLAUDE.md's amendment log.
 
 ### M7A — first playable progression slice
 
@@ -240,12 +236,12 @@ piece sizes/species, additional customer families and meaningful axe/block/
 supply/yard/transport progression. This phase proves that player skill and
 business growth reinforce one another.
 
-### M8 — first automation and optional logistics staff
+### M8 — first certified automation
 
 After M7 sign-off, prove the first complete manual learning → certification →
-Mechanical Splitter loop. Add yard staff only where they support delivery,
-feeding, gathering, stacking, bundling, shipping or secondary production. No
-dialogue simulation, needs system, walkable village or morale layer is implied.
+Mechanical Splitter loop, bought and installed as a direct shop purchase. No
+yard-staff/villager roster, delivery/logistics layer, needs system, walkable
+village or morale layer (removed 2026-08-04 — see CLAUDE.md's amendment log).
 
 ### Post-M8 candidates — not active modules
 
@@ -263,6 +259,8 @@ Each candidate requires a fresh Creative Director scope call before work starts.
 - Ore mining or another competing action mini-game.
 - Tree felling, FPS forest exploration or biome traversal.
 - A heavy village-builder, refining-chain simulator or worker-needs game.
+- A yard-staff/villager roster, portraits or morale layer. Purchasing and
+  unlocking stay driven by the shop, the way M7A already built it.
 - Automation that discovers or certifies a new species without the player's
   manual power phase.
 - Punitive quality rules that discard imperfect firewood.

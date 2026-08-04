@@ -15,3 +15,6 @@ the-axeman/android/
 
 # Godot editor save-in-progress temp files
 *.TMP
+
+# macOS Finder metadata
+.DS_Store

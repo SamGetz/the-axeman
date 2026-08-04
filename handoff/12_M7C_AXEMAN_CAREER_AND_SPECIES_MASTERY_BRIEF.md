@@ -8,7 +8,7 @@ of clearly labelled `.tres` placeholders pending the mandatory Creative
 Director tuning pass. No placeholder becomes final merely because it is used to
 build or test a system.
 
-**Authority:** `AGENTS.md`, `handoff/08_COZY_LUMBERYARD_ROADMAP.md`,
+**Authority:** `CLAUDE.md`, `handoff/08_COZY_LUMBERYARD_ROADMAP.md`,
 `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`, the approved
 `handoff/11_M7A_FIVE_PURCHASE_IMPLEMENTATION_BRIEF.md`, the live Godot project,
 and Sam's 4 August 2026 direction in this brief's request.

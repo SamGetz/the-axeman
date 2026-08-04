@@ -52,7 +52,7 @@ is the earned proof that the player has mastered it.
 |---|---|---|
 | Stump | “That cut felt good.” | The axe, log and payout become legible. |
 | Yard | “This place is mine.” | Orders, tools, skills and visible upgrades arrive. |
-| Company | “I built a machine around my craft.” | Staff and logistics remove friction. |
+| Company | “I built a machine around my craft.” | Purchased automation and logistics remove friction. |
 | Nation | “Logs are arriving from everywhere.” | Regional suppliers, routes and new woods expand the queue. |
 | Planet | “I can master every wood on Earth.” | A global catalogue and prestigious contracts dominate. |
 | Earth Master | “One terrestrial species remains.” | The hardest Earth log becomes a handcrafted finale. |
@@ -115,7 +115,7 @@ must start from this real baseline.
 - No finalized proc-led skill catalogue, species mastery/certification loop,
   equipment loadout or automation bridge.
 - No yard expansion beyond the current pile and shop panel.
-- No staff, routes, passive logistics or offline outcome.
+- No purchased automation, routes, passive logistics or offline outcome.
 - No regional, national or global supplier progression.
 - No finite Earth wood catalogue or terrestrial-mastery finale.
 - No industrial projects, launch economy, expeditions or alien logs.
@@ -144,16 +144,16 @@ lesson, not copy content or presentation.
 | [Cookie Clicker](https://cookieclicker.wiki.gg/wiki/Upgrades) | Tiered buildings, clicking upgrades, building synergies, achievements, rare active opportunities and a large ascension tree. | Use milestone upgrades and cross-system synergies so an old purchase can become exciting again. Maintain a long tail of celebratory goals. | Hundreds of nearly identical percentage upgrades or a prestige reset too early. |
 | [Universal Paperclips](https://decisionproblem.com/paperclips/) | A tiny manual business radically changes phase: market, planetary industry, then autonomous space exploration. | This is the clearest structural reference. Finish each fantasy, then replace the central question. The Earth-to-space reveal should feel inevitable in hindsight and shocking in the moment. | A mostly textual presentation or a phase change that abandons the chopping interaction. |
 | [A Dark Room](https://adarkroom.doublespeakgames.com/) | Mechanics and story reveal gradually: room, village, resources, world, ending. | Hide future systems until they are narratively earned. The player should discover the scale rather than read the entire roadmap in the first UI. | Harsh survival failure or exploration as a second full game. |
-| [Kittens Game](https://wiki.kittensgame.com/) | Jobs, buildings, technologies, conversion chains, trade, space, challenges and prestige. | Let staff assignments and buildings create strategic production choices. Space should reuse Earth systems at a new scale. | An unreadable lattice of resources, caps, energy penalties and conversion ratios. |
+| [Kittens Game](https://wiki.kittensgame.com/) | Jobs, buildings, technologies, conversion chains, trade, space, challenges and prestige. | Let building and automation purchases create strategic production choices. Space should reuse Earth systems at a new scale. | An unreadable lattice of resources, caps, energy penalties and conversion ratios. |
 | [(the) Gnorp Apologue](https://store.steampowered.com/app/1473350/the_Gnorp_Apologue/) | Visible physical accumulation plus build-defining units, structures, upgrades, talents, status effects and strong synergies. | Make the yard itself the graph of the economy. Offer a few genuinely different company builds rather than one obvious upgrade ladder. | Effects so interdependent that the player needs a wiki to know why income changed. |
 | [Leaf Blower Revolution](https://store.steampowered.com/app/1468260/Leaf_Blower_Revolution__Idle_Game/) | Manual tools escalate into absurd equipment, automation, areas, crafting, pets, shops and prestige. | Escalate the axe fantasy without embarrassment: better tools can progress from grounded steel to ridiculous gravitic technology. Regions and species can refresh the visual/action loop. | Dozens of currencies and shops, or automation that makes touching the core action pointless. |
 | [Melvor Idle 2](https://store.steampowered.com/app/3218350/Melvor_Idle_2/) | Many interlocking skills, mastery, equipment, offline progress and an event log. | Give manual chopping permanent skill identity and species mastery. If offline progress is approved, explain exactly what happened while away. | Twenty-nine parallel skills. The Axeman needs a small, legible set. |
 | [Idle Slayer](https://store.steampowered.com/app/1353300/Idle_Slayer/) | Active and offline progress, regions, materials, crafting, a large skill tree, equipment, achievements and side challenges. | A skill tree is strongest when it unlocks mechanics, not only multipliers. Regions should provide distinctive materials and rules. | Unrelated minigames added only to broaden content. |
 | [Antimatter Dimensions](https://store.steampowered.com/app/1399720/Antimatter_Dimensions/) | Deeply unfolding layers, challenges that alter rules, prestige and extensive automation of solved tasks. | Automate a system once the player has demonstrated understanding; use optional contracts/challenges to make familiar chopping rules newly interesting. | Nested reset layers and UI complexity that erase the grounded fantasy. |
 | [Mr. Mine](https://store.steampowered.com/app/1397920/MrMine/) | A physical depth axis, workers, drill upgrades, buildings, relics, secrets and feature unlocks tied to progress. | Make global wood mastery spatial and visible: every supplier region fills a clear catalogue section and reveals new mechanics. | Random treasure as a mandatory progression gate. |
-| [Rusty's Retirement](https://store.steampowered.com/app/2666510/Rusty%27s_Retirement/) | A cozy visible workplace, automation helpers and a focus mode that respects attention. | Staff should be charming, visible and easy to understand. The game should be pleasant to watch without demanding constant check-ins. | Becoming so passive that active chopping has no reason to exist. |
+| [Rusty's Retirement](https://store.steampowered.com/app/2666510/Rusty%27s_Retirement/) | A cozy visible workplace, automation helpers and a focus mode that respects attention. | Purchased automation should be charming, visible and easy to understand. The game should be pleasant to watch without demanding constant check-ins. | Becoming so passive that active chopping has no reason to exist. |
 | [Cell to Singularity](https://store.steampowered.com/app/977400/) | A clear thematic journey that expands from microscopic beginnings to civilization, speculative technology, Mars and space. | Use scale itself as story. A tech/project tree can make the path from hand axe to launch vehicle feel coherent. | A generic “tap anywhere for abstract energy” interaction. |
-| [Clicker Heroes](https://store.steampowered.com/app/363970/Clicker_Heroes/) | Active clicks, recruitable producers, skills, critical hits, idle growth, absurd numbers and ascension. | Named staff with clear specialties can make passive production personable. Critical/manual moments should remain satisfying beside idle growth. | Endless zones that differ only in health and number size. |
+| [Clicker Heroes](https://store.steampowered.com/app/363970/Clicker_Heroes/) | Active clicks, recruitable producers, skills, critical hits, idle growth, absurd numbers and ascension. | Named machines with clear specialties can make passive production personable. Critical/manual moments should remain satisfying beside idle growth. | Endless zones that differ only in health and number size. |
 | [Dwarf Eats Mountain](https://store.steampowered.com/app/4078200/Dwarf_Eats_Mountain/) | Visible throughput, hauling tension, many specialised units, active buffs, artefacts and build synergies. | Separate supplier delivery, chopping, stacking and shipping so logistics matter without adding another action loop. | A failure spiral where output is lost because support capacity was misjudged. |
 
 Two broader design sources reinforce the same conclusion. Alexander King's
@@ -190,11 +190,11 @@ At company scale, a support loop runs beside it:
 ```text
 Suppliers prepare and dispatch certified logs
     ↓
-Feeders keep automated lines supplied
+Purchased feeders keep automated lines supplied
     ↓
 Cutters process solved species at industrial scale
     ↓
-Staff sort, bundle and ship the output
+Purchased sorting/bundling/shipping lines handle the output
     ↓
 The player reinvests, expands capacity and resolves bottlenecks
 ```
@@ -611,40 +611,49 @@ aspirational. Later upgrades can add a slot or a refresh, but the screen should
 never become a job-board spreadsheet. Real-time expiry is opt-in “rush work”
 only; normal contracts wait patiently.
 
-## Staff and automation
+## Automation
 
-Staff appear only after the player has personally performed the task they
-simplify. They are visible characters/vehicles with one clear job each.
+**2026-08-04:** the yard-staff/villager concept is removed from the whole
+roadmap, not only M8. There is no hireable roster, no named characters and no
+morale/needs layer at any scale. Every friction below is instead removed by a
+purchased, installed automation tier — bought directly through the shop like
+every other upgrade — that appears only after the player has personally
+performed the task it simplifies. It is a visible machine/vehicle/system with
+one clear job each, not a person.
 
-### Yard staff
+### Yard automation
 
-| Role | Removes friction from | Does not replace |
+| Purchase | Removes friction from | Does not replace |
 |---|---|---|
-| Log Driver | Delivery delay and species queue. | Choosing supply or chopping. |
-| Yard Hand | Gathering, tidying and pile reset speed. | Craft quality or payouts. |
-| Stacker | Visual pile organisation and load preparation. | The satisfying fly-in/haul-away event. |
-| Order Clerk | Matching eligible pieces and claiming completed contracts. | Choosing which order matters. |
-| Mechanic | Machine uptime and upgrade inspection. | Tool choice or active strikes. |
-| Dispatcher | Route priorities and truck assignment. | Strategic capacity decisions. |
+| Log Feeder | Delivery delay and species queue. | Choosing supply or chopping. |
+| Yard Sweeper | Gathering, tidying and pile reset speed. | Craft quality or payouts. |
+| Auto-Stacker | Visual pile organisation and load preparation. | The satisfying fly-in/haul-away event. |
+| Order Router | Matching eligible pieces and claiming completed contracts. | Choosing which order matters. |
+| Maintenance Package | Machine uptime and upgrade inspection. | Tool choice or active strikes. |
+| Dispatch Console | Route priorities and truck assignment. | Strategic capacity decisions. |
 
-### Supplier and route staff
+### Supplier and route automation
 
-- Supplier scouts reveal available species, log shapes and regional customers.
-- Purchasing agents negotiate access to rarer delivered logs.
-- Truck, rail and ship crews move prepared logs between supplier depots and the
-  yard.
-- Depot managers increase queue capacity and delivery reliability.
-- Quality inspectors improve advance information about incoming log traits.
-- Route coordinators reduce delays rather than introducing a punitive worker
-  needs or failure simulation.
+- A supplier scanner reveals available species, log shapes and regional
+  customers.
+- A purchasing contract negotiates access to rarer delivered logs.
+- Purchased truck, rail and ship routes move prepared logs between supplier
+  depots and the yard.
+- A depot upgrade increases queue capacity and delivery reliability.
+- A quality-inspection upgrade improves advance information about incoming log
+  traits.
+- Route-priority upgrades reduce delays rather than introducing a punitive
+  worker needs or failure simulation.
 
-### Space staff
+### Space automation
 
-- Mission planner reveals travel time, cargo risk and return profile.
-- Launch crew reduces turnaround.
-- Xenobotanist identifies new species traits.
-- Quarantine officer prevents reactive logs disrupting the yard.
-- Cargo liaison manages repeat deliveries from established expedition partners.
+- A mission-planning upgrade reveals travel time, cargo risk and return
+  profile.
+- A launch-systems upgrade reduces turnaround.
+- A specimen-analysis upgrade identifies new species traits.
+- A quarantine system prevents reactive logs disrupting the yard.
+- A cargo-contract upgrade manages repeat deliveries from established
+  expedition partners.
 
 ### Offline progress recommendation
 
@@ -686,7 +695,8 @@ distinct acts, not dozens of palette swaps.
 3. Learn its species trait and unlock basic contracts.
 4. Improve supplier standing through orders and mastery.
 5. Solve the delivery/queue bottleneck with road, rail or port routes.
-6. Build Momentum at the block while staff keep valuable logs arriving.
+6. Build Momentum at the block while purchased delivery automation keeps
+   valuable logs arriving.
 7. Discover a landmark contract or rare specimen at milestones.
 8. Master the region's signature wood and receive a permanent catalogue trophy
    or project unlock.
@@ -742,7 +752,7 @@ them.
 - Destination and travel time.
 - Cargo capacity versus shielding/safety.
 - Survey intensity versus specimen-retrieval capacity.
-- Crew speciality.
+- Mission-system speciality (survey, retrieval or containment focus).
 - Which axe/rig module travels.
 - Whether to prioritise common logs, intact rare specimens or seeds/spores.
 
@@ -803,7 +813,8 @@ pity, Coffee and Protein Bar, three live woods, yard/chopping entry flow.
 - Make the 50-piece haul threshold discoverable through the pile/animation or a
   contextual cue, without duplicating ownership of the value.
 - Decide and resolve the leftover `slice_poc.tscn` harness and stale duplicate
-  folders separately; they are not gameplay features.
+  folders separately; they are not gameplay features. **Resolved 2026-08-04:**
+  both deleted — see CLAUDE.md.
 
 **Approved catalogue (2026-08-04):** Balanced Axe (one-time), Reinforced
 Chopping Block (tiered, rank 1 in M7A), Supplier Ledger (one-time), Handcart
@@ -822,7 +833,7 @@ see a haul-away and save/return without explanation.
 Starter Balanced Axe and rank-1 Reinforced Chopping Block now belong to M7A;
 M7C retains the full Strength/Speed/Technique identities, proc families,
 species mastery, later sidegrades and loadout. The approved prototype migration
-is recorded in the M7A brief and `AGENTS.md`.
+is recorded in the M7A brief and `CLAUDE.md`.
 
 The binding preparation brief for this milestone is
 `handoff/12_M7C_AXEMAN_CAREER_AND_SPECIES_MASTERY_BRIEF.md`. Its scope fence,
@@ -866,8 +877,8 @@ event rather than only a smaller timer or hidden number.
 - First named signature customer and premium handcrafted-only work.
 - A proper wood-supply selector for currently unlocked species.
 
-**Do not include yet:** staff, offline income, world map, timed daily quests or
-dozens of customer types.
+**Do not include yet:** purchased automation, offline income, world map, timed
+daily quests or dozens of customer types.
 
 **Exit test:** Pine, oak and birch produce meaningfully different choices; rough
 work always earns money; a skilled player can intentionally earn a better order
@@ -890,25 +901,28 @@ result.
 **Exit test:** A before/after screenshot communicates major progress without any
 numbers visible.
 
-### M8 — first automation, staff and logistics
+### M8 — first certified automation
 
 **Goal:** Prove the full learn → certify → automate loop and build the first
-passive company system while the fantasy is still grounded and legible.
+passive company system while the fantasy is still grounded and legible. No
+yard-staff/villager roster (removed 2026-08-04) — every friction below is a
+direct shop purchase, the same way M7A's Items/Trees tabs already work.
 
 **Features:**
 
-- Log Driver, Yard Hand, Stacker, Order Clerk, Mechanic and Dispatcher in an
-  authored introduction order.
+- Log Feeder, Yard Sweeper, Auto-Stacker, Order Router, Maintenance Package and
+  Dispatch Console in an authored introduction order (see Automation above).
 - Clear task/capacity model and visible activity.
 - Log queues and route priority.
 - Delivery, stacking, order fulfilment and haul-away improvements.
-- Staff upgrades that change equipment/behaviour, not a needs or morale sim.
+- Automation upgrades that change equipment/behaviour, not a needs or morale
+  sim.
 - The first visible Mechanical Splitter, initially accepting only the early
   species the player has manually certified.
 - Installed species cutting profiles, a visible input queue, output rate and
   one understandable bottleneck.
-- Optional Axeman's Momentum may temporarily boost staff or machinery, but
-  solved production does not require it.
+- Optional Axeman's Momentum may temporarily boost purchased automation or
+  machinery, but solved production does not require it.
 - Offline progress only after the watched loop is approved.
 - Return ledger and safe offline cap if approved.
 
@@ -988,7 +1002,7 @@ first-time mastery event completes invisibly while the player is offline.
 **Sequence:**
 
 1. The final catalogue slot and its requirements become explicit.
-2. The supplier atlas, yard staff and customers acknowledge the moment.
+2. The supplier atlas, yard automation and customers acknowledge the moment.
 3. A final extraordinary terrestrial-species log is delivered to the original
    block.
 4. The player completes a multi-stage hand-crafted split using the skills they
@@ -1015,7 +1029,7 @@ because passive progress crossed its threshold.
   materials.
 - Frontier skill branch revealed.
 - Orbital test and deep-space telescope.
-- Configurable cargo craft and named launch staff.
+- Configurable cargo craft and named launch systems.
 - Clear expedition planning UI with no premium/real-money timing mechanics.
 - Chopping and Momentum accelerate preparation/building, not time already spent
   in flight.
@@ -1091,10 +1105,10 @@ The shop and skill tree should support at least three understandable strategies:
 
 ### Logistics company
 
-- Drivers, routes, queues, ports and dispatch capacity.
+- Delivery routes, queues, ports and dispatch capacity.
 - Best at keeping many regions moving and converting field output to cash.
-- Synergy: the player chooses rare/high-value logs while staff keep ordinary
-  supply flowing.
+- Synergy: the player chooses rare/high-value logs while purchased automation
+  keeps ordinary supply flowing.
 
 ### Global specialist
 
@@ -1191,7 +1205,7 @@ Unfold tabs/panels only when earned:
 
 Add:
 
-- Staff/logistics
+- Automation/logistics
 - Region map
 - Capacity/bottleneck breakdown
 
@@ -1289,7 +1303,8 @@ touch or see.
 
 - Every yard tier gets before/after shots from the real main scene.
 - Every species gets fresh/cut/scarred/perfect reference shots.
-- Staff and vehicles are checked in motion, not only counted in the tree.
+- Purchased automation and vehicles are checked in motion, not only counted in
+  the tree.
 - Region completion and the final terrestrial-species showcase cannot be
   approved headless-only.
 - Alien traits need recorded visual checks for readability.
@@ -1354,7 +1369,7 @@ The following must be presented to Sam before implementation of their milestone.
 
 ### M8
 
-- Staff hiring and upgrade costs.
+- Automation purchase and upgrade costs.
 - Task rates/capacities.
 - Momentum duration/effect.
 - Offline progress approval, rate and cap.

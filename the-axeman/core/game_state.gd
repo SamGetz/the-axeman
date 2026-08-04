@@ -82,7 +82,6 @@ var _unlocked_biomes: Dictionary = { Enums.Biome.PINE_FOREST: true }
 ## Keys are Enums.ToolType ints -> int tier.
 var _tool_tiers: Dictionary = {
 	Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
-	Enums.ToolType.PICKAXE: DEFAULT_TOOL_TIER,
 }
 ## Keys are building StringName ids -> int tier. Unknown ids read as tier 1.
 var _building_tiers: Dictionary = {}
@@ -633,7 +632,6 @@ func apply_save_dict(data: Dictionary) -> void:
 	if tiers is Dictionary:
 		_tool_tiers = {
 			Enums.ToolType.AXE: maxi(DEFAULT_TOOL_TIER, int((tiers as Dictionary).get(Enums.ToolType.AXE, DEFAULT_TOOL_TIER))),
-			Enums.ToolType.PICKAXE: maxi(DEFAULT_TOOL_TIER, int((tiers as Dictionary).get(Enums.ToolType.PICKAXE, DEFAULT_TOOL_TIER))),
 		}
 
 	var buildings: Variant = data.get("building_tiers")
@@ -683,7 +681,6 @@ func reset_to_defaults() -> void:
 	_completed_orders = {}
 	_tool_tiers = {
 		Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
-		Enums.ToolType.PICKAXE: DEFAULT_TOOL_TIER,
 	}
 	_building_tiers = {}
 	_unlocked_biomes = { Enums.Biome.PINE_FOREST: true }
@@ -743,10 +740,6 @@ func _on_building_upgraded(building_id: StringName, new_tier: int) -> void:
 ## Monotonic BY CONSTRUCTION: this listens only to gathers. Selling wood goes
 ## through InventoryManager.remove_items, which this never sees, so the
 ## celebratory number can never tick down.
-##
-## KNOWN BOUNDARY, revisit at M8: this counts wood GATHERED, which today can only
-## happen by chopping. If yard staff ever deposit wood they gathered themselves,
-## their haul would be counted as the player's chopping unless this is narrowed.
 func _on_resource_gathered(resource_id: StringName, amount: int) -> void:
 	if amount <= 0:
 		return

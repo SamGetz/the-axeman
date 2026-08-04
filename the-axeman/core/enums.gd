@@ -4,6 +4,6 @@ class_name Enums
 ## Global enums per contract A6. Frozen.
 
 enum ChopDirection { LEFT, RIGHT, UP, DOWN }
-enum ItemCategory { RAW_WOOD, MINERAL, GEM, REFINED }
-enum ToolType { AXE, PICKAXE }
-enum Biome { PINE_FOREST, MAHOGANY_FOREST, MOSSY_QUARRY, VOLCANIC_CAVERN }
+enum ItemCategory { RAW_WOOD, REFINED }
+enum ToolType { AXE }
+enum Biome { PINE_FOREST, MAHOGANY_FOREST }
