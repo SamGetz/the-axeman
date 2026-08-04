@@ -1,7 +1,8 @@
 # The Axeman — Earth to Alien Timber Master Roadmap
 
 **Status:** Creative Director direction, 2026-08-01; scope clarified 2026-08-02;
-store, skill-tree and automation lifecycle clarified 2026-08-02.
+store, skill-tree and automation lifecycle clarified 2026-08-02; M7A catalogue
+and M7C-next sequence approved 2026-08-04.
 This is an extensive design roadmap, not an implementation order. It extends
 the cozy-lumberyard direction into global wood mastery and a spacefaring postgame. The existing module sign-off
 rule, frozen Part A contracts, Godot 4.7 Compatibility constraints and Sam's
@@ -804,11 +805,47 @@ pity, Coffee and Protein Bar, three live woods, yard/chopping entry flow.
 - Decide and resolve the leftover `slice_poc.tscn` harness and stale duplicate
   folders separately; they are not gameplay features.
 
+**Approved catalogue (2026-08-04):** Balanced Axe (one-time), Reinforced
+Chopping Block (tiered, rank 1 in M7A), Supplier Ledger (one-time), Handcart
+(one-time), Coffee Thermos (permanent one-time). Their binding roles, unlocks,
+physical consequences, acceptance requirements and measured tuning procedure
+are in `handoff/11_M7A_FIVE_PURCHASE_IMPLEMENTATION_BRIEF.md`. Order bonuses are
+50 / 150 / 400 cash. Do not invent final shop prices or effect magnitudes.
+
 **Exit test:** A new player can chop freely or pursue an introductory order,
 understand a failed hit, earn money, buy a felt upgrade, unlock another wood,
 see a haul-away and save/return without explanation.
 
-### M7B — craftsmanship, customers and reputation
+### M7C — Axeman career and species mastery (next after M7A)
+
+**2026-08-04 sequence amendment:** M7C is the next sign-off gate after M7A.
+Starter Balanced Axe and rank-1 Reinforced Chopping Block now belong to M7A;
+M7C retains the full Strength/Speed/Technique identities, proc families,
+species mastery, later sidegrades and loadout. The approved prototype migration
+is recorded in the M7A brief and `AGENTS.md`.
+
+**Goal:** Make the player's hands progress, not only the business.
+
+**Features:**
+
+- One skill point per earned level and named Axeman Rank bands.
+- Initial Strength/Speed/Technique branches with foundation, proc, modifier and
+  capstone nodes.
+- First double-strike and double-XP proc families, with bad-luck protection,
+  visible announcements and safe geometry.
+- Species mastery and authored certification for the live woods.
+- Grain-reading feedback and perfect-log tracking.
+- First post-starter axe sidegrade and the next block feature/rank after M7A.
+- Equipment loadout with plain comparison text.
+- Achievements/milestones that unlock cosmetics, not raw clutter.
+- Temporary consumables expanded beyond Coffee/Protein Bar only if they create
+  distinct session choices.
+
+**Exit test:** Two players can spend the same early skill points differently and
+feel the distinction at the block; a random bonus produces a visible mechanical
+event rather than only a smaller timer or hidden number.
+
+### M7B — craftsmanship, customers and reputation (follows M7C)
 
 **Goal:** Give every chopping session a choice and a medium-term purpose.
 
@@ -830,29 +867,6 @@ dozens of customer types.
 **Exit test:** Pine, oak and birch produce meaningfully different choices; rough
 work always earns money; a skilled player can intentionally earn a better order
 result.
-
-### M7C — Axeman career and species mastery
-
-**Goal:** Make the player's hands progress, not only the business.
-
-**Features:**
-
-- One skill point per earned level and named Axeman Rank bands.
-- Initial Strength/Speed/Technique branches with foundation, proc, modifier and
-  capstone nodes.
-- First double-strike and double-XP proc families, with bad-luck protection,
-  visible announcements and safe geometry.
-- Species mastery and authored certification for the live woods.
-- Grain-reading feedback and perfect-log tracking.
-- First axe sidegrade and first block upgrade.
-- Equipment loadout with plain comparison text.
-- Achievements/milestones that unlock cosmetics, not raw clutter.
-- Temporary consumables expanded beyond Coffee/Protein Bar only if they create
-  distinct session choices.
-
-**Exit test:** Two players can spend the same early skill points differently and
-feel the distinction at the block; a random bonus produces a visible mechanical
-event rather than only a smaller timer or hidden number.
 
 ### M7D — the yard visibly grows
 

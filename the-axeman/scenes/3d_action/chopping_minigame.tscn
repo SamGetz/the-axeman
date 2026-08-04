@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://5fw56tr40cmk" path="res://scenes/3d_action/axe_viewmodel.gd" id="4_axevm"]
 [ext_resource type="PackedScene" uid="uid://ckgruj1y75quo" path="res://assets/models/axe_basic/axe_basic.fbx" id="5_axefbx"]
 [ext_resource type="AnimationLibrary" uid="uid://pyg4245tqpsu" path="res://data/axe_swing_lib.tres" id="6_axelib"]
+[ext_resource type="Script" path="res://scenes/3d_action/yard_equipment_presenter.gd" id="7_equipment"]
 
 [sub_resource type="Environment" id="Environment_mg"]
 background_mode = 1
@@ -54,6 +55,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 shape = SubResource("Shape_floor")
 
 [node name="Fallers" type="Node3D" parent="." unique_id=1262106074]
+
+[node name="YardEquipment" type="Node3D" parent="."]
+script = ExtResource("7_equipment")
 
 [node name="forest_floor_a" parent="." unique_id=15056532 instance=ExtResource("2_30w1t")]
 transform = Transform3D(0.4, 0, 0, 0, 0.4, 0, 0, 0, 0.4, 0, 0.005, 0)

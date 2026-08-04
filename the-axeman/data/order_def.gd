@@ -7,6 +7,9 @@ extends Resource
 @export var customer_name := ""
 @export var title := ""
 @export_multiline var description := ""
+## Player level at which this order becomes actionable. The board may tease the
+## first unrevealed order, but it cannot be accepted early.
+@export_range(1, 99, 1) var unlock_level := 1
 ## Empty means any registered RAW_WOOD item. A specific item keeps the order
 ## species-aware without duplicating the SpeciesTable.
 @export var required_item: StringName = &""

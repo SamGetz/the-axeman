@@ -81,6 +81,7 @@ func _ready() -> void:
 	await _test_26_the_block_holds_the_chosen_wood()
 	await _test_27_a_finished_log_pays_experience()
 	_test_28_orders_route_pay_and_persist()
+	await _test_29_the_approved_catalogue_is_gated_and_physical()
 
 	_restore_real_save()
 	print("=== M7A RESULT: %d passed, %d failed ===" % [_passes, _fails])
@@ -178,6 +179,7 @@ func _test_5_save_round_trip() -> void:
 	EventBus.gear_upgraded.emit(Enums.ToolType.AXE, 3)
 	EventBus.building_upgraded.emit(&"wood_shed", 2)
 	EventBus.environment_unlocked.emit(Enums.Biome.MOSSY_QUARRY)
+	GameState.record_haul_away()
 
 	_check(SaveSystem.save_game(), "save_game() reports success")
 	_check(SaveSystem.has_save(), "...and a save file exists on disk")
@@ -196,6 +198,8 @@ func _test_5_save_round_trip() -> void:
 	_check(GameState.get_tool_tier(Enums.ToolType.AXE) == 3, "axe tier restored to 3")
 	_check(GameState.get_building_tier(&"wood_shed") == 2,
 		"building tier restored to 2 (StringName keys survive the file)")
+	_check(GameState.get_haul_aways_completed() == 1,
+		"the physical haul-away milestone restored exactly once")
 	_check(GameState.is_biome_unlocked(Enums.Biome.MOSSY_QUARRY), "unlocked biome restored")
 	_check(GameState.is_biome_unlocked(Enums.Biome.PINE_FOREST), "the starting biome is still unlocked")
 
@@ -291,6 +295,7 @@ func _test_9_autosave_on_inventory_change() -> void:
 	var species := GameState.get_next_unowned_species()
 	var curve: LevelCurve = load("res://data/level_curve.tres")
 	GameState.add_xp(curve.total_xp_for_level(species.unlock_level))
+	EventBus.building_upgraded.emit(GameState.UPGRADE_SUPPLIER_LEDGER, 2)
 	var cost := species.unlock_cost
 	GameState.add_cash(cost + 7)
 	await get_tree().process_frame
@@ -495,8 +500,10 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(not orders_panel.visible, "the contract board starts closed")
 	orders_button.pressed.emit()
 	_check(orders_panel.visible, "...and its square icon opens it")
-	_check(orders_list.get_child_count() == Orders.all().size(),
-		"...with one data-driven card per authored order (%d)" % orders_list.get_child_count())
+	_check(orders_list.get_child_count() == Orders.visible().size()
+			and Orders.visible().size() < Orders.all().size(),
+		"...with the available order and one nearby tease, while distant work stays hidden (%d / %d)"
+			% [orders_list.get_child_count(), Orders.all().size()])
 	_check(orders_panel.get_theme_stylebox("panel") is StyleBoxFlat,
 		"...using a replaceable basic-material board treatment while final art is pending")
 	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
@@ -762,12 +769,13 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 	_check(absf(mg.debug_split_chance() - mg.max_split_chance) < 0.001,
 		"...and the odds are pinned at the %.2f ceiling, never 1.0" % mg.max_split_chance)
 
-	# Strength is the other half of the sum.
-	var before_strength: float = mg.debug_split_chance()
-	EventBus.building_upgraded.emit(GameState.UPGRADE_STRENGTH, 2)   # tier 2 = level 1
-	_check(Shop.get_level(GameState.UPGRADE_STRENGTH) == 1, "one protein bar = strength level 1")
-	_check(mg.debug_split_chance() >= before_strength,
-		"...and the ceiling still holds with strength on top")
+	# Equipment may WEIGHT a learned mechanic, but cannot turn it into certainty.
+	GameState.add_cash(Shop.get_upgrade(GameState.UPGRADE_BALANCED_AXE).base_cost)
+	_check(Shop.buy(GameState.UPGRADE_BALANCED_AXE) == 1, "the one-time Balanced Axe can be bought")
+	_check(Shop.get_level(GameState.UPGRADE_BALANCED_AXE) == 1,
+		"...and is recorded as one owned equipment purchase")
+	_check(absf(mg.debug_split_chance() - mg.max_split_chance) < 0.001,
+		"...while its reliability weighting still respects the split ceiling")
 
 	# A swing that lands takes the scars with it: the cleave went through them.
 	mg.debug_split_roll = 1
@@ -1058,8 +1066,11 @@ func _test_24_woods_are_level_gated_purchases() -> void:
 	# High enough, but broke: also refused, and atomically.
 	GameState.reset_to_defaults()
 	GameState.add_xp(999999999)
+	_check(not GameState.can_species_be_bought(second.id),
+		"level alone does not bypass %s's supplier relationship" % second.id)
+	EventBus.building_upgraded.emit(GameState.UPGRADE_SUPPLIER_LEDGER, 2)
 	_check(GameState.can_species_be_bought(second.id),
-		"at max level %s is on sale" % second.id)
+		"with the Supplier Ledger, max-level %s is on sale" % second.id)
 	_check(GameState.get_cash() == 0, "...but the purse is empty")
 	_check(not GameState.try_buy_species(second.id), "...so the purchase is refused")
 	_check(not GameState.owns_species(second.id), "...and nothing was granted")
@@ -1095,6 +1106,7 @@ func _test_25_progression_survives_a_save() -> void:
 	var second := species[1]
 
 	GameState.add_xp(999999999)
+	EventBus.building_upgraded.emit(GameState.UPGRADE_SUPPLIER_LEDGER, 2)
 	GameState.add_cash(second.unlock_cost)
 	GameState.try_buy_species(second.id)
 	GameState.select_species(second.id)
@@ -1141,6 +1153,7 @@ func _test_26_the_block_holds_the_chosen_wood() -> void:
 	var species := SpeciesTable.all()
 	var second := species[1]
 	GameState.add_xp(999999999)
+	EventBus.building_upgraded.emit(GameState.UPGRADE_SUPPLIER_LEDGER, 2)
 	GameState.add_cash(second.unlock_cost)
 	GameState.try_buy_species(second.id)
 	GameState.select_species(second.id)
@@ -1224,27 +1237,24 @@ func _test_28_orders_route_pay_and_persist() -> void:
 			data_is_valid = data_is_valid and Market.is_sellable(order.required_item)
 		ids[order.id] = true
 	_check(data_is_valid, "all three orders have unique ids, positive data and sellable requirements")
+	_check([authored[0].cash_bonus, authored[1].cash_bonus, authored[2].cash_bonus] == [50, 150, 400],
+		"the approved introductory bonuses are exactly 50 / 150 / 400")
 
+	var first_order := Orders.by_id(&"campfire_warmup")
 	var aspen_order := Orders.by_id(&"aspen_hearth_load")
 	var pine_order := Orders.by_id(&"pine_campsite_load")
-	_check(aspen_order != null and Orders.is_available(aspen_order),
-		"the starting Aspen order is available on a fresh yard")
+	_check(first_order != null and Orders.is_available(first_order),
+		"the Campfire Warm-up order is available on a fresh yard")
+	_check(aspen_order != null and not Orders.is_available(aspen_order),
+		"the Aspen order is visible nearby but waits for its reveal level")
 	_check(pine_order != null and not Orders.is_available(pine_order),
-		"the Pine order waits until Eastern White Pine is actually owned")
-	_check(GameState.accept_order(aspen_order.id), "the player can accept one available order")
-	_check(not GameState.accept_order(authored[0].id), "a second order cannot replace the active load")
+		"the distant Pine order waits for later progression")
+	_check(GameState.accept_order(first_order.id), "the player can accept one available order")
+	_check(not GameState.accept_order(aspen_order.id), "a second order cannot replace the active load")
 
 	var completion_events: Array[StringName] = []
 	var on_completed := func(id: StringName, _bonus: int) -> void: completion_events.append(id)
 	GameState.order_completed.connect(on_completed)
-
-	# Wrong species: it is still bought, but the contract does not steal credit.
-	EventBus.resource_gathered.emit(&"pine_firewood", 1)
-	var pine_cash := Orders.settle_piece(&"pine_firewood")
-	_check(pine_cash == Market.get_price(&"pine_firewood"),
-		"unmatched Pine still auto-sells for its full base price (%d)" % pine_cash)
-	_check(GameState.get_active_order_progress() == 0,
-		"...without advancing the Aspen order")
 
 	# Make partial progress, persist it, wipe memory, and restore it.
 	for _i in range(2):
@@ -1255,25 +1265,134 @@ func _test_28_orders_route_pay_and_persist() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "the partial order save loads")
-	_check(GameState.get_active_order_id() == aspen_order.id
+	_check(GameState.get_active_order_id() == first_order.id
 			and GameState.get_active_order_progress() == 2,
-		"...restoring the same active order at 2 / %d" % aspen_order.required_count)
+		"...restoring the same active order at 2 / %d" % first_order.required_count)
 
-	for _i in range(2, aspen_order.required_count):
+	for _i in range(2, first_order.required_count):
 		EventBus.resource_gathered.emit(&"aspen_firewood", 1)
 		Orders.settle_piece(&"aspen_firewood")
-	var expected := (Market.get_price(&"pine_firewood")
-		+ Market.get_price(&"aspen_firewood") * aspen_order.required_count
-		+ aspen_order.cash_bonus)
+	var expected := (Market.get_price(&"aspen_firewood") * first_order.required_count
+		+ first_order.cash_bonus)
 	_check(GameState.get_cash() == expected,
 		"completion keeps every base sale and adds the authored bonus exactly once (%d)" % expected)
-	_check(GameState.get_active_order_id() == &"" and GameState.has_completed_order(aspen_order.id),
+	_check(GameState.get_active_order_id() == &"" and GameState.has_completed_order(first_order.id),
 		"the finished load leaves the slot free and enters one-time history")
-	_check(completion_events == [aspen_order.id],
+	_check(completion_events == [first_order.id],
 		"completion announces exactly once (%s)" % str(completion_events))
-	_check(not GameState.accept_order(aspen_order.id), "a completed order cannot be claimed twice")
+	_check(not GameState.accept_order(first_order.id), "a completed order cannot be claimed twice")
+
+	# Once revealed, a species-specific order still lets unmatched wood sell but
+	# does not mis-credit it to the contract.
+	GameState.add_xp(GameState.get_xp_to_next_level())
+	_check(Orders.is_available(aspen_order) and GameState.accept_order(aspen_order.id),
+		"level 2 reveals and enables the Aspen Hearth Load")
+	EventBus.resource_gathered.emit(&"pine_firewood", 1)
+	var pine_cash := Orders.settle_piece(&"pine_firewood")
+	_check(pine_cash == Market.get_price(&"pine_firewood")
+			and GameState.get_active_order_progress() == 0,
+		"unmatched Pine sells for %d without advancing the Aspen load" % pine_cash)
 
 	GameState.order_completed.disconnect(on_completed)
+	InventoryManager.apply_save_dict({})
+	GameState.reset_to_defaults()
+
+
+## The approved five purchases are one ordered catalogue, not five unrelated
+## buttons. This pins reveal adjacency, event gates, identity-safe effects and
+## the immediate physical greybox consequences that final art will replace.
+func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var defs := Shop.get_upgrades()
+	var ids: Array[StringName] = []
+	for def: UpgradeDef in defs:
+		ids.append(def.id)
+	var approved: Array[StringName] = [
+		GameState.UPGRADE_BALANCED_AXE,
+		GameState.UPGRADE_REINFORCED_BLOCK,
+		GameState.UPGRADE_SUPPLIER_LEDGER,
+		GameState.UPGRADE_HANDCART,
+		GameState.UPGRADE_COFFEE_THERMOS,
+	]
+	_check(ids == approved, "the shop preserves the approved five-item catalogue order")
+	_check(defs[0].purchase_form == UpgradeDef.PurchaseForm.ONE_TIME
+			and defs[1].purchase_form == UpgradeDef.PurchaseForm.TIERED
+			and defs[1].max_level == 1,
+		"M7A ships one Balanced Axe and only the first authored block rank")
+	_check(Shop.get_visible_upgrades().size() == 3
+			and not Shop.is_unlocked(GameState.UPGRADE_SUPPLIER_LEDGER)
+			and not Shop.is_visible(GameState.UPGRADE_HANDCART),
+		"a fresh shop shows two choices plus the adjacent Ledger lock, hiding distant items")
+
+	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	game.debug_forced_species = 0
+	add_child(game)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var presenter: YardEquipmentPresenter = game.get_node("YardEquipment")
+	var base_chance: float = game.debug_split_chance()
+	var base_radius: float = game.current_work_radius()
+	var base_cooldown: float = game.current_swing_cooldown()
+
+	var candidate_total := 0
+	for def: UpgradeDef in defs:
+		candidate_total += def.base_cost
+	GameState.add_cash(candidate_total)
+	_check(Shop.buy(GameState.UPGRADE_BALANCED_AXE) == 1
+			and game.debug_split_chance() > base_chance,
+		"the Balanced Axe immediately weights split reliability without granting a skill")
+	var axe: AxeViewmodel = game.get_node("CameraPivot/Camera3D/AxeViewmodelAnchor")
+	_check(axe.find_child("BalancedGrip", true, false) != null,
+		"the purchased axe immediately gains a visible greybox grip")
+
+	_check(Shop.buy(GameState.UPGRADE_REINFORCED_BLOCK) == 1
+			and game.current_work_radius() > base_radius,
+		"the first block rank immediately broadens the manual work surface")
+	_check(presenter.has_physical(GameState.UPGRADE_REINFORCED_BLOCK),
+		"the reinforced block immediately appears in the yard")
+
+	var first := Orders.by_id(&"campfire_warmup")
+	_check(GameState.accept_order(first.id), "the introductory order is the route to the Ledger")
+	for _i in range(first.required_count):
+		GameState.record_order_piece(&"aspen_firewood")
+	_check(Shop.is_unlocked(GameState.UPGRADE_SUPPLIER_LEDGER)
+			and Shop.is_visible(GameState.UPGRADE_HANDCART),
+		"finishing it unlocks the Ledger and reveals only the adjacent Handcart lock")
+	_check(Shop.buy(GameState.UPGRADE_SUPPLIER_LEDGER) == 1
+			and presenter.has_physical(GameState.UPGRADE_SUPPLIER_LEDGER),
+		"the Ledger purchase appears immediately and opens supplier eligibility")
+
+	GameState.record_haul_away()
+	_check(Shop.is_unlocked(GameState.UPGRADE_HANDCART),
+		"the first real 50-piece haul-away unlocks the Handcart")
+	_check(Shop.buy(GameState.UPGRADE_HANDCART) == 1
+			and presenter.has_physical(GameState.UPGRADE_HANDCART),
+		"the bought Handcart appears immediately")
+	game._stage_next_log()
+	_check(game.debug_has_staged_log(),
+		"the Handcart stages exactly the selected next log without chopping or paying it")
+
+	GameState.add_xp(GameState.get_xp_to_next_level())
+	var aspen := Orders.by_id(&"aspen_hearth_load")
+	_check(GameState.accept_order(aspen.id), "the level-gated Aspen order can now be accepted")
+	for _i in range(aspen.required_count):
+		GameState.record_order_piece(&"aspen_firewood")
+	_check(Shop.is_unlocked(GameState.UPGRADE_COFFEE_THERMOS),
+		"the completed Aspen load unlocks the permanent Thermos")
+	_check(Shop.buy(GameState.UPGRADE_COFFEE_THERMOS) == 1
+			and game.current_swing_cooldown() < base_cooldown,
+		"the Thermos modestly shortens baseline recovery without creating a follow-up")
+	_check(presenter.has_physical(GameState.UPGRADE_COFFEE_THERMOS),
+		"the Thermos appears immediately as a physical yard prop")
+	_check(Shop.get_level(GameState.UPGRADE_COFFEE_THERMOS) == 1
+			and Shop.get_next_cost(GameState.UPGRADE_COFFEE_THERMOS) == 0,
+		"the Thermos is permanent one-time equipment, not a consumable")
+	_check(Shop.get_visible_upgrades().size() == approved.size(),
+		"all five owned catalogue rows remain visible after their gates are behind the player")
+
+	game.queue_free()
+	await get_tree().process_frame
 	InventoryManager.apply_save_dict({})
 	GameState.reset_to_defaults()
 

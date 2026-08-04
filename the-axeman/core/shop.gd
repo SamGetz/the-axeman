@@ -9,12 +9,12 @@ extends RefCounted
 ## The yard's shop counter: what is for sale, what the next level costs, and the
 ## one code path a purchase goes through.
 ##
-## LEVELS ARE STORED AS BUILDING TIERS. `GameState.get_building_tier(&"coffee")`
-## is where the coffee level lives, bumped through the existing A7
+## LEVELS ARE STORED AS BUILDING TIERS. `GameState.get_building_tier(id)` is where
+## each owned catalogue level lives, bumped through the existing A7
 ## `building_upgraded(StringName, int)` signal. That is deliberate: A7 is frozen
 ## (Directive 2), and a shop upgrade is exactly what that signal already
 ## describes — a named thing that goes up a tier and has to persist. Nothing new
-## was added to the contract to sell a cup of coffee.
+## was added to the contract to sell physical equipment.
 ##
 ## NOTE the off-by-one that comes with that home: `DEFAULT_BUILDING_TIER` is 1, so
 ## an upgrade nobody has bought reads as tier 1. LEVEL = TIER - 1, and level 0
@@ -46,6 +46,43 @@ static func get_upgrade(id: StringName) -> UpgradeDef:
 	return null if table == null else table.get_upgrade(id)
 
 
+## Catalogue rows visible right now: every unlocked row in approved order plus
+## the first adjacent lock. A locked row stops the reveal, so a later order event
+## cannot leak distant progression around the Handcart gate.
+static func get_visible_upgrades() -> Array[UpgradeDef]:
+	var out: Array[UpgradeDef] = []
+	for def: UpgradeDef in get_upgrades():
+		if def == null:
+			continue
+		out.append(def)
+		if not is_unlocked(def.id):
+			break
+	return out
+
+
+static func is_visible(id: StringName) -> bool:
+	for def: UpgradeDef in get_visible_upgrades():
+		if def.id == id:
+			return true
+	return false
+
+
+static func is_unlocked(id: StringName) -> bool:
+	var def := get_upgrade(id)
+	if def == null:
+		return false
+	# Ownership is authoritative. If an old save predates an unlock-history field,
+	# or a later data pass changes a prerequisite, equipment the player paid for
+	# must remain visible and usable rather than appearing re-locked.
+	if get_level(id) > 0:
+		return true
+	if def.unlock_order_id != &"" and not GameState.has_completed_order(def.unlock_order_id):
+		return false
+	if GameState.get_haul_aways_completed() < def.unlock_after_haul_aways:
+		return false
+	return true
+
+
 ## How many levels of `id` the player has bought. 0 = none.
 static func get_level(id: StringName) -> int:
 	return maxi(0, GameState.get_building_tier(id) - GameState.DEFAULT_BUILDING_TIER)
@@ -64,9 +101,20 @@ static func get_next_cost(id: StringName) -> int:
 
 static func can_buy(id: StringName) -> bool:
 	var def := get_upgrade(id)
-	if def == null or def.is_maxed(get_level(id)):
+	if def == null or not is_visible(id) or not is_unlocked(id) or def.is_maxed(get_level(id)):
 		return false
 	return GameState.can_afford_cash(get_next_cost(id))
+
+
+## Summed equipment contribution. Skills have their own equivalent; keeping the
+## two queries separate makes it impossible for equipment to grant a named skill
+## identity by accident.
+static func total_effect(kind: UpgradeDef.Effect) -> float:
+	var total := 0.0
+	for def: UpgradeDef in get_upgrades():
+		if def != null and def.effect == kind:
+			total += float(get_level(def.id)) * def.effect_step
+	return total
 
 
 ## ------------------------------------------------------------------ purchase
@@ -79,7 +127,7 @@ static func buy(id: StringName) -> int:
 		push_error("Shop: no upgrade named '%s' — purchase refused." % id)
 		return -1
 	var level := get_level(id)
-	if def.is_maxed(level):
+	if not is_visible(id) or not is_unlocked(id) or def.is_maxed(level):
 		return -1
 
 	var cost := def.cost_for_level(level)

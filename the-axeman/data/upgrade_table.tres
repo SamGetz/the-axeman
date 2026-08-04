@@ -1,8 +1,76 @@
-[gd_resource type="Resource" script_class="UpgradeTable" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="UpgradeTable" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://data/upgrade_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/upgrade_def.gd" id="2_def"]
 
+; CANDIDATE TUNING PROFILE ONLY — roles/order are approved; Sam has not signed
+; off these prices or effect magnitudes. The measured M7A session replaces them.
+[sub_resource type="Resource" id="Upgrade_balanced_axe"]
+script = ExtResource("2_def")
+id = &"balanced_axe"
+display_name = "Balanced Axe"
+description = "A steadier general-purpose axe that makes ordinary splits a little more reliable."
+limitation = "Does not speed the swing, improve payouts, or unlock skill procs. A split is never guaranteed."
+purchase_form = 0
+base_cost = 50
+cost_growth = 1.0
+max_level = 1
+effect = 1
+effect_step = 0.03
+
+[sub_resource type="Resource" id="Upgrade_reinforced_block"]
+script = ExtResource("2_def")
+id = &"reinforced_chopping_block"
+display_name = "Reinforced Chopping Block"
+description = "The first rank adds a broader, steadier work surface that keeps useful billets readable."
+limitation = "Does not change split odds, cut classification, XP, cash, or physics capacity."
+purchase_form = 1
+base_cost = 50
+cost_growth = 1.0
+max_level = 1
+effect = 2
+effect_step = 0.15
+
+[sub_resource type="Resource" id="Upgrade_supplier_ledger"]
+script = ExtResource("2_def")
+id = &"supplier_ledger"
+display_name = "Supplier Ledger"
+description = "Opens the first supplier relationship and makes the next species eligible to purchase."
+limitation = "The wood is not included: its level gate, separate price, delivery, and manual lesson still apply."
+purchase_form = 0
+unlock_order_id = &"campfire_warmup"
+base_cost = 150
+cost_growth = 1.0
+max_level = 1
+
+[sub_resource type="Resource" id="Upgrade_handcart"]
+script = ExtResource("2_def")
+id = &"handcart"
+display_name = "Handcart"
+description = "Stages one selected log while the current load settles, shortening non-interactive delivery time."
+limitation = "Does not chop, queue multiple logs, change the 50-piece pile, or increase payout."
+purchase_form = 0
+unlock_after_haul_aways = 1
+base_cost = 150
+cost_growth = 1.0
+max_level = 1
+effect = 3
+effect_step = 0.5
+
+[sub_resource type="Resource" id="Upgrade_coffee_thermos"]
+script = ExtResource("2_def")
+id = &"coffee_thermos"
+display_name = "Coffee Thermos"
+description = "Permanent yard equipment that modestly shortens ordinary recovery between manual swings."
+limitation = "Not a consumable. Does not refund swings, create follow-ups or streaks, or change wind-up and split odds."
+purchase_form = 0
+unlock_order_id = &"aspen_hearth_load"
+base_cost = 400
+cost_growth = 1.0
+max_level = 1
+effect = 4
+effect_step = 0.05
+
 [resource]
 script = ExtResource("1_table")
-upgrades = Array[ExtResource("2_def")]([])
+upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_balanced_axe"), SubResource("Upgrade_reinforced_block"), SubResource("Upgrade_supplier_ledger"), SubResource("Upgrade_handcart"), SubResource("Upgrade_coffee_thermos")])

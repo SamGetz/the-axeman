@@ -48,6 +48,12 @@ extends Node3D
 const _PieceAnimator := preload("res://scenes/3d_action/piece_animator.gd")
 const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 
+## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
+## the pacing probe observes this scene directly while a measured play session
+## is running, and shipping systems do not depend on either signal.
+signal strike_resolved(did_split: bool)
+signal log_completed(species_id: StringName, piece_count: int)
+
 # --- log species ---------------------------------------------------------
 ## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
 ## res://data/species_def.gd, read through SpeciesTable's static helpers.
@@ -212,11 +218,9 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 ## billet is a near-certain split; 0.0 = size is irrelevant and a last small chunk
 ## resists exactly as hard as the fresh log did.
 @export_range(0.0, 1.0) var size_relief := 0.2
-## The ceiling, however many protein bars have been eaten: a swing is never a
-## certainty, which is the whole point of the mechanic.
+## The ceiling, however strongly learned Strength and equipment weight the roll:
+## a swing is never a certainty, which is the whole point of the mechanic.
 @export_range(0.5, 1.0) var max_split_chance := 0.95
-## Sam's 5%: each level of the strength upgrade adds this to the odds.
-@export var strength_step := 0.05
 ## Shake for a swing that bit but did not split — smaller than a real hit, and
 ## with NO hit-pause, so a successful split keeps the time-stop to itself.
 @export var fail_impact := 0.25
@@ -233,6 +237,9 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 @export_group("Swing rate")
 @export var swing_cooldown := 0.45      # Creative Director call, 2026-08-01
 @export var coffee_step := 0.05         # Sam's 5%, compounding per level
+## Hard floor shared by skills and permanent equipment so the axe never loses
+## its authored weight. PLACEHOLDER pending the measured tuning session.
+@export var min_swing_cooldown := 0.25
 
 # --- audio (hooks; drop a stream in to hear it) ---------------------------
 @export_group("Audio")
@@ -262,6 +269,7 @@ var _cooldown_left := 0.0                 # seconds until the axe can swing agai
 var _stacking := false                    # firewood is flying into the pile
 var _awaiting_stack := false              # log done; waiting for firewood to settle before stacking
 var _await_since := 0.0                   # sec timestamp the wait began
+var _staged_log: Dictionary = {}          # Handcart's one prepared next log; never inventory or automation
 
 var _source_mesh: Mesh
 var _yaw_steps := 0
@@ -311,6 +319,8 @@ func _ready() -> void:
 	# from the species it actually puts on the block, so building one up front only
 	# loaded and scaled an FBX for a random species that was thrown away.
 	_build_stump()
+	GameState.building_tiers_changed.connect(_refresh_equipment_effects)
+	_refresh_equipment_effects()
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
 	_spawn_fresh_log()
@@ -554,6 +564,8 @@ func _haul_away() -> void:
 		_pile_root.remove_child(c)
 		_haul_root.add_child(c)
 		load_out.append(c)
+	if not load_out.is_empty():
+		GameState.record_haul_away()
 	_pile.reset()
 	GameState.clear_yard_pile()
 	_pile.start_hauling(load_out)
@@ -574,6 +586,7 @@ func _firewood_settled() -> bool:
 ## its landed transform, then the pile animates it into its arc slot.
 func _begin_stacking() -> void:
 	_awaiting_stack = false
+	_stage_next_log()
 	var proxies: Array = []
 	for f in _firewood:
 		if not is_instance_valid(f):
@@ -604,6 +617,7 @@ func _begin_stacking() -> void:
 	if yield_item != &"":
 		for _p in proxies:
 			EventBus.resource_gathered.emit(yield_item, 1)
+	log_completed.emit(&"" if _current_species == null else _current_species.id, proxies.size())
 
 	# NOTE the experience is NOT awarded here. It is per log, not per piece, and it
 	# is paid at the final split — see the tail of _perform_split.
@@ -756,7 +770,9 @@ func _tween_pivot(target_y: float, t: float) -> void:
 func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int) -> bool:
 	if _roll_splits(piece):
 		piece.set_meta("scars", 0)
-		return _perform_split(piece, world_point, normal, dir_enum)
+		var split := _perform_split(piece, world_point, normal, dir_enum)
+		strike_resolved.emit(split)
+		return split
 
 	# It bit, it did not go through. Mark the wood and make the next swing into
 	# this piece more likely — the pity bonus, worn where the player can see it.
@@ -766,12 +782,13 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 	# two outcomes feel different before the player has read a single number.
 	GameFeel.register_impact(fail_impact, false)
 	_play_sfx(thud_sfx)
+	strike_resolved.emit(false)
 	return false
 
 
 ## The odds that ONE swing cleaves `piece`, all in one place:
 ##   the wood's own resistance, made easier as the piece gets smaller,
-##   + the scars already in it, + every level of the strength upgrade,
+##   + the scars already in it, + learned Strength effects, + axe weighting,
 ##   capped so a swing is never a certainty.
 func split_chance_for(piece: Area3D) -> float:
 	var base: float = default_split_chance if _current_species == null else _current_species.split_chance
@@ -783,12 +800,10 @@ func split_chance_for(piece: Area3D) -> float:
 	base += (1.0 - base) * (1.0 - frac) * size_relief
 
 	base += float(_scars_on(piece)) * scar_bonus
-	# THE SKILL TREE, not the cash shop (Creative Director call, 2026-08-02:
-	# player enhancements are bought with levels, cash buys axes, auto-cutters
-	# and woods). `strength_step` stays as the mini-game's own fallback and as
-	# the record of Sam's 5%; the live magnitude is the tree's to decide, and
-	# it SUMS because split chance is a flat probability.
+	# Strength owns player capability; the cash axe only weights ordinary
+	# reliability. Separate queries prevent equipment from granting a skill id.
 	base += SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH)
+	base += Shop.total_effect(UpgradeDef.Effect.SPLIT_RELIABILITY)
 	return clampf(base, 0.0, max_split_chance)
 
 
@@ -923,7 +938,9 @@ func current_swing_cooldown() -> float:
 	# summed magnitude: ten levels of 5% off is 40% of the original wait, not
 	# zero. Only the caller knows what its number means.
 	var level := SkillTree.total_levels(SkillNodeDef.Effect.SWING_SPEED)
-	return swing_cooldown * pow(1.0 - coffee_step, float(level))
+	var after_skill := swing_cooldown * pow(1.0 - coffee_step, float(level))
+	var equipment := clampf(Shop.total_effect(UpgradeDef.Effect.SWING_RECOVERY), 0.0, 0.9)
+	return maxf(min_swing_cooldown, after_skill * (1.0 - equipment))
 
 
 # --------------------------------------------------------------- slicing
@@ -1046,7 +1063,7 @@ func _apply_shockwave(cut_point: Vector3, new_stays: Array) -> void:
 			"pop": pop, "tilt": tilt, "delay": delay, "yaw": p.rotation.y,
 		})
 
-	_separate(entries, _stump_radius * clamp_radius_frac, sep_gap)
+	_separate(entries, current_work_radius() * clamp_radius_frac, sep_gap)
 
 	for e: Dictionary in entries:
 		var p: Area3D = e.piece
@@ -1095,6 +1112,10 @@ func debug_split_chance() -> float:
 	if _on_block.is_empty():
 		return 0.0
 	return split_chance_for(_on_block[0])
+
+
+func debug_has_staged_log() -> bool:
+	return not _staged_log.is_empty()
 
 
 # ------------------------------------------------------- piece factories
@@ -1278,6 +1299,8 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	_firewood.clear()
 	_animator.clear()
 	_pending = {}
+	if reset_pile:
+		_staged_log = {}
 	_awaiting_stack = false
 	_stacking = false
 
@@ -1293,15 +1316,53 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	# Select the next log's species — the species is what this log will yield,
 	# and what its exposed end-grain looks like when it is cut.
 	var species_index := _pick_species_index()
-	_current_species = SpeciesTable.at(species_index)
-	_cut_mat = _cut_mat_for(species_index)
-	_source_mesh = _apply_species_look(
-		_center_mesh(_build_split_log(_pick_mesh(_current_species))), species_index)
+	var chosen := SpeciesTable.at(species_index)
+	var using_cart: bool = (
+		not _staged_log.is_empty()
+		and chosen != null
+		and _staged_log.get("species_id", &"") == chosen.id
+	)
+	if using_cart:
+		_current_species = _staged_log.species
+		_cut_mat = _staged_log.cut_mat
+		_source_mesh = _staged_log.mesh
+	else:
+		_current_species = chosen
+		_cut_mat = _cut_mat_for(species_index)
+		_source_mesh = _apply_species_look(
+			_center_mesh(_build_split_log(_pick_mesh(_current_species))), species_index)
+	_staged_log = {}
 
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
 	var rest_y := _stump_top_y + half_h
 	var node := _make_stay_piece(_source_mesh, Vector3(0.0, rest_y, 0.0), 0.0, true)
-	_animator.animate_drop(node, rest_y + drop_height, rest_y, Callable(self, "_play_drop_sfx"))
+	if using_cart:
+		var reduction := clampf(Shop.total_effect(UpgradeDef.Effect.DELIVERY_TIME), 0.0, 0.8)
+		var duration := maxf(100.0, 300.0 * (1.0 - reduction))
+		_animator.animate_delivery(node, Vector3(0.72, rest_y + 0.15, 0.38),
+			Vector3(0, rest_y, 0), Callable(self, "_play_drop_sfx"), duration)
+	else:
+		_animator.animate_drop(node, rest_y + drop_height, rest_y, Callable(self, "_play_drop_sfx"))
+
+
+## Prepare one mesh while the completed log is already waiting/stacking. It is
+## not placed, counted, paid or interactable until _spawn_fresh_log consumes it.
+func _stage_next_log() -> void:
+	if Shop.get_level(GameState.UPGRADE_HANDCART) <= 0 or not _staged_log.is_empty():
+		return
+	var species_index := _pick_species_index()
+	var species := SpeciesTable.at(species_index)
+	if species == null:
+		return
+	var mat := _cut_mat_for(species_index)
+	var mesh := _apply_species_look(
+		_center_mesh(_build_split_log(_pick_mesh(species))), species_index)
+	_staged_log = {
+		"species_id": species.id,
+		"species": species,
+		"cut_mat": mat,
+		"mesh": mesh,
+	}
 
 
 func _build_stump() -> void:
@@ -1321,8 +1382,10 @@ func _build_stump() -> void:
 	_stump_radius = maxf(aabb.size.x, aabb.size.z) * 0.5 * s
 
 	var body := StaticBody3D.new()
+	body.name = "StumpBody"
 	body.physics_material_override = _phys_mat
 	var cs := CollisionShape3D.new()
+	cs.name = "StumpCollision"
 	var cyl := CylinderShape3D.new()
 	cyl.radius = _stump_radius
 	cyl.height = _stump_top_y
@@ -1330,6 +1393,16 @@ func _build_stump() -> void:
 	cs.position = Vector3(0, _stump_top_y * 0.5, 0)
 	body.add_child(cs)
 	add_child(body)
+
+
+func current_work_radius() -> float:
+	return _stump_radius * (1.0 + Shop.total_effect(UpgradeDef.Effect.WORK_RADIUS))
+
+
+func _refresh_equipment_effects() -> void:
+	var cs: CollisionShape3D = get_node_or_null("StumpBody/StumpCollision")
+	if cs != null and cs.shape is CylinderShape3D:
+		(cs.shape as CylinderShape3D).radius = current_work_radius()
 
 
 # ------------------------------------------------------------------- axe

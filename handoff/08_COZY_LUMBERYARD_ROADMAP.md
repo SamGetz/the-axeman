@@ -204,13 +204,33 @@ Prove that chopping can carry the economy with the smallest coherent slice:
 - a visible stockpile that grows with the player’s output;
 - a real entry flow that replaces the temporary M-key path.
 
-Before implementation, specify the exact three orders, five upgrades, prices,
-payouts and lifetime milestones with Sam. Do not infer those tuning values from
-this roadmap.
+**Approved 2026-08-04 catalogue amendment:** the five purchases, in order, are
+Balanced Axe (one-time generalist reliability), Reinforced Chopping Block
+(tiered line; rank 1 is the M7A larger/steadier surface), Supplier Ledger
+(one-time supplier-access relationship), Handcart (one-time next-log staging,
+unlocked by the first 50-piece haul-away), and Coffee Thermos (permanent
+one-time recovery equipment, unlocked by Aspen Hearth Load). Balanced Axe and
+Block are the two opening alternatives. Nearby locks are visible; distant
+catalogue progression is hidden; purchases appear immediately. Introductory
+order bonuses are 50, 150 and 400 cash. Exact catalogue prices and effect
+magnitudes remain measured tuning calls.
 
-### M7B — craftsmanship and lumberyard expansion
+Before final tuning/sign-off, measure the exact order quantities/reveal gates,
+five shop prices and effect magnitudes with Sam. Candidate resource values may
+support the approved implementation and instrumented session; do not promote
+them to final values from this roadmap.
 
-After M7A sign-off, add reputation, the forgiving cut-quality layer, requested
+### M7C — full Axeman skill identity (next after M7A)
+
+After M7A sign-off, implement the full Strength, Speed and Technique identities,
+including their approved named procs, safety rules and prototype migration.
+This is a deliberate 2026-08-04 sequence change. Starter Balanced Axe and rank
+1 Reinforced Chopping Block moved into M7A; M7C retains later sidegrades,
+loadout and mechanic-changing skills.
+
+### M7B — craftsmanship and lumberyard expansion (follows M7C)
+
+After M7C sign-off, add reputation, the forgiving cut-quality layer, requested
 piece sizes/species, additional customer families and meaningful axe/block/
 supply/yard/transport progression. This phase proves that player skill and
 business growth reinforce one another.

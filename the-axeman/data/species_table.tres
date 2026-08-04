@@ -29,6 +29,7 @@ yield_item = &"pine_firewood"
 janka = 380
 unlock_level = 3
 unlock_cost = 60
+supplier_upgrade_id = &"supplier_ledger"
 split_chance = 0.54
 xp_reward = 12
 meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://assets/models/logs_export/log_02.fbx")

@@ -10,7 +10,7 @@ extends Control
 ##   ├── ShopPanel (PanelContainer, centred — hidden until the shop is opened)
 ##   │   └── Column (VBoxContainer)
 ##   │       ├── Header (HBoxContainer) → ShopIcon (TextureRect), ShopTitle (Label)
-##   │       ├── ShopList (VBoxContainer)   <- rows are built at RUNTIME
+##   │       ├── ShopScroll/ShopList         <- rows are built at RUNTIME
 ##   │       ├── ShopEmpty (Label)
 ##   │       └── CloseShopButton (Button)
 ##   ├── WoodPanel (PanelContainer, centred — hidden until the woodshed is opened)
@@ -42,10 +42,11 @@ extends Control
 ## LIVE, NEVER POLLED: it listens to GameState.cash_changed, which is precisely
 ## what that local signal exists for (Amendment 2's precedent).
 ##
-## THE SHOP ROWS ARE BUILT FROM DATA at runtime, from `Shop.get_upgrades()` — so
+## THE SHOP ROWS ARE BUILT FROM DATA at runtime, from the currently visible
+## prefix of `Shop.get_upgrades()` — so
 ## a new thing to buy is a row in `res://data/upgrade_table.tres` and nothing else.
-## Costs and level caps in that file are placeholders awaiting Sam; the two 5%
-## effect steps are his.
+## Prices, effect magnitudes and later block ranks remain candidate tuning until
+## the measured M7A session and Sam's sign-off.
 ##
 ## THE WOODSHED, added 2026-08-02 (Creative Director call: the player PICKS the
 ## wood that goes on the block, rather than it being rolled). Same shape as the
@@ -68,7 +69,7 @@ extends Control
 const _COIN := preload("res://assets/ui/coin.png")
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
-@onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopList
+@onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopScroll/ShopList
 @onready var _shop_empty: Label = $ShopPanel/Column/ShopEmpty
 @onready var _shop_panel: PanelContainer = $ShopPanel
 @onready var _shop_button: Button = $QuickMenu/ShopButton
@@ -116,6 +117,9 @@ func _ready() -> void:
 	GameState.skill_points_changed.connect(_on_skill_points_changed)
 	GameState.skill_level_changed.connect(_on_skill_level_changed)
 	GameState.order_state_changed.connect(_on_order_state_changed)
+	GameState.haul_aways_changed.connect(_on_catalogue_gate_changed.unbind(1))
+	GameState.level_gained.connect(_on_catalogue_gate_changed.unbind(1))
+	GameState.building_tiers_changed.connect(_on_catalogue_gate_changed)
 	# A purchase moves a tier through A7's own signal, so the shelf repaints off
 	# the same event that recorded the sale.
 	EventBus.building_upgraded.connect(_on_building_upgraded)
@@ -181,6 +185,12 @@ func _on_building_upgraded(_id: StringName, _tier: int) -> void:
 	_rebuild_shop()
 
 
+func _on_catalogue_gate_changed() -> void:
+	_rebuild_shop()
+	_rebuild_orders()
+	_rebuild_woodshed()
+
+
 ## One row per upgrade, straight from the table: what it is, what it does, what
 ## level you are on and what the next one costs.
 func _rebuild_shop() -> void:
@@ -188,7 +198,7 @@ func _rebuild_shop() -> void:
 		_shop_list.remove_child(child)
 		child.queue_free()
 
-	var upgrades := Shop.get_upgrades()
+	var upgrades := Shop.get_visible_upgrades()
 	_shop_empty.visible = upgrades.is_empty()
 	for def: UpgradeDef in upgrades:
 		if def != null:
@@ -198,6 +208,7 @@ func _rebuild_shop() -> void:
 func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	var level := Shop.get_level(def.id)
 	var maxed := def.is_maxed(level)
+	var unlocked := Shop.is_unlocked(def.id)
 
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 2)
@@ -205,13 +216,17 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 8)
 	var name_label := Label.new()
-	name_label.text = "%s  (level %d)" % [def.display_name, level]
+	var rank_word := "rank" if def.purchase_form == UpgradeDef.PurchaseForm.TIERED else "owned"
+	name_label.text = "%s  (%s %d)" % [def.display_name, rank_word, level]
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(name_label)
 
 	var buy := Button.new()
 	buy.custom_minimum_size = Vector2(92, 34)   # room for the coin beside the price
-	if maxed:
+	if not unlocked:
+		buy.text = _upgrade_unlock_text(def)
+		buy.disabled = true
+	elif maxed:
 		buy.text = "Maxed"
 		buy.disabled = true
 	else:
@@ -228,7 +243,23 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.add_theme_font_size_override("font_size", 13)
 	row.add_child(blurb)
+	if def.limitation != "":
+		var limit := Label.new()
+		limit.text = "Limit: " + def.limitation
+		limit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		limit.add_theme_font_size_override("font_size", 12)
+		limit.modulate = Color(0.78, 0.78, 0.78, 1.0)
+		row.add_child(limit)
 	return row
+
+
+func _upgrade_unlock_text(def: UpgradeDef) -> String:
+	if def.unlock_after_haul_aways > GameState.get_haul_aways_completed():
+		return "After first haul"
+	if def.unlock_order_id != &"" and not GameState.has_completed_order(def.unlock_order_id):
+		var order := Orders.by_id(def.unlock_order_id)
+		return "After %s" % (String(def.unlock_order_id) if order == null else order.title)
+	return "Locked"
 
 
 func _on_buy_pressed(id: StringName) -> void:
@@ -300,7 +331,14 @@ func _rebuild_woodshed() -> void:
 		_next_wood.text = "Every wood on Earth is yours."
 	else:
 		var levels := next.levels_remaining(GameState.get_level())
-		if levels > 0:
+		var supplier_missing := next.supplier_upgrade_id != &"" and Shop.get_level(next.supplier_upgrade_id) <= 0
+		if supplier_missing:
+			var supplier := Shop.get_upgrade(next.supplier_upgrade_id)
+			_next_wood.text = "Next: %s — requires %s before it can be ordered." % [
+				next.display_name,
+				String(next.supplier_upgrade_id) if supplier == null else supplier.display_name,
+			]
+		elif levels > 0:
 			_next_wood.text = "Next: %s — reach level %d to put it up for sale (%d to go)." % [
 				next.display_name, next.unlock_level, levels]
 		else:
@@ -334,7 +372,7 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
 		pick.text = str(_thousands(def.unlock_cost))
 		pick.icon = _COIN
 		pick.expand_icon = true
-		pick.disabled = not GameState.can_afford_cash(def.unlock_cost)
+		pick.disabled = not GameState.can_species_be_bought(def.id) or not GameState.can_afford_cash(def.unlock_cost)
 		pick.pressed.connect(_on_buy_wood_pressed.bind(def.id))
 	else:
 		pick.text = "On the block" if is_chosen else "Chop this"
@@ -394,6 +432,7 @@ func _on_close_orders_pressed() -> void:
 
 func _on_order_state_changed() -> void:
 	_rebuild_orders()
+	_rebuild_shop()
 
 
 func _rebuild_orders() -> void:
@@ -408,7 +447,7 @@ func _rebuild_orders() -> void:
 		_orders_active.text = "Active: %s — %d / %d" % [
 			active.title, GameState.get_active_order_progress(), active.required_count]
 
-	for order: OrderDef in Orders.all():
+	for order: OrderDef in Orders.visible():
 		if order != null:
 			_orders_list.add_child(_build_order_row(order))
 
@@ -437,7 +476,10 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 
 	var button := Button.new()
 	button.custom_minimum_size.y = 34
-	if GameState.has_completed_order(order.id):
+	if not Orders.is_revealed(order):
+		button.text = "Reveals at level %d" % order.unlock_level
+		button.disabled = true
+	elif GameState.has_completed_order(order.id):
 		button.text = "Completed"
 		button.disabled = true
 	elif GameState.get_active_order_id() == order.id:

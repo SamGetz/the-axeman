@@ -18,8 +18,27 @@ static func by_id(id: StringName) -> OrderDef:
 	return null if table == null else table.by_id(id)
 
 
+static func is_revealed(order: OrderDef) -> bool:
+	return order != null and GameState.get_level() >= order.unlock_level
+
+
+## Every revealed order plus exactly one next-order tease. Distant contracts stay
+## hidden even if their species data already exists.
+static func visible() -> Array[OrderDef]:
+	var out: Array[OrderDef] = []
+	for order: OrderDef in all():
+		if order == null:
+			continue
+		out.append(order)
+		if not is_revealed(order):
+			break
+	return out
+
+
 static func is_available(order: OrderDef) -> bool:
 	if order == null or GameState.has_completed_order(order.id):
+		return false
+	if not is_revealed(order):
 		return false
 	return order.required_species == &"" or GameState.owns_species(order.required_species)
 

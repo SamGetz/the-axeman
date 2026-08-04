@@ -87,6 +87,7 @@ const _RAW_AXE_REACH := 0.502
 
 var _speed := 1.0
 var _authored_model_scale := Vector3.ONE
+var _balanced_enabled := false
 
 
 func _ready() -> void:
@@ -119,6 +120,37 @@ func _apply_extra_reach() -> void:
 	if authored_reach <= 0.0:
 		return
 	_axe_model.scale = _authored_model_scale * (1.0 + extra_reach / authored_reach)
+
+
+## Immediate greybox consequence for the Balanced Axe purchase. Final sign-off
+## requires Sam's authored replacement model; this collar makes ownership visible
+## without mutating the imported FBX or its shared materials.
+func set_balanced_upgrade(enabled: bool) -> void:
+	_balanced_enabled = enabled
+	if _axe_model == null:
+		return
+	var existing := _axe_model.get_node_or_null("BalancedGrip")
+	if not enabled:
+		if existing != null:
+			existing.queue_free()
+		return
+	if existing != null:
+		return
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.025
+	mesh.bottom_radius = 0.025
+	mesh.height = 0.16
+	mesh.radial_segments = 12
+	var marker := MeshInstance3D.new()
+	marker.name = "BalancedGrip"
+	marker.mesh = mesh
+	marker.position = Vector3(0, 0.11, 0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.18, 0.42, 0.56, 1.0)
+	mat.metallic = 0.25
+	mat.roughness = 0.5
+	marker.material_override = mat
+	_axe_model.add_child(marker)
 
 
 ## Play the swing. `aim` is the click in normalised screen coordinates — (0,0) is

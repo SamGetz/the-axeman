@@ -70,6 +70,10 @@ extends Resource
 ## want tuning together in live play against the XP curve, not one at a time.
 @export var unlock_level: int = 1
 @export var unlock_cost: int = 0
+## Optional physical/business access gate. The species is still separately
+## level-gated and purchased; this merely names the supplier relationship that
+## must already exist. Empty means no supplier equipment requirement.
+@export var supplier_upgrade_id: StringName = &""
 ## Odds that ONE swing cleaves a WHOLE log of this wood, before size relief,
 ## scars and the strength upgrade are added (see chopping_minigame.split_chance_
 ## for, which is where the whole sum lives). Descends as `janka` climbs.

@@ -108,6 +108,44 @@ Exact prices, payout multipliers, timing values and upgrade magnitudes are still
 tuning decisions. Do not invent them in code: present them to Sam as resource
 values/placeholders and tune with Creative Director sign-off.
 
+### APPROVED M7A FIVE-PURCHASE CATALOGUE (2026-08-04)
+
+Sam approved `handoff/11_M7A_FIVE_PURCHASE_IMPLEMENTATION_BRIEF.md`. The M7A
+catalogue order and roles are now binding:
+
+1. **Balanced Axe** — one-time generalist tool; modest ordinary split
+   reliability, never a certainty and never a source of unlearned skill procs.
+2. **Reinforced Chopping Block** — a tiered workstation line. M7A implements
+   rank 1 as a larger, steadier selectable work surface; later ranks remain
+   post-M7A and hidden.
+3. **Supplier Ledger** — one-time first supplier relationship. It gates access
+   to the next species but never grants it: the player still meets the level
+   gate, pays the species price, receives a specimen and chops it manually.
+4. **Handcart** — one-time one-log staging/logistics upgrade, unlocked by the
+   first 50-piece haul-away. It reduces only non-interactive delivery time and
+   does not change the pile capacity, payout or manual chop.
+5. **Coffee Thermos** — permanent one-time recovery equipment, unlocked by
+   completing Aspen Hearth Load. It is not a consumable and cannot grant Speed's
+   follow-up, refund, rhythm or streak mechanics.
+
+Balanced Axe and Reinforced Chopping Block are the two fresh-save alternatives;
+the first order should make either but not both affordable at roughly five
+minutes. The first level of all five should land in 20–30 minutes through the
+introductory-order route. Order bonuses are now **50, 150 and 400 cash**. Show
+only nearby locked catalogue items, and make every purchase appear immediately.
+Major items are physical; the approved Ledger configuration also includes a
+physical prop. Greybox native-node props are allowed while final authored art
+and audio are absent.
+
+The prototype skill migration is also approved for the next M7C work: retain
+Strong Arms as Strength foundation and Quick Hands as Speed foundation; rename
+Keen Edge to Ready Stance under Speed; replace Splitter with Double Strike
+without silently converting ranks; rename Woodsman to Quick Study under
+Technique; and move Negotiator's sale-value purpose out of the three branches
+into M7B reputation/business progression. M7C, not M7B, is the next milestone
+after M7A sign-off. Final prices, effect magnitudes, exact later block tier count
+and measured gates remain Creative Director tuning calls.
+
 ### OPEN — cleanup calls, do not invent answers
 
 1. `slice_poc.tscn` still sits in `scenes/3d_action/` — a leftover from the
@@ -131,7 +169,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **247/247** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **271/271** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
@@ -531,7 +569,8 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
 - The yard has a data-driven Contract Board. Its brown panel is deliberately a
   native `StyleBoxFlat` placeholder; `hud_shot_2d_orders.png` proves all three
   choices and an active progress bar fit together at 1280×720.
-- Verified by 21 added checks: `m7a_acceptance` is now **247/247**. M4 remains
+- Verified by 21 added checks at that stage; the suite is now **271/271** after
+  the approved five-purchase catalogue implementation. M4 remains
   **55/55** and the slicer remains **34/34**.
 - Still to do in M7A: the tangible cash-purchase catalogue. Its behaviours and
   tuning remain a Creative Director call. The unlockable-species requirement is

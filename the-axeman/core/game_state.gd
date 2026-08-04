@@ -24,6 +24,9 @@ signal lifetime_wood_chopped_changed(new_total: int)
 ## the visible record of work done since the last load left, and it is progression
 ## state, so it lives here.
 signal yard_pile_changed(new_total: int)
+## Completed physical 50-piece departures. This is a monotonic yard milestone,
+## not a second capacity counter; Handcart uses the first one as its unlock.
+signal haul_aways_changed(new_total: int)
 ## The player chose a different wood to put on the block.
 signal selected_species_changed(species_id: StringName)
 ## Experience earned (2026-08-02). Carries the new TOTAL, like every other counter
@@ -47,6 +50,10 @@ signal species_purchased(species_id: StringName)
 ## completion signal carries the celebratory facts a HUD needs.
 signal order_state_changed
 signal order_completed(order_id: StringName, cash_bonus: int)
+## Local repaint/restore notification for physical equipment. A7's
+## building_upgraded remains the purchase command; this signal also fires after
+## loading tiers from disk, when no purchase event exists to replay.
+signal building_tiers_changed
 
 ## Fresh-save defaults (M1 acceptance: AXE tier == 1 on a fresh save).
 const DEFAULT_TOOL_TIER := 1
@@ -60,8 +67,11 @@ const YARD_PILE_CAPACITY := 50
 ## why that is the honest home and not a new contract), and they live here rather
 ## than on either the shop or the chopping game because both sides read them: the
 ## shop sells the level, the mini-game spends it.
-const UPGRADE_COFFEE := &"coffee"       # shorter cooldown between swings
-const UPGRADE_STRENGTH := &"strength"   # better odds of splitting a log clean through
+const UPGRADE_BALANCED_AXE := &"balanced_axe"
+const UPGRADE_REINFORCED_BLOCK := &"reinforced_chopping_block"
+const UPGRADE_SUPPLIER_LEDGER := &"supplier_ledger"
+const UPGRADE_HANDCART := &"handcart"
+const UPGRADE_COFFEE_THERMOS := &"coffee_thermos"
 ## PLACEHOLDER per Directive 3 — the starting purse is a tuning value, not a
 ## design fact. Sam sets the real number when M7A's prices are decided.
 const DEFAULT_CASH := 0
@@ -85,6 +95,7 @@ var _lifetime_wood_chopped: int = 0
 ## species so a restored pile shows the same mix of woods it had when the player
 ## left, and emptied wholesale when a load is hauled away.
 var _yard_pile: Dictionary = {}
+var _haul_aways_completed := 0
 ## Which wood the player has chosen to chop (a SpeciesDef.id, see
 ## res://data/species_table.tres). Empty means "never chosen" and reads as the
 ## starting species — see get_selected_species().
@@ -165,6 +176,10 @@ func get_yard_pile_capacity() -> int:
 	return YARD_PILE_CAPACITY
 
 
+func get_haul_aways_completed() -> int:
+	return _haul_aways_completed
+
+
 ## ---------------------------------------------------- experience and levels
 func get_xp() -> int:
 	return _xp
@@ -237,6 +252,8 @@ func owns_species(species_id: StringName) -> bool:
 func can_species_be_bought(species_id: StringName) -> bool:
 	var def := SpeciesTable.by_id(species_id)
 	if def == null or owns_species(species_id):
+		return false
+	if def.supplier_upgrade_id != &"" and get_building_tier(def.supplier_upgrade_id) <= DEFAULT_BUILDING_TIER:
 		return false
 	return get_level() >= def.unlock_level
 
@@ -344,6 +361,14 @@ func clear_yard_pile() -> void:
 	yard_pile_changed.emit(0)
 
 
+## Called exactly when a full physical load is handed to WoodPile's haul
+## animation. Separate from clear_yard_pile so tests, save recovery and debug
+## rebuilds cannot accidentally unlock the Handcart by merely emptying state.
+func record_haul_away() -> void:
+	_haul_aways_completed += 1
+	haul_aways_changed.emit(_haul_aways_completed)
+
+
 ## ------------------------------------------------- choosing the wood (M7A)
 ## Put a different wood on the block. Returns false and changes NOTHING — no
 ## state, no signal — if the species is unknown or has not been earned yet, so a
@@ -425,9 +450,7 @@ func try_buy_species(species_id: StringName) -> bool:
 	if def == null:
 		push_error("GameState: no wood species named '%s' — purchase refused." % species_id)
 		return false
-	if owns_species(species_id):
-		return false
-	if get_level() < def.unlock_level:
+	if not can_species_be_bought(species_id):
 		return false
 	if not try_spend_cash(def.unlock_cost):
 		return false
@@ -492,6 +515,7 @@ func to_save_dict() -> Dictionary:
 		"cash": _cash,
 		"lifetime_wood_chopped": _lifetime_wood_chopped,
 		"yard_pile": pile,
+		"haul_aways_completed": _haul_aways_completed,
 		# The player's CHOICE of wood. The unlocked SET is deliberately not saved:
 		# it is re-derived from lifetime_wood_chopped on load, so a retuned ladder
 		# applies to an existing save instead of freezing its old thresholds in.
@@ -516,6 +540,7 @@ func apply_save_dict(data: Dictionary) -> void:
 	## Signals fire after the whole load so a UI never paints a half-restored state.
 	_cash = maxi(0, int(data.get("cash", DEFAULT_CASH)))
 	_lifetime_wood_chopped = maxi(0, int(data.get("lifetime_wood_chopped", 0)))
+	_haul_aways_completed = maxi(0, int(data.get("haul_aways_completed", 0)))
 
 	_yard_pile = {}
 	var pile: Variant = data.get("yard_pile")
@@ -603,12 +628,14 @@ func apply_save_dict(data: Dictionary) -> void:
 	cash_changed.emit(_cash)
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
 	yard_pile_changed.emit(get_yard_pile_count())
+	haul_aways_changed.emit(_haul_aways_completed)
 	# The RESOLVED choice, not the raw field: a save whose wood no longer exists
 	# must repaint the HUD as the wood that will actually be on the block.
 	selected_species_changed.emit(get_selected_species())
 	xp_changed.emit(_xp)
 	skill_points_changed.emit(get_skill_points_available())
 	order_state_changed.emit()
+	building_tiers_changed.emit()
 
 
 func reset_to_defaults() -> void:
@@ -617,6 +644,7 @@ func reset_to_defaults() -> void:
 	_cash = DEFAULT_CASH
 	_lifetime_wood_chopped = 0
 	_yard_pile = {}
+	_haul_aways_completed = 0
 	_selected_species = &""
 	_owned_species = {}
 	_xp = 0
@@ -633,10 +661,12 @@ func reset_to_defaults() -> void:
 	cash_changed.emit(_cash)
 	lifetime_wood_chopped_changed.emit(_lifetime_wood_chopped)
 	yard_pile_changed.emit(0)
+	haul_aways_changed.emit(0)
 	selected_species_changed.emit(get_selected_species())
 	xp_changed.emit(0)
 	skill_points_changed.emit(0)
 	order_state_changed.emit()
+	building_tiers_changed.emit()
 
 ## The XP curve, loaded once. Data, so the whole 99-level shape is one file
 ## edit — see LevelCurve for why the level is derived from it rather than
@@ -670,6 +700,7 @@ func _on_building_upgraded(building_id: StringName, new_tier: int) -> void:
 		push_warning("GameState: building_upgraded for '%s' with non-increasing tier %d (current %d) — ignored." % [building_id, new_tier, current])
 		return
 	_building_tiers[building_id] = new_tier
+	building_tiers_changed.emit()
 
 
 ## Lifetime wood chopped, fed by the A7 signal the chopping game already emits —

@@ -148,9 +148,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -240.0
-offset_top = -160.0
+offset_top = -290.0
 offset_right = 240.0
-offset_bottom = 160.0
+offset_bottom = 290.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -175,9 +175,13 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Shop"
 
-[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Column"]
+[node name="ShopScroll" type="ScrollContainer" parent="ShopPanel/Column"]
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Column/ShopScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
 [node name="ShopEmpty" type="Label" parent="ShopPanel/Column"]

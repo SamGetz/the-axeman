@@ -3,7 +3,8 @@
 [ext_resource type="Script" path="res://data/order_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/order_def.gd" id="2_def"]
 
-; PLACEHOLDER TUNING — Sam signs off or replaces these six numbers.
+; REQUIRED COUNTS AND REVEAL LEVELS ARE CANDIDATE TUNING. Sam approved the
+; three bonuses exactly as 50 / 150 / 400 on 2026-08-04.
 [sub_resource type="Resource" id="Order_any"]
 script = ExtResource("2_def")
 id = &"campfire_warmup"
@@ -11,7 +12,7 @@ customer_name = "Campsite Manager"
 title = "Campfire Warm-up"
 description = "A small mixed bundle for tonight's first fires. Any split firewood counts."
 required_count = 10
-cash_bonus = 5
+cash_bonus = 50
 
 [sub_resource type="Resource" id="Order_aspen"]
 script = ExtResource("2_def")
@@ -19,10 +20,11 @@ id = &"aspen_hearth_load"
 customer_name = "Neighbour"
 title = "Aspen Hearth Load"
 description = "A light load of Quaking Aspen for a home hearth."
+unlock_level = 2
 required_item = &"aspen_firewood"
 required_species = &"quaking_aspen"
 required_count = 15
-cash_bonus = 10
+cash_bonus = 150
 
 [sub_resource type="Resource" id="Order_pine"]
 script = ExtResource("2_def")
@@ -30,10 +32,11 @@ id = &"pine_campsite_load"
 customer_name = "Campsite Manager"
 title = "Pine Campsite Load"
 description = "Eastern White Pine for a busy weekend at the campground."
+unlock_level = 3
 required_item = &"pine_firewood"
 required_species = &"eastern_white_pine"
 required_count = 20
-cash_bonus = 30
+cash_bonus = 400
 
 [resource]
 script = ExtResource("1_table")
