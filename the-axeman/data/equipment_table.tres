@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="EquipmentTable" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://data/equipment_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/equipment_def.gd" id="2_equipment"]
+
+[sub_resource type="Resource" id="Equipment_basic_axe"]
+script = ExtResource("2_equipment")
+id = &"basic_axe"
+display_name = "Woodcutter's Axe"
+description = "The dependable starting axe."
+limitation = "No equipment-specific proc affinity or resistant-wood weighting."
+slot = 0
+is_starting_fallback = true
+comparison_tags = Array[StringName]([&"balanced", &"baseline"])
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 0
+
+[sub_resource type="Resource" id="Equipment_balanced_axe"]
+script = ExtResource("2_equipment")
+id = &"balanced_axe"
+display_name = "Balanced Axe"
+description = "The M7A generalist reliability tool."
+limitation = "Never grants an unlearned skill proc."
+slot = 0
+ownership_upgrade_id = &"balanced_axe"
+comparison_tags = Array[StringName]([&"generalist", &"split_reliability"])
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 1
+
+[sub_resource type="Resource" id="Equipment_splitting_maul"]
+script = ExtResource("2_equipment")
+id = &"splitting_maul"
+display_name = "Splitting Maul"
+description = "A slower sidegrade intended for resistant wood."
+limitation = "Does not discover skills or make an ordinary split certain."
+slot = 0
+comparison_tags = Array[StringName]([&"slow", &"resistant_wood"])
+art_status = 2
+
+[sub_resource type="Resource" id="Equipment_basic_block"]
+script = ExtResource("2_equipment")
+id = &"basic_chopping_block"
+display_name = "Chopping Block"
+description = "The starting manual workstation."
+limitation = "No cradle support or precision assistance."
+slot = 1
+is_starting_fallback = true
+comparison_tags = Array[StringName]([&"baseline", &"manual"])
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 0
+
+[sub_resource type="Resource" id="Equipment_reinforced_block"]
+script = ExtResource("2_equipment")
+id = &"reinforced_chopping_block"
+display_name = "Reinforced Chopping Block"
+description = "The broader M7A rank-one work surface."
+limitation = "Does not change the slice result or grant a proc."
+slot = 1
+ownership_upgrade_id = &"reinforced_chopping_block"
+comparison_tags = Array[StringName]([&"wide", &"steady"])
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 1
+
+[sub_resource type="Resource" id="Equipment_log_cradle"]
+script = ExtResource("2_equipment")
+id = &"log_cradle"
+display_name = "Log Cradle"
+description = "Reinforced Block rank 2, approved for deliberate orientation and steadying."
+limitation = "Does not alter slicer output or bypass precision suppression."
+slot = 1
+comparison_tags = Array[StringName]([&"orientation", &"precision_support"])
+art_status = 2
+
+[resource]
+script = ExtResource("1_table")
+equipment = Array[ExtResource("2_equipment")]([SubResource("Equipment_basic_axe"), SubResource("Equipment_balanced_axe"), SubResource("Equipment_splitting_maul"), SubResource("Equipment_basic_block"), SubResource("Equipment_reinforced_block"), SubResource("Equipment_log_cradle")])

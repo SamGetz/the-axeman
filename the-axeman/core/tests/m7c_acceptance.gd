@@ -2,9 +2,8 @@ extends Node
 ## FILE: res://core/tests/m7c_acceptance.gd
 ## ATTACHES TO: res://core/tests/m7c_acceptance.tscn. Not shipped.
 ##
-## M7C SLICE 2 ONLY: version-1 skill migration. Later M7C groups are appended
-## slice by slice; this scene is deliberately useful before any proc or mastery
-## gameplay exists.
+## M7C grows slice by slice. Current groups cover save-v2 skill migration and
+## typed content schemas/validators; no proc or mastery gameplay exists yet.
 
 const _FIXTURES := "res://core/tests/fixtures/"
 const _BACKUP_PATH := "user://the_axeman_save.m7c_testbackup"
@@ -14,12 +13,15 @@ var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M7C ACCEPTANCE — slice 2 save-v2 migration ===")
+	print("=== M7C ACCEPTANCE — migration and typed content ===")
 	_stash_real_save()
 	_test_all_mappings_and_exact_refunds()
 	_test_duplicates_caps_and_corrupt_ranks()
 	_test_partial_fixture_and_idempotence()
 	_test_load_save_reload_and_source_preservation()
+	_test_typed_live_catalogues_validate()
+	_test_skill_validator_rejects_bad_graphs()
+	_test_content_validators_reject_bad_rows()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -126,6 +128,177 @@ func _test_load_save_reload_and_source_preservation() -> void:
 		"renamed ranks survive load-save-reload")
 	_check(GameState.get_skill_points_spent() == 17,
 		"prototype cost basis survives load-save-reload exactly")
+
+
+func _test_typed_live_catalogues_validate() -> void:
+	var branches := M7CContent.branches()
+	var procs := M7CContent.procs()
+	var mastery := M7CContent.mastery()
+	var equipment := M7CContent.equipment()
+	_check(branches != null and branches.branches.size() == 3,
+		"the live catalogue has exactly the approved three typed branches")
+	_check(procs != null and procs.procs.size() == 3
+		and procs.by_id(&"double_strike") != null
+		and procs.by_id(&"follow_up") != null
+		and procs.by_id(&"quick_study") != null,
+		"Double Strike, Follow-Up and Quick Study are typed proc families")
+	_check(mastery != null and mastery.definitions.size() == SpeciesTable.count(),
+		"every live species has one mastery-schema row (%d)" % SpeciesTable.count())
+	_check(equipment != null and equipment.equipment.size() == 6,
+		"starting/M7A gear plus Maul and Log Cradle have typed equipment rows")
+	_check(equipment.starting_for_slot(EquipmentDef.Slot.AXE).id == &"basic_axe"
+		and equipment.starting_for_slot(EquipmentDef.Slot.WORKSTATION).id == &"basic_chopping_block",
+		"both loadout slots have explicit safe starting fallbacks")
+	var errors := M7CContent.validate_all()
+	_check(errors.is_empty(), "all shipping M7C resources validate (%s)" % str(errors))
+	var quick_study := SkillTree.get_node_def(&"quick_study")
+	_check(quick_study != null
+		and quick_study.branch_id == &"technique"
+		and quick_study.node_type == SkillNodeDef.NodeType.PROC
+		and quick_study.proc_id == &"quick_study",
+		"skill meaning comes from typed branch/node/proc fields, not display copy")
+
+
+func _test_skill_validator_rejects_bad_graphs() -> void:
+	var branches := M7CContent.branches()
+	var procs := M7CContent.procs()
+
+	var duplicate := SkillTreeTable.new()
+	var duplicate_node := _test_skill(&"same")
+	duplicate.nodes = [duplicate_node, duplicate_node]
+	_check(_has_error(M7CContent.validate_skill_tree(duplicate, branches, procs), "duplicate skill id"),
+		"tree validation rejects duplicate ids")
+
+	var dangling := SkillTreeTable.new()
+	var dangling_node := _test_skill(&"dangling")
+	dangling_node.requires = [&"missing"]
+	dangling.nodes = [dangling_node]
+	_check(_has_error(M7CContent.validate_skill_tree(dangling, branches, procs), "dangling prerequisite"),
+		"tree validation rejects dangling prerequisites")
+
+	var cycle := SkillTreeTable.new()
+	var cycle_a := _test_skill(&"cycle_a")
+	var cycle_b := _test_skill(&"cycle_b")
+	cycle_a.requires = [&"cycle_b"]
+	cycle_b.requires = [&"cycle_a"]
+	cycle.nodes = [cycle_a, cycle_b]
+	_check(_has_error(M7CContent.validate_skill_tree(cycle, branches, procs), "prerequisite cycle"),
+		"tree validation rejects cycles")
+
+	var illegal := SkillTreeTable.new()
+	var illegal_node := _test_skill(&"illegal")
+	illegal_node.node_type = 99
+	illegal_node.max_level = 0
+	illegal_node.cost = 0
+	illegal_node.branch_id = &"unknown_branch"
+	illegal_node.presentation_position = Vector2i(99, 99)
+	illegal.nodes = [illegal_node]
+	var illegal_errors := M7CContent.validate_skill_tree(illegal, branches, procs)
+	_check(_has_error(illegal_errors, "illegal node type"), "tree validation rejects illegal node types")
+	_check(_has_error(illegal_errors, "unknown branch"), "tree validation rejects unknown branches")
+	_check(_has_error(illegal_errors, "invalid cap") and _has_error(illegal_errors, "invalid cost"),
+		"tree validation rejects invalid caps and costs")
+
+	var layout := SkillTreeTable.new()
+	var layout_node := _test_skill(&"off_bough")
+	layout_node.presentation_position = Vector2i(99, 99)
+	layout.nodes = [layout_node]
+	_check(_has_error(M7CContent.validate_skill_tree(layout, branches, procs), "impossible layout"),
+		"tree validation rejects impossible bough layout references")
+
+
+func _test_content_validators_reject_bad_rows() -> void:
+	var branch_table := SkillBranchTable.new()
+	var bad_branch := SkillBranchDef.new()
+	bad_branch.id = &"duplicate_branch"
+	bad_branch.layout_slots = [Vector2i.ZERO, Vector2i.ZERO]
+	branch_table.branches = [bad_branch, bad_branch]
+	var branch_errors := M7CContent.validate_branches(branch_table)
+	_check(_has_error(branch_errors, "duplicate branch id")
+		and _has_error(branch_errors, "empty display name")
+		and _has_error(branch_errors, "duplicate layout slot"),
+		"branch validation rejects duplicate ids, missing copy and duplicate slots")
+
+	var proc_table := ProcTable.new()
+	var bad_proc := ProcDef.new()
+	bad_proc.id = &"bad_proc"
+	bad_proc.display_name = "Bad Proc"
+	bad_proc.announcement_key = &""
+	bad_proc.base_chance = 2.0
+	bad_proc.chain_cap = 0
+	bad_proc.bad_luck_bound = 0
+	proc_table.procs = [bad_proc, bad_proc]
+	var proc_errors := M7CContent.validate_procs(proc_table)
+	_check(_has_error(proc_errors, "duplicate proc id")
+		and _has_error(proc_errors, "invalid chance")
+		and _has_error(proc_errors, "invalid chain cap")
+		and _has_error(proc_errors, "invalid bad-luck policy")
+		and _has_error(proc_errors, "no announcement key"),
+		"proc validation rejects duplicate and unsafe resolver data")
+
+	var mastery_table := SpeciesMasteryTable.new()
+	var bad_mastery := SpeciesMasteryDef.new()
+	bad_mastery.species_id = &"invented_wood"
+	bad_mastery.mastery_target = 2
+	bad_mastery.manual_completion_award = 0
+	bad_mastery.reveal_thresholds = PackedInt32Array([2, 1, 9])
+	var bad_requirement := CertificationRequirementDef.new()
+	bad_requirement.kind = 99
+	bad_requirement.required_count = 0
+	var bad_requirements: Array[CertificationRequirementDef] = [bad_requirement]
+	bad_mastery.certification_requirements = bad_requirements
+	mastery_table.definitions = [bad_mastery, bad_mastery]
+	var mastery_errors := M7CContent.validate_mastery(mastery_table)
+	_check(_has_error(mastery_errors, "duplicate mastery species")
+		and _has_error(mastery_errors, "unknown species")
+		and _has_error(mastery_errors, "invalid target/award")
+		and _has_error(mastery_errors, "invalid reveal threshold")
+		and _has_error(mastery_errors, "illegal certification requirement"),
+		"mastery validation rejects duplicate, unknown, unordered and illegal requirements")
+
+	var equipment_table := EquipmentTable.new()
+	var bad_equipment := EquipmentDef.new()
+	bad_equipment.id = &"bad_equipment"
+	bad_equipment.slot = 99
+	bad_equipment.ownership_upgrade_id = &"invented_purchase"
+	var bad_modifier := GameplayModifierDef.new()
+	bad_modifier.kind = 99
+	bad_modifier.operation = 99
+	bad_modifier.magnitude = NAN
+	bad_modifier.tuning_status = ""
+	var bad_modifiers: Array[GameplayModifierDef] = [bad_modifier]
+	bad_equipment.modifiers = bad_modifiers
+	equipment_table.equipment = [bad_equipment, bad_equipment]
+	var equipment_errors := M7CContent.validate_equipment(equipment_table)
+	_check(_has_error(equipment_errors, "duplicate equipment id")
+		and _has_error(equipment_errors, "illegal slot")
+		and _has_error(equipment_errors, "unknown ownership upgrade")
+		and _has_error(equipment_errors, "no comparison tags")
+		and _has_error(equipment_errors, "starting fallbacks")
+		and _has_error(equipment_errors, "modifier with illegal kind")
+		and _has_error(equipment_errors, "modifier with illegal operation")
+		and _has_error(equipment_errors, "non-finite magnitude"),
+		"equipment/modifier validation rejects duplicate, unknown, uncomparable and unsafe rows")
+
+
+func _test_skill(id: StringName) -> SkillNodeDef:
+	var node := SkillNodeDef.new()
+	node.id = id
+	node.display_name = String(id)
+	node.description = "test"
+	node.branch_id = &"strength"
+	node.node_type = SkillNodeDef.NodeType.FOUNDATION
+	node.presentation_position = Vector2i.ZERO
+	node.max_level = 1
+	node.cost = 1
+	return node
+
+
+func _has_error(errors: PackedStringArray, needle: String) -> bool:
+	for error: String in errors:
+		if error.contains(needle):
+			return true
+	return false
 
 
 func _stash_real_save() -> void:

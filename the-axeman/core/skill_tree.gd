@@ -144,6 +144,10 @@ static func _catalogue() -> SkillTreeTable:
 	if not _validated:
 		_validated = true
 		_validate(_table)
+		# Run slice 3's semantic validation on the shipping load path too, so a
+		# malformed hand-edited resource is loud outside acceptance.
+		for error: String in M7CContent.validate_all():
+			push_error("M7C content: " + error)
 	return _table
 
 

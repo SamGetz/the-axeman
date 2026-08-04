@@ -36,11 +36,24 @@ enum Effect {
 	CASH_GAIN,
 }
 
+## M7C's semantic role. UI position and display copy are presentation only;
+## gameplay and validation read this field directly.
+enum NodeType { FOUNDATION, PROC, MODIFIER, CAPSTONE }
+
 @export var id: StringName
 @export var display_name: String
 ## Player-facing sentence. Says what a level DOES in the fiction — the roadmap is
 ## explicit that an upgrade must be felt or seen, never a hidden percentage.
 @export var description: String
+
+@export_group("M7C identity")
+@export var branch_id: StringName
+@export var node_type: NodeType = NodeType.FOUNDATION
+## Address inside SkillBranchDef.layout_slots, not a pixel coordinate.
+@export var presentation_position: Vector2i = Vector2i.ZERO
+## Required only for PROC nodes; points at ProcTable by stable id.
+@export var proc_id: StringName = &""
+@export var modifiers: Array[GameplayModifierDef] = []
 
 @export_group("The tree")
 ## Node ids that must be owned (level >= 1) before this one can be bought. Empty

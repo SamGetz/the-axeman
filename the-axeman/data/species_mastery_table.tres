@@ -1,0 +1,167 @@
+[gd_resource type="Resource" script_class="SpeciesMasteryTable" load_steps=29 format=3]
+
+[ext_resource type="Script" path="res://data/species_mastery_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/species_mastery_def.gd" id="2_mastery"]
+[ext_resource type="Script" path="res://data/certification_requirement_def.gd" id="3_requirement"]
+
+; SHARED SYSTEM-BUILDING PLACEHOLDERS ONLY. Slice 8 and Sam's tuning gate own
+; species-specific targets, awards, reveal thresholds and checklist counts.
+[sub_resource type="Resource" id="Requirement_manual"]
+script = ExtResource("3_requirement")
+kind = 0
+required_count = 1
+label = "Complete the authored number of logs manually"
+
+[sub_resource type="Resource" id="Mastery_quaking_aspen"]
+script = ExtResource("2_mastery")
+species_id = &"quaking_aspen"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_eastern_white_pine"]
+script = ExtResource("2_mastery")
+species_id = &"eastern_white_pine"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_norway_spruce"]
+script = ExtResource("2_mastery")
+species_id = &"norway_spruce"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_balsam_fir"]
+script = ExtResource("2_mastery")
+species_id = &"balsam_fir"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_lodgepole_pine"]
+script = ExtResource("2_mastery")
+species_id = &"lodgepole_pine"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_white_spruce"]
+script = ExtResource("2_mastery")
+species_id = &"white_spruce"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_black_spruce"]
+script = ExtResource("2_mastery")
+species_id = &"black_spruce"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_scots_pine"]
+script = ExtResource("2_mastery")
+species_id = &"scots_pine"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_western_hemlock"]
+script = ExtResource("2_mastery")
+species_id = &"western_hemlock"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_red_pine"]
+script = ExtResource("2_mastery")
+species_id = &"red_pine"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_douglas_fir"]
+script = ExtResource("2_mastery")
+species_id = &"douglas_fir"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_black_ash"]
+script = ExtResource("2_mastery")
+species_id = &"black_ash"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_paper_birch"]
+script = ExtResource("2_mastery")
+species_id = &"paper_birch"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_pedunculate_oak"]
+script = ExtResource("2_mastery")
+species_id = &"pedunculate_oak"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_silver_birch"]
+script = ExtResource("2_mastery")
+species_id = &"silver_birch"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_yellow_birch"]
+script = ExtResource("2_mastery")
+species_id = &"yellow_birch"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_northern_red_oak"]
+script = ExtResource("2_mastery")
+species_id = &"northern_red_oak"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_american_beech"]
+script = ExtResource("2_mastery")
+species_id = &"american_beech"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_white_ash"]
+script = ExtResource("2_mastery")
+species_id = &"white_ash"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_white_oak"]
+script = ExtResource("2_mastery")
+species_id = &"white_oak"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_sugar_maple"]
+script = ExtResource("2_mastery")
+species_id = &"sugar_maple"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_european_beech"]
+script = ExtResource("2_mastery")
+species_id = &"european_beech"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_river_red_gum"]
+script = ExtResource("2_mastery")
+species_id = &"river_red_gum"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_tasmanian_blue_gum"]
+script = ExtResource("2_mastery")
+species_id = &"tasmanian_blue_gum"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[sub_resource type="Resource" id="Mastery_lignum_vitae"]
+script = ExtResource("2_mastery")
+species_id = &"lignum_vitae"
+reveal_thresholds = PackedInt32Array(1, 5, 10)
+certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
+
+[resource]
+script = ExtResource("1_table")
+definitions = Array[ExtResource("2_mastery")]([SubResource("Mastery_quaking_aspen"), SubResource("Mastery_eastern_white_pine"), SubResource("Mastery_norway_spruce"), SubResource("Mastery_balsam_fir"), SubResource("Mastery_lodgepole_pine"), SubResource("Mastery_white_spruce"), SubResource("Mastery_black_spruce"), SubResource("Mastery_scots_pine"), SubResource("Mastery_western_hemlock"), SubResource("Mastery_red_pine"), SubResource("Mastery_douglas_fir"), SubResource("Mastery_black_ash"), SubResource("Mastery_paper_birch"), SubResource("Mastery_pedunculate_oak"), SubResource("Mastery_silver_birch"), SubResource("Mastery_yellow_birch"), SubResource("Mastery_northern_red_oak"), SubResource("Mastery_american_beech"), SubResource("Mastery_white_ash"), SubResource("Mastery_white_oak"), SubResource("Mastery_sugar_maple"), SubResource("Mastery_european_beech"), SubResource("Mastery_river_red_gum"), SubResource("Mastery_tasmanian_blue_gum"), SubResource("Mastery_lignum_vitae")])

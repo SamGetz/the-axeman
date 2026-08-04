@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="ProcTable" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://data/proc_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/proc_def.gd" id="2_proc"]
+
+; ALL NUMBERS ARE SYSTEM-BUILDING PLACEHOLDERS. Sam's later tuning gate owns them.
+[sub_resource type="Resource" id="Proc_double_strike"]
+script = ExtResource("2_proc")
+id = &"double_strike"
+display_name = "Double Strike"
+family = 0
+eligibility = 0
+announcement_key = &"double_strike"
+base_chance = 0.1
+chain_cap = 1
+bad_luck_bound = 10
+
+[sub_resource type="Resource" id="Proc_follow_up"]
+script = ExtResource("2_proc")
+id = &"follow_up"
+display_name = "Follow-Up"
+family = 1
+eligibility = 0
+announcement_key = &"follow_up"
+base_chance = 0.1
+chain_cap = 1
+bad_luck_bound = 10
+
+[sub_resource type="Resource" id="Proc_quick_study"]
+script = ExtResource("2_proc")
+id = &"quick_study"
+display_name = "Quick Study"
+family = 2
+eligibility = 1
+announcement_key = &"quick_study"
+base_chance = 0.1
+chain_cap = 1
+bad_luck_bound = 10
+
+[resource]
+script = ExtResource("1_table")
+procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study")])
