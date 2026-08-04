@@ -13,7 +13,7 @@ var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M7C ACCEPTANCE — migration and typed content ===")
+	print("=== M7C ACCEPTANCE — migration, typed content and three-bough UI ===")
 	_stash_real_save()
 	_test_all_mappings_and_exact_refunds()
 	_test_duplicates_caps_and_corrupt_ranks()
@@ -22,6 +22,7 @@ func _ready() -> void:
 	_test_typed_live_catalogues_validate()
 	_test_skill_validator_rejects_bad_graphs()
 	_test_content_validators_reject_bad_rows()
+	await _test_three_bough_skill_ui()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -279,6 +280,77 @@ func _test_content_validators_reject_bad_rows() -> void:
 		and _has_error(equipment_errors, "modifier with illegal operation")
 		and _has_error(equipment_errors, "non-finite magnitude"),
 		"equipment/modifier validation rejects duplicate, unknown, uncomparable and unsafe rows")
+
+
+func _test_three_bough_skill_ui() -> void:
+	GameState.reset_to_defaults()
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	hud.get_node("QuickMenu/SkillsButton").pressed.emit()
+	await get_tree().process_frame
+
+	var panel: PanelContainer = hud.get_node("SkillPanel")
+	var boughs: HBoxContainer = hud.get_node("SkillPanel/Column/SkillBody/BoughScroll/Boughs")
+	var detail_title: Label = hud.get_node("SkillPanel/Column/SkillBody/DetailPanel/Column/Title")
+	var detail_status: Label = hud.get_node("SkillPanel/Column/SkillBody/DetailPanel/Column/Status")
+	_check(panel.visible and boughs.get_child_count() == 3,
+		"Skills opens as exactly three native boughs over the chopping view")
+	var branch_ids: Array[StringName] = []
+	for bough: Control in boughs.get_children():
+		branch_ids.append(StringName(bough.get_meta("branch_id", &"")))
+	_check(branch_ids == [&"strength", &"speed", &"technique"],
+		"bough order and identity come from the authored branch table")
+	_check(panel.position.x >= 0.0 and panel.position.y >= 0.0
+		and panel.position.x + panel.size.x <= 1280.0
+		and panel.position.y + panel.size.y <= 720.0,
+		"the full skill window fits inside the shipping 1280x720 viewport (%s / %s)"
+			% [panel.position, panel.size])
+
+	var strong := _find_skill_button(hud, &"strong_arms")
+	var ready := _find_skill_button(hud, &"ready_stance")
+	var study := _find_skill_button(hud, &"quick_study")
+	_check(strong != null and ready != null and study != null,
+		"all three boughs expose their typed live nodes")
+	_check(strong.get_meta("skill_state") == "insufficient"
+		and ready.get_meta("skill_state") == "locked"
+		and study.get_meta("skill_state") == "insufficient",
+		"fresh-state cards distinguish insufficient points from prerequisites")
+
+	_check(hud.debug_select_skill(&"ready_stance"), "a locked node can be selected for explanation")
+	_check(detail_title.text == "Ready Stance" and detail_status.text.contains("prerequisite"),
+		"selected-node detail explains the lock instead of hiding the node")
+
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(2))
+	await get_tree().process_frame
+	strong = _find_skill_button(hud, &"strong_arms")
+	_check(strong.get_meta("skill_state") == "available",
+		"earning one point repaints Strong Arms as available")
+	hud.debug_select_skill(&"strong_arms")
+	var detail_buy: Button = hud.get_node("SkillPanel/Column/SkillBody/DetailPanel/Column/BuyButton")
+	_check(not detail_buy.disabled and detail_buy.text.contains("Learn rank 1"),
+		"selected-node detail offers the affordable rank")
+	detail_buy.pressed.emit()
+	await get_tree().process_frame
+	strong = _find_skill_button(hud, &"strong_arms")
+	_check(SkillTree.get_level(&"strong_arms") == 1
+		and strong.get_meta("skill_state") == "learned",
+		"buying through detail records and repaints the learned state")
+
+	var respec_notice: Label = hud.get_node("SkillPanel/Column/RespecNotice")
+	_check(respec_notice.text.contains("confirmation") and respec_notice.text.contains("pending"),
+		"free respec is disclosed without inventing unapproved confirmation copy")
+	hud.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+
+
+func _find_skill_button(hud: Control, id: StringName) -> Button:
+	for candidate: Node in hud.find_children("*", "Button", true, false):
+		if candidate.get_meta("skill_id", &"") == id:
+			return candidate as Button
+	return null
 
 
 func _test_skill(id: StringName) -> SkillNodeDef:

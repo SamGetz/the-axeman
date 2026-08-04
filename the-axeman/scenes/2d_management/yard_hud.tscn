@@ -271,35 +271,97 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -290.0
-offset_top = -220.0
-offset_right = 290.0
-offset_bottom = 220.0
+offset_left = -540.0
+offset_top = -310.0
+offset_right = 540.0
+offset_bottom = 310.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Column" type="VBoxContainer" parent="SkillPanel"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="SkillTitle" type="Label" parent="SkillPanel/Column"]
+[node name="Header" type="HBoxContainer" parent="SkillPanel/Column"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "Skills"
 
-[node name="PointsLabel" type="Label" parent="SkillPanel/Column"]
-layout_mode = 2
-text = "0 points to spend"
-
-[node name="SkillScroll" type="ScrollContainer" parent="SkillPanel/Column"]
-layout_mode = 2
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-
-[node name="SkillList" type="VBoxContainer" parent="SkillPanel/Column/SkillScroll"]
+[node name="SkillTitle" type="Label" parent="SkillPanel/Column/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Axeman Skills"
+
+[node name="PointsLabel" type="Label" parent="SkillPanel/Column/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "0 points to spend"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Subtitle" type="Label" parent="SkillPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Shape your work at the block. Skill points come from Axeman levels; yard equipment remains separate."
+
+[node name="SkillBody" type="HBoxContainer" parent="SkillPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="BoughScroll" type="ScrollContainer" parent="SkillPanel/Column/SkillBody"]
+custom_minimum_size = Vector2(720, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+
+[node name="Boughs" type="HBoxContainer" parent="SkillPanel/Column/SkillBody/BoughScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="DetailPanel" type="PanelContainer" parent="SkillPanel/Column/SkillBody"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="Column" type="VBoxContainer" parent="SkillPanel/Column/SkillBody/DetailPanel"]
+layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Select a skill"
+
+[node name="Meta" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+
+[node name="Description" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 3
+
+[node name="Requirements" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 12
+
+[node name="Status" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
+
+[node name="BuyButton" type="Button" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+text = "Select a skill"
+disabled = true
+
+[node name="RespecNotice" type="Label" parent="SkillPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Free yard respec  ·  confirmation copy pending approval"
+horizontal_alignment = 1
 
 [node name="CloseSkillButton" type="Button" parent="SkillPanel/Column"]
 custom_minimum_size = Vector2(0, 40)

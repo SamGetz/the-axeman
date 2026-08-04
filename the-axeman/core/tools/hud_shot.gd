@@ -64,16 +64,41 @@ func _ready() -> void:
 	_save("_2b_woodshed")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 
-	# The skill tree, part way up: enough levels to have points in hand and to
-	# have opened a second rank, so the indent, the "Needs X" rows and the
-	# affordable rows are all on screen at once.
+	# Fresh three-bough state: every branch is present, and selecting Ready Stance
+	# explains its prerequisite rather than hiding it.
+	hud.get_node("QuickMenu/SkillsButton").pressed.emit()
+	hud.debug_select_skill(&"ready_stance")
+	await get_tree().process_frame
+	_save("_2c_skills_fresh")
+	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
+
+	# Part way up: learned foundations, points in hand and a selected Technique
+	# proc make branch identity, selection and affordability visible together.
 	GameState.add_xp(30000)
 	SkillTree.buy(&"quick_hands")
 	SkillTree.buy(&"strong_arms")
 	hud.get_node("QuickMenu/SkillsButton").pressed.emit()
+	hud.debug_select_skill(&"quick_study")
 	await get_tree().process_frame
 	_save("_2c_skills")
 	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
+
+	# A real v1 fixture after migration: retained ranks stay learned and retired
+	# spend returns through the derived point balance. Restore the working-day
+	# state immediately after the shot so later pile/haul images remain honest.
+	var before_migration_shot := GameState.to_save_dict()
+	var fixture := ConfigFile.new()
+	if fixture.load("res://core/tests/fixtures/m7c_v1_all_skill_mappings.cfg") == OK:
+		var fixture_data: Variant = fixture.get_value("progression", "data", {})
+		if fixture_data is Dictionary:
+			GameState.apply_save_dict(SaveSystem._migrate(fixture_data as Dictionary, 1))
+			hud.get_node("QuickMenu/SkillsButton").pressed.emit()
+			hud.debug_select_skill(&"ready_stance")
+			await get_tree().process_frame
+			_save("_2c_skills_migration_refund")
+			hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
+	GameState.apply_save_dict(before_migration_shot)
+	await get_tree().process_frame
 
 	# The contract board uses temporary native geometry/materials until Sam's yard
 	# art arrives. Show both the three authored cards and live progress on one.

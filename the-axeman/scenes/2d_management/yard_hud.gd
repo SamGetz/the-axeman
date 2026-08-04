@@ -78,8 +78,15 @@ const _TREES_TAB := 1
 @onready var _skills_button: Button = $QuickMenu/SkillsButton
 @onready var _skills_badge: Label = $QuickMenu/SkillsButton/Badge
 @onready var _skill_panel: PanelContainer = $SkillPanel
-@onready var _skill_list: VBoxContainer = $SkillPanel/Column/SkillScroll/SkillList
-@onready var _points_label: Label = $SkillPanel/Column/PointsLabel
+@onready var _skill_boughs: HBoxContainer = $SkillPanel/Column/SkillBody/BoughScroll/Boughs
+@onready var _points_label: Label = $SkillPanel/Column/Header/PointsLabel
+@onready var _skill_detail_panel: PanelContainer = $SkillPanel/Column/SkillBody/DetailPanel
+@onready var _skill_detail_title: Label = $SkillPanel/Column/SkillBody/DetailPanel/Column/Title
+@onready var _skill_detail_meta: Label = $SkillPanel/Column/SkillBody/DetailPanel/Column/Meta
+@onready var _skill_detail_description: Label = $SkillPanel/Column/SkillBody/DetailPanel/Column/Description
+@onready var _skill_detail_requirements: Label = $SkillPanel/Column/SkillBody/DetailPanel/Column/Requirements
+@onready var _skill_detail_status: Label = $SkillPanel/Column/SkillBody/DetailPanel/Column/Status
+@onready var _skill_detail_buy: Button = $SkillPanel/Column/SkillBody/DetailPanel/Column/BuyButton
 @onready var _close_skill_button: Button = $SkillPanel/Column/CloseSkillButton
 @onready var _orders_button: Button = $QuickMenu/OrdersButton
 @onready var _orders_panel: PanelContainer = $OrdersPanel
@@ -88,6 +95,14 @@ const _TREES_TAB := 1
 @onready var _close_orders_button: Button = $OrdersPanel/Column/CloseButton
 @onready var _modal_backdrop: ColorRect = $ModalBackdrop
 
+var _selected_skill_id: StringName = &""
+
+const _SKILL_BG := Color(0.961, 0.918, 0.847, 1.0)
+const _SKILL_SURFACE := Color(0.922, 0.867, 0.773, 1.0)
+const _SKILL_CARD := Color(0.976, 0.957, 0.925, 1.0)
+const _SKILL_TEXT := Color(0.125, 0.118, 0.114, 1.0)
+const _SKILL_MUTED := Color(0.392, 0.361, 0.314, 1.0)
+
 
 func _ready() -> void:
 	_shop_button.pressed.connect(_on_shop_pressed)
@@ -95,6 +110,7 @@ func _ready() -> void:
 	_shop_tabs.tab_changed.connect(_on_shop_tab_changed)
 	_skills_button.pressed.connect(_on_skills_pressed)
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
+	_skill_detail_buy.pressed.connect(_on_buy_selected_skill_pressed)
 	_orders_button.pressed.connect(_on_orders_pressed)
 	_close_orders_button.pressed.connect(_on_close_orders_pressed)
 	_modal_backdrop.gui_input.connect(_on_modal_backdrop_gui_input)
@@ -119,6 +135,7 @@ func _ready() -> void:
 	EventBus.building_upgraded.connect(_on_building_upgraded)
 
 	_close_panels()
+	_apply_skill_theme()
 	_apply_xp_orb_color()
 	_refresh_stats()
 	_refresh_xp_bar()
@@ -127,6 +144,41 @@ func _ready() -> void:
 	_rebuild_skills()
 	_rebuild_orders()
 	_refresh_badges()
+
+
+## Slice 4 uses the approved mockup's warm organic hierarchy with native Godot
+## controls and the project's fallback font. Caprasimo/Figtree stay unimported
+## until their separate asset/provenance gate is approved.
+func _apply_skill_theme() -> void:
+	var theme := Theme.new()
+	theme.default_font_size = 14
+	theme.set_color("font_color", "Label", _SKILL_TEXT)
+	theme.set_color("font_color", "Button", _SKILL_TEXT)
+	theme.set_color("font_hover_color", "Button", _SKILL_TEXT)
+	theme.set_color("font_pressed_color", "Button", _SKILL_TEXT)
+	theme.set_color("font_disabled_color", "Button", Color(_SKILL_MUTED, 0.7))
+	theme.set_stylebox("panel", "PanelContainer", _skill_style(_SKILL_SURFACE, _SKILL_MUTED, 12, 1))
+	theme.set_stylebox("normal", "Button", _skill_style(_SKILL_CARD, Color(_SKILL_MUTED, 0.45), 8, 1))
+	theme.set_stylebox("hover", "Button", _skill_style(_SKILL_BG, _SKILL_MUTED, 8, 2))
+	theme.set_stylebox("pressed", "Button", _skill_style(_SKILL_SURFACE, _SKILL_MUTED, 8, 2))
+	theme.set_stylebox("disabled", "Button", _skill_style(Color(_SKILL_CARD, 0.55), Color(_SKILL_MUTED, 0.25), 8, 1))
+	_skill_panel.theme = theme
+	_skill_panel.add_theme_stylebox_override("panel", _skill_style(_SKILL_BG, _SKILL_MUTED, 18, 2, 16))
+	_skill_detail_panel.add_theme_stylebox_override("panel", _skill_style(_SKILL_CARD, Color(_SKILL_MUTED, 0.5), 12, 1, 12))
+
+
+func _skill_style(fill: Color, border: Color, radius: int, border_width: int,
+		margin: float = 8.0) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(radius)
+	style.content_margin_left = margin
+	style.content_margin_top = margin
+	style.content_margin_right = margin
+	style.content_margin_bottom = margin
+	return style
 
 
 ## XPOrb owns the reward colour. The HUD reads it rather than copying the value,
@@ -499,87 +551,218 @@ func _on_close_skill_pressed() -> void:
 	_close_panels()
 
 
-## THE TREE IS DRAWN AS AN INDENTED LIST, not as a graph with lines. A real node
-## graph is a layout problem and a design pass of its own; what the player needs
-## to answer right now is "what can I take next and what does it need", and depth
-## plus a named prerequisite says that without either. The DATA is a real DAG
-## (SkillNodeDef.requires, validated for cycles at load), so a graph view later is
-## a rendering change, not a rewrite.
+## Three native boughs, authored by SkillBranchDef and SkillNodeDef semantic
+## positions. Display strings never decide branch, role, proc family or layout.
 func _rebuild_skills() -> void:
-	if _skill_list == null:
+	if _skill_boughs == null:
 		return   # _ready has not run yet; the initial build is at the end of it
-	for child in _skill_list.get_children():
-		_skill_list.remove_child(child)
+	for child in _skill_boughs.get_children():
+		_skill_boughs.remove_child(child)
 		child.queue_free()
 
 	var available := GameState.get_skill_points_available()
-	_points_label.text = "%d point%s to spend   ·   level %d" % [
+	_points_label.text = "%d point%s   ·   level %d" % [
 		available, "" if available == 1 else "s", GameState.get_level()]
 
-	# Roots first, then each node under the prerequisite that opens it, so the
-	# order on screen is the order the player can actually take them in.
+	for branch: SkillBranchDef in M7CContent.branches().branches:
+		if branch != null:
+			_skill_boughs.add_child(_build_skill_bough(branch))
+
+	if SkillTree.get_node_def(_selected_skill_id) == null:
+		_selected_skill_id = _default_selected_skill()
+	_refresh_skill_detail()
+
+
+func _build_skill_bough(branch: SkillBranchDef) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = String(branch.id).to_pascal_case() + "Bough"
+	panel.custom_minimum_size = Vector2(224, 0)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var pale := branch.color.lerp(_SKILL_CARD, 0.82)
+	panel.add_theme_stylebox_override("panel", _skill_style(pale, branch.color.darkened(0.2), 12, 2, 10))
+	panel.set_meta("branch_id", branch.id)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 7)
+	panel.add_child(column)
+
+	var title := Label.new()
+	title.text = branch.display_name
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", branch.color.darkened(0.35))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(title)
+
+	var copy := Label.new()
+	copy.text = branch.description
+	copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	copy.add_theme_font_size_override("font_size", 10)
+	copy.add_theme_color_override("font_color", _SKILL_MUTED)
+	copy.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(copy)
+
+	var nodes: Array[SkillNodeDef] = []
 	for node: SkillNodeDef in SkillTree.get_nodes():
-		if node != null and node.is_root():
-			_add_skill_row(node, 0)
+		if node != null and node.branch_id == branch.id:
+			nodes.append(node)
+	nodes.sort_custom(func(a: SkillNodeDef, b: SkillNodeDef) -> bool:
+		if a.presentation_position.y == b.presentation_position.y:
+			return a.presentation_position.x < b.presentation_position.x
+		return a.presentation_position.y < b.presentation_position.y)
+
+	for i in range(nodes.size()):
+		if i > 0:
+			var connector := ColorRect.new()
+			connector.custom_minimum_size = Vector2(0, 3)
+			connector.color = Color(branch.color, 0.45)
+			connector.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			column.add_child(connector)
+		column.add_child(_build_skill_node_button(nodes[i], branch))
+
+	if nodes.is_empty():
+		var empty := Label.new()
+		empty.text = "This bough is awaiting its first authored node."
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		empty.add_theme_font_size_override("font_size", 11)
+		column.add_child(empty)
+	return panel
 
 
-func _add_skill_row(def: SkillNodeDef, depth: int) -> void:
-	_skill_list.add_child(_build_skill_row(def, depth))
-	for child: SkillNodeDef in SkillTree.children_of(def.id):
-		# A node with two prerequisites (Woodsman needs both branches) would
-		# otherwise be listed twice — show it under the LAST one it needs, so it
-		# never appears above something it depends on.
-		if child.requires[child.requires.size() - 1] == def.id:
-			_add_skill_row(child, depth + 1)
-
-
-func _build_skill_row(def: SkillNodeDef, depth: int) -> HBoxContainer:
+func _build_skill_node_button(def: SkillNodeDef, branch: SkillBranchDef) -> Button:
 	var level := SkillTree.get_level(def.id)
 	var maxed := def.is_maxed(level)
 	var locked := not SkillTree.prerequisites_met(def.id)
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-
-	var indent := Control.new()
-	indent.custom_minimum_size = Vector2(depth * 22, 0)
-	row.add_child(indent)
-
-	var text := VBoxContainer.new()
-	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_constant_override("separation", 0)
-	var name_label := Label.new()
-	name_label.text = "%s   (%d/%d)" % [def.display_name, level, def.max_level]
-	text.add_child(name_label)
-	var blurb := Label.new()
-	blurb.add_theme_font_size_override("font_size", 12)
-	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	if locked:
-		var missing: Array[StringName] = SkillTree.missing_prerequisites(def.id)
-		var names: Array[String] = []
-		for m: StringName in missing:
-			var req := SkillTree.get_node_def(m)
-			names.append(def.display_name if req == null else req.display_name)
-		blurb.text = "Needs %s." % " and ".join(names)
-	else:
-		blurb.text = def.description
-	text.add_child(blurb)
-	row.add_child(text)
-
-	var buy := Button.new()
-	buy.custom_minimum_size = Vector2(96, 32)
+	var state := "available"
+	var state_label := "Available"
 	if maxed:
-		buy.text = "Mastered"
-		buy.disabled = true
+		state = "mastered"
+		state_label = "Mastered"
+	if locked:
+		state = "locked"
+		state_label = "Locked"
+	elif level > 0:
+		state = "learned"
+		state_label = "Learned"
+	elif not SkillTree.can_buy(def.id):
+		state = "insufficient"
+		state_label = "Need points"
+
+	var button := Button.new()
+	button.name = String(def.id).to_pascal_case()
+	button.custom_minimum_size = Vector2(0, 66)
+	button.text = "%s\n%d/%d  ·  %s" % [def.display_name, level, def.max_level, state_label]
+	# Compact cards already own an explicit line break. Godot's smart wrapping
+	# can elide the middle of a selected two-word label at this width (observed as
+	# "QStudy" in the 1280x720 render), so do not ask it to reshape this text.
+	button.autowrap_mode = TextServer.AUTOWRAP_OFF
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.tooltip_text = def.description
+	button.set_meta("skill_id", def.id)
+	button.set_meta("skill_state", state)
+	button.pressed.connect(_on_select_skill_pressed.bind(def.id))
+
+	var fill := _SKILL_CARD
+	if state == "learned" or state == "mastered":
+		fill = branch.color.lerp(_SKILL_CARD, 0.68)
+	elif state == "locked":
+		fill = Color(_SKILL_CARD, 0.55)
+	var width := 3 if def.id == _selected_skill_id else 1
+	button.add_theme_stylebox_override("normal", _skill_style(fill, branch.color.darkened(0.15), 8, width, 8))
+	button.add_theme_stylebox_override("hover", _skill_style(branch.color.lerp(_SKILL_CARD, 0.78), branch.color, 8, 2, 8))
+	button.add_theme_stylebox_override("pressed", _skill_style(branch.color.lerp(_SKILL_CARD, 0.62), branch.color.darkened(0.2), 8, 3, 8))
+	return button
+
+
+func _on_select_skill_pressed(id: StringName) -> void:
+	_selected_skill_id = id
+	_rebuild_skills()
+
+
+func _default_selected_skill() -> StringName:
+	for node: SkillNodeDef in SkillTree.get_nodes():
+		if node != null and SkillTree.can_buy(node.id):
+			return node.id
+	for node: SkillNodeDef in SkillTree.get_nodes():
+		if node != null:
+			return node.id
+	return &""
+
+
+func _refresh_skill_detail() -> void:
+	var def := SkillTree.get_node_def(_selected_skill_id)
+	if def == null:
+		_skill_detail_title.text = "Select a skill"
+		_skill_detail_meta.text = ""
+		_skill_detail_description.text = ""
+		_skill_detail_requirements.text = ""
+		_skill_detail_status.text = ""
+		_skill_detail_buy.text = "Select a skill"
+		_skill_detail_buy.disabled = true
+		return
+
+	var branch := M7CContent.branches().by_id(def.branch_id)
+	var level := SkillTree.get_level(def.id)
+	var maxed := def.is_maxed(level)
+	var locked := not SkillTree.prerequisites_met(def.id)
+	_skill_detail_title.text = def.display_name
+	_skill_detail_meta.text = "%s  ·  %s  ·  rank %d/%d" % [
+		String(def.branch_id).capitalize() if branch == null else branch.display_name,
+		_node_type_label(def.node_type), level, def.max_level]
+	_skill_detail_description.text = def.description
+
+	var requirement_names: Array[String] = []
+	for missing: StringName in SkillTree.missing_prerequisites(def.id):
+		var required := SkillTree.get_node_def(missing)
+		requirement_names.append(String(missing) if required == null else required.display_name)
+	_skill_detail_requirements.text = "Prerequisite: none" if def.requires.is_empty() else (
+		"Still needs: %s" % " and ".join(requirement_names) if not requirement_names.is_empty()
+		else "Prerequisites learned")
+
+	if maxed:
+		_skill_detail_status.text = "This skill is mastered."
+		_skill_detail_buy.text = "Mastered"
+		_skill_detail_buy.disabled = true
 	elif locked:
-		buy.text = "Locked"
-		buy.disabled = true
+		_skill_detail_status.text = "Learn the prerequisite before spending here."
+		_skill_detail_buy.text = "Locked"
+		_skill_detail_buy.disabled = true
+	elif not SkillTree.can_buy(def.id):
+		_skill_detail_status.text = "You have %d; the next rank costs %d." % [
+			GameState.get_skill_points_available(), def.cost]
+		_skill_detail_buy.text = "Need %d point%s" % [def.cost, "" if def.cost == 1 else "s"]
+		_skill_detail_buy.disabled = true
 	else:
-		buy.text = "%d pt%s" % [def.cost, "" if def.cost == 1 else "s"]
-		buy.disabled = not SkillTree.can_buy(def.id)
-		buy.pressed.connect(_on_buy_skill_pressed.bind(def.id))
-	row.add_child(buy)
-	return row
+		_skill_detail_status.text = "Spend one earned skill point choice here."
+		_skill_detail_buy.text = "Learn rank %d  ·  %d pt%s" % [
+			level + 1, def.cost, "" if def.cost == 1 else "s"]
+		_skill_detail_buy.disabled = false
+
+
+func _node_type_label(node_type: SkillNodeDef.NodeType) -> String:
+	match node_type:
+		SkillNodeDef.NodeType.FOUNDATION:
+			return "Foundation"
+		SkillNodeDef.NodeType.PROC:
+			return "Proc"
+		SkillNodeDef.NodeType.MODIFIER:
+			return "Modifier"
+		SkillNodeDef.NodeType.CAPSTONE:
+			return "Capstone"
+	return "Unknown"
+
+
+func _on_buy_selected_skill_pressed() -> void:
+	if _selected_skill_id != &"":
+		SkillTree.buy(_selected_skill_id)
+
+
+## Deterministic shot/acceptance seam: selection only, no ownership mutation.
+func debug_select_skill(id: StringName) -> bool:
+	if SkillTree.get_node_def(id) == null:
+		return false
+	_selected_skill_id = id
+	_rebuild_skills()
+	return true
 
 
 func _on_buy_skill_pressed(id: StringName) -> void:
