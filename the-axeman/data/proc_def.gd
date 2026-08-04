@@ -3,8 +3,13 @@ extends Resource
 ## One named chance-driven family. The later resolver reads this definition;
 ## this resource neither rolls nor owns fairness/progression state.
 
-enum Family { DOUBLE_STRIKE, FOLLOW_UP, QUICK_STUDY }
-enum Eligibility { MANUAL_SWING, MANUAL_LOG_COMPLETION }
+enum Family { DOUBLE_STRIKE, FOLLOW_UP, QUICK_STUDY, GRAIN_READ }
+## MANUAL_PIECE_OFFER: rolled once when a fresh on-block piece is created (a
+## new log or a freshly split half), deciding whether that piece carries a
+## permanent gold grain mark. Distinct from MANUAL_SWING (rolled per landed
+## strike) and MANUAL_LOG_COMPLETION (rolled once per finished log) — a grain
+## offer is neither of those, it is per piece-creation.
+enum Eligibility { MANUAL_SWING, MANUAL_LOG_COMPLETION, MANUAL_PIECE_OFFER }
 
 @export var id: StringName
 @export var display_name: String

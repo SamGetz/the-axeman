@@ -48,7 +48,6 @@ extends Node3D
 const _PieceAnimator := preload("res://scenes/3d_action/piece_animator.gd")
 const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 const _ManualLogOutcome := preload("res://data/manual_log_outcome.gd")
-const _GrainCueOverlay := preload("res://scenes/3d_action/grain_cue_overlay.gd")
 const _GRAIN_CUE_CONFIG := preload("res://data/grain_cue.tres")
 
 ## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
@@ -63,6 +62,10 @@ signal bonus_proc_announced(proc_id: StringName, cuts: int)
 ## Receipt for one manual completed-log XP transaction. This is local
 ## instrumentation/presentation data; GameState remains the only XP writer.
 signal manual_xp_awarded(base_xp: int, bonus_xp: int, proc_id: StringName)
+## Receipt for one permanent gold grain mark being cut. Local instrumentation
+## only, same shape as manual_xp_awarded — GameState.add_xp is still the only
+## write, this just lets presentation/tests observe the transaction happened.
+signal grain_read_awarded(bonus_xp: int)
 
 # --- log species ---------------------------------------------------------
 ## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
@@ -105,6 +108,11 @@ signal manual_xp_awarded(base_xp: int, bonus_xp: int, proc_id: StringName)
 ## every orb in the burst — the beat they spend lying in the dirt. PLACEHOLDER.
 @export var orb_collect_at := 0.85
 @export var orb_scatter_radius := 0.32   # smallest ring the burst lands in; widened to clear the stump
+## A gold grain cut pays much bigger than a routine log, and its orb burst has to
+## visibly outsize the routine ceiling above or the payout doesn't read as a lot
+## of XP. Same curve (sqrt(xp) * orb_density), just a raised, separate clamp.
+@export var grain_orb_count_min := 14
+@export var grain_orb_count_max := 28
 @export_group("")
 
 @export var debug_forced_species := -1   # -1 = whatever the player picked; >=0 forces a species_table.tres LADDER INDEX (headless tests + shots)
@@ -249,6 +257,10 @@ signal manual_xp_awarded(base_xp: int, bonus_xp: int, proc_id: StringName)
 ## comes first"). PLACEHOLDER per Directive 3.
 @export var global_proc_chain_cap := 3
 @export var debug_force_proc := -1      # -1 = roll for real; 0 = never; 1 = always (tests only)
+## Forces the grain_read OFFER roll (does a fresh piece get a gold mark), same
+## shape as debug_force_proc. Independent of debug_split_roll/debug_force_proc,
+## which govern what happens once a piece already has (or doesn't have) a mark.
+@export var debug_force_grain := -1     # -1 = roll for real; 0 = never; 1 = always (tests only)
 
 # --- swing cooldown (what the coffee buys) --------------------------------
 ## Creative Director call, 2026-08-01: coffee is "5% faster time between swings",
@@ -304,20 +316,26 @@ var _last_quick_study_bonus := 0
 var _last_quick_study_root_id: StringName = &""
 
 ## Technique grain opportunity: one preflighted local cut plane tied to one
-## current on-block piece, with world and screen visuals owned here so every
-## lifecycle edge tears down the same state.
+## current on-block piece, with the world mark owned here so every lifecycle
+## edge tears down the same state. PERMANENT — nothing here ages it out; it only
+## ever clears via a real lifecycle edge (see _clear_grain_cue's callers).
 var _grain_target: Area3D = null
 var _grain_target_mesh: Mesh = null
 var _grain_local_plane := Plane()
 var _grain_local_anchor := Vector3.ZERO
-var _grain_started_msec := 0
 var _grain_marks: Array[MeshInstance3D] = []
-var _grain_canvas: CanvasLayer = null
-var _grain_overlay: Control = null
-var _grain_color := Color.TRANSPARENT
 var _grain_last_clear_reason: StringName = &""
 var _grain_candidate_dirty := false
 var _grain_line_mesh: ArrayMesh = null
+var _grain_dark_mat: StandardMaterial3D = null
+var _grain_glow_mat: StandardMaterial3D = null
+var _grain_core_mat: StandardMaterial3D = null
+## Once-per-log latch: a mark is decided at most once per log, win or lose the
+## roll, so it never relocates onto a "better" candidate and never stacks a
+## second one after the first is taken. Reset only in _spawn_fresh_log.
+var _grain_offered_this_log := false
+var _grain_offer_count_this_log := 0     # debug seam: how many marks actually landed this log
+var _last_grain_bonus := 0               # debug seam: XP paid by the most recent gold cut
 
 var _source_mesh: Mesh
 var _yaw_steps := 0
@@ -378,10 +396,6 @@ func _ready() -> void:
 	_build_smoke_pool()
 	GameState.building_tiers_changed.connect(_refresh_equipment_effects)
 	GameState.skill_level_changed.connect(_on_grain_progression_changed)
-	# main.tscn loads progression after this child is ready. xp_changed is the
-	# post-transaction repaint edge that lets an already-owned Quick Study show
-	# its cue on the fresh physical log without replaying any reward event.
-	GameState.xp_changed.connect(_on_grain_progression_restored)
 	_refresh_equipment_effects()
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
@@ -403,15 +417,14 @@ func _on_grain_progression_changed(skill_id: StringName, _new_level: int) -> voi
 	_refresh_grain_availability()
 
 
-func _on_grain_progression_restored(_new_total: int) -> void:
-	_refresh_grain_availability()
-
-
+## Only ever CLEARS. A live mark is a rolled, once-per-log event, not a display
+## of what the player currently owns — losing the skill (or the modifier that
+## grants it) takes an unspent mark away, but gaining it never retroactively
+## places one on whatever happens to be on the block; the next piece-creation
+## event is the earliest a fresh offer can be rolled.
 func _refresh_grain_availability() -> void:
 	if not _grain_cue_enabled():
 		_clear_grain_cue(&"skill_unavailable")
-	elif _grain_target == null and not _on_block.is_empty():
-		_try_show_grain_cue(_pick_grain_target(_on_block))
 
 
 func _exit_tree() -> void:
@@ -797,11 +810,16 @@ func _manual_xp_multiplier(proc_def: ProcDef) -> float:
 ## HOW MANY is a curve, not a ratio: a log worth 8 XP and one worth 56,000 both
 ## have to read as "a handful", so the count grows with the LOG's worth but is
 ## clamped hard. Tying one orb to one XP would bury the late game in confetti.
-func _burst_xp_orbs(amount: int) -> void:
+##
+## `from`/`count_min`/`count_max` default to the routine log-completion burst
+## (stump centre, orb_count_min..orb_count_max); the gold grain reward
+## (_award_grain_bonus) passes the cut point and the raised grain_orb_count_*
+## ceiling so its payout visibly outsizes an ordinary log's.
+func _burst_xp_orbs(amount: int, from := Vector3(0.0, _stump_top_y + 0.12, 0.0),
+		count_min := orb_count_min, count_max := orb_count_max) -> void:
 	if not orbs_enabled or _camera == null or amount <= 0:
 		return
-	var count := clampi(int(round(sqrt(float(amount)) * orb_density)), orb_count_min, orb_count_max)
-	var from := Vector3(0.0, _stump_top_y + 0.12, 0.0)
+	var count := clampi(int(round(sqrt(float(amount)) * orb_density)), count_min, count_max)
 	for i in range(count):
 		var orb := XPOrb.new()
 		orb.name = "XPOrb%d" % i
@@ -840,6 +858,28 @@ func _on_click(screen_pos: Vector2) -> void:
 	if hit.is_empty() or not (hit.collider in _on_block):
 		return
 	var piece: Area3D = hit.collider
+
+	# A permanent gold grain mark already carries its own preflighted, VALID cut
+	# candidate — clicking it cuts EXACTLY along that line, and never consumes
+	# the click on a forced camera turn (Creative Director call, 2026-08-04: the
+	# earlier ephemeral cue's forced 90-deg turn was what made taking the
+	# opportunity feel bad — "the brief pop doesn't feel good when you get auto
+	# turned"). This MUST come before the cross-axis check below, which would
+	# otherwise spend the click reorienting the camera instead of cutting the
+	# mark on exactly the pieces most likely to trip it.
+	if piece == _grain_target and _grain_plane_is_valid():
+		var grain_world_plane := MeshUtils.plane_to_world(_grain_local_plane, piece.global_transform)
+		var grain_world_point: Vector3 = piece.global_transform * (
+			_grain_local_plane.normal * _grain_local_plane.d)
+		_swing_axe(grain_world_point, grain_world_plane.normal, screen_pos)
+		_cooldown_left = current_swing_cooldown()
+		_pending = {
+			"piece": piece, "world_point": grain_world_point, "normal": grain_world_plane.normal,
+			"dir": _dir_from_normal(grain_world_plane.normal), "timer": _strike_timeout(),
+			"grain_plane": _grain_local_plane,
+		}
+		return
+
 	var normal := _camera.global_transform.basis.x
 	normal.y = 0.0
 	if normal.length() < 0.0001:
@@ -898,12 +938,16 @@ func _tween_pivot(target_y: float, t: float) -> void:
 ## a scar. THE ROLL LIVES HERE AND NOT IN _perform_split ON PURPOSE — _perform_split
 ## means "cut this piece" and is what `debug_slice_world` and the whole M4 suite
 ## drive, so those keep testing geometry rather than luck.
-func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int) -> bool:
-	if _grain_target != null and piece != _grain_target:
-		_clear_grain_cue(&"piece_changed")
+##
+## Deliberately does NOT clear a live grain cue just because a DIFFERENT piece was
+## struck — the mark is PERMANENT and stays wherever it is until it is taken or a
+## real lifecycle edge removes it (see _clear_grain_cue's callers); chopping
+## around the yard must not sweep away an opportunity sitting on another piece.
+func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int,
+		local_override: Variant = null) -> bool:
 	if _roll_splits(piece):
 		piece.set_meta("scars", 0)
-		var split := _perform_split(piece, world_point, normal, dir_enum)
+		var split := _perform_split(piece, world_point, normal, dir_enum, local_override)
 		strike_resolved.emit(split)
 		if split:
 			# M7C: the ONLY call site. A continuation cut lands through
@@ -1064,17 +1108,39 @@ func debug_award_log_xp_event(source_id: StringName, root_id: StringName,
 
 
 # ------------------------------------------ M7C Technique: grain opportunity
+##
+## REWORKED 2026-08-04 (Creative Director call): the earlier version was an
+## EPHEMERAL cue that forced a 90-degree camera turn on exactly the pieces it
+## could appear on, and cleared itself ~150-300ms after being shown — "the brief
+## pop doesn't feel good when you get auto turned". It is now a PERMANENT mark,
+## occasionally rolled onto a fresh piece, that cuts without ever consuming the
+## cross-axis turn (see _on_click) and always goes through when taken (see
+## _roll_splits) — see _award_grain_bonus for what taking it pays.
+##
+## THE OFFER IS A REAL PROC (`grain_read` in proc_table.tres), rolled through the
+## same ProcResolver every other named chance-driven event in this file uses, so
+## it inherits bounded-dry-streak fairness and the debug_force_grain seam for
+## free — same shape as Double Strike and Quick Study. It is rolled once per
+## fresh ON-BLOCK PIECE (Eligibility.MANUAL_PIECE_OFFER), preflighted BEFORE the
+## roll exactly like Double Strike ("a proc is never even asked for on a cut
+## that could not execute"), and LATCHES OFF for the rest of the current log the
+## moment one placement succeeds — a mark neither relocates to a new "current"
+## piece nor stacks a second one onto the same log.
 func _grain_cue_enabled() -> bool:
 	return SkillTree.get_level(&"quick_study") >= int(_GRAIN_CUE_CONFIG.minimum_skill_rank) \
 		and SkillTree.owns_modifier(
 			GameplayModifierDef.Kind.GRAIN_CUE, GameplayModifierDef.Operation.ENABLE)
 
 
+func _grain_proc_def() -> ProcDef:
+	return M7CContent.procs().by_id(&"grain_read") if M7CContent.procs() != null else null
+
+
 func _try_show_grain_cue(target: Area3D) -> void:
 	if not _grain_cue_enabled() or target == null or not is_instance_valid(target):
 		return
-	if _grain_target != null and _grain_target != target:
-		_clear_grain_cue(&"piece_changed")
+	if _grain_target != null or _grain_offered_this_log:
+		return   # decided once per log — a mark neither relocates nor stacks
 	var mesh: Mesh = target.get_meta("mesh_ref")
 	if mesh == null:
 		return
@@ -1088,16 +1154,24 @@ func _try_show_grain_cue(target: Area3D) -> void:
 	world_plane = _square_bias(mesh, target.global_transform, world_plane)
 	var local_plane := _sliver_guard(mesh, _plane_to_local(world_plane, target.global_transform))
 
+	# Preflight BEFORE rolling, same fairness discipline as Double Strike: a rare
+	# offer is never spent on a piece too small to actually carry the mark.
+	if not _slice_preflight_ok(mesh, local_plane):
+		return
+	var proc_def := _grain_proc_def()
+	if proc_def == null:
+		return
+	if not ProcResolver.should_proc(
+			proc_def, debug_force_grain, SkillTree.get_level(&"quick_study")):
+		return
+
 	_grain_target = target
 	_grain_target_mesh = mesh
 	_grain_local_plane = local_plane
 	_grain_candidate_dirty = false
-	if not _grain_plane_is_valid():
-		_clear_grain_cue(&"invalid")
-		return
+	_grain_offered_this_log = true
+	_grain_offer_count_this_log += 1
 
-	var branch := SkillTree.branch_for_proc(&"quick_study")
-	_grain_color = branch.color if branch != null else Color.WHITE
 	# The sliver guard may shift the precomputed plane away from the requested
 	# centre. Place the mark on that FINAL plane, never on the earlier intention.
 	var candidate_world_point: Vector3 = target.global_transform * (
@@ -1107,9 +1181,6 @@ func _try_show_grain_cue(target: Area3D) -> void:
 	var world_anchor := Vector3(candidate_world_point.x, top_y, candidate_world_point.z)
 	_grain_local_anchor = target.to_local(world_anchor)
 	_build_grain_top_mark(target, world_anchor, world_plane.normal)
-	_build_grain_overlay()
-	_grain_started_msec = Time.get_ticks_msec()
-	_update_grain_overlay_position()
 
 
 func _grain_plane_is_valid() -> bool:
@@ -1119,11 +1190,18 @@ func _grain_plane_is_valid() -> bool:
 	var mesh: Mesh = _grain_target.get_meta("mesh_ref")
 	if mesh == null or mesh != _grain_target_mesh:
 		return false
-	var result := MeshSlicer.slice(mesh, _grain_local_plane, _cut_mat)
+	return _slice_preflight_ok(mesh, _grain_local_plane)
+
+
+## A real MeshSlicer preflight: does cutting `mesh` along `local_plane` leave two
+## halves that both keep a useful horizontal footprint beyond the authored
+## tolerance? Validation only — running it never cuts anything. Split out of
+## _grain_plane_is_valid so _try_show_grain_cue can preflight a CANDIDATE plane
+## before it is ever stored as `_grain_target`/`_grain_local_plane`.
+func _slice_preflight_ok(mesh: Mesh, local_plane: Plane) -> bool:
+	var result := MeshSlicer.slice(mesh, local_plane, _cut_mat)
 	if result.above == null or result.below == null:
 		return false
-	# Both candidate results keep a useful horizontal footprint beyond the
-	# authored tolerance. This is validation only; showing the cue never cuts.
 	var tolerance: float = _GRAIN_CUE_CONFIG.candidate_tolerance
 	for half: Mesh in [result.above, result.below]:
 		var size := half.get_aabb().size
@@ -1132,25 +1210,29 @@ func _grain_plane_is_valid() -> bool:
 	return true
 
 
+## Three raised unshaded quads on the piece's TOP surface, parented to the piece
+## so they move with it: a dark outline (readable on pale bark), a wide additive
+## glow (the "glowing" in "glowing gold line"), and a solid gold core. GOLD IS
+## AUTHORED, not read from SkillTree.branch_for_proc() — this is a world marker
+## naming an opportunity, not a proc announcement, and must read as its own
+## thing next to the Technique-green ProcBurst the reward fires on top of it.
 func _build_grain_top_mark(target: Area3D, world_anchor: Vector3, normal: Vector3) -> void:
 	var line_dir := Vector3.UP.cross(normal).normalized()
 	var length := maxf(
 		_piece_extent_along(target, line_dir) * float(_GRAIN_CUE_CONFIG.mark_length_fraction),
 		float(_GRAIN_CUE_CONFIG.mark_dark_width))
+	var mats := _grain_mark_materials()
 	var layers := [
-		{"name": "GrainMarkDark", "width": _GRAIN_CUE_CONFIG.mark_dark_width,
-			"color": Color(0.015, 0.02, 0.015, 0.98)},
-		{"name": "GrainMarkLight", "width": _GRAIN_CUE_CONFIG.mark_light_width,
-			"color": Color(1.0, 1.0, 1.0, 0.98)},
-		{"name": "GrainMarkTechnique", "width": _GRAIN_CUE_CONFIG.mark_core_width,
-			"color": _grain_color},
+		{"name": "GrainMarkDark", "width": _GRAIN_CUE_CONFIG.mark_dark_width, "material": mats[0]},
+		{"name": "GrainMarkGlow", "width": _GRAIN_CUE_CONFIG.mark_glow_width, "material": mats[1]},
+		{"name": "GrainMarkGold", "width": _GRAIN_CUE_CONFIG.mark_core_width, "material": mats[2]},
 	]
 	for i in range(layers.size()):
 		var layer: Dictionary = layers[i]
 		var mark := MeshInstance3D.new()
 		mark.name = layer.name
 		mark.mesh = _grain_unit_line_mesh()
-		mark.material_override = _grain_mark_material(layer.color)
+		mark.material_override = layer.material
 		mark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		target.add_child(mark)
 		mark.global_transform = Transform3D(
@@ -1177,25 +1259,60 @@ func _grain_unit_line_mesh() -> ArrayMesh:
 	return _grain_line_mesh
 
 
-func _grain_mark_material(color: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	return material
+## Lazily built and cached: only one gold mark is ever live at a time and its
+## colour is fixed authored data, unlike ProcBurst's per-branch colour cache.
+func _grain_mark_materials() -> Array:
+	if _grain_core_mat == null:
+		_grain_dark_mat = StandardMaterial3D.new()
+		_grain_dark_mat.albedo_color = Color(0.015, 0.02, 0.015, 0.98)
+		_grain_dark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_grain_dark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_grain_dark_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+		_grain_core_mat = StandardMaterial3D.new()
+		_grain_core_mat.albedo_color = _GRAIN_CUE_CONFIG.mark_color
+		_grain_core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_grain_core_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_grain_core_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+		# ADDITIVE, and its texture fades COLOUR to black, not just alpha — the
+		# "square exp bubble" lesson XPOrb's halo already paid for (see its
+		# header): an additive surface adds its RGB to whatever is behind it, so
+		# fading only alpha leaves a hard-edged card. _update_grain_pulse breathes
+		# this material's own albedo_color alpha every frame.
+		_grain_glow_mat = StandardMaterial3D.new()
+		_grain_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_grain_glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_grain_glow_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_grain_glow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_grain_glow_mat.albedo_texture = _grain_glow_texture()
+		_grain_glow_mat.albedo_color = Color(1.0, 1.0, 1.0, _GRAIN_CUE_CONFIG.glow_pulse_min)
+	return [_grain_dark_mat, _grain_glow_mat, _grain_core_mat]
 
 
-func _build_grain_overlay() -> void:
-	if _grain_canvas == null:
-		_grain_canvas = CanvasLayer.new()
-		_grain_canvas.name = "GrainCueCanvas"
-		_grain_canvas.layer = 8
-		add_child(_grain_canvas)
-	_grain_overlay = _GrainCueOverlay.new()
-	_grain_overlay.name = "GrainCueBracket"
-	_grain_canvas.add_child(_grain_overlay)
-	_grain_overlay.setup(_grain_color, _GRAIN_CUE_CONFIG)
+## A soft-edged glow across the WIDTH of the line only, constant along its
+## length: the unit line mesh's WIDTH axis maps to UV.v (see
+## _grain_unit_line_mesh), so a vertical gradient reads as a neon-tube glow
+## rather than a hard bar. Fades to Color(0,0,0,0) at both edges — colour AND
+## alpha together — never alpha-only, for the exact reason ProcBurst's spark
+## texture and XPOrb's halo texture do the same.
+func _grain_glow_texture() -> GradientTexture2D:
+	var c: Color = _GRAIN_CUE_CONFIG.mark_color
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	grad.colors = PackedColorArray([
+		Color(0.0, 0.0, 0.0, 0.0),
+		Color(c.r, c.g, c.b, 1.0),
+		Color(0.0, 0.0, 0.0, 0.0),
+	])
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill = GradientTexture2D.FILL_LINEAR
+	tex.fill_from = Vector2(0.5, 0.0)
+	tex.fill_to = Vector2(0.5, 1.0)
+	tex.width = 8
+	tex.height = 64
+	return tex
 
 
 func _update_grain_cue() -> void:
@@ -1210,36 +1327,29 @@ func _update_grain_cue() -> void:
 		if not _grain_plane_is_valid():
 			_clear_grain_cue(&"invalid")
 			return
-	var age_sec := float(Time.get_ticks_msec() - _grain_started_msec) / 1000.0
-	if age_sec >= float(_GRAIN_CUE_CONFIG.duration_sec):
-		_clear_grain_cue(&"expired")
-		return
-	if not _animator.is_animating(_grain_target):
-		_clear_grain_cue(&"settled")
-		return
-	_update_grain_overlay_position()
+	_update_grain_pulse()
 
 
-func _update_grain_overlay_position() -> void:
-	if _grain_overlay == null or not is_instance_valid(_grain_overlay) \
-			or _grain_target == null or not is_instance_valid(_grain_target):
+## The mark is GLOWING, not static — its additive layer breathes between the
+## authored min/max on a plain sine of wall-clock time. Cosmetic only, so it
+## rides real time rather than Engine.time_scale, which A11's hit-pause drives to
+## near-zero for a beat on every real split.
+func _update_grain_pulse() -> void:
+	if _grain_glow_mat == null:
 		return
-	var world_anchor := _grain_target.to_global(_grain_local_anchor)
-	_grain_overlay.visible = not _camera.is_position_behind(world_anchor)
-	if _grain_overlay.visible:
-		_grain_overlay.place_at(
-			_camera.unproject_position(world_anchor), get_viewport().get_visible_rect().size)
+	var period := maxf(0.05, float(_GRAIN_CUE_CONFIG.glow_pulse_period_sec))
+	var t := float(Time.get_ticks_msec()) / 1000.0
+	var k := 0.5 + 0.5 * sin(t * TAU / period)
+	_grain_glow_mat.albedo_color.a = lerpf(
+		float(_GRAIN_CUE_CONFIG.glow_pulse_min), float(_GRAIN_CUE_CONFIG.glow_pulse_max), k)
 
 
 func _clear_grain_cue(reason: StringName) -> void:
-	var had_cue := _grain_target != null or _grain_overlay != null or not _grain_marks.is_empty()
+	var had_cue := _grain_target != null or not _grain_marks.is_empty()
 	for mark: MeshInstance3D in _grain_marks:
 		if is_instance_valid(mark):
 			mark.queue_free()
 	_grain_marks.clear()
-	if _grain_overlay != null and is_instance_valid(_grain_overlay):
-		_grain_overlay.queue_free()
-	_grain_overlay = null
 	_grain_target = null
 	_grain_target_mesh = null
 	_grain_local_anchor = Vector3.ZERO
@@ -1265,6 +1375,40 @@ func _pick_grain_target(candidates: Array) -> Area3D:
 	return best
 
 
+## The reward for taking the mark: a Technique-green ProcBurst plus a big XP
+## payout, banked before the orbs that carry it erupt from the SAME point the
+## mark was cut — never the stump centre — so a gold cut visibly outsizes a
+## routine log award. `burst_point` is measured by the caller from the piece's
+## SETTLED transform, in open air above its top surface (never inside the solid
+## wood — the failure-scar bug, "drawn outward, not carved in", in new paint).
+##
+## THE VFX READS TECHNIQUE GREEN, NOT GOLD — Quick Study is the node that grants
+## the mechanic, and a proc's announcement colour is always its branch's, per the
+## 2026-08-04 ProcBurst convention. Gold stays the mark's own identity; green is
+## this event's.
+func _award_grain_bonus(burst_point: Vector3) -> void:
+	_last_grain_bonus = 0
+	if _current_species == null:
+		return
+	var proc_def := _grain_proc_def()
+	if proc_def == null:
+		return
+	# The multiplier is authored data on the proc (proc_table.tres), read through
+	# the same generic helper Quick Study's log-completion bonus uses — never a
+	# literal "3.0" in code.
+	var multiplier := _manual_xp_multiplier(proc_def)
+	var bonus := maxi(1, int(round(float(_current_species.xp_reward) * multiplier)))
+	_last_grain_bonus = bonus
+	GameState.add_xp(bonus)
+	_burst_xp_orbs(bonus, burst_point, grain_orb_count_min, grain_orb_count_max)
+
+	var branch := SkillTree.branch_for_proc(&"quick_study")
+	var color := branch.color if branch != null else Color.WHITE
+	_last_proc_burst_color = color
+	ProcBurst.spawn(self, burst_point, color)
+	grain_read_awarded.emit(bonus)
+
+
 func debug_has_grain_cue() -> bool:
 	return _grain_target != null and is_instance_valid(_grain_target)
 
@@ -1281,16 +1425,8 @@ func debug_grain_top_mark_count() -> int:
 	return count
 
 
-func debug_grain_overlay_visible() -> bool:
-	return _grain_overlay != null and is_instance_valid(_grain_overlay) and _grain_overlay.visible
-
-
-func debug_grain_cue_copy() -> String:
-	return "" if _grain_overlay == null else _grain_overlay.cue_text()
-
-
 func debug_grain_cue_color() -> Color:
-	return _grain_color
+	return _GRAIN_CUE_CONFIG.mark_color if _grain_target != null else Color.TRANSPARENT
 
 
 func debug_invalidate_grain_candidate() -> void:
@@ -1305,17 +1441,31 @@ func debug_grain_clear_reason() -> StringName:
 	return _grain_last_clear_reason
 
 
-## Render-tool seam: shader/FBX warm-up can outlive the real short opportunity
-## before the first PNG is readable. Replays the exact live cue on the current
-## piece while holding only its existing bounce animator for the requested time.
-func debug_hold_grain_cue(duration_ms: float) -> void:
+func debug_last_grain_bonus() -> int:
+	return _last_grain_bonus
+
+
+## How many times a gold mark has actually been PLACED on the current log (not
+## how many times a roll was attempted) — the direct assertion that the latch
+## stops after one, rather than inferring it from absence.
+func debug_grain_offer_count() -> int:
+	return _grain_offer_count_this_log
+
+
+## Render-tool seam: force a gold mark onto the current on-block piece for a
+## screenshot, bypassing the rarity roll and the once-per-log latch. The cue is
+## PERMANENT now, so unlike its predecessor this no longer needs to fake-hold an
+## animation alive against a settle-based expiry — there is none left to outlive.
+func debug_hold_grain_cue() -> void:
 	var target := _pick_grain_target(_on_block)
 	if target == null:
 		return
 	_clear_grain_cue(&"shot_hold")
-	_animator.animate(target, Vector3.ZERO, 0.0, 0.0, 0.0, 0.0,
-		target.rotation.y, duration_ms)
+	_grain_offered_this_log = false
+	var forced := debug_force_grain
+	debug_force_grain = 1
 	_try_show_grain_cue(target)
+	debug_force_grain = forced
 
 
 ## The odds that ONE swing cleaves `piece`, all in one place:
@@ -1343,6 +1493,12 @@ func _roll_splits(piece: Area3D) -> bool:
 	if debug_split_roll == 0:
 		return false
 	if debug_split_roll == 1:
+		return true
+	# GOLD SWINGS ALWAYS SPLIT (Creative Director call, 2026-08-04) — checked
+	# AFTER the debug forces above, so a suite can still force a failure on
+	# unmarked wood, or force one on marked wood too, without this bypass
+	# fighting the test seam for the strongest say.
+	if piece == _grain_target:
 		return true
 	return randf() < split_chance_for(piece)
 
@@ -1479,17 +1635,37 @@ func current_swing_cooldown() -> float:
 ## Split the given on-block piece by a world plane through `world_point` with the
 ## given cut `normal`. Fires shake/pause/SFX, realises the two halves (firewood ->
 ## physics, chunky -> stays), and runs the radial shockwave over the block.
-func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int) -> bool:
-	if piece == _grain_target:
-		_clear_grain_cue(&"split")
+##
+## `local_override`, when supplied, is the piece's OWN local cut plane — the
+## permanent gold grain mark's already-preflighted candidate — and SKIPS
+## `_square_bias`/`_plane_to_local`/`_sliver_guard` entirely. Those exist to bias
+## an arbitrary click toward a square, valid cut; re-running them on a plane that
+## was already biased once at offer time could walk the cut off the mark it drew.
+## The override is read AFTER `_animator.finish_for([piece])` snaps the piece to
+## its resting transform, since the piece may still be mid-hop when its mark is
+## taken.
+func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int,
+		local_override: Variant = null) -> bool:
+	# The reward is tied to the PIECE, not to how the cut arrived — a manual click
+	# on the mark and an automated Double Strike continuation that happens to land
+	# on it both pay out, exactly once, right here before the piece is freed.
+	var is_grain_cut := piece == _grain_target
+
 	# A slice must run on a settled mesh — snap any in-flight hop first.
 	_animator.finish_for([piece])
 	var mesh: Mesh = piece.get_meta("mesh_ref")
 	var xform := piece.global_transform
-	var world_plane := Plane(normal, normal.dot(world_point))
-	world_plane = _square_bias(mesh, xform, world_plane)   # keep footprints square, not flat slabs
-	var local_plane := _plane_to_local(world_plane, xform)
-	local_plane = _sliver_guard(mesh, local_plane)
+	var local_plane: Plane
+	if local_override != null:
+		local_plane = local_override
+		var override_world_plane: Plane = MeshUtils.plane_to_world(local_plane, xform)
+		world_point = xform * (local_plane.normal * local_plane.d)
+		normal = override_world_plane.normal
+	else:
+		var world_plane := Plane(normal, normal.dot(world_point))
+		world_plane = _square_bias(mesh, xform, world_plane)   # keep footprints square, not flat slabs
+		local_plane = _plane_to_local(world_plane, xform)
+		local_plane = _sliver_guard(mesh, local_plane)
 
 	var res := MeshSlicer.slice(mesh, local_plane, _cut_mat)
 	if res.above == null or res.below == null:
@@ -1503,6 +1679,15 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	EventBus.action_hit_registered.emit(
 		world_point, GameState.get_tool_tier(Enums.ToolType.AXE), dir_enum)
 	_play_sfx(split_sfx)
+
+	if is_grain_cut:
+		# Open air above the piece's TOP surface, never at its volumetric centre
+		# (inside solid wood, depth-occluded) — the exact failure-scar lesson
+		# _attempt_double_strike's own burst point already applies.
+		var burst_height: float = mesh.get_aabb().size.y if mesh != null else 0.2
+		var burst_point: Vector3 = piece.global_position + Vector3.UP * (burst_height * 0.5 + 0.05)
+		_award_grain_bonus(burst_point)
+		_clear_grain_cue(&"consumed")
 
 	_on_block.erase(piece)
 	piece.queue_free()
@@ -1826,6 +2011,10 @@ func _dir_from_normal(normal: Vector3) -> int:
 ## debug key); the auto-respawn after stacking keeps the pile so it grows.
 func _spawn_fresh_log(reset_pile := true) -> void:
 	_clear_grain_cue(&"piece_changed")
+	# A brand new log is a brand new roll — the once-per-log latch belongs to
+	# THIS log, never the one that just left the block.
+	_grain_offered_this_log = false
+	_grain_offer_count_this_log = 0
 	for p in _on_block:
 		if is_instance_valid(p):
 			p.queue_free()
@@ -2100,7 +2289,8 @@ func _resolve_pending() -> void:
 	var pd := _pending
 	_pending = {}
 	if is_instance_valid(pd.piece) and pd.piece in _on_block:
-		var split := _resolve_strike(pd.piece, pd.world_point, pd.normal, pd.dir)
+		var split := _resolve_strike(
+			pd.piece, pd.world_point, pd.normal, pd.dir, pd.get("grain_plane", null))
 		if not split and _axe != null:
 			_axe.bounce()
 

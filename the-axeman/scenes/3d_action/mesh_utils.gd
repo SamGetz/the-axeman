@@ -377,6 +377,25 @@ static func plane_to_local(world_plane: Plane, xform: Transform3D) -> Plane:
 	return Plane(n_local, n_local.dot(p_local))
 
 
+## The inverse of `plane_to_local`: express a LOCAL plane (as stored against a
+## node) as a WORLD plane under that node's CURRENT `xform` — used by M7C's
+## permanent grain mark, whose cut candidate is preflighted once in the piece's
+## local space and then re-expressed in world space however the piece has since
+## moved (it is script-animated, not static).
+##
+## `plane_to_local` transforms the normal by the TRANSPOSE of the forward basis
+## (`n_local = B^T n_world`); going the other way therefore wants the inverse of
+## that transpose, `n_world = (B^T)^-1 n_local = (B^-1)^T n_local`. `xform.basis`
+## here is always a pure rotation (every caller bakes scale into the mesh, never
+## the node — see this file's house rules), and a rotation's inverse IS its
+## transpose, so `(B^-1)^T` collapses to `B` itself. This is not the general
+## case: a scaled or sheared `xform` would need the real `(B^-1)^T`, not `B`.
+static func plane_to_world(local_plane: Plane, xform: Transform3D) -> Plane:
+	var n_world := (xform.basis * local_plane.normal).normalized()
+	var p_world: Vector3 = xform * (local_plane.normal * local_plane.d)
+	return Plane(n_world, n_world.dot(p_world))
+
+
 ## Nudge a cut plane so neither side of the split is thinner than `min_size`
 ## along the cut normal. Keeps the slicer from producing paper slivers.
 static func sliver_guard(mesh: Mesh, local_plane: Plane, min_size: float) -> Plane:

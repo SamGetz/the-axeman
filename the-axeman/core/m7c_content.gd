@@ -157,9 +157,9 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 		elif seen.has(proc.id):
 			errors.append("duplicate proc id:%s" % proc.id)
 		seen[proc.id] = true
-		if proc.family < ProcDef.Family.DOUBLE_STRIKE or proc.family > ProcDef.Family.QUICK_STUDY:
+		if proc.family < ProcDef.Family.DOUBLE_STRIKE or proc.family > ProcDef.Family.GRAIN_READ:
 			errors.append("proc %s has illegal family" % proc.id)
-		if proc.eligibility < ProcDef.Eligibility.MANUAL_SWING or proc.eligibility > ProcDef.Eligibility.MANUAL_LOG_COMPLETION:
+		if proc.eligibility < ProcDef.Eligibility.MANUAL_SWING or proc.eligibility > ProcDef.Eligibility.MANUAL_PIECE_OFFER:
 			errors.append("proc %s has illegal eligibility" % proc.id)
 		if proc.base_chance < 0.0 or proc.base_chance > 1.0 or is_nan(proc.base_chance) or is_inf(proc.base_chance):
 			errors.append("proc %s has invalid chance" % proc.id)
@@ -175,7 +175,8 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 		if proc.tuning_status.is_empty():
 			errors.append("proc %s is missing tuning status" % proc.id)
 		errors.append_array(_validate_modifiers(proc.modifiers, "proc %s" % proc.id))
-		if proc.family == ProcDef.Family.QUICK_STUDY and not _has_manual_xp_multiplier(proc):
+		if (proc.family == ProcDef.Family.QUICK_STUDY or proc.family == ProcDef.Family.GRAIN_READ) \
+				and not _has_manual_xp_multiplier(proc):
 			errors.append("proc %s has no valid manual XP multiplier" % proc.id)
 	return errors
 

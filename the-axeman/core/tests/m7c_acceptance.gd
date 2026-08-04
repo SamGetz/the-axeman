@@ -147,11 +147,12 @@ func _test_typed_live_catalogues_validate() -> void:
 	var equipment := M7CContent.equipment()
 	_check(branches != null and branches.branches.size() == 3,
 		"the live catalogue has exactly the approved three typed branches")
-	_check(procs != null and procs.procs.size() == 3
+	_check(procs != null and procs.procs.size() == 4
 		and procs.by_id(&"double_strike") != null
 		and procs.by_id(&"follow_up") != null
-		and procs.by_id(&"quick_study") != null,
-		"Double Strike, Follow-Up and Quick Study are typed proc families")
+		and procs.by_id(&"quick_study") != null
+		and procs.by_id(&"grain_read") != null,
+		"Double Strike, Follow-Up, Quick Study and Grain Read are typed proc families")
 	_check(mastery != null and mastery.definitions.size() == SpeciesTable.count(),
 		"every live species has one mastery-schema row (%d)" % SpeciesTable.count())
 	_check(equipment != null and equipment.equipment.size() == 6,
@@ -589,7 +590,20 @@ func _grant_quick_study() -> void:
 
 
 func _quick_study_multiplier() -> float:
-	var proc_def: ProcDef = M7CContent.procs().by_id(&"quick_study")
+	return _manual_xp_multiplier_for(&"quick_study")
+
+
+## The gold grain mark's own payout multiplier (proc_table.tres's separate
+## `grain_read` proc) — DELIBERATELY NOT the same helper call as Quick Study's
+## multiplier: they are two distinct procs with two distinct authored numbers
+## (2x vs 3x today), and conflating them would let a test pass while reading the
+## wrong data.
+func _grain_read_multiplier() -> float:
+	return _manual_xp_multiplier_for(&"grain_read")
+
+
+func _manual_xp_multiplier_for(proc_id: StringName) -> float:
+	var proc_def: ProcDef = M7CContent.procs().by_id(proc_id)
 	if proc_def == null:
 		return 1.0
 	for modifier: GameplayModifierDef in proc_def.modifiers:
@@ -610,6 +624,12 @@ func _make_quick_study_minigame(owns_skill := true) -> Node3D:
 	mg.debug_forced_mesh = 0
 	mg.debug_split_roll = 1
 	mg.debug_force_proc = 1
+	# NEVER by default: the grain-cue tests flip this to 1 themselves, after
+	# construction, on whichever fresh piece they want marked. Left at the real
+	# roll's negligible base_chance here would make the Quick Study tests below
+	# flaky, and forcing it ON by default would silently add a second, unwanted
+	# XP transaction on top of every Quick Study assertion's exact XP delta.
+	mg.debug_force_grain = 0
 	mg.auto_sell = true
 	mg.orbs_enabled = false
 	add_child(mg)
@@ -731,77 +751,293 @@ func _test_quick_study_source_and_once_guards() -> void:
 	InventoryManager.apply_save_dict({})
 
 
-## Group 11: the grain opportunity is a real preflighted plane on one current
-## piece, rendered in both world and screen space. Its owner centrally tears it
-## down for every invalidating lifecycle edge instead of leaving orphan visuals.
+## Group 11, REWORKED 2026-08-04 (Creative Director call): the grain opportunity
+## is no longer an ephemeral cue that forces a camera turn and pops for ~150ms.
+## It is a PERMANENT gold mark, rolled ONCE per log through the same ProcResolver
+## every other named chance event uses, that cuts exactly along its own
+## preflighted plane with no forced turn, always splits, and pays a big XP bonus
+## plus a Technique-green ProcBurst. This group first ran red against the
+## pre-rework code (recorded below) before any fix landed.
 func _test_grain_cue_validity_and_cleanup() -> void:
 	var mg := await _make_quick_study_minigame(true)
 	var methods := [
 		"debug_has_grain_cue", "debug_grain_plane_valid", "debug_grain_top_mark_count",
-		"debug_grain_overlay_visible", "debug_grain_cue_copy", "debug_grain_cue_color",
-		"debug_invalidate_grain_candidate", "debug_grain_clear_reason",
+		"debug_grain_cue_color", "debug_invalidate_grain_candidate", "debug_grain_clear_reason",
+		"debug_last_grain_bonus", "debug_grain_offer_count", "debug_hold_grain_cue",
 	]
 	var has_seams := true
 	for method: String in methods:
 		has_seams = has_seams and mg.has_method(method)
-	_check(has_seams, "grain-cue acceptance seams expose geometry and both real visual layers")
+	_check(has_seams, "grain-cue acceptance seams expose geometry, colour, latch and reward receipts")
 	if not has_seams:
-		_check(false, "owned Technique work exposes one slicer-valid current-piece candidate")
-		_check(false, "grain feedback has a high-contrast top mark plus screen-space bracket/copy")
-		_check(false, "grain feedback derives its colour from Technique branch data")
-		_check(false, "an invalid candidate clears every grain visual immediately")
-		_check(false, "fresh-log piece change removes the previous candidate cleanly")
-		_check(false, "animation settle expires the short grain opportunity")
-		_check(false, "splitting the target removes its candidate before mutation")
+		_check(false, "a forced offer places a slicer-valid candidate on a fresh piece")
+		_check(false, "the mark is three raised layers: dark outline, glow, gold core")
+		_check(false, "the mark's authored gold differs from the Technique branch colour")
+		_check(false, "no screen-space overlay exists any more")
+		_check(false, "the mark is PERMANENT — it outlives the old ceiling and any animator settle")
+		_check(false, "clicking the mark never fires the forced cross-axis camera turn")
+		_check(false, "the cut lands on the mark's own preflighted plane, not a re-biased one")
+		_check(false, "taking the mark always splits, banks a multiplied XP bonus, and reads consumed")
+		_check(false, "a gold swing splits even when the ordinary roll would have failed")
+		_check(false, "debug_force_grain = 0 never offers a mark, across several fresh logs")
+		_check(false, "the offer latches off after the first placement — no second mark this log")
+		_check(false, "a forced offer still spends real ProcResolver fairness state")
+		_check(false, "invalid/piece_changed/block_exit clears still work on the new cue")
 		mg.queue_free()
 		await get_tree().process_frame
 		return
 
+	_check(_grain_read_multiplier() > 1.0,
+		"the gold mark's XP multiplier is typed placeholder data, not a code literal")
+
+	# --- placement: forced offer, real preflight, three layers, authored gold ---
+	mg.debug_force_grain = 1
+	mg._spawn_fresh_log()
+	await get_tree().process_frame
 	_check(mg.debug_has_grain_cue() and mg.debug_grain_plane_valid(),
-		"owned Technique work exposes one slicer-valid current-piece candidate")
-	_check(mg.debug_grain_top_mark_count() >= 2
-		and mg.debug_grain_overlay_visible()
-		and not String(mg.debug_grain_cue_copy()).is_empty(),
-		"grain feedback has a high-contrast top mark plus screen-space bracket/copy")
+		"a forced offer places a slicer-valid candidate on a fresh piece")
+	_check(mg.debug_grain_top_mark_count() == 3,
+		"the mark is three raised layers: dark outline, glow, gold core")
+	var grain_cfg: GrainCueDef = load("res://data/grain_cue.tres")
 	var technique := SkillTree.branch_for_proc(&"quick_study")
-	_check(technique != null and mg.debug_grain_cue_color().is_equal_approx(technique.color),
-		"grain feedback derives its colour from Technique branch data")
+	_check(mg.debug_grain_cue_color().is_equal_approx(grain_cfg.mark_color),
+		"the mark reads the authored gold from grain_cue.tres, not a code literal")
+	_check(technique != null and not mg.debug_grain_cue_color().is_equal_approx(technique.color),
+		"the mark's authored gold differs from the Technique branch colour")
+	_check(not mg.has_method("debug_grain_overlay_visible")
+		and not mg.has_method("debug_grain_cue_copy")
+		and mg.get_node_or_null("GrainCueCanvas") == null,
+		"no screen-space overlay exists any more — the mark on the wood is the whole tell")
 
-	mg.debug_invalidate_grain_candidate()
-	await get_tree().process_frame
-	_check(not mg.debug_has_grain_cue() and mg.debug_grain_clear_reason() == &"invalid",
-		"an invalid candidate clears every grain visual immediately")
-
-	mg._spawn_fresh_log()
-	await get_tree().process_frame
-	mg._spawn_fresh_log()
-	await get_tree().process_frame
-	_check(mg.debug_grain_clear_reason() == &"piece_changed",
-		"fresh-log piece change removes the previous candidate cleanly")
-
-	var settle_deadline := Time.get_ticks_msec() + 1000
-	while mg.debug_has_grain_cue() and Time.get_ticks_msec() < settle_deadline:
+	# --- permanence: the direct regression for the reported "brief pop" bug ---
+	var hold_deadline := Time.get_ticks_msec() + 1500   # well past the old 0.8s duration_sec
+	while Time.get_ticks_msec() < hold_deadline:
 		await get_tree().process_frame
-	_check(not mg.debug_has_grain_cue() and mg.debug_grain_clear_reason() == &"settled",
-		"animation settle expires the short grain opportunity")
-
-	mg._spawn_fresh_log()
-	await get_tree().process_frame
-	mg.min_vol = 1000.0
-	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
-	await get_tree().process_frame
-	_check(not mg.debug_has_grain_cue() and mg.debug_grain_clear_reason() == &"split",
-		"splitting the target removes its candidate before mutation")
-
+	_check(mg.debug_has_grain_cue(),
+		"the mark is PERMANENT — it outlives the old ceiling and any animator settle")
 	mg.queue_free()
 	await get_tree().process_frame
 
+	# --- no forced turn: the direct regression for the reported "auto turn" bug ---
+	# A whole log never trips the cross-axis check (is_whole_log gates it out), so
+	# the mark has to sit on a genuine SPLIT piece to exercise the bypass this
+	# tests. One unconditional cut (debug_slice_world, no roll involved) leaves
+	# real on-block geometry to mark.
+	var turn_mg := await _make_quick_study_minigame(true)
+	turn_mg.debug_slice_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(not turn_mg._on_block.is_empty(),
+		"(setup) the first split leaves at least one real on-block piece")
+	turn_mg.debug_force_grain = 1
+	turn_mg._try_show_grain_cue(turn_mg._pick_grain_target(turn_mg._on_block))
+	await get_tree().process_frame
+	var marked: Area3D = turn_mg._grain_target
+	_check(marked != null and not marked.get_meta("is_whole_log", false),
+		"(setup) the marked piece is a real split piece, not the whole log")
+
+	# Search the fixed 30-deg orbit grid for a camera angle where THIS piece's
+	# cross-axis ratio would normally trip _turn_cross_axis — the same maths
+	# _on_click uses, run here only to choose a fair camera angle rather than to
+	# duplicate the feature under test.
+	var found_yaw := false
+	var target_steps := 0
+	if marked != null:
+		for step in range(12):
+			turn_mg._pivot.rotation.y = deg_to_rad(step * turn_mg.camera_step_deg)
+			var cam_basis: Basis = turn_mg._camera.global_transform.basis
+			var normal: Vector3 = cam_basis.x
+			normal.y = 0.0
+			var cross: Vector3 = cam_basis.z
+			cross.y = 0.0
+			if normal.length() < 0.0001 or cross.length() < 0.0001:
+				continue
+			normal = normal.normalized()
+			cross = cross.normalized()
+			var along: float = turn_mg._piece_extent_along(marked, normal)
+			var across: float = turn_mg._piece_extent_along(marked, cross)
+			if across > along * turn_mg.long_axis_bias and across >= turn_mg.min_cut_width:
+				found_yaw = true
+				target_steps = step
+				break
+	_check(found_yaw,
+		"(setup) the marked piece has a camera angle where the cross-axis turn would normally fire")
+
+	turn_mg._yaw_steps = target_steps
+	turn_mg._pivot.rotation.y = deg_to_rad(target_steps * turn_mg.camera_step_deg)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var before_yaw: float = turn_mg._pivot.rotation.y
+	var before_xp := GameState.get_xp()
+	var screen_pos: Vector2 = turn_mg._camera.unproject_position(
+		marked.to_global(turn_mg._grain_local_anchor))
+	turn_mg._on_click(screen_pos)
+	await get_tree().process_frame
+	_check(is_equal_approx(turn_mg._pivot.rotation.y, before_yaw) and turn_mg._axe.is_swinging(),
+		"clicking the mark swings at it without ever firing the forced cross-axis turn")
+
+	var resolve_deadline := Time.get_ticks_msec() + 3000
+	while turn_mg.debug_has_grain_cue() and Time.get_ticks_msec() < resolve_deadline:
+		await get_tree().process_frame
+	_check(is_equal_approx(turn_mg._pivot.rotation.y, before_yaw),
+		"...and the camera is still exactly where it was once the cut lands")
+	_check(turn_mg.debug_grain_clear_reason() == &"consumed",
+		"the cut plane is the mark's own preflighted candidate — taking it clears as consumed")
+	var species := SpeciesTable.at(0)
+	var grain_multiplier := _grain_read_multiplier()
+	var expected_bonus := maxi(1, int(round(float(species.xp_reward) * grain_multiplier)))
+	_check(turn_mg.debug_last_grain_bonus() == expected_bonus
+		and GameState.get_xp() - before_xp >= expected_bonus,
+		"the cut lands on the mark: it always splits, banks a multiplied XP bonus (%d), and reads consumed"
+			% expected_bonus)
+	turn_mg.queue_free()
+	await get_tree().process_frame
+
+	# --- reward VFX/orbs, with the economy left on so the whole transaction runs ---
+	var reward_mg := await _make_quick_study_minigame(true)
+	reward_mg.orbs_enabled = true
+	reward_mg.debug_force_grain = 1
+	reward_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	var before_orb_children := 0
+	for c in reward_mg.get_children():
+		if c is XPOrb:
+			before_orb_children += 1
+	var before_reward_xp := GameState.get_xp()
+	reward_mg._resolve_strike(reward_mg._grain_target, reward_mg._grain_target.global_position,
+		Vector3.RIGHT, Enums.ChopDirection.RIGHT, reward_mg._grain_local_plane)
+	await get_tree().process_frame
+	# Guards the XP-delta check below against a second, unrelated XP transaction:
+	# if this one cut happened to empty the block, _award_log_xp (plus this
+	# helper's forced Quick Study) would ALSO fire and inflate the delta.
+	_check(not reward_mg._on_block.is_empty(),
+		"(setup) the gold cut leaves real geometry on the block — no incidental log-completion XP")
+	_check(reward_mg.debug_last_proc_burst_color().is_equal_approx(technique.color),
+		"the reward's ProcBurst reads Technique green — a proc announcement, not the mark's own gold")
+	_check(GameState.get_xp() - before_reward_xp == reward_mg.debug_last_grain_bonus(),
+		"the reward's XP write matches its own receipt exactly")
+	# Same sqrt(xp) * density shape, just a HIGHER clamp — assert the actual orb
+	# count matches the grain-clamped formula, and that it beats what the ROUTINE
+	# clamp would have produced for this exact bonus (a fixed >= threshold would
+	# be wrong: the two clamp ranges overlap, so "bigger than the biggest routine
+	# burst" isn't guaranteed — "bigger than what THIS bonus would routinely get"
+	# is the real, provable claim).
+	var bonus: int = reward_mg.debug_last_grain_bonus()
+	var raw_count := int(round(sqrt(float(bonus)) * reward_mg.orb_density))
+	var routine_count := clampi(raw_count, reward_mg.orb_count_min, reward_mg.orb_count_max)
+	var grain_count := clampi(raw_count, reward_mg.grain_orb_count_min, reward_mg.grain_orb_count_max)
+	var after_orb_children := 0
+	for c in reward_mg.get_children():
+		if c is XPOrb:
+			after_orb_children += 1
+	_check(after_orb_children - before_orb_children == grain_count
+		and grain_count > routine_count,
+		"the gold reward's orb burst (%d) outsizes what this same bonus would get under the routine ceiling (%d)"
+			% [grain_count, routine_count])
+	reward_mg.queue_free()
+	await get_tree().process_frame
+
+	# --- gold swings always split, even against the REAL per-swing chance ---
+	# debug_split_roll = 0 deliberately means "the strongest override says fail",
+	# per the acceptance matrix's OTHER half below — so proving the bypass has to
+	# leave the roll UNFORCED (-1) and call _roll_splits directly, deterministically,
+	# rather than rely on a single random trial that might have split anyway.
+	var fail_mg := await _make_quick_study_minigame(true)
+	fail_mg.debug_split_roll = -1   # the REAL roll — not the helper's forced pass
+	fail_mg.debug_force_grain = 1
+	fail_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	var gold_piece: Area3D = fail_mg._grain_target
+	_check(gold_piece != null, "(setup) a gold mark is live under the real, unforced split roll")
+	_check(fail_mg._roll_splits(gold_piece),
+		"a gold swing always splits, bypassing the real per-swing chance entirely")
+
+	# ...and the debug seam stays the STRONGEST override — a suite can still force
+	# a failure even on wood that happens to be marked (e.g. to test the scar path).
+	fail_mg.debug_split_roll = 0
+	_check(not fail_mg._roll_splits(gold_piece),
+		"debug_split_roll = 0 still wins over the gold bypass")
+	fail_mg.queue_free()
+	await get_tree().process_frame
+
+	# --- rarity: never offers when forced off, across several fresh logs ---
+	var rare_mg := await _make_quick_study_minigame(true)
+	rare_mg.debug_force_grain = 0
+	var any_offered := false
+	for i in range(6):
+		rare_mg._spawn_fresh_log()
+		await get_tree().process_frame
+		any_offered = any_offered or rare_mg.debug_has_grain_cue()
+	_check(not any_offered,
+		"debug_force_grain = 0 never offers a mark, across several fresh logs")
+
+	# --- the once-per-log latch: no second mark after the first placement ---
+	rare_mg.debug_force_grain = 1
+	rare_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	_check(rare_mg.debug_grain_offer_count() == 1,
+		"(setup) exactly one mark placed on this log")
+	# The marked whole log IS _on_block[0], so this cut both TAKES the mark (the
+	# reward path) and creates fresh split halves — a second piece-creation event
+	# on the same log, exactly the moment acceptance item 11 cares about: taking
+	# the mark must not reopen the latch for the pieces left behind.
+	rare_mg.debug_slice_world(Plane(Vector3.RIGHT, 0.5))
+	await get_tree().process_frame
+	_check(rare_mg.debug_grain_offer_count() == 1,
+		"the offer latches off after the first placement — no second mark, even after taking it")
+	rare_mg.queue_free()
+	await get_tree().process_frame
+
+	# --- fairness: forced rolls (hit or miss) still spend real ProcResolver state ---
+	# Starting from a fresh reset the dry streak is already 0, so proving a FORCED
+	# HIT "changed" it is not observable by itself (0 stays 0 on a fire — a fire
+	# ERASES the entry). Build a real, nonzero streak with forced MISSES first, so
+	# the later forced HIT's reset from nonzero back to 0 is an unambiguous signal
+	# that ProcResolver.note_proc_result really ran on the forced path too, not
+	# just the real-roll one — the same contract Double Strike and Quick Study hold.
+	var fair_mg := await _make_quick_study_minigame(true)
+	fair_mg.debug_force_grain = 0
+	for i in range(3):
+		fair_mg._spawn_fresh_log()
+		await get_tree().process_frame
+	_check(GameState.get_proc_dry_streak(&"grain_read") >= 3,
+		"(setup) forced-off offers on real, preflight-valid pieces still count as dry rolls")
+	fair_mg.debug_force_grain = 1
+	fair_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	_check(GameState.get_proc_dry_streak(&"grain_read") == 0 and fair_mg.debug_has_grain_cue(),
+		"a forced offer still spends real ProcResolver fairness state — the streak resets on a hit")
+	fair_mg.queue_free()
+	await get_tree().process_frame
+
+	# --- existing clears: invalid / piece_changed / block_exit still work ---
+	var clear_mg := await _make_quick_study_minigame(true)
+	clear_mg.debug_force_grain = 1
+	clear_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	clear_mg.debug_invalidate_grain_candidate()
+	await get_tree().process_frame
+	_check(not clear_mg.debug_has_grain_cue() and clear_mg.debug_grain_clear_reason() == &"invalid",
+		"an invalid candidate clears every grain visual immediately")
+
+	clear_mg.debug_force_grain = 1
+	clear_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	clear_mg._spawn_fresh_log()
+	await get_tree().process_frame
+	_check(clear_mg.debug_grain_clear_reason() == &"piece_changed",
+		"fresh-log piece change removes the previous candidate cleanly")
+	clear_mg.queue_free()
+	await get_tree().process_frame
+
 	var exit_mg := await _make_quick_study_minigame(true)
+	exit_mg.debug_force_grain = 1
+	exit_mg._spawn_fresh_log()
+	await get_tree().process_frame
 	_check(exit_mg.debug_has_grain_cue(), "test setup: block-exit cue is live")
 	remove_child(exit_mg)   # triggers the real _exit_tree while leaving state inspectable
 	_check(not exit_mg.debug_has_grain_cue()
 		and exit_mg.debug_grain_clear_reason() == &"block_exit",
-		"leaving the chopping block clears both grain layers through the shared owner")
+		"leaving the chopping block clears the mark through the shared owner")
 	exit_mg.free()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})

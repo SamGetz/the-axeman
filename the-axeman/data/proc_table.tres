@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ProcTable" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="ProcTable" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://data/proc_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/proc_def.gd" id="2_proc"]
@@ -49,6 +49,32 @@ chain_cap = 1
 bad_luck_bound = 10
 modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_quick_study_manual_xp")])
 
+[sub_resource type="Resource" id="Modifier_grain_read_manual_xp"]
+script = ExtResource("3_modifier")
+id = &"grain_read_xp_multiplier"
+kind = 3
+operation = 1
+magnitude = 12.0
+tuning_status = "PLACEHOLDER — Creative Director tuning required"
+
+; Rolled once per fresh on-block piece (Eligibility.MANUAL_PIECE_OFFER), never per
+; swing. base_chance is tuned so that across one whole log's worth of piece-creation
+; events (~8: the fresh log plus roughly two per split, and the offer latches off
+; after the first hit on a log) roughly one log in six carries a gold mark:
+; 1 - (1 - 0.022)^8 =~ 0.16. The multiplier is authored data — code never owns 3.0.
+[sub_resource type="Resource" id="Proc_grain_read"]
+script = ExtResource("2_proc")
+id = &"grain_read"
+display_name = "Grain Read"
+family = 3
+eligibility = 2
+announcement_key = &"grain_read"
+base_chance = 0.022
+chance_per_rank = 0.0
+chain_cap = 1
+bad_luck_bound = 60
+modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_grain_read_manual_xp")])
+
 [resource]
 script = ExtResource("1_table")
-procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study")])
+procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study"), SubResource("Proc_grain_read")])

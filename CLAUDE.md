@@ -150,7 +150,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 20000 res://core/tests/m4_acceptance.tscn` | **55/55** |
 | M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **285/285** |
-| M7C | `--quit-after 20000 res://core/tests/m7c_acceptance.tscn` | **134/134** — slices 1–6 through Technique |
+| M7C | `--quit-after 20000 res://core/tests/m7c_acceptance.tscn` | **161/161** — re-run 2026-08-05 on a real machine (Godot 4.7.1 found at `~/Downloads/Godot.app`) after the 2026-08-04 grain-mark rework. One real bug caught and fixed on this first run: see the M7C section |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
@@ -183,6 +183,10 @@ on a clean clone on 2026-08-02.
 - **M4 (the chopping game — now THE game): INTEGRATED, awaiting Creative
   Director sign-off.** Sam has said the core cutting "already feels awesome".
   Details below.
+- **M7C (Strength + Technique vertical slices): SIGNED OFF by Sam, 2026-08-05.**
+  161/161 on a real run (see the M7C section) after the grain-mark rework was
+  verified for the first time. The Speed branch's own signature proc is not
+  part of this sign-off — see the M7C section's closing note on what's next.
 - **Autoloads**, in this order: `EventBus`, `InventoryManager`, `GameState`,
   `GameFeel`, then the godot_mcp service autoloads (uid:// refs in
   `project.godot` are normal). `res://core/enums.gd` is class_name only —
@@ -887,7 +891,7 @@ frame, it looks weird."*
   These are a starting point for Sam to re-key in the animation editor — which is
   the whole reason the motion moved into a data file.
 
-### M7C — Strength and Technique vertical slices (2026-08-04)
+### M7C — Strength and Technique vertical slices (2026-08-04, SIGNED OFF 2026-08-05)
 
 M7C slices 1–6 are implemented through the Technique vertical slice. Slice 5's
 Double Strike and Slice 6's Quick Study both roll through the one shared
@@ -908,24 +912,174 @@ fairness write, and ineligible work never reaches the resolver.
   ProcBurst above the block; the XP orbs remain the already-built award receipt.
 - **Grain reading is an opportunity, never an automatic cut.** An owned typed
   `GRAIN_CUE` modifier preflights one actual `MeshSlicer` plane for the current
-  on-block piece. Three raised unshaded meshes (dark outline, white contrast,
-  Technique-colour core) draw on its top surface without `Decal`; a projected
-  bracket, centre diamond, and plain-language cue stay readable independently of
-  bark and colour. One owner clears both layers on invalid geometry, piece
-  change, animation settle, split, fresh-log replacement, and block exit.
+  on-block piece. **The original ephemeral presentation described here (an
+  always-on cue with a screen-space bracket/diamond/copy and a short
+  `duration_sec`) was REPLACED the same day — see the grain-mark rework bullet
+  below, which is the shipping behaviour.**
 - **Directive 3 placeholders:** Quick Study chance/rank weighting and multiplier
   live in `res://data/proc_table.tres`; its ranks/cost and typed grain enable live
-  in `res://data/skill_tree.tres`; every grain duration, tolerance, world-mark,
-  bracket and copy value lives in labelled `res://data/grain_cue.tres`. None is a
-  signed-off final.
+  in `res://data/skill_tree.tres`; every grain colour/glow/pulse and world-mark
+  value lives in labelled `res://data/grain_cue.tres`. None is a signed-off final.
 - **Acceptance discipline:** the initial Slice 6 group was first run red against
   the Slice 5 code (111 pass / 19 fail). The later explicit block-exit guard was
   separately proven red with its cleanup line removed (133 pass / 1 fail).
-  Final M7C is **134/134**. The new visual tools are
-  `core/tools/grain_shot.tscn` (dark/pale readable cue plus invalid, settle and
-  split cleanup) and the Quick Study frame added to
-  `core/tools/proc_shot.tscn`. Both were run non-headless and their 1280×720 PNGs
-  inspected before the slice was called complete.
+  M7C stood at **134/134** before the grain-mark rework below, which replaced
+  Group 11 in place; re-run and passing at **161/161** as of 2026-08-05 (see that
+  bullet for what the re-run found). The visual tools are
+  `core/tools/grain_shot.tscn` (now the permanent gold mark, its glow pulse, and
+  the reward burst) and the Quick Study frame added to `core/tools/proc_shot.tscn`.
+  Both were run non-headless and their 1280×720 PNGs inspected before the slice
+  was called complete.
+
+- **Grain reading REWORKED into a permanent gold mark (2026-08-04, same day,
+  Creative Director call).** Sam: *"I am not loving the way the 'reading the
+  grain' for grain shot works... we force a camera turn when a logs ratio meets
+  a certain criteria - so the breif pop doesnt feel good when you get auto
+  turned. The oppertunity should be a permenant glowing gold line that is set
+  (occasionally, not every time) on a piece that will not force a turn when
+  clicked... When it is cut, the green vfx trigger and a lot of xp flows out of
+  it."* Two real bugs in the shipped Slice 6 presentation, not just a look: the
+  bracket/diamond/copy design meant the ONLY way to notice the cue on many
+  pieces was `_on_click`'s pre-existing cross-axis reorientation firing on
+  exactly that piece (a real gameplay interruption, not the intended read), and
+  `_update_grain_cue`'s `&"settled"` branch cleared the cue ~150-300ms after any
+  piece-creation event — `duration_sec` (0.8s) never got the chance to matter.
+  - **The screen-space bracket/diamond/copy is GONE** (`grain_cue_overlay.gd`
+    deleted). The gold line on the wood is the whole tell — Sam's explicit call
+    when offered "line only" vs "keep bracket" vs "keep everything".
+  - **The offer is now a real, named PROC** — `grain_read` in
+    `res://data/proc_table.tres`, `ProcDef.Family.GRAIN_READ` /
+    `Eligibility.MANUAL_PIECE_OFFER` (new enum members). It rolls through the
+    SAME `res://core/proc_resolver.gd` every other named chance event uses, so
+    it inherits bounded-dry-streak fairness and a `debug_force_grain` seam for
+    free, exactly like Double Strike and Quick Study. Rolled once per fresh
+    ON-BLOCK PIECE, preflighted BEFORE the roll (Double Strike's own
+    discipline: a rare offer is never spent on a piece too small to carry the
+    mark), and LATCHED OFF for the rest of the current log the instant one
+    placement succeeds — **~1 log in 6**, Sam's choice among the rarity options
+    offered (placeholder `base_chance = 0.022` per piece-creation event,
+    `bad_luck_bound = 60`).
+  - **PERMANENT.** `duration_sec`, `_grain_started_msec` and the `&"expired"`/
+    `&"settled"` clear reasons are gone outright. A mark now only ever clears on
+    a real lifecycle edge: the piece leaving `_on_block`, a fresh log, taking
+    the mark (`&"consumed"`), losing the skill, or leaving the chopping block.
+  - **NO FORCED TURN.** `_on_click` now checks `piece == _grain_target` (with a
+    live preflight) BEFORE the pre-existing cross-axis reorientation block, and
+    if true, swings using the mark's OWN stored plane instead of ever reaching
+    that check — the mark can sit on exactly the pieces the turn would
+    otherwise have fired on, and clicking it never spends the click on a turn.
+    `_resolve_strike` also stopped clearing a live mark just because a
+    DIFFERENT piece was struck (a real bug the ephemeral design's "follow the
+    current piece" behaviour papered over) — permanent means it stays put
+    until taken.
+  - **The cut follows the mark exactly, not a re-biased click.** `_perform_split`
+    gained an optional `local_override` (the mark's own preflighted local
+    plane) that skips `_square_bias`/`_plane_to_local`/`_sliver_guard`
+    entirely — re-running those on an already-biased plane could walk the cut
+    off the line it drew. Read AFTER `_animator.finish_for([piece])` snaps the
+    piece to rest, since it may still be mid-hop when the mark is taken.
+    `MeshUtils.plane_to_world()` (new, the inverse of the existing
+    `plane_to_local`) re-expresses the mark's local plane in world space
+    however the piece has since moved.
+  - **GOLD SWINGS ALWAYS SPLIT** (Sam's choice among the failure-handling
+    options offered). `_roll_splits` bypasses the real per-swing chance for
+    `piece == _grain_target` — checked AFTER `debug_split_roll`'s forces, so a
+    suite can still force a failure even on marked wood when it wants to.
+  - **The reward is 12× a whole log's XP** (Sam's first call was 3×; revised
+    the same day to 12× once the ~1-in-6 rarity was settled — "1 in 6 is
+    pretty rare"), on top of the log's own award, banked through the same
+    `_manual_xp_multiplier()` helper Quick Study's bonus uses (authored data —
+    `grain_read`'s own `MANUAL_XP`/`MULTIPLY` modifier, magnitude 12.0 — never a
+    code literal). Fires a Technique-GREEN `ProcBurst` (branch colour, per the
+    2026-08-04 proc-announcement convention — the burst is a proc
+    announcement, gold stays the mark's own separate identity) and an XP orb
+    burst that erupts from the CUT POINT rather than the stump centre, through
+    new `grain_orb_count_min`/`_max` (14–28) — a visibly bigger ceiling than a
+    routine log's 5–16, so "a lot of XP" reads as more than ordinary chopping.
+  - **The mark is three raised world-space layers** (dark outline / additive
+    glow / solid gold core), same construction as the failure scar (drawn
+    proud of the surface, not carved in — `Decal` still doesn't render under
+    Compatibility). The glow's `GradientTexture2D` fades COLOUR to black at
+    its edges, not just alpha — the exact "square exp bubble" trap XPOrb's halo
+    and ProcBurst's spark already paid for. It breathes: `_update_grain_pulse`
+    drives the glow layer's alpha on a sine of wall-clock time between
+    authored min/max, because "glowing" needs to be alive, not a static decal.
+  - **Directive 3 placeholders, all in `res://data/grain_cue.tres` /
+    `res://data/proc_table.tres`:** `grain_read`'s `base_chance` (0.022) and
+    `bad_luck_bound` (60); the mark's authored gold `Color(1.0, 0.78, 0.25)`;
+    `glow_pulse_period_sec`/`_min`/`_max`; `grain_orb_count_min`/`_max`.
+  - **Acceptance: Group 11 rewrite RUN AND VERIFIED 2026-08-05.** A Godot 4.7.1
+    binary was found on this machine at `~/Downloads/Godot.app` (matches
+    SETUP.md's required version), closing the gap the 2026-08-04 note left
+    open. `m7c_acceptance.tscn` now passes **161/161**. The project's own
+    discipline was followed, not skipped:
+    - **Verified the new guards fail without their fix.** The rework's
+      implementation files (`chopping_minigame.gd`, `mesh_utils.gd`,
+      `m7c_content.gd`, `grain_cue.tres`/`grain_cue_def.gd`, `proc_def.gd`,
+      `proc_table.tres`, `skill_tree.tres`, plus restoring the deleted
+      `grain_cue_overlay.gd`) were stashed back to HEAD (the pre-rework
+      `18b8811` state) while keeping only the new test file. Run against that
+      old code, Group 11 crashes on null/missing members (`debug_force_grain`,
+      `debug_has_grain_cue`, etc. don't exist pre-rework) — 108 pass, run halts
+      on script errors. Confirms the new checks are real regression coverage,
+      not checks that would pass on the old, deleted-overlay design too. The
+      rework implementation was then restored (`git stash pop`).
+    - **One real bug found and fixed on the first real run**, exactly the kind
+      of thing this discipline exists to catch: the "reward's orb burst
+      outsizes the routine ceiling" check counted `get_child_count()` delta on
+      the whole minigame node, but `_award_grain_bonus` also parents a
+      `ProcBurst` node there (`chopping_minigame.gd:1408`) alongside the XP
+      orbs — so the raw delta was always one higher than the orb count alone
+      and the check could never pass as written. Fixed in
+      `core/tests/m7c_acceptance.gd` by counting `XPOrb`-typed children
+      specifically, before and after, rather than every child added. This was
+      a test bug, not a gameplay bug — the orb count and ProcBurst spawn
+      themselves were already correct.
+    - **M4 (55/55) and the slicer (34/34) re-run clean**, confirming the
+      `mesh_utils.gd` changes carried alongside the rework didn't regress
+      geometry. M7A also re-run clean (285/285).
+    - **`core/tools/grain_shot.tscn` run non-headless and its PNGs inspected.**
+      The permanent gold mark renders correctly on the log's top face (dark
+      outline / glow / gold core, all three layers visible), and the reward
+      burst shot shows the green Technique `ProcBurst` and XP orbs erupting
+      from the cut point, not the stump centre — matching the written design.
+    Coverage in the new Group 11: the offer is a real fairness-spending proc;
+    the mark survives well past the old 0.8s ceiling and any animator settle; a
+    real `_on_click` raycast against a piece whose aspect WOULD trip the
+    cross-axis turn proves the camera never moves and the cut lands on the
+    mark's own plane; the reward's XP/colour/orb-count math; gold-always-splits
+    with `debug_split_roll = 0` still winning; the once-per-log latch
+    (including across taking the mark itself); and the surviving
+    `invalid`/`piece_changed`/`block_exit` clears. `core/tools/grain_shot.gd`
+    (rewritten to shoot the gold mark on dark and pale bark, the glow at both
+    ends of its pulse, invalidation cleanup, and the reward burst) has now been
+    run and its output confirmed.
+    - **SIGNED OFF by Sam, 2026-08-05**, on the strength of this verified run.
+    - **What M7C did NOT build, and is the obvious next scoped piece of work:**
+      Sam approved three skill branches — Strength, Speed, Technique — and only
+      Strength (Double Strike) and Technique (Quick Study, Grain Read) got a
+      named signature proc. **Speed has none yet.** Two concrete, already-visible
+      gaps, found by reading the data this session already touched rather than
+      guessed at:
+      1. `res://data/proc_table.tres` already carries a `Proc_follow_up` row
+         (`id = &"follow_up"`, `family = 1`) and `ProcDef.Family` already has a
+         `FOLLOW_UP` member (`res://data/proc_def.gd:6`) — scaffolded, clearly
+         anticipating this build, but no `skill_tree.tres` node has
+         `proc_id = &"follow_up"`, and no code in
+         `scenes/3d_action/chopping_minigame.gd` resolves it. It is unbought,
+         unbuildable and unfireable.
+      2. **Ready Stance is a live, purchasable, silently-broken node today.**
+         `res://data/skill_tree.tres`'s `ready_stance` (Speed branch) is
+         authored `effect = 3` (`SkillNodeDef.Effect.CHOP_SPEED`, "fraction off
+         the axe's wind-up") and is fully spendable/ownable/saveable — but
+         `grep -rn "CHOP_SPEED"` outside `skill_node_def.gd` turns up nothing.
+         Nothing ever calls `SkillTree.total_effect(SkillNodeDef.Effect.
+         CHOP_SPEED)`. A player can spend points on it right now and get
+         nothing. Compare `SWING_SPEED`, which the same enum defines and which
+         **is** read, at `chopping_minigame.gd:1628` into
+         `AxeViewmodel.set_speed()`.
+      Neither gap is this session's to just start building — Operational Rule 1
+      still applies. See the handoff prompt below.
 
 ### Files the chopping game owns
 

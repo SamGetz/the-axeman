@@ -1,8 +1,14 @@
 extends Node
-## Non-headless visual proof for Technique's grain opportunity. It renders the
-## real chopping scene on dark and pale wood, with the always-on accessible
-## dark/light/core top mark and non-colour bracket/diamond, then photographs
-## cleanup after invalidation, settle and split.
+## Non-headless visual proof for Technique's grain opportunity.
+##
+## REWORKED 2026-08-04 (Creative Director call): the cue is no longer an
+## ephemeral bracket/diamond overlay that pops for ~150ms and forces a camera
+## turn on exactly the pieces most likely to need one. It is now a PERMANENT
+## glowing gold line on the wood itself — three raised world-space layers, no
+## screen-space UI at all — occasionally offered, that cuts without a forced
+## turn and pays a big XP bonus plus a Technique-green ProcBurst when taken.
+## This tool renders: the mark on dark and pale bark, its glow at both ends of
+## its pulse, cleanup after an invalidated candidate, and the reward moment.
 
 const OUT := "user://grain_shot"
 const _SCENE := preload("res://scenes/3d_action/chopping_minigame.tscn")
@@ -26,33 +32,42 @@ func _ready() -> void:
 		add_child(mg)
 		for i in range(3):
 			await get_tree().process_frame
-		mg.debug_hold_grain_cue(2000.0)
+		mg.debug_hold_grain_cue()
 		await get_tree().process_frame
-		print("grain species %d: valid=%s marks=%d overlay=%s color=%s"
+		print("grain species %d: valid=%s marks=%d color=%s"
 			% [species, mg.debug_grain_plane_valid(), mg.debug_grain_top_mark_count(),
-				mg.debug_grain_overlay_visible(), mg.debug_grain_cue_color()])
-		await _save("_%d_accessible_dark_light_core" % species)
+				mg.debug_grain_cue_color()])
+		await _save("_%d_gold_glow_dark_core" % species)
+
+		# The glow breathes — one shot near each end of its pulse so the tuning
+		# pass can actually see the range, not just a single frozen frame.
+		var grain_cfg: GrainCueDef = load("res://data/grain_cue.tres")
+		await _wait_ms(int(round(float(grain_cfg.glow_pulse_period_sec) * 500.0)))
+		await _save("_%d_gold_glow_pulsed" % species)
 
 		if species == 0:
 			mg.debug_invalidate_grain_candidate()
 			await get_tree().process_frame
 			await _save("_%d_invalid_cleanup" % species)
 
+			# THE REWARD: force a fresh mark, take it, and shoot the moment right
+			# after — the Technique-green ProcBurst plus the XP orb eruption from
+			# the cut point. Orbs are switched on only for this shot; every other
+			# pass in this tool keeps them off like the rest of the render tools.
 			mg._spawn_fresh_log()
 			await get_tree().process_frame
-			await _wait_ms(700)
-			print("grain settle cleanup: cue=%s reason=%s"
-				% [mg.debug_has_grain_cue(), mg.debug_grain_clear_reason()])
-			await _save("_%d_settle_cleanup" % species)
-
-			mg._spawn_fresh_log()
+			mg.debug_hold_grain_cue()
 			await get_tree().process_frame
-			mg.min_vol = 1000.0
-			mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+			mg.orbs_enabled = true
+			var target: Area3D = mg._grain_target
+			if target != null:
+				mg._resolve_strike(target, target.global_position, Vector3.RIGHT,
+					Enums.ChopDirection.RIGHT, mg._grain_local_plane)
 			await get_tree().process_frame
-			print("grain split cleanup: cue=%s reason=%s"
-				% [mg.debug_has_grain_cue(), mg.debug_grain_clear_reason()])
-			await _save("_%d_split_cleanup" % species)
+			print("grain reward: bonus=%d burst_color=%s clear_reason=%s"
+				% [mg.debug_last_grain_bonus(), mg.debug_last_proc_burst_color(),
+					mg.debug_grain_clear_reason()])
+			await _save("_%d_reward_burst_and_orbs" % species)
 
 		mg.queue_free()
 		await get_tree().process_frame
