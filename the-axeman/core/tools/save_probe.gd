@@ -5,11 +5,15 @@ extends Node
 ## DEV TOOL. Inspect and drive the save file from outside the game, which is the
 ## only way to see it at all until the M7 management UI exists.
 ##
-##   dump   (default)  print the save file's raw contents, or say there is none
+##   dump              (default) print the save file's raw contents, or say there is none
 ##   seed              write a save with recognisable values, to prove a LOAD
 ##   quit              boot main.tscn and fire the window-close notification,
 ##                     to prove a SAVE happens on the way out
 ##   wipe              delete the save
+##   seed_double_strike   grant Double Strike (M7C) on top of whatever save
+##                     already exists, for feel-testing the real proc in real
+##                     play without a ~120-log grind. TEMPORARY dev convenience,
+##                     not a shipped cheat.
 ##
 ## Runs as a SCENE, not with -s: a -s script replaces the main loop and the
 ## autoloads are never instantiated, so GameState/InventoryManager would not
@@ -25,8 +29,9 @@ func _ready() -> void:
 		"seed": _seed()
 		"quit": await _quit_cycle()
 		"wipe": _wipe()
+		"seed_double_strike": _seed_double_strike()
 		_:
-			print("save_probe: unknown mode '%s' (dump | seed | quit | wipe)" % mode)
+			print("save_probe: unknown mode '%s' (dump | seed | quit | wipe | seed_double_strike)" % mode)
 	if mode != "quit":
 		get_tree().quit()
 
@@ -79,3 +84,30 @@ func _quit_cycle() -> void:
 
 func _wipe() -> void:
 	print("save_probe: deleted=%s" % SaveSystem.delete_save())
+
+
+## TEMPORARY dev convenience for feel-testing M7C's Double Strike proc in the
+## real game — Strong Arms costs 1 point, Double Strike 3, Steady Continuation
+## 2, and points only come from levelling, so seeing it organically means
+## chopping roughly 120 logs first. Loads whatever save already exists (never
+## wipes progress) and grants only what is still missing.
+##
+## Goes through the REAL GameState.add_xp + SkillTree.buy path, exactly like
+## m7c_acceptance and proc_shot — never a direct state poke — so the resulting
+## save is exactly what a player could have earned, just faster.
+func _seed_double_strike() -> void:
+	var result := SaveSystem.load_or_start_fresh()
+	print("save_probe: loaded existing save (%s) before granting Double Strike"
+		% SaveSystem.LoadResult.keys()[result])
+
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var target_xp := curve.total_xp_for_level(7)
+	if GameState.get_xp() < target_xp:
+		GameState.add_xp(target_xp - GameState.get_xp())
+	var strong := SkillTree.buy(&"strong_arms")
+	var strike := SkillTree.buy(&"double_strike")
+	var steady := SkillTree.buy(&"steady_continuation")
+	var ok := SaveSystem.save_game()
+	print(("save_probe: Double Strike test-seeded — level %d, %d skill points left, "
+		+ "strong_arms=%d double_strike=%d steady_continuation=%d (-1 = already owned/maxed) -> saved=%s")
+		% [GameState.get_level(), GameState.get_skill_points_available(), strong, strike, steady, ok])
