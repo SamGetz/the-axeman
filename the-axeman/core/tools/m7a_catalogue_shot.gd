@@ -21,6 +21,10 @@ func _ready() -> void:
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_1_fresh_shop")
+	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
+	await get_tree().process_frame
+	_save("_1b_tree_catalogue")
+	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 0
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 
 	var first := Orders.by_id(&"campfire_warmup")
@@ -41,8 +45,7 @@ func _ready() -> void:
 	for _i in range(8):
 		await get_tree().process_frame
 	_save("_2_balanced_axe")
-	for _i in range(90):
-		await get_tree().process_frame
+	await get_tree().create_timer(1.2).timeout
 	_save("_2_all_owned_yard")
 
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()
@@ -52,9 +55,8 @@ func _ready() -> void:
 
 	game._stage_next_log()
 	game._spawn_fresh_log(false)
-	for _i in range(4):
-		await get_tree().process_frame
-	_save("_4_handcart_delivery")
+	await get_tree().create_timer(0.18).timeout
+	_save("_4_log_hop_smoke")
 
 	main.queue_free()
 	await get_tree().process_frame

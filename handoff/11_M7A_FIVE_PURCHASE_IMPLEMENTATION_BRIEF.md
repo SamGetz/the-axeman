@@ -7,7 +7,7 @@
 
 **Implementation checkpoint, 4 August 2026:** The approved structure, gates,
 greybox physical consequences, shop presentation, save support, pacing probe and
-acceptance coverage are implemented. M1–M4, M7A (273/273), slicer, chopping
+acceptance coverage are implemented. M1–M4, M7A (281/281), slicer, chopping
 smoke and non-headless pile smoke are green under Godot 4.7.1 Compatibility.
 Final authored art/audio and the measured 30-minute tuning/sign-off session are
 still outstanding; all shop prices and effect magnitudes remain candidate data.
@@ -19,6 +19,13 @@ Ledger, Handcart and Coffee Thermos still lack art-directed assets, so their
 named native-node greyboxes remain visible in the live yard and carry explicit
 `art_status` metadata for replacement by the art team. Missing final art is not
 allowed to make a purchased object disappear.
+
+**Shop and arrival direction, 4 August 2026:** Items and Trees now occupy two
+tabs of one Shop overlay; Skills remains its own overlay. Skills and Shop icons
+carry red live-count badges for spendable points and currently affordable
+purchases respectively. Handcart staging no longer changes the arrival path:
+the next log appears over the block with the original drop/little hop, then a
+six-piece low-poly smoke puff fires around its base on contact.
 
 ## Approved boundaries carried into this proposal
 
@@ -168,10 +175,10 @@ Where an option says “L5”, its log target is the measured log count at five 
 - **Skill interaction:** None. Speed continues to own swing rhythm and free follow-ups; the Handcart improves yard logistics outside the active axe sequence.
 - **Unlock:** Visible as the next nearby lock after Supplier Ledger; unlock on the first 50-piece haul-away. The measured session must confirm that event still fits the 20–30 minute catalogue target; if it does not, return with a level-gate alternative rather than silently changing it.
 - **Pacing:** 14–22 minutes / L15–L20, funded primarily by the middle introductory-order route rather than passive chopping alone.
-- **Consequence:** A cart appears at the yard edge immediately. Subsequent fresh logs visibly arrive from it, and the existing haul-away travels toward/through the cart departure path.
+- **Consequence:** A cart appears at the yard edge immediately. It stages the next log, but the log still appears centred over the block with the original drop/little hop and a small low-poly landing puff; it never flies laterally from the cart.
 - **Limitation:** One staged log maximum; current log must be fully processed first; no queue, offline supply, staff, auto-cutting or 50-piece-capacity change.
 - **Assets:** Current spawn/drop and haul animation code are reusable. **A staged-log timing seam/one-slot delivery state does not exist. A new handcart model, wheel/depart animation and cart/wood audio are required; none exists.** Native AnimationPlayer/Tween and nodes are sufficient; no vehicle physics is needed.
-- **Acceptance before sign-off:** measured non-interactive inter-log interval decreases by the approved amount while swing/contact/split timing is identical; only one future log stages; selected species changes resolve safely; no early inventory/cash/XP; pile still hauls at exactly 50; player can keep chopping during haul; save/load restores cart ownership and prop; immediate purchase appearance; before/after delivery and mid-haul renders plus live feel test.
+- **Acceptance before sign-off:** measured non-interactive inter-log interval decreases by the approved amount while swing/contact/split timing is identical; only one future log stages; it spawns at block centre with no lateral travel; selected species changes resolve safely; no early inventory/cash/XP; pile still hauls at exactly 50; player can keep chopping during haul; save/load restores cart ownership and prop; immediate purchase appearance; arrival-puff and mid-haul renders plus live feel test.
 
 ### Option B — one-time physical haul presentation only
 

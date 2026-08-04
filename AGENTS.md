@@ -144,6 +144,14 @@ Handcart and Coffee Thermos have no art-directed assets and must remain visibly
 represented by named greybox props (with `art_status` metadata) so artists can
 inspect and replace every missing target in the live yard.
 
+**Shop/arrival UI call, 2026-08-04:** equipment and the tree catalogue share one
+Shop overlay with **Items** and **Trees** tabs; the skill tree remains separate.
+There is no standalone Wood dock button/panel. Red numeric badges show usable
+skill points on Skills and purchases affordable right now (equipment plus the
+next tree) on Shop. A staged Handcart log must use the original centred
+drop/little-hop arrival, never fly in laterally; a small low-poly smoke puff
+fires around its base on landing.
+
 The prototype skill migration is also approved for the next M7C work: retain
 Strong Arms as Strength foundation and Quick Hands as Speed foundation; rename
 Keen Edge to Ready Stance under Speed; replace Splitter with Double Strike
@@ -176,7 +184,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **273/273** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **281/281** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
@@ -385,9 +393,11 @@ pushed into data instead of invented. **Still no sign-off.**
 - **`res://scenes/2d_management/yard_hud.tscn/.gd`** is instanced under
   `Main/UI_Overlay` (A9 — gameplay UI never goes in UI_Canvas). Cash is the only
   permanent economy number; pile and lifetime totals remain saved background
-  stats. The old yard panel and its next-purchase text are gone: contracts, wood,
-  skills and shop are four 56×56 icon buttons at bottom-right of the chopping
-  view. Their SVG icons are native project assets; the shop keeps Sam's coin.
+  stats. The old yard panel and its next-purchase text are gone: contracts,
+  skills and shop are three 56×56 icon buttons at bottom-right of the
+  chopping view. Items and trees are tabs in that one shop. Red badges show
+  spendable skill points and currently affordable purchases. Their SVG icons
+  are native project assets; the shop keeps Sam's coin.
 - **THE XP BAR SPANS THE FULL TOP EDGE** (Creative Director call, 2026-08-04).
   Its level/XP text is centred inside the 24 px strip and the cash counter sits
   below it. `XPOrb.COLOR` owns the translucent green reward colour used by both
@@ -411,9 +421,9 @@ pushed into data instead of invented. **Still no sign-off.**
   each management overlay, pile and haul-away) — RUN NON-HEADLESS. Every numeric
   check here is green on a UI that is off-screen or covering the chopping block;
   this is `shot_runner` applied to the 2D side. It stashes the real save for the run.
-- **RENDERED 2026-08-03:** the four square buttons sit cleanly at bottom-right;
-  the chopping block remains visible behind the darkened shop, woodshed, skills
-  and contract panels; no haul meter remains on the production view.
+- **RENDERED 2026-08-04:** the three square buttons and numeric badges sit cleanly
+  at bottom-right; the chopping block remains visible behind the tabbed shop,
+  skills and contract panels; no haul meter remains on the production view.
 ### M7A — the pile pays as it lands, and the load is hauled away (2026-08-01)
 
 **Creative Director call, and it REPLACED the model shipped earlier the same day:**

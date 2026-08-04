@@ -58,10 +58,11 @@ func _ready() -> void:
 	# list rather than a staged one — the thing worth looking at is whether an
 	# earned wood, the wood on the block and the next milestone are all
 	# distinguishable at a glance.
-	hud.get_node("QuickMenu/WoodButton").pressed.emit()
+	hud.get_node("QuickMenu/ShopButton").pressed.emit()
+	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
 	await get_tree().process_frame
 	_save("_2b_woodshed")
-	hud.get_node("WoodPanel/Column/CloseWoodButton").pressed.emit()
+	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 
 	# The skill tree, part way up: enough levels to have points in hand and to
 	# have opened a second rank, so the indent, the "Needs X" rows and the

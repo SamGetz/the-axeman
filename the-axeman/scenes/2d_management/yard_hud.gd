@@ -5,24 +5,17 @@ extends Control
 ## UI_Overlay, never inside UI_Canvas, which is the render pipeline's own layer).
 ##
 ## ALWAYS-ON CHOPPING HUD (Creative Director call, 2026-08-03). There is no
-## separate yard screen. Contracts, wood, skills and shop live in four square
-## icon buttons at bottom-right while the chopping game stays on screen.
+## separate yard screen. Contracts, skills and shop live in three square icon
+## buttons at bottom-right while the chopping game stays on screen. Trees are a
+## tab of the shop, not a second storefront.
 ##   ├── ShopPanel (PanelContainer, centred — hidden until the shop is opened)
 ##   │   └── Column (VBoxContainer)
 ##   │       ├── Header (HBoxContainer) → ShopIcon (TextureRect), ShopTitle (Label)
-##   │       ├── ShopScroll/ShopList         <- rows are built at RUNTIME
-##   │       ├── ShopEmpty (Label)
+##   │       ├── ShopTabs/Items              <- equipment rows at RUNTIME
+##   │       ├── ShopTabs/Trees              <- species rows at RUNTIME
 ##   │       └── CloseShopButton (Button)
-##   ├── WoodPanel (PanelContainer, centred — hidden until the woodshed is opened)
-##   │   └── Column (VBoxContainer)
-##   │       ├── WoodTitle (Label)
-##   │       ├── WoodBlurb (Label)
-##   │       ├── WoodScroll (ScrollContainer)  <- 25 woods do not fit on a panel
-##   │       │   └── WoodList (VBoxContainer)  <- rows are built at RUNTIME
-##   │       ├── NextWood (Label — the next milestone)
-##   │       └── CloseWoodButton (Button)
 ##   ├── ModalBackdrop (ColorRect — catches clicks outside an open panel)
-##   └── QuickMenu (HBoxContainer — four square icon buttons, bottom-right)
+##   └── QuickMenu (HBoxContainer — three square icon buttons, bottom-right)
 ##
 ## THERE IS NO SELLING TO DO HERE (Creative Director call, 2026-08-01). The yard
 ## buys every piece of firewood the moment it lands on the pile, so the player
@@ -67,21 +60,23 @@ extends Control
 ## the 2D side is still deferred (M2 sign-off).
 
 const _COIN := preload("res://assets/ui/coin.png")
+const _ITEMS_TAB := 0
+const _TREES_TAB := 1
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
-@onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopScroll/ShopList
-@onready var _shop_empty: Label = $ShopPanel/Column/ShopEmpty
+@onready var _shop_tabs: TabContainer = $ShopPanel/Column/ShopTabs
+@onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Items/ShopScroll/ShopList
+@onready var _shop_empty: Label = $ShopPanel/Column/ShopTabs/Items/ShopEmpty
 @onready var _shop_panel: PanelContainer = $ShopPanel
 @onready var _shop_button: Button = $QuickMenu/ShopButton
+@onready var _shop_badge: Label = $QuickMenu/ShopButton/Badge
 @onready var _close_shop_button: Button = $ShopPanel/Column/CloseShopButton
-@onready var _wood_button: Button = $QuickMenu/WoodButton
-@onready var _wood_panel: PanelContainer = $WoodPanel
-@onready var _wood_list: VBoxContainer = $WoodPanel/Column/WoodScroll/WoodList
-@onready var _next_wood: Label = $WoodPanel/Column/NextWood
-@onready var _close_wood_button: Button = $WoodPanel/Column/CloseWoodButton
+@onready var _wood_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Trees/WoodScroll/WoodList
+@onready var _next_wood: Label = $ShopPanel/Column/ShopTabs/Trees/NextWood
 @onready var _xp_level_label: Label = $XPBar/LevelLabel
 @onready var _xp_progress: ProgressBar = $XPBar/Progress
 @onready var _skills_button: Button = $QuickMenu/SkillsButton
+@onready var _skills_badge: Label = $QuickMenu/SkillsButton/Badge
 @onready var _skill_panel: PanelContainer = $SkillPanel
 @onready var _skill_list: VBoxContainer = $SkillPanel/Column/SkillScroll/SkillList
 @onready var _points_label: Label = $SkillPanel/Column/PointsLabel
@@ -97,8 +92,7 @@ const _COIN := preload("res://assets/ui/coin.png")
 func _ready() -> void:
 	_shop_button.pressed.connect(_on_shop_pressed)
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
-	_wood_button.pressed.connect(_on_wood_pressed)
-	_close_wood_button.pressed.connect(_on_close_wood_pressed)
+	_shop_tabs.tab_changed.connect(_on_shop_tab_changed)
 	_skills_button.pressed.connect(_on_skills_pressed)
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 	_orders_button.pressed.connect(_on_orders_pressed)
@@ -132,6 +126,7 @@ func _ready() -> void:
 	_rebuild_woodshed()
 	_rebuild_skills()
 	_rebuild_orders()
+	_refresh_badges()
 
 
 ## XPOrb owns the reward colour. The HUD reads it rather than copying the value,
@@ -151,7 +146,6 @@ func _open_panel(panel: Control) -> void:
 
 func _close_panels() -> void:
 	_shop_panel.visible = false
-	_wood_panel.visible = false
 	_skill_panel.visible = false
 	_orders_panel.visible = false
 	_modal_backdrop.visible = false
@@ -175,6 +169,14 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_shop_pressed() -> void:
 	_open_panel(_shop_panel)
 	_rebuild_shop()   # levels and affordability may have moved while it was shut
+	_rebuild_woodshed()
+
+
+func _on_shop_tab_changed(_tab: int) -> void:
+	if _shop_tabs.current_tab == _TREES_TAB:
+		_rebuild_woodshed()
+	else:
+		_rebuild_shop()
 
 
 func _on_close_shop_pressed() -> void:
@@ -189,6 +191,7 @@ func _on_catalogue_gate_changed() -> void:
 	_rebuild_shop()
 	_rebuild_orders()
 	_rebuild_woodshed()
+	_refresh_badges()
 
 
 ## One row per upgrade, straight from the table: what it is, what it does, what
@@ -203,6 +206,7 @@ func _rebuild_shop() -> void:
 	for def: UpgradeDef in upgrades:
 		if def != null:
 			_shop_list.add_child(_build_shop_row(def))
+	_refresh_badges()
 
 
 func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
@@ -268,28 +272,18 @@ func _on_buy_pressed(id: StringName) -> void:
 	Shop.buy(id)
 
 
-## ---------------------------------------------------------------- the woodshed
-func _on_wood_pressed() -> void:
-	_open_panel(_wood_panel)
-	_rebuild_woodshed()   # a wood may have been earned while it was shut
-
-
-func _on_close_wood_pressed() -> void:
-	_close_panels()
-
-
 ## Driven by the SIGNALS rather than by the row that was clicked, so the button
 ## and the list agree however the choice moved — including a selection GameState
 ## refused, which emits nothing and correctly leaves the display alone.
 func _on_selected_species_changed(_id: StringName) -> void:
-	_refresh_wood_button()
-	if _wood_panel.visible:
+	if _shop_panel.visible and _shop_tabs.current_tab == _TREES_TAB:
 		_rebuild_woodshed()
 
 
 func _on_species_purchased(_id: StringName) -> void:
 	_rebuild_woodshed()
 	_rebuild_orders()
+	_refresh_badges()
 
 
 ## XP moves the level, and the level is what puts a wood on sale — so the shed's
@@ -297,20 +291,23 @@ func _on_species_purchased(_id: StringName) -> void:
 ## repaints an OPEN panel: this fires once per finished log.
 func _on_xp_changed(_total: int) -> void:
 	_refresh_xp_bar()
-	if _wood_panel.visible:
+	if _shop_panel.visible and _shop_tabs.current_tab == _TREES_TAB:
 		_rebuild_woodshed()
 	if _skill_panel.visible:
 		_rebuild_skills()
+	_refresh_badges()
 
 
 func _on_skill_points_changed(_available: int) -> void:
 	_refresh_xp_bar()
 	if _skill_panel.visible:
 		_rebuild_skills()
+	_refresh_badges()
 
 
 func _on_skill_level_changed(_id: StringName, _level: int) -> void:
 	_rebuild_skills()
+	_refresh_badges()
 
 
 ## THE WOODSHED IS A STORE since 2026-08-02: one row per wood the player OWNS,
@@ -345,7 +342,6 @@ func _rebuild_woodshed() -> void:
 			_wood_list.add_child(_build_wood_row(next, false))
 			_next_wood.text = "%s is in stock at the gate — %s to buy it." % [
 				next.display_name, _thousands(next.unlock_cost)]
-	_refresh_wood_button()
 
 
 func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
@@ -397,11 +393,6 @@ func _on_buy_wood_pressed(id: StringName) -> void:
 		GameState.select_species(id)
 
 
-func _refresh_wood_button() -> void:
-	var def := SpeciesTable.by_id(GameState.get_selected_species())
-	_wood_button.tooltip_text = "Wood: %s" % ("—" if def == null else def.display_name)
-
-
 ## 70000 -> "70,000". The late ladder deals in tens of thousands of pieces, and an
 ## unpunctuated number that long stops being readable as a quantity.
 func _thousands(n: int) -> String:
@@ -433,6 +424,7 @@ func _on_close_orders_pressed() -> void:
 func _on_order_state_changed() -> void:
 	_rebuild_orders()
 	_rebuild_shop()
+	_refresh_badges()
 
 
 func _rebuild_orders() -> void:
@@ -613,9 +605,36 @@ func _refresh_xp_bar() -> void:
 ## ----------------------------------------------------------------- live view
 func _on_cash_changed(_new_amount: int) -> void:
 	_refresh_stats()
+	_refresh_badges()
 	if _shop_panel.visible:
-		_rebuild_shop()   # what you can afford changed while you were looking at it
+		if _shop_tabs.current_tab == _ITEMS_TAB:
+			_rebuild_shop()
+		else:
+			_rebuild_woodshed()
 
 
 func _refresh_stats() -> void:
 	_cash_label.text = str(GameState.get_cash())
+
+
+## Red icon badges are a call to action, not a second economy display. Skills
+## shows unspent points; Shop counts only purchases the player can make NOW
+## across both Items and Trees.
+func _refresh_badges() -> void:
+	if _skills_badge == null or _shop_badge == null:
+		return
+	_set_badge(_skills_badge, GameState.get_skill_points_available())
+	var affordable := 0
+	for def: UpgradeDef in Shop.get_visible_upgrades():
+		if def != null and Shop.can_buy(def.id):
+			affordable += 1
+	var next := GameState.get_next_unowned_species()
+	if next != null and GameState.can_species_be_bought(next.id) \
+			and GameState.can_afford_cash(next.unlock_cost):
+		affordable += 1
+	_set_badge(_shop_badge, affordable)
+
+
+func _set_badge(badge: Label, amount: int) -> void:
+	badge.visible = amount > 0
+	badge.text = "99+" if amount > 99 else str(amount)

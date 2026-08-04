@@ -1336,13 +1336,62 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
 	var rest_y := _stump_top_y + half_h
 	var node := _make_stay_piece(_source_mesh, Vector3(0.0, rest_y, 0.0), 0.0, true)
+	var landed := Callable(self, "_on_log_landed").bind(_source_mesh)
 	if using_cart:
 		var reduction := clampf(Shop.total_effect(UpgradeDef.Effect.DELIVERY_TIME), 0.0, 0.8)
 		var duration := maxf(100.0, 300.0 * (1.0 - reduction))
-		_animator.animate_delivery(node, Vector3(0.72, rest_y + 0.15, 0.38),
-			Vector3(0, rest_y, 0), Callable(self, "_play_drop_sfx"), duration)
+		_animator.animate_drop(node, rest_y + drop_height, rest_y, landed, duration)
 	else:
-		_animator.animate_drop(node, rest_y + drop_height, rest_y, Callable(self, "_play_drop_sfx"))
+		_animator.animate_drop(node, rest_y + drop_height, rest_y, landed)
+
+
+func _on_log_landed(mesh: Mesh) -> void:
+	_play_drop_sfx()
+	_spawn_log_smoke(mesh)
+
+
+## A small low-poly dust/smoke ring at the block surface makes the in-place log
+## arrival feel grounded. Native meshes/materials only; every puff frees itself.
+func _spawn_log_smoke(mesh: Mesh) -> void:
+	if mesh == null:
+		return
+	var root := Node3D.new()
+	root.name = "LogSpawnSmoke"
+	add_child(root)
+	var footprint := mesh.get_aabb().size
+	# Clear the log silhouette so at least the side puffs remain readable from
+	# the fixed chopping camera, including when nearby equipment is installed.
+	var radius := maxf(0.20, maxf(footprint.x, footprint.z) * 0.65)
+	for i in range(6):
+		var angle := TAU * float(i) / 6.0 + randf_range(-0.12, 0.12)
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var puff_mesh := SphereMesh.new()
+		puff_mesh.radius = 0.07
+		# SphereMesh requires height >= diameter; shorter values silently produce
+		# no useful geometry on some Compatibility drivers.
+		puff_mesh.height = 0.14
+		puff_mesh.radial_segments = 6
+		puff_mesh.rings = 3
+		var material := StandardMaterial3D.new()
+		# Keep the brief puff opaque. Alpha-blended particles disappeared against
+		# the lit stump on Compatibility; these pale faceted chunks read clearly
+		# and vanish through motion/scale instead of a transparency fade.
+		material.albedo_color = Color(0.82, 0.78, 0.70, 1.0)
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var puff := MeshInstance3D.new()
+		puff.name = "Puff%d" % i
+		puff.mesh = puff_mesh
+		puff.material_override = material
+		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		puff.position = direction * radius + Vector3(0, _stump_top_y + 0.025, 0)
+		puff.scale = Vector3.ONE * 0.65
+		root.add_child(puff)
+		var tween := puff.create_tween().set_parallel(true)
+		tween.tween_property(puff, "position", puff.position + direction * 0.08 + Vector3.UP * 0.055, 0.34)
+		tween.tween_property(puff, "scale", Vector3.ONE * 1.35, 0.34)
+		tween.chain().tween_callback(puff.queue_free)
+	var cleanup := get_tree().create_timer(0.5)
+	cleanup.timeout.connect(root.queue_free)
 
 
 ## Prepare one mesh while the completed log is already waiting/stacking. It is

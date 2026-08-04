@@ -86,20 +86,6 @@ func animate_drop(mesh: Node3D, from_height: float, rest_y: float,
 	})
 
 
-## Handcart delivery: one already-staged log moves from the cart to the familiar
-## block position on a short readable arc. It changes only dead delivery time;
-## the resulting node and every later cut are the normal manual log.
-func animate_delivery(mesh: Node3D, from_pos: Vector3, rest_pos: Vector3,
-		on_land: Callable, duration_ms := 300.0) -> void:
-	mesh.position = from_pos
-	_anims.append({
-		"mesh": mesh, "type": "delivery",
-		"start_pos": from_pos, "end_pos": rest_pos,
-		"start_ms": -1.0, "delay_ms": 0.0, "duration": duration_ms,
-		"on_land": on_land, "land_fired": false,
-	})
-
-
 ## Advance every live animation. Call once per frame from the owner's _process.
 func update() -> void:
 	var now := _now_ms()
@@ -117,7 +103,6 @@ func update() -> void:
 		match a.type:
 			"bounce": _update_bounce(a, t)
 			"drop": _update_drop(a, t)
-			"delivery": _update_delivery(a, t)
 		if t >= 1.0:
 			_anims.remove_at(i)
 
@@ -186,20 +171,6 @@ func _update_drop(a: Dictionary, t: float) -> void:
 	mesh.quaternion = Quaternion(a.tilt_axis, r)
 
 
-func _update_delivery(a: Dictionary, t: float) -> void:
-	var mesh: Node3D = a.mesh
-	var eased := 1.0 - pow(1.0 - t, 2.0)
-	var start: Vector3 = a.start_pos
-	var finish: Vector3 = a.end_pos
-	mesh.position = start.lerp(finish, eased)
-	mesh.position.y += sin(t * PI) * 0.16
-	mesh.rotation.y = lerpf(-0.12, 0.0, eased)
-	if t >= 1.0 and not a.land_fired:
-		a.land_fired = true
-		if (a.on_land as Callable).is_valid():
-			(a.on_land as Callable).call()
-
-
 ## Snap the listed meshes to their final resting state and drop their anims.
 ## Used when a piece is about to be re-sliced (must be settled first).
 func finish_for(meshes: Array) -> void:
@@ -211,9 +182,6 @@ func finish_for(meshes: Array) -> void:
 				a.mesh.quaternion = Quaternion(_UP, a.target_yaw)
 			elif a.type == "drop":
 				a.mesh.position.y = a.end_y
-				a.mesh.quaternion = Quaternion.IDENTITY
-			elif a.type == "delivery":
-				a.mesh.position = a.end_pos
 				a.mesh.quaternion = Quaternion.IDENTITY
 			_anims.remove_at(i)
 

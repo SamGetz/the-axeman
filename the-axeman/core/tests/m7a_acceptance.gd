@@ -431,7 +431,10 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var xp_progress: ProgressBar = hud.get_node("XPBar/Progress")
 	var quick_menu: HBoxContainer = hud.get_node("QuickMenu")
 	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
+	var shop_badge: Label = hud.get_node("QuickMenu/ShopButton/Badge")
+	var skills_badge: Label = hud.get_node("QuickMenu/SkillsButton/Badge")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
+	var shop_tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
 	var backdrop: ColorRect = hud.get_node("ModalBackdrop")
 	var orders_button: Button = hud.get_node("QuickMenu/OrdersButton")
 	var orders_panel: PanelContainer = hud.get_node("OrdersPanel")
@@ -446,8 +449,8 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var xp_fill := xp_progress.get_theme_stylebox("fill") as StyleBoxFlat
 	_check(xp_fill != null and xp_fill.bg_color == XPOrb.COLOR,
 		"the XP fill uses the orb's exact reward colour (%s)" % XPOrb.COLOR)
-	_check(quick_menu.visible and quick_menu.get_child_count() == 4,
-		"contracts, wood, skills and shop are always available in one bottom-right dock")
+	_check(quick_menu.visible and quick_menu.get_child_count() == 3,
+		"contracts, skills and one combined shop are always available in the bottom-right dock")
 	var square_icons := true
 	for child in quick_menu.get_children():
 		var button := child as Button
@@ -455,7 +458,12 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 			and button.custom_minimum_size.x == button.custom_minimum_size.y \
 			and button.custom_minimum_size.x > 0.0 and button.text.is_empty() \
 			and button.icon != null
-	_check(square_icons, "all four dock actions are compact square icon buttons")
+	_check(square_icons, "all three dock actions are compact square icon buttons")
+	_check(not shop_badge.visible and not skills_badge.visible,
+		"fresh icons carry no red badge when nothing can be bought or spent")
+	_check(hud.get_node_or_null("QuickMenu/WoodButton") == null
+			and hud.get_node_or_null("WoodPanel") == null,
+		"the separate wood storefront is gone")
 
 	# Cash is the only number on screen; the pile count and the lifetime total are
 	# background stats now, still counted and still saved but never shown.
@@ -486,6 +494,8 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 		"...and both hidden stats still counted all 6 behind the scenes")
 	_check(InventoryManager.get_count(&"birch_firewood") == 0,
 		"...leaving no stock to manage — the wood was bought, not stored")
+	_check(shop_badge.visible and shop_badge.text == "2",
+		"the shop icon reports the two equipment purchases currently affordable")
 
 	# Sam's coin, on the door of the shop.
 	_check(shop_button.icon != null and shop_button.icon.resource_path.ends_with("coin.png"),
@@ -494,6 +504,13 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(not shop_panel.visible and not backdrop.visible, "the shop starts closed over the live chopping view")
 	shop_button.pressed.emit()
 	_check(shop_panel.visible and backdrop.visible, "...the coin button opens it with an outside-click catcher")
+	_check(shop_tabs.get_tab_count() == 2
+			and shop_tabs.get_tab_title(0) == "Items" and shop_tabs.get_tab_title(1) == "Trees",
+		"...with Items and Trees in the same shop window")
+	shop_tabs.current_tab = 1
+	_check(hud.get_node("ShopPanel/Column/ShopTabs/Trees").visible
+			and hud.get_node("ShopPanel/Column/ShopTabs/Trees/WoodScroll/WoodList").get_child_count() > 0,
+		"...and the Trees tab contains the selectable wood catalogue")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 	_check(not shop_panel.visible and not backdrop.visible, "...and Back returns straight to chopping")
 
@@ -523,9 +540,10 @@ func _test_14_hud_panels_dismiss_to_chopping() -> void:
 
 	var backdrop: ColorRect = hud.get_node("ModalBackdrop")
 	var skill_panel: PanelContainer = hud.get_node("SkillPanel")
-	var wood_panel: PanelContainer = hud.get_node("WoodPanel")
+	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
 	var skills: Button = hud.get_node("QuickMenu/SkillsButton")
-	var wood: Button = hud.get_node("QuickMenu/WoodButton")
+	var shop: Button = hud.get_node("QuickMenu/ShopButton")
+	var skills_badge: Label = hud.get_node("QuickMenu/SkillsButton/Badge")
 
 	_check(hud.get_node_or_null("YardPanel") == null
 			and hud.get_node_or_null("BackButton") == null
@@ -533,6 +551,9 @@ func _test_14_hud_panels_dismiss_to_chopping() -> void:
 		"the separate yard screen and its Go/Back navigation are GONE")
 	_check(backdrop.mouse_filter == Control.MOUSE_FILTER_STOP,
 		"the outside-click catcher consumes dismissal clicks before they reach the axe")
+	GameState.add_xp(GameState.get_xp_to_next_level())
+	_check(skills_badge.visible and skills_badge.text == "1",
+		"the skills icon shows the one usable point")
 
 	var entered: Array[int] = []
 	var exited := [0]
@@ -550,11 +571,13 @@ func _test_14_hud_panels_dismiss_to_chopping() -> void:
 	_check(not skill_panel.visible and not backdrop.visible,
 		"clicking outside the panel dismisses it straight back to chopping")
 
-	wood.pressed.emit()
-	_check(wood_panel.visible and backdrop.visible, "the wood icon opens its panel over chopping")
-	hud.get_node("WoodPanel/Column/CloseWoodButton").pressed.emit()
-	_check(not wood_panel.visible and not backdrop.visible,
-		"the panel's Back button dismisses it straight back to chopping")
+	shop.pressed.emit()
+	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
+	_check(shop_panel.visible and backdrop.visible,
+		"the shop icon opens the shared window directly over chopping")
+	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
+	_check(not shop_panel.visible and not backdrop.visible,
+		"Back dismisses either shop tab straight to chopping")
 	_check(entered.is_empty() and exited[0] == 0,
 		"opening and closing management never emits a 2D/3D mode change")
 
@@ -1374,6 +1397,14 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	game._stage_next_log()
 	_check(game.debug_has_staged_log(),
 		"the Handcart stages exactly the selected next log without chopping or paying it")
+	game._spawn_fresh_log(false)
+	var appeared_log: Node3D = game.get_node("OnBlock").get_child(0)
+	_check(is_zero_approx(appeared_log.position.x) and is_zero_approx(appeared_log.position.z),
+		"the staged log appears over the block instead of flying in from off screen")
+	await _wait(0.12)
+	var smoke := game.find_child("LogSpawnSmoke", false, false)
+	_check(smoke != null and smoke.get_child_count() == 6,
+		"the in-place arrival throws six low-poly smoke puffs around the log base")
 
 	GameState.add_xp(GameState.get_xp_to_next_level())
 	var aspen := Orders.by_id(&"aspen_hearth_load")

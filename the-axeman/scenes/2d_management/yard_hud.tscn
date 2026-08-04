@@ -3,7 +3,6 @@
 [ext_resource type="Script" path="res://scenes/2d_management/yard_hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/ui/coin.png" id="2_coin"]
 [ext_resource type="Texture2D" path="res://assets/ui/contracts_icon.svg" id="3_contracts"]
-[ext_resource type="Texture2D" path="res://assets/ui/wood_icon.svg" id="4_wood"]
 [ext_resource type="Texture2D" path="res://assets/ui/skills_icon.svg" id="5_skills"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_contract_board"]
@@ -17,6 +16,15 @@ corner_radius_top_left = 5
 corner_radius_top_right = 5
 corner_radius_bottom_right = 5
 corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_badge"]
+content_margin_left = 4.0
+content_margin_right = 4.0
+bg_color = Color(0.82, 0.08, 0.07, 1)
+corner_radius_top_left = 9
+corner_radius_top_right = 9
+corner_radius_bottom_right = 9
+corner_radius_bottom_left = 9
 
 [node name="YardHUD" type="Control"]
 anchors_preset = 15
@@ -91,7 +99,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -264.0
+offset_left = -200.0
 offset_top = -72.0
 offset_right = -16.0
 offset_bottom = -16.0
@@ -107,14 +115,6 @@ icon = ExtResource("3_contracts")
 expand_icon = true
 icon_max_width = 34
 
-[node name="WoodButton" type="Button" parent="QuickMenu"]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-tooltip_text = "Wood"
-icon = ExtResource("4_wood")
-expand_icon = true
-icon_max_width = 34
-
 [node name="SkillsButton" type="Button" parent="QuickMenu"]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
@@ -123,6 +123,25 @@ icon = ExtResource("5_skills")
 expand_icon = true
 icon_max_width = 34
 
+[node name="Badge" type="Label" parent="QuickMenu/SkillsButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -16.0
+offset_top = -6.0
+offset_right = 6.0
+offset_bottom = 14.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBox_badge")
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="ShopButton" type="Button" parent="QuickMenu"]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
@@ -130,6 +149,25 @@ tooltip_text = "Shop"
 icon = ExtResource("2_coin")
 expand_icon = true
 icon_max_width = 38
+
+[node name="Badge" type="Label" parent="QuickMenu/ShopButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -16.0
+offset_top = -6.0
+offset_right = 6.0
+offset_bottom = 14.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBox_badge")
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="ModalBackdrop" type="ColorRect" parent="."]
 visible = false
@@ -175,68 +213,54 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Shop"
 
-[node name="ShopScroll" type="ScrollContainer" parent="ShopPanel/Column"]
+[node name="ShopTabs" type="TabContainer" parent="ShopPanel/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Column/ShopScroll"]
+[node name="Items" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs"]
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="ShopEmpty" type="Label" parent="ShopPanel/Column"]
-layout_mode = 2
-autowrap_mode = 3
-text = "Nothing on the shelves yet."
-
-[node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
-text = "Back"
-
-[node name="WoodPanel" type="PanelContainer" parent="."]
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -290.0
-offset_top = -210.0
-offset_right = 290.0
-offset_bottom = 210.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Column" type="VBoxContainer" parent="WoodPanel"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="WoodTitle" type="Label" parent="WoodPanel/Column"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "The Woodshed"
-
-[node name="WoodBlurb" type="Label" parent="WoodPanel/Column"]
-layout_mode = 2
-autowrap_mode = 3
-text = "Pick what goes on the block. Harder wood is worth more and fights back harder."
-
-[node name="WoodScroll" type="ScrollContainer" parent="WoodPanel/Column"]
+[node name="ShopScroll" type="ScrollContainer" parent="ShopPanel/Column/ShopTabs/Items"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="WoodList" type="VBoxContainer" parent="WoodPanel/Column/WoodScroll"]
+[node name="ShopList" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs/Items/ShopScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="ShopEmpty" type="Label" parent="ShopPanel/Column/ShopTabs/Items"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Nothing on the shelves yet."
+
+[node name="Trees" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="WoodBlurb" type="Label" parent="ShopPanel/Column/ShopTabs/Trees"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Pick what goes on the block. Harder wood is worth more and fights back harder."
+
+[node name="WoodScroll" type="ScrollContainer" parent="ShopPanel/Column/ShopTabs/Trees"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="WoodList" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs/Trees/WoodScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="NextWood" type="Label" parent="WoodPanel/Column"]
+[node name="NextWood" type="Label" parent="ShopPanel/Column/ShopTabs/Trees"]
 layout_mode = 2
 autowrap_mode = 3
 theme_override_font_sizes/font_size = 13
 
-[node name="CloseWoodButton" type="Button" parent="WoodPanel/Column"]
+[node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Back"
