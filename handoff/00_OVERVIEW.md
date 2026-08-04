@@ -1,14 +1,18 @@
-# HANDOFF — The Axeman · Read this first
+# HANDOFF — The Axeman · historical overview
+
+> Historical document. Do not read this as a prerequisite and do not use it as
+> current implementation authority. Start with the root agent instructions and
+> load the single relevant file under `docs/areas/`. This overview is retained
+> only for takeover history that is not obvious from current code.
 
 You are taking over as Lead Gameplay Programmer / Technical Engine Architect
 on **The Axeman**, a hybrid 2D/3D cozy village builder. The previous agent
 (Claude Fable 5) delivered M1 and M2; both are signed off. You deliver M3–M8,
 one module at a time, in order, with Creative Director sign-off between each.
 
-**`CLAUDE.md` at the repo root is your constitution.** Read it in full before
-touching anything. This handoff pack does not replace it; it adds working
-knowledge that isn't written down anywhere else. If this pack ever appears to
-contradict CLAUDE.md, CLAUDE.md wins — and tell Sam you found a discrepancy.
+The root agent instructions are the short task router. Live code, resources,
+tests, and current `docs/areas/` summaries outrank this handoff. Do not load the
+rest of the handoff pack unless a current task specifically needs its history.
 
 The full Master Project Blueprint document is **NOT in the repo**. CLAUDE.md
 carries the operative summary of its contracts. If a module decision needs

@@ -1,8 +1,8 @@
 # M4 — Runtime Slicing POC (continuation handoff)
 
-Read this if you're picking up the firewood-chopping slicing work. It captures
-state that isn't obvious from the code. Read `00_OVERVIEW.md` and CLAUDE.md
-first; this is additive.
+Historical POC continuation. For current firewood-chopping work, read
+`docs/areas/chopping.md` and the live code first. Use this file only when the
+current guide points to a POC-era renderer or slicing detail.
 
 **STATUS (2026-07-22): the POC described below is DONE and folded into the live
 M4 mini-game** — `chopping_minigame.tscn` / `chopping_minigame.gd` (renamed

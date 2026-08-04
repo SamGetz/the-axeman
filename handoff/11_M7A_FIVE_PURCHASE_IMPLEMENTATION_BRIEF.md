@@ -1,5 +1,10 @@
 # M7A Five-Purchase Shop — Approval Brief
 
+> Historical implementation brief for completed M7A work. Current progression
+> behavior lives in `docs/areas/progression.md`, the live resources, and
+> `core/tests/m7a_acceptance.*`. Do not load roadmap dependencies merely because
+> this brief originally cited them.
+
 **Status:** **Approved and explicitly signed off by Sam, Creative Director,
 4 August 2026.** The M7A milestone exit gate is closed. Remaining final
 art/audio replacements and future retuning are follow-up content work; they do

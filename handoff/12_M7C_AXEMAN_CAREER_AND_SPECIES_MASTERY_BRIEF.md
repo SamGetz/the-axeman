@@ -1,5 +1,11 @@
 # M7C — Axeman Career and Species Mastery Implementation Brief
 
+> **Historical approved brief, superseded by the signed-off implementation.**
+> Do not use this file as current behavior authority. In particular, its
+> player-initiated Follow-Up design was replaced on 2026-08-05 by the approved
+> automatic bonus swing. Use `docs/areas/skills.md`, the live code/resources,
+> and `core/tests/m7c_acceptance.*`.
+
 **Status:** **Approved by Sam, Creative Director, 4 August 2026. M7C slices 1–6
 are implemented through the Technique vertical slice; Slice 6 awaits Creative
 Director feel/tuning sign-off.** M7A is signed off and M7C is the active
@@ -9,10 +15,9 @@ of clearly labelled `.tres` placeholders pending the mandatory Creative
 Director tuning pass. No placeholder becomes final merely because it is used to
 build or test a system.
 
-**Authority:** `CLAUDE.md`, `handoff/08_COZY_LUMBERYARD_ROADMAP.md`,
-`handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`, the approved
-`handoff/11_M7A_FIVE_PURCHASE_IMPLEMENTATION_BRIEF.md`, the live Godot project,
-and Sam's 4 August 2026 direction in this brief's request.
+**Original authority at approval time:** the then-current project instructions,
+roadmaps, M7A brief, live Godot project, and Sam's 4 August 2026 direction. This
+chain is recorded for history and is not a required reading list.
 
 **Visual reference:** `Axeman UI Mockups (standalone).html` is visual and layout
 direction only. It is not gameplay, progression, content, or tuning authority.

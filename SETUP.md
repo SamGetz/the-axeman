@@ -23,9 +23,8 @@ the file is `Godot_v4.7.1-stable_win64.exe`.
 
 Godot ships as a single portable executable — put it wherever you like. On the
 desktop machine it lives at `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe`,
-which is the path CLAUDE.md quotes. **That path is that machine's, not the
-project's.** Nothing in the repo reads it; it is only ever typed on a command
-line.
+which is an example for that machine only, not the project's path. Nothing in
+the repo reads it; it is only ever typed on a command line.
 
 The version matters. `project.godot` declares
 `config/features=PackedStringArray("4.7", "GL Compatibility")`, and opening the
@@ -112,9 +111,9 @@ do.
 
 ## 4. Verify the checkout
 
-Run the suites. These are the same commands CLAUDE.md lists, and the expected
-results are the ones recorded there as of 2026-08-01. **Run all of them from
-inside `the-axeman/`**, never from the repo root.
+Run the suites. The concise current command list and baseline live in
+`docs/TESTING.md`. **Run all of them from inside `the-axeman/`**, never from the
+repo root.
 
 ```bash
 "$GODOT" --headless --path . --quit-after 900 res://core/tests/m1_acceptance.tscn
@@ -144,8 +143,8 @@ inside `the-axeman/`**, never from the repo root.
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
-Expected: M1 19/19, M2 24/24, M3 16/16, M4 55/55, M7A 285/285,
-M7C 134/134, slicer 34/34.
+Expected as of 2026-08-05: M1 19/19, M2 24/24, M3 16/16, M4 55/55,
+M7A 285/285, M7C 220/220, slicer 34/34.
 **The original suite was confirmed on a fresh clone + double import on
 2026-08-02; the expanded M4/M7A counts were confirmed on the desktop on
 2026-08-04.** They are the expected current shipping-asset results.
@@ -213,7 +212,9 @@ one:
 
 - **Commit and push before you leave a machine.** The project has been under git
   only since 2026-08-01 and the habit is still new.
-- **Pull before you start**, with the Godot editor closed.
+- When changing machines, fetch and inspect the branch state before substantial
+  implementation. Pull only after confirming the worktree is clean, with the
+  Godot editor closed.
 - `.godot/` is not shared, so each machine builds its own import cache once and
   then never thinks about it again.
 - `.claude/settings.local.json` is per-machine and gitignored. Permissions meant
@@ -228,10 +229,14 @@ one:
 
 | File | What |
 |---|---|
-| `CLAUDE.md` | The operative source of truth: current status, frozen contracts, amendment log, every bug this project has paid for. Read first. |
-| `handoff/00_OVERVIEW.md` | The handoff pack's index. |
-| `handoff/02_M4_CHOPPING_BLOCK.md` | The live chopping implementation. |
-| `handoff/07_M4_SLICING_POC.md` | Render and debug traps for the slicer. |
+| `CLAUDE.md` / `AGENTS.md` | Lean agent entry points and task routing. |
+| `docs/STATUS.md` | Current milestone state and latest verified suite counts. |
+| `docs/TESTING.md` | Current test commands and verification rules. |
+| `docs/areas/` | Current task-specific guidance; read only the relevant file. |
+| `docs/history/` | Optional background and post-mortems; not current authority. |
+| `handoff/00_OVERVIEW.md` | Historical handoff-pack index; not prerequisite reading. |
+| `handoff/02_M4_CHOPPING_BLOCK.md` | Historical chopping implementation brief. |
+| `handoff/07_M4_SLICING_POC.md` | Historical POC render/debug detail. |
 | `handoff/08_COZY_LUMBERYARD_ROADMAP.md` | The binding post-pivot roadmap. |
 | `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` | The long-horizon module sequence. |
 | `INSTALL_M1.md` | The original M1 drop instructions — historical. |
