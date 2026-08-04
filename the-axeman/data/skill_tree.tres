@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://data/skill_tree_table.gd" id="1_tree"]
 [ext_resource type="Script" path="res://data/skill_node_def.gd" id="2_node"]
+[ext_resource type="Script" path="res://data/gameplay_modifier_def.gd" id="3_modifier"]
 
 [sub_resource type="Resource" id="Resource_strong_arms"]
 resource_name = "strong_arms"
@@ -64,6 +65,48 @@ cost = 3
 effect = 4
 effect_step = 0.05
 
+[sub_resource type="Resource" id="Resource_double_strike"]
+resource_name = "double_strike"
+script = ExtResource("2_node")
+id = &"double_strike"
+display_name = "Double Strike"
+description = "One good swing, and sometimes the axe doesn't stop moving — a second real cut on whatever's left standing."
+branch_id = &"strength"
+node_type = 1
+presentation_position = Vector2i(0, 1)
+proc_id = &"double_strike"
+requires = [&"strong_arms"]
+max_level = 3
+cost = 3
+effect = 0
+effect_step = 0.05
+
+; PLACEHOLDER — Creative Director tuning required. Kind PRECISION_SAFETY /
+; Operation ENABLE is the resolver's exact hook for "an owned modifier
+; explicitly makes [bonus cuts] safe" during precision work (M7C brief).
+[sub_resource type="Resource" id="Modifier_double_strike_precision_safety"]
+script = ExtResource("3_modifier")
+id = &"double_strike_precision_safety"
+kind = 5
+operation = 2
+magnitude = 1.0
+
+[sub_resource type="Resource" id="Resource_steady_continuation"]
+resource_name = "steady_continuation"
+script = ExtResource("2_node")
+id = &"steady_continuation"
+display_name = "Steady Continuation"
+description = "Learned control keeps a Double Strike safe even while you're working carefully — it no longer holds back during precision swings."
+branch_id = &"strength"
+node_type = 2
+presentation_position = Vector2i(0, 2)
+requires = [&"double_strike"]
+max_level = 1
+cost = 2
+effect = 0
+effect_step = 0.05
+modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_double_strike_precision_safety")])
+
 [resource]
 script = ExtResource("1_tree")
-nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_ready_stance"), SubResource("Resource_quick_study")])
+nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_ready_stance"), SubResource("Resource_quick_study"), SubResource("Resource_double_strike"), SubResource("Resource_steady_continuation")])

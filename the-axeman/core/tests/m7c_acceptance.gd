@@ -2,8 +2,10 @@ extends Node
 ## FILE: res://core/tests/m7c_acceptance.gd
 ## ATTACHES TO: res://core/tests/m7c_acceptance.tscn. Not shipped.
 ##
-## M7C grows slice by slice. Current groups cover save-v2 skill migration and
-## typed content schemas/validators; no proc or mastery gameplay exists yet.
+## M7C grows slice by slice. Current groups cover save-v2 skill migration,
+## typed content schemas/validators, the three-bough UI, and (Slice 5) the
+## Strength vertical slice's shared proc resolver and Double Strike. Mastery,
+## Speed/Technique procs and equipment loadout still have no gameplay.
 
 const _FIXTURES := "res://core/tests/fixtures/"
 const _BACKUP_PATH := "user://the_axeman_save.m7c_testbackup"
@@ -23,6 +25,10 @@ func _ready() -> void:
 	_test_skill_validator_rejects_bad_graphs()
 	_test_content_validators_reject_bad_rows()
 	await _test_three_bough_skill_ui()
+	await _test_double_strike_forced_geometry_and_caps()
+	await _test_double_strike_precision_guard()
+	_test_double_strike_bad_luck_bound_and_persistence()
+	await _test_double_strike_requires_ownership()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -351,6 +357,225 @@ func _find_skill_button(hud: Control, id: StringName) -> Button:
 		if candidate.get_meta("skill_id", &"") == id:
 			return candidate as Button
 	return null
+
+
+# ------------------------------------------------- M7C Slice 5: Double Strike
+## Routes every skill purchase through the REAL GameState.add_xp + SkillTree.buy
+## path, never a direct set_skill_level poke — a test can never grant a rank
+## the actual game could not have sold.
+func _grant_double_strike_chain(with_modifier: bool) -> void:
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(7))
+	_check(SkillTree.buy(&"strong_arms") == 1, "test setup: Strong Arms bought")
+	_check(SkillTree.buy(&"double_strike") == 1, "test setup: Double Strike bought")
+	if with_modifier:
+		_check(SkillTree.buy(&"steady_continuation") == 1, "test setup: Steady Continuation bought")
+
+
+func _make_double_strike_minigame() -> Node3D:
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_split_roll = 1      # the primary swing always cleaves — tests the proc, not the roll
+	mg.debug_force_proc = 1      # Double Strike always fires when it is rolled at all
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+	return mg
+
+
+## Group 1 of the brief's acceptance matrix: forced Double Strike performs
+## exactly the announced valid slicer operations, stops at the learned AND the
+## global safety cap, and refuses a continuation with no valid geometry left —
+## all without ever rolling (no fairness state spent) when there is nothing to
+## roll for.
+func _test_double_strike_forced_geometry_and_caps() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	_grant_double_strike_chain(false)
+
+	var mg := await _make_double_strike_minigame()
+	var before: int = mg.piece_count()
+	var split: bool = mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(split, "test setup: the primary swing splits the fresh log")
+	_check(mg.debug_last_double_strike_cuts() == 1,
+		"a forced, owned Double Strike performs exactly one bonus cut on a fresh log")
+	_check(mg.piece_count() == before + 2,
+		"...two real slices landed this swing, not one (%d -> %d)" % [before, mg.piece_count()])
+	mg.queue_free()
+	await get_tree().process_frame
+
+	# Global safety cap, independent of the learned chain_cap (already 1 in the
+	# shipping data): zeroing it must refuse every bonus cut even forced+owned.
+	var mg2 := await _make_double_strike_minigame()
+	mg2.global_proc_chain_cap = 0
+	var before2: int = mg2.piece_count()
+	mg2.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg2.debug_last_double_strike_cuts() == 0,
+		"a zeroed global cap refuses every bonus cut even though the proc is forced on")
+	_check(mg2.piece_count() == before2 + 1,
+		"...only the primary split landed (%d -> %d)" % [before2, mg2.piece_count()])
+	mg2.queue_free()
+	await get_tree().process_frame
+
+	# No useful geometry: force BOTH halves of the primary split to classify as
+	# firewood (fly off) rather than staying on the block, so the continuation
+	# has nothing left to target.
+	var mg3 := await _make_double_strike_minigame()
+	mg3.min_vol = 1000.0   # every piece, however large, reads as firewood
+	var streak_before := GameState.get_proc_dry_streak(&"double_strike")
+	mg3.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg3.cuttable_count() == 0,
+		"test setup: the primary split left nothing on the block to continue onto")
+	_check(mg3.debug_last_double_strike_cuts() == 0,
+		"the absence of useful geometry stops the chain before any bonus cut")
+	_check(GameState.get_proc_dry_streak(&"double_strike") == streak_before,
+		"...and it was never even rolled — no fairness state spent on a cut that could not execute")
+	mg3.queue_free()
+	await get_tree().process_frame
+
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Group 5 of the brief's acceptance matrix: the precision guard suppresses
+## bonus cuts with no penalty and no fairness spend, and does not touch the
+## base swing — unless an owned modifier (Steady Continuation) explicitly
+## makes Double Strike safe during precision work, exactly as the brief's
+## fairness contract specifies.
+func _test_double_strike_precision_guard() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	_grant_double_strike_chain(false)   # owns Double Strike, NOT the modifier
+
+	var mg := await _make_double_strike_minigame()
+	mg.debug_set_precision_guard(true)
+	var streak_before := GameState.get_proc_dry_streak(&"double_strike")
+	var before: int = mg.piece_count()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.debug_last_double_strike_cuts() == 0,
+		"the precision guard suppresses the bonus cut even with the proc forced on")
+	_check(mg.piece_count() == before + 1,
+		"...the base swing itself still landed normally, untouched by the guard")
+	_check(GameState.get_proc_dry_streak(&"double_strike") == streak_before,
+		"...and suppression spent no fairness state — the roll never happened")
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	# An owned modifier explicitly makes it safe again.
+	_grant_double_strike_chain(true)
+	var mg2 := await _make_double_strike_minigame()
+	mg2.debug_set_precision_guard(true)
+	var before2: int = mg2.piece_count()
+	mg2.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg2.debug_last_double_strike_cuts() == 1,
+		"Steady Continuation lets Double Strike proceed even during precision work")
+	_check(mg2.piece_count() == before2 + 2,
+		"...both the primary and the bonus cut landed (%d -> %d)" % [before2, mg2.piece_count()])
+	mg2.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Group 6 of the brief's acceptance matrix: bounded bad-luck protection
+## reaches its bound, persists across save/load (so a reload cannot cheaply
+## reroll it), and a save whose streak now exceeds the CURRENT bound is
+## reclamped rather than left in an impossible state. Pure ProcResolver/
+## GameState logic — no scene needed, so RNG is only ever exercised for the
+## single "a real roll at the bound is guaranteed" assertion.
+func _test_double_strike_bad_luck_bound_and_persistence() -> void:
+	GameState.reset_to_defaults()
+	var proc_def: ProcDef = M7CContent.procs().by_id(&"double_strike")
+	_check(proc_def != null, "test setup: the double_strike proc is registered")
+	if proc_def == null:
+		return
+
+	for i in range(proc_def.bad_luck_bound - 1):
+		var fired: bool = ProcResolver.should_proc(proc_def, 0)   # forced fail; still recorded
+		_check(not fired, "forced-fail roll %d of %d does not fire" % [i + 1, proc_def.bad_luck_bound - 1])
+	_check(GameState.get_proc_dry_streak(&"double_strike") == proc_def.bad_luck_bound - 1,
+		"the dry streak climbed to one short of the bound (%d)" % (proc_def.bad_luck_bound - 1))
+
+	var pity: bool = ProcResolver.should_proc(proc_def)   # a REAL roll, not forced
+	_check(pity, "a real roll at the bad-luck bound is guaranteed to fire (pity)")
+	_check(GameState.get_proc_dry_streak(&"double_strike") == 0,
+		"...and firing resets the streak")
+
+	for i in range(proc_def.bad_luck_bound - 2):
+		ProcResolver.should_proc(proc_def, 0)
+	var streak_before := GameState.get_proc_dry_streak(&"double_strike")
+	_check(streak_before == proc_def.bad_luck_bound - 2, "rebuilt streak before save (%d)" % streak_before)
+
+	var saved := GameState.to_save_dict()
+	GameState.reset_to_defaults()
+	_check(GameState.get_proc_dry_streak(&"double_strike") == 0, "a fresh save starts with no streak")
+	GameState.apply_save_dict(saved)
+	_check(GameState.get_proc_dry_streak(&"double_strike") == streak_before,
+		"loading the save restores the exact streak — reload cannot cheaply reroll it")
+
+	# A streak beyond the CURRENT bound (e.g. a retuned-down bound, or a
+	# corrupted field) is reclamped on load, never left impossible.
+	var tampered := saved.duplicate(true)
+	tampered["proc_dry_streak"] = {"double_strike": 999}
+	GameState.apply_save_dict(tampered)
+	_check(GameState.get_proc_dry_streak(&"double_strike") == proc_def.bad_luck_bound,
+		"an oversized streak is clamped to the current bound on load, never left impossible")
+
+	GameState.reset_to_defaults()
+
+
+## Group 3 of the brief's acceptance matrix: the same skill points spent in a
+## different branch produce measurably different eligible behavior. Double
+## Strike is available only when OWNED — forcing the proc without owning it
+## must never fire, whether the player has spent no points at all or has spent
+## the identical number of points entirely in Speed instead.
+func _test_double_strike_requires_ownership() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	_check(SkillTree.get_level(&"double_strike") == 0, "test setup: Double Strike starts unowned")
+	var mg := await _make_double_strike_minigame()
+	var before: int = mg.piece_count()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.debug_last_double_strike_cuts() == 0,
+		"an unlearned Double Strike never fires, however hard the proc is forced")
+	_check(mg.piece_count() == before + 1, "...only the ordinary split landed")
+	_check(GameState.get_proc_dry_streak(&"double_strike") == 0,
+		"...and an unowned proc is never even rolled — no fairness state spent")
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	# The SAME number of points (4), spent entirely in Speed instead.
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(5))
+	for i in range(4):
+		SkillTree.buy(&"quick_hands")
+	_check(SkillTree.get_level(&"quick_hands") == 4, "test setup: 4 points spent entirely in Speed")
+	_check(SkillTree.get_level(&"double_strike") == 0,
+		"spending points off-branch does not grant an unlearned Strength proc")
+
+	var mg2 := await _make_double_strike_minigame()
+	var before2: int = mg2.piece_count()
+	mg2.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg2.debug_last_double_strike_cuts() == 0,
+		"...so the identical forced proc still performs zero bonus cuts")
+	_check(mg2.piece_count() == before2 + 1, "...only the ordinary split landed")
+	mg2.queue_free()
+	await get_tree().process_frame
+
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
 
 
 func _test_skill(id: StringName) -> SkillNodeDef:

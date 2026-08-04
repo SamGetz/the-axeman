@@ -53,6 +53,12 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 ## is running, and shipping systems do not depend on either signal.
 signal strike_resolved(did_split: bool)
 signal log_completed(species_id: StringName, piece_count: int)
+## M7C: a named proc completed and should be shown to the player. `cuts` is the
+## actual number of EXECUTED extra slicer operations, never the rolled
+## intention — announcement intensity must scale with the completed result
+## (M7C brief's fairness contract). Local signal; main.gd wires it to
+## UI_Overlay the same way it wires every other scene-to-HUD connection.
+signal bonus_proc_announced(proc_id: StringName, cuts: int)
 
 # --- log species ---------------------------------------------------------
 ## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
@@ -230,6 +236,16 @@ signal log_completed(species_id: StringName, piece_count: int)
 @export var scar_colour := Color(0.20, 0.13, 0.09, 0.55)   # a soft mark, not a black bar
 @export var debug_split_roll := -1      # -1 = roll for real; 0 = always fail; 1 = always split (tests only)
 
+# --- procs (M7C: named chance-driven events off a successful split) --------
+@export_group("Procs")
+## Belt-and-braces safety cap on EXTRA cuts one swing's continuation chain may
+## ever perform, independent of any node's own learned chain_cap — the M7C
+## fairness contract requires both a learned AND a global stop ("the learned
+## cap, the global safety cap, or the absence of useful geometry, whichever
+## comes first"). PLACEHOLDER per Directive 3.
+@export var global_proc_chain_cap := 3
+@export var debug_force_proc := -1      # -1 = roll for real; 0 = never; 1 = always (tests only)
+
 # --- swing cooldown (what the coffee buys) --------------------------------
 ## Creative Director call, 2026-08-01: coffee is "5% faster time between swings",
 ## and Sam chose a REAL cooldown for it to cut into — before this the game had
@@ -270,6 +286,13 @@ var _stacking := false                    # firewood is flying into the pile
 var _awaiting_stack := false              # log done; waiting for firewood to settle before stacking
 var _await_since := 0.0                   # sec timestamp the wait began
 var _staged_log: Dictionary = {}          # Handcart's one prepared next log; never inventory or automation
+## M7C precision guard: the player's own request to suppress bonus cuts on the
+## current work, with no penalty and no fairness spend. Input binding is an
+## unresolved Creative Director decision (brief item 10), so the only entry
+## point today is debug_set_precision_guard() — the same shape as every other
+## debug_* seam in this file until Sam picks the real control.
+var _precision_guard := false
+var _last_double_strike_cuts := -1        # debug seam: cuts by the most recent continuation attempt
 
 var _source_mesh: Mesh
 var _yaw_steps := 0
@@ -782,6 +805,12 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 		piece.set_meta("scars", 0)
 		var split := _perform_split(piece, world_point, normal, dir_enum)
 		strike_resolved.emit(split)
+		if split:
+			# M7C: the ONLY call site. A continuation cut lands through
+			# _perform_split directly, never back through _resolve_strike, so a
+			# root swing can never spawn a second root event — see
+			# _attempt_double_strike.
+			_attempt_double_strike(normal, dir_enum)
 		return split
 
 	# It bit, it did not go through. Mark the wood and make the next swing into
@@ -794,6 +823,100 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 	_play_sfx(thud_sfx)
 	strike_resolved.emit(false)
 	return false
+
+
+# ------------------------------------------------------- M7C: Double Strike
+## After a primary split lands, maybe cut a second, real billet with the same
+## swing. Bounded by the LEARNED cap (the node's own ProcDef.chain_cap) AND the
+## GLOBAL safety cap, and stops the moment there is no useful geometry left —
+## "whichever comes first" (M7C brief). Every iteration preflights the
+## candidate plane BEFORE rolling: a proc is never even asked for on a cut that
+## could not execute, so a fired proc can never fail to land and an unfired
+## roll never shows up as an announcement.
+func _attempt_double_strike(normal: Vector3, dir_enum: int) -> void:
+	_last_double_strike_cuts = 0
+	if _precision_guard and not _double_strike_safe_in_precision():
+		return   # suppressed: no target lookup, no roll, no fairness spend
+	if SkillTree.get_level(&"double_strike") <= 0:
+		return
+	var proc_def: ProcDef = M7CContent.procs().by_id(&"double_strike") if M7CContent.procs() != null else null
+	if proc_def == null:
+		return
+	var cap := mini(proc_def.chain_cap, global_proc_chain_cap)
+	var cuts := 0
+	while cuts < cap:
+		var target := _pick_double_strike_target()
+		if target == null:
+			break   # no useful geometry left on the block — stop, do not roll
+		var point: Vector3 = target.global_position
+		if not _double_strike_preflight(target, point, normal):
+			break   # this target cannot take the cut either — stop, do not roll
+		if not ProcResolver.should_proc(proc_def, debug_force_proc):
+			break   # rolled and it did not fire — the chain ends here
+		if not _perform_split(target, point, normal, dir_enum):
+			break   # belt-and-braces: preflight said yes but the real cut refused
+		cuts += 1
+	_last_double_strike_cuts = cuts
+	if cuts > 0:
+		bonus_proc_announced.emit(&"double_strike", cuts)
+
+
+## Does an owned modifier explicitly make Double Strike safe during precision
+## work? Only Steady Continuation grants this today (M7C brief: "unless an
+## owned modifier explicitly makes them safe").
+func _double_strike_safe_in_precision() -> bool:
+	return SkillTree.get_level(&"steady_continuation") > 0
+
+
+## Deterministic continuation target: the largest on-block piece by measured
+## volume. `_on_block` only ever holds live, script-animated stays — never a
+## settling firewood piece, a frozen pile piece, or an unrelated pile mesh —
+## so any entry here already satisfies the fairness contract's "does not
+## select settling, frozen, already-consumed, or unrelated pile pieces".
+func _pick_double_strike_target() -> Area3D:
+	var best: Area3D = null
+	var best_vol := -1.0
+	for p: Area3D in _on_block:
+		if not is_instance_valid(p):
+			continue
+		var mesh: Mesh = p.get_meta("mesh_ref")
+		if mesh == null:
+			continue
+		var s := mesh.get_aabb().size
+		var vol := s.x * s.y * s.z
+		if vol > best_vol:
+			best_vol = vol
+			best = p
+	return best
+
+
+## Pure trial: does a candidate world plane through `piece` produce two valid
+## halves? Mirrors _perform_split's own plane-building exactly (square bias,
+## world-to-local, sliver guard) but stops before any mutation — nothing is
+## queue_free'd, nothing joins _on_block, no signal fires. Kept as a separate
+## trial rather than a refactor of _perform_split so the well-tested M4 cut
+## path is never touched by an M7C change.
+func _double_strike_preflight(piece: Area3D, world_point: Vector3, normal: Vector3) -> bool:
+	var mesh: Mesh = piece.get_meta("mesh_ref")
+	if mesh == null:
+		return false
+	var xform := piece.global_transform
+	var world_plane := Plane(normal, normal.dot(world_point))
+	world_plane = _square_bias(mesh, xform, world_plane)
+	var local_plane := _plane_to_local(world_plane, xform)
+	local_plane = _sliver_guard(mesh, local_plane)
+	var res := MeshSlicer.slice(mesh, local_plane, _cut_mat)
+	return res.above != null and res.below != null
+
+
+## Test/debug seam only — the real control is an unresolved Creative Director
+## decision (M7C brief item 10). Mirrors this file's existing debug_* pattern.
+func debug_set_precision_guard(enabled: bool) -> void:
+	_precision_guard = enabled
+
+
+func debug_last_double_strike_cuts() -> int:
+	return _last_double_strike_cuts
 
 
 ## The odds that ONE swing cleaves `piece`, all in one place:

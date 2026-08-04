@@ -120,6 +120,11 @@ var _skill_levels: Dictionary = {}
 ## parallel count says only how many of those ranks retain their prototype
 ## per-rank price. It is not a point purse and cannot be spent independently.
 var _legacy_skill_ranks: Dictionary = {}
+## Proc id (StringName) -> consecutive DRY (non-fired) rolls since it last
+## fired. Bounded bad-luck protection (see ProcResolver) reads this so a
+## reload cannot cheaply reroll a live streak — see the M7C brief's fairness
+## contract: "Its state persists so save/reload cannot cheaply reroll."
+var _proc_dry_streak: Dictionary = {}
 const _V1_SKILL_COSTS := {
 	&"strong_arms": 1,
 	&"quick_hands": 1,
@@ -244,6 +249,23 @@ func get_skill_level(skill_id: StringName) -> int:
 
 func get_skill_levels() -> Dictionary:
 	return _skill_levels.duplicate()
+
+
+## ---------------------------------------------------- proc fairness (M7C)
+func get_proc_dry_streak(proc_id: StringName) -> int:
+	return int(_proc_dry_streak.get(proc_id, 0))
+
+
+## Records one resolved roll. Called by ProcResolver only — GameState remains
+## the sole progression writer (Directive 6); the resolver decides the
+## outcome, this owns its consequence, the same split SkillTree.buy() /
+## set_skill_level() already use. No signal: this is fairness bookkeeping, not
+## a celebratory event, and nothing paints from it directly.
+func note_proc_result(proc_id: StringName, fired: bool) -> void:
+	if fired:
+		_proc_dry_streak.erase(proc_id)
+	else:
+		_proc_dry_streak[proc_id] = get_proc_dry_streak(proc_id) + 1
 
 
 ## ------------------------------------------------------- wood species (M7A)
@@ -523,6 +545,9 @@ func to_save_dict() -> Dictionary:
 	var pile: Dictionary = {}
 	for id: StringName in _yard_pile:
 		pile[String(id)] = int(_yard_pile[id])
+	var proc_streaks: Dictionary = {}
+	for id: StringName in _proc_dry_streak:
+		proc_streaks[String(id)] = int(_proc_dry_streak[id])
 	return {
 		"cash": _cash,
 		"lifetime_wood_chopped": _lifetime_wood_chopped,
@@ -538,6 +563,7 @@ func to_save_dict() -> Dictionary:
 		"owned_species": _owned_species.keys(),
 		"skill_levels": _skill_levels.duplicate(),
 		"legacy_skill_ranks": _legacy_skill_ranks.duplicate(),
+		"proc_dry_streak": proc_streaks,
 		"active_order": String(_active_order),
 		"active_order_progress": _active_order_progress,
 		"completed_orders": _completed_orders.keys(),
@@ -610,6 +636,23 @@ func apply_save_dict(data: Dictionary) -> void:
 			if ranks > 0:
 				_legacy_skill_ranks[nid] = ranks
 
+	# A proc removed or retuned since this save was written is dropped or
+	# reclamped rather than kept, the same rule species/skills already use —
+	# a lowered bad_luck_bound must not leave a save holding an impossibly
+	# long streak.
+	_proc_dry_streak = {}
+	var proc_streaks: Variant = data.get("proc_dry_streak")
+	if proc_streaks is Dictionary:
+		var proc_table := M7CContent.procs()
+		for key: Variant in proc_streaks as Dictionary:
+			var pid := StringName(String(key))
+			var proc_def: ProcDef = proc_table.by_id(pid) if proc_table != null else null
+			if proc_def == null:
+				continue
+			var n := maxi(0, int((proc_streaks as Dictionary)[key]))
+			if n > 0:
+				_proc_dry_streak[pid] = mini(n, proc_def.bad_luck_bound)
+
 	_completed_orders = {}
 	var completed: Variant = data.get("completed_orders")
 	if completed is Array:
@@ -676,6 +719,7 @@ func reset_to_defaults() -> void:
 	_xp = 0
 	_skill_levels = {}
 	_legacy_skill_ranks = {}
+	_proc_dry_streak = {}
 	_active_order = &""
 	_active_order_progress = 0
 	_completed_orders = {}

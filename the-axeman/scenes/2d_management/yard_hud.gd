@@ -1,3 +1,4 @@
+class_name YardHUD
 extends Control
 ## FILE: res://scenes/2d_management/yard_hud.gd
 ## ATTACHES TO: YardHUD (Control), the root of res://scenes/2d_management/yard_hud.tscn.
@@ -94,8 +95,18 @@ const _TREES_TAB := 1
 @onready var _orders_active: Label = $OrdersPanel/Column/Active
 @onready var _close_orders_button: Button = $OrdersPanel/Column/CloseButton
 @onready var _modal_backdrop: ColorRect = $ModalBackdrop
+@onready var _proc_banner: PanelContainer = $ProcBanner
+@onready var _proc_banner_label: Label = $ProcBanner/BannerLabel
 
 var _selected_skill_id: StringName = &""
+## Guards an in-flight auto-hide timer against a newer banner: only the token
+## that scheduled a hide is allowed to perform it, so a second proc announced
+## while the first is still on screen cannot have its own banner cut short by
+## the earlier timer.
+var _proc_banner_token := 0
+## PLACEHOLDER per Directive 3 — banner duration, copy, animation and audio are
+## explicitly unresolved Creative Director decisions (M7C brief item 18).
+const _PROC_BANNER_SECONDS := 2.0
 
 const _SKILL_BG := Color(0.961, 0.918, 0.847, 1.0)
 const _SKILL_SURFACE := Color(0.922, 0.867, 0.773, 1.0)
@@ -187,6 +198,52 @@ func _apply_xp_orb_color() -> void:
 	var fill := StyleBoxFlat.new()
 	fill.bg_color = XPOrb.COLOR
 	_xp_progress.add_theme_stylebox_override("fill", fill)
+
+
+## ------------------------------------------------------------ proc banner
+## M7C: a named proc completed at the chopping block. Wired by main.gd from
+## the chopping scene's local `bonus_proc_announced` signal — never through
+## EventBus/A7. `cuts` is the ACTUAL number of executed extra slicer
+## operations; the fairness contract requires announcement intensity to scale
+## with the completed result, never the rolled intention, so this never fires
+## on a roll that produced nothing.
+##
+## GREYBOX PLACEHOLDER (Directive 3): copy, duration, animation and audio are
+## explicitly unresolved Creative Director decisions (M7C brief item 18). The
+## bracketed branch name is a non-color accessibility cue standing in for the
+## brief's "matching screen-space bracket or icon" until real art lands.
+func show_proc_banner(proc_id: StringName, cuts: int) -> void:
+	if cuts <= 0:
+		return
+	var proc_def: ProcDef = M7CContent.procs().by_id(proc_id) if M7CContent.procs() != null else null
+	var name := String(proc_def.display_name) if proc_def != null else String(proc_id)
+	var branch := _branch_for_proc(proc_id)
+	var tag := branch.display_name.to_upper() if branch != null else "PROC"
+	var color := branch.color if branch != null else _SKILL_MUTED
+	_proc_banner_label.text = "[%s] %s!" % [tag, name] if cuts <= 1 else "[%s] %s x%d!" % [tag, name, cuts]
+	_proc_banner.add_theme_stylebox_override("panel", _skill_style(color.lerp(_SKILL_CARD, 0.75), color, 14, 2, 10))
+	_proc_banner_label.add_theme_color_override("font_color", color.darkened(0.35))
+	_proc_banner.visible = true
+	_proc_banner_token += 1
+	var token := _proc_banner_token
+	# A11: every 2D production Timer ignores time_scale, so a banner does not
+	# freeze mid-display during the split's own hit-pause.
+	get_tree().create_timer(_PROC_BANNER_SECONDS, true, false, true).timeout.connect(
+		func() -> void:
+			if token == _proc_banner_token:
+				_proc_banner.visible = false
+	)
+
+
+## Which branch a proc's home skill node belongs to, by scanning the live tree
+## for the node whose `proc_id` matches — the same link `quick_study` already
+## uses (a node names its proc, not the other way round), so nothing here
+## invents a second mapping.
+func _branch_for_proc(proc_id: StringName) -> SkillBranchDef:
+	for node: SkillNodeDef in SkillTree.get_nodes():
+		if node != null and node.proc_id == proc_id:
+			return M7CContent.branches().by_id(node.branch_id) if M7CContent.branches() != null else null
+	return null
 
 
 ## -------------------------------------------------------------- modal panels
