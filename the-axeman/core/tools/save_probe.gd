@@ -100,14 +100,23 @@ func _seed_double_strike() -> void:
 	print("save_probe: loaded existing save (%s) before granting Double Strike"
 		% SaveSystem.LoadResult.keys()[result])
 
+	# Grant 11 MORE points from wherever the player already is, rather than a
+	# flat target level. A flat level silently failed once real spend on OTHER
+	# skills (Speed, prior Strength ranks) had already eaten into the earned
+	# total by the time this ran — SkillTree.buy() returned -1 for an
+	# unaffordable purchase, easy to misread as "already owned". 11 comfortably
+	# covers the 6-point chain (1+3+2) regardless of prior spend.
 	var curve := load("res://data/level_curve.tres") as LevelCurve
-	var target_xp := curve.total_xp_for_level(7)
-	if GameState.get_xp() < target_xp:
+	var target_level := mini(LevelCurve.MAX_LEVEL, GameState.get_level() + 11)
+	var target_xp := curve.total_xp_for_level(target_level)
+	if target_xp > GameState.get_xp():
 		GameState.add_xp(target_xp - GameState.get_xp())
+
 	var strong := SkillTree.buy(&"strong_arms")
 	var strike := SkillTree.buy(&"double_strike")
 	var steady := SkillTree.buy(&"steady_continuation")
 	var ok := SaveSystem.save_game()
 	print(("save_probe: Double Strike test-seeded — level %d, %d skill points left, "
-		+ "strong_arms=%d double_strike=%d steady_continuation=%d (-1 = already owned/maxed) -> saved=%s")
+		+ "strong_arms=%d double_strike=%d steady_continuation=%d (-1 = already owned/maxed, "
+		+ "now guaranteed affordable) -> saved=%s")
 		% [GameState.get_level(), GameState.get_skill_points_available(), strong, strike, steady, ok])
