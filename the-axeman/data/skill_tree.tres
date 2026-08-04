@@ -27,11 +27,11 @@ cost = 1
 effect = 1
 effect_step = 0.05
 
-[sub_resource type="Resource" id="Resource_keen_edge"]
-resource_name = "keen_edge"
+[sub_resource type="Resource" id="Resource_ready_stance"]
+resource_name = "ready_stance"
 script = ExtResource("2_node")
-id = &"keen_edge"
-display_name = "Keen Edge"
+id = &"ready_stance"
+display_name = "Ready Stance"
 description = "A shorter wind-up. The blade is in the wood before the log knows it."
 requires = [&"quick_hands"]
 max_level = 5
@@ -39,42 +39,18 @@ cost = 2
 effect = 3
 effect_step = 0.05
 
-[sub_resource type="Resource" id="Resource_splitter"]
-resource_name = "splitter"
+[sub_resource type="Resource" id="Resource_quick_study"]
+resource_name = "quick_study"
 script = ExtResource("2_node")
-id = &"splitter"
-display_name = "Splitter"
-description = "You read the grain before you swing, and hit where the wood already wants to open."
-requires = [&"strong_arms"]
-max_level = 5
-cost = 2
-effect = 2
-effect_step = 0.03
-
-[sub_resource type="Resource" id="Resource_woodsman"]
-resource_name = "woodsman"
-script = ExtResource("2_node")
-id = &"woodsman"
-display_name = "Woodsman"
+id = &"quick_study"
+display_name = "Quick Study"
 description = "Every log teaches you something. Finished logs yield more experience."
-requires = [&"keen_edge", &"splitter"]
+requires = []
 max_level = 5
 cost = 3
 effect = 4
 effect_step = 0.05
 
-[sub_resource type="Resource" id="Resource_master_axeman"]
-resource_name = "master_axeman"
-script = ExtResource("2_node")
-id = &"master_axeman"
-display_name = "Master Axeman"
-description = "Your name is worth something at the yard gate. Every piece sells for more."
-requires = [&"woodsman"]
-max_level = 5
-cost = 3
-effect = 5
-effect_step = 0.05
-
 [resource]
 script = ExtResource("1_tree")
-nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_keen_edge"), SubResource("Resource_splitter"), SubResource("Resource_woodsman"), SubResource("Resource_master_axeman")])
+nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_ready_stance"), SubResource("Resource_quick_study")])

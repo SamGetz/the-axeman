@@ -29,7 +29,18 @@ const SAVE_PATH := "user://the_axeman_save.cfg"
 ## incremental autosave is survivable; losing the whole yard is not.
 const _TEMP_PATH := "user://the_axeman_save.cfg.tmp"
 ## Bumped whenever the on-disk shape changes in a way _migrate has to handle.
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
+
+## Version-1's prototype ranks are an on-disk compatibility contract. These
+## caps are intentionally pinned to that prototype rather than read from the
+## live M7C tree: a later tuning pass must not change what a historical save is
+## allowed to retain while it is being migrated.
+const _V1_RETAINED_SKILLS := {
+	"strong_arms": {"sources": ["strong_arms"], "cap": 10},
+	"quick_hands": {"sources": ["quick_hands"], "cap": 10},
+	"ready_stance": {"sources": ["keen_edge", "ready_stance"], "cap": 5},
+	"quick_study": {"sources": ["woodsman", "quick_study"], "cap": 5},
+}
 
 const _SECTION_META := "meta"
 const _SECTION_PROGRESSION := "progression"
@@ -124,13 +135,48 @@ static func delete_save() -> bool:
 	return dir.remove(SAVE_PATH) == OK
 
 
-## Forward-migration hook. Nothing to do at version 1 — this exists so the shape
-## of the change is obvious when version 2 arrives, rather than being invented
-## under pressure at the point a real player's save is on the line.
+## Forward migration is PURE: it works on a deep copy and never rewrites the
+## version-1 file. load_game() applies the copy in memory; only the next complete
+## save_game() replaces the old file atomically with a version-2 one.
 static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 	if from_version == SAVE_VERSION:
 		return progression
-	return progression
+	var migrated := progression.duplicate(true)
+	if from_version != 1:
+		return migrated
+
+	var source: Variant = progression.get("skill_levels", {})
+	if not source is Dictionary:
+		migrated["skill_levels"] = {}
+		migrated["legacy_skill_ranks"] = {}
+		return migrated
+
+	var retained: Dictionary = {}
+	var legacy: Dictionary = {}
+	for destination: String in _V1_RETAINED_SKILLS:
+		var rule: Dictionary = _V1_RETAINED_SKILLS[destination]
+		var best := 0
+		for old_id: String in rule["sources"]:
+			best = maxi(best, _valid_rank((source as Dictionary).get(old_id, 0)))
+		best = mini(best, int(rule["cap"]))
+		if best > 0:
+			retained[destination] = best
+			# This is a rank cost basis, not banked points. GameState still derives
+			# the balance from earned levels minus spend; these ranks merely keep
+			# paying their v1 per-rank price after later M7C retuning.
+			legacy[destination] = best
+
+	# Anything not explicitly retained is retired. In particular, Splitter is
+	# NOT a source for Double Strike, and both sale-value prototype ids vanish.
+	migrated["skill_levels"] = retained
+	migrated["legacy_skill_ranks"] = legacy
+	return migrated
+
+
+static func _valid_rank(value: Variant) -> int:
+	# ConfigFile preserves integers. Treat every other type as corrupt instead of
+	# coercing strings/floats into ownership the player never actually had.
+	return maxi(0, int(value)) if typeof(value) == TYPE_INT else 0
 
 
 ## Move a save this build must not load out of the way, keeping the newest few

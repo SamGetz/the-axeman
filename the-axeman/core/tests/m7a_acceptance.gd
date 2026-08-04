@@ -1041,11 +1041,12 @@ func _test_23_skills_change_the_game() -> void:
 		"one level adds 5 points to the odds of splitting (%.2f -> %.2f)"
 			% [chance0, mg.debug_split_chance()])
 
-	# Two nodes feeding the same effect must SUM, which is the whole reason the
-	# tree is queried by effect kind rather than by node id.
-	SkillTree.buy(&"splitter")
+	# Repeated ranks feeding the same effect must SUM. The retired prototype
+	# Splitter is deliberately no longer a second source: M7C replaces its role
+	# with a named proc later, without silently granting it during migration.
+	SkillTree.buy(&"strong_arms")
 	_check(SkillTree.total_levels(SkillNodeDef.Effect.SPLIT_STRENGTH) == 2,
-		"two different nodes both feed split strength")
+		"two Strong Arms ranks both feed split strength")
 	_check(SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH) > 0.05,
 		"...and their contributions sum (%.3f)"
 			% SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH))

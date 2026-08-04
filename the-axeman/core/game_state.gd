@@ -117,6 +117,16 @@ var _xp: int = 0
 ## Skill node id -> levels bought. Skill POINTS available are derived from level
 ## minus what this has cost, so there is no separate purse to drift out of step.
 var _skill_levels: Dictionary = {}
+## Ranks carried forward from save v1. They remain part of `_skill_levels`; this
+## parallel count says only how many of those ranks retain their prototype
+## per-rank price. It is not a point purse and cannot be spent independently.
+var _legacy_skill_ranks: Dictionary = {}
+const _V1_SKILL_COSTS := {
+	&"strong_arms": 1,
+	&"quick_hands": 1,
+	&"ready_stance": 2,
+	&"quick_study": 3,
+}
 ## Exactly one patient order may be active in the introductory slice. Completed
 ## ids are one-time history; progress is saved so leaving mid-load loses nothing.
 var _active_order: StringName = &""
@@ -216,7 +226,10 @@ func get_skill_points_spent() -> int:
 	for id: StringName in _skill_levels:
 		var def := SkillTree.get_node_def(id)
 		if def != null:
-			spent += def.cost * int(_skill_levels[id])
+			var level := int(_skill_levels[id])
+			var legacy := mini(level, int(_legacy_skill_ranks.get(id, 0)))
+			spent += legacy * int(_V1_SKILL_COSTS.get(id, def.cost))
+			spent += (level - legacy) * def.cost
 	return spent
 
 
@@ -525,6 +538,7 @@ func to_save_dict() -> Dictionary:
 		"xp": _xp,
 		"owned_species": _owned_species.keys(),
 		"skill_levels": _skill_levels.duplicate(),
+		"legacy_skill_ranks": _legacy_skill_ranks.duplicate(),
 		"active_order": String(_active_order),
 		"active_order_progress": _active_order_progress,
 		"completed_orders": _completed_orders.keys(),
@@ -582,6 +596,20 @@ func apply_save_dict(data: Dictionary) -> void:
 			var def := SkillTree.get_node_def(nid)
 			if def != null and lv > 0:
 				_skill_levels[nid] = mini(lv, def.max_level) if def.max_level > 0 else lv
+
+	_legacy_skill_ranks = {}
+	var legacy_skills: Variant = data.get("legacy_skill_ranks")
+	if legacy_skills is Dictionary:
+		for key: Variant in legacy_skills as Dictionary:
+			var nid := StringName(String(key))
+			if not _skill_levels.has(nid) or not _V1_SKILL_COSTS.has(nid):
+				continue
+			var rank_value: Variant = (legacy_skills as Dictionary)[key]
+			if typeof(rank_value) != TYPE_INT:
+				continue
+			var ranks := clampi(int(rank_value), 0, int(_skill_levels[nid]))
+			if ranks > 0:
+				_legacy_skill_ranks[nid] = ranks
 
 	_completed_orders = {}
 	var completed: Variant = data.get("completed_orders")
@@ -649,6 +677,7 @@ func reset_to_defaults() -> void:
 	_owned_species = {}
 	_xp = 0
 	_skill_levels = {}
+	_legacy_skill_ranks = {}
 	_active_order = &""
 	_active_order_progress = 0
 	_completed_orders = {}
