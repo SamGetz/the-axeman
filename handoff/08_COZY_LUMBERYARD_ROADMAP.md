@@ -5,6 +5,11 @@ skill/store progression clarified 2026-08-02. This replaces the pre-pivot M6–M
 module plan. It is a roadmap, not permission to skip the normal module-by-module
 sign-off or to invent final tuning values.
 
+**Milestone update, 2026-08-04:** Sam explicitly signed off M7A. M7C is now the
+active preparation milestone; its implementation brief is
+[`12_M7C_AXEMAN_CAREER_AND_SPECIES_MASTERY_BRIEF.md`](12_M7C_AXEMAN_CAREER_AND_SPECIES_MASTERY_BRIEF.md).
+Feature coding waits on that brief's explicit Creative Director approval gate.
+
 **Expanded direction:** This grounded roadmap remains the foundation, but its
 long horizon is now extended by
 [`10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`](10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md):

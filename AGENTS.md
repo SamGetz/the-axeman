@@ -163,6 +163,19 @@ into M7B reputation/business progression. M7C, not M7B, is the next milestone
 after M7A sign-off. Final prices, effect magnitudes, exact later block tier count
 and measured gates remain Creative Director tuning calls.
 
+### M7A SIGN-OFF AND M7C GATE (2026-08-04)
+
+**Sam explicitly signed off M7A on 2026-08-04.** The milestone exit gate is
+closed with the five-purchase catalogue, combined Items/Trees shop, supplier
+access path, introductory-order bonuses, physical/greybox consequences and
+285/285 M7A acceptance state described above. Remaining authored art/audio and
+future retuning are follow-up content work, not a reason to reopen M7A.
+
+**M7C — Axeman career and species mastery — is next.** Its binding preparation
+brief is `handoff/12_M7C_AXEMAN_CAREER_AND_SPECIES_MASTERY_BRIEF.md`. That brief
+does not authorise feature code until Sam approves its explicit choices and
+tuning/placeholder gate. M7B reputation/business work remains deferred.
+
 ### OPEN — cleanup calls, do not invent answers
 
 1. `slice_poc.tscn` still sits in `scenes/3d_action/` — a leftover from the
@@ -176,7 +189,7 @@ and measured gates remain Creative Director tuning calls.
 
 ---
 
-## CURRENT PROJECT STATUS (as of 2026-08-03)
+## CURRENT PROJECT STATUS (as of 2026-08-04)
 
 Suite results, all re-run after the pivot on the shipping assets:
 
@@ -219,6 +232,9 @@ on a clean clone on 2026-08-02.
 - **M4 (the chopping game — now THE game): INTEGRATED, awaiting Creative
   Director sign-off.** Sam has said the core cutting "already feels awesome".
   Details below.
+- **M7A (first cozy progression slice): DONE, signed off 2026-08-04.** 285/285.
+  The next milestone is M7C after approval of its implementation brief and
+  unresolved Creative Director tuning/feature choices.
 - **Autoloads**, in this order: `EventBus`, `InventoryManager`, `GameState`,
   `GameFeel`, then the godot_mcp service autoloads (uid:// refs in
   `project.godot` are normal). `res://core/enums.gd` is class_name only —
@@ -312,7 +328,7 @@ navigation are both gone.
   slice of a turned billet was cutting on a plane rotated the wrong way round since
   M4 shipped. Guarded by 10 checks in `test_slicer` at five yaws including 310.8°.
 
-### M7A — progression spine (STARTED 2026-08-01, no sign-off yet)
+### M7A — progression spine (SIGNED OFF 2026-08-04)
 
 Built ahead of the orders/prices because none of it needed a tuning value or an
 asset. Suite: `m7a_acceptance` 85/85.
@@ -365,7 +381,7 @@ asset. Suite: `m7a_acceptance` 85/85.
 ### M7A — the basic buyer and chopping HUD (2026-08-01; revised 2026-08-03)
 
 The second M7A slice, and again everything in it that needed a tuning value was
-pushed into data instead of invented. **Still no sign-off.**
+pushed into data instead of invented. **Signed off with M7A on 2026-08-04.**
 
 - **`res://data/price_table.gd` + `price_table.tres` (`class_name PriceTable`)**
   holds what the buyer pays per unit. **Creative Director call, 2026-08-01: pine
@@ -408,10 +424,10 @@ pushed into data instead of invented. **Still no sign-off.**
   auto-sell section below). The per-species sell rows and "Sell all" this HUD
   shipped with on the same day are GONE; `Market` is still the buyer, it is just
   called by the yard as each piece lands instead of by a button.
-- **The shop is an empty room ON PURPOSE.** `assets/ui/coin.png` (Sam's art) is
-  the shop's icon on the button and on its header; the panel itself says what
-  will be sold there. Upgrades and new woods are blocked on Sam's numbers
-  (Directive 3), so this is the door and the counter, with nothing on the shelves.
+- **The shop is no longer empty.** Its Items tab contains the five approved M7A
+  purchases and its Trees tab contains owned and nearby species only.
+  `assets/ui/coin.png` (Sam's art) remains the shop button/header and cash icon.
+  Distant catalogue progression and unapproved ranks remain hidden.
 - **THERE IS NO YARD NAVIGATION** (Creative Director call, 2026-08-03).
   `main.gd` boots the chopping world live. Each management icon opens a centred
   overlay without emitting `minigame_entered` or `minigame_exited`; its Back
@@ -573,12 +589,12 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
   40 show at least one failure**. Run it after touching any of those numbers —
   arguing about the authored value is arguing about the wrong number.
 
-### M7A — introductory orders and the contract board (2026-08-03, tuning pending)
+### M7A — introductory orders and the contract board (signed off 2026-08-04)
 
-- **THREE AUTHORED PLACEHOLDER ORDERS ARE LIVE:** Campfire Warm-up (10 any, +5),
-  Aspen Hearth Load (15 Aspen, +10) and Pine Campsite Load (20 Eastern White
-  Pine, +30). These six values are isolated in `data/order_table.tres` and are
-  explicitly awaiting Creative Director sign-off; no gameplay code asserts them.
+- **THREE AUTHORED ORDERS ARE LIVE:** Campfire Warm-up (10 any, +50), Aspen
+  Hearth Load (15 Aspen, +150) and Pine Campsite Load (20 Eastern White Pine,
+  +400). Their requirements live in `data/order_table.tres`; the 50/150/400
+  bonuses are approved and binding.
 - `core/orders.gd` is stateless like Market/Shop. It pays every landed piece
   through the unlimited Market first, then credits a matching active order, so
   unmatched work always auto-sells and a failed sale can never earn contract
@@ -588,12 +604,12 @@ split chance; and a REAL swing cooldown for the coffee to cut into.
 - The yard has a data-driven Contract Board. Its brown panel is deliberately a
   native `StyleBoxFlat` placeholder; `hud_shot_2d_orders.png` proves all three
   choices and an active progress bar fit together at 1280×720.
-- Verified by 21 added checks at that stage; the suite is now **271/271** after
+- Verified by 21 added checks at that stage; the suite is now **285/285** after
   the approved five-purchase catalogue implementation. M4 remains
   **55/55** and the slicer remains **34/34**.
-- Still to do in M7A: the tangible cash-purchase catalogue. Its behaviours and
-  tuning remain a Creative Director call. The unlockable-species requirement is
-  complete through the level-gated, cash-purchased 25-wood ladder.
+- The tangible five-purchase catalogue and the Ledger + level + cash + delivered
+  specimen species path are implemented and signed off. Distant species remain
+  hidden; lifetime wood is not a purchase currency.
 
 ### Files the chopping game owns
 

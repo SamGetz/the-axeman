@@ -1,6 +1,9 @@
 # M7A Five-Purchase Shop — Approval Brief
 
-**Status:** **Approved by Sam, Creative Director, 4 August 2026.** Implementation authorised subject to the measured-tuning gate below; final prices, percentages, tier counts and magnitudes still require the prescribed follow-up approval.
+**Status:** **Approved and explicitly signed off by Sam, Creative Director,
+4 August 2026.** The M7A milestone exit gate is closed. Remaining final
+art/audio replacements and future retuning are follow-up content work; they do
+not block M7C preparation.
 **Decision source:** Sam's completed 4 August 2026 creative-direction workbook.
 **Technical source:** `AGENTS.md`, the live Godot project, and the two current roadmaps.
 **Catalogue order:** Balanced Axe → Reinforced Chopping Block → Supplier Ledger → Handcart → Coffee Thermos.
@@ -9,8 +12,9 @@
 greybox physical consequences, shop presentation, save support, pacing probe and
 acceptance coverage are implemented. M1–M4, M7A (285/285), slicer, chopping
 smoke and non-headless pile smoke are green under Godot 4.7.1 Compatibility.
-Final authored art/audio and the measured 30-minute tuning/sign-off session are
-still outstanding; all shop prices and effect magnitudes remain candidate data.
+Final authored art/audio remain outstanding. Live shop prices and effect
+magnitudes remain data-driven and may be retuned only through the normal
+Creative Director process; the milestone itself is signed off.
 
 **Interim art direction, 4 August 2026:** Balanced Axe and Reinforced Chopping
 Block are colour variants of the existing authored axe and stump assets. Their

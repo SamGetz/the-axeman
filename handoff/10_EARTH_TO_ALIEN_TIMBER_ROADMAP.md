@@ -2,7 +2,7 @@
 
 **Status:** Creative Director direction, 2026-08-01; scope clarified 2026-08-02;
 store, skill-tree and automation lifecycle clarified 2026-08-02; M7A catalogue
-and M7C-next sequence approved 2026-08-04.
+and M7C-next sequence approved 2026-08-04; M7A explicitly signed off 2026-08-04.
 This is an extensive design roadmap, not an implementation order. It extends
 the cozy-lumberyard direction into global wood mastery and a spacefaring postgame. The existing module sign-off
 rule, frozen Part A contracts, Godot 4.7 Compatibility constraints and Sam's
@@ -823,6 +823,11 @@ Starter Balanced Axe and rank-1 Reinforced Chopping Block now belong to M7A;
 M7C retains the full Strength/Speed/Technique identities, proc families,
 species mastery, later sidegrades and loadout. The approved prototype migration
 is recorded in the M7A brief and `AGENTS.md`.
+
+The binding preparation brief for this milestone is
+`handoff/12_M7C_AXEMAN_CAREER_AND_SPECIES_MASTERY_BRIEF.md`. Its scope fence,
+save-v2 migration, mockup reconciliation, staged slices and approval gate apply
+before feature coding.
 
 **Goal:** Make the player's hands progress, not only the business.
 
