@@ -293,6 +293,7 @@ var _staged_log: Dictionary = {}          # Handcart's one prepared next log; ne
 ## debug_* seam in this file until Sam picks the real control.
 var _precision_guard := false
 var _last_double_strike_cuts := -1        # debug seam: cuts by the most recent continuation attempt
+var _last_proc_burst_color := Color.TRANSPARENT   # debug seam: color of the most recent ProcBurst
 
 var _source_mesh: Mesh
 var _yaw_steps := 0
@@ -833,6 +834,11 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 ## candidate plane BEFORE rolling: a proc is never even asked for on a cut that
 ## could not execute, so a fired proc can never fail to land and an unfired
 ## roll never shows up as an announcement.
+##
+## THE ANNOUNCEMENT IS A COLOURED VFX AT THE CUT, NOT A TEXT BANNER (Creative
+## Director call, 2026-08-04 — see ProcBurst). It fires once per EXECUTED cut,
+## scaling with the completed result exactly like the fairness contract
+## requires, never with the rolled intention.
 func _attempt_double_strike(normal: Vector3, dir_enum: int) -> void:
 	_last_double_strike_cuts = 0
 	if _precision_guard and not _double_strike_safe_in_precision():
@@ -853,9 +859,21 @@ func _attempt_double_strike(normal: Vector3, dir_enum: int) -> void:
 			break   # this target cannot take the cut either — stop, do not roll
 		if not ProcResolver.should_proc(proc_def, debug_force_proc):
 			break   # rolled and it did not fire — the chain ends here
+		# Measured BEFORE the cut, from the target while it is still valid —
+		# _perform_split frees it. Spawn point is raised above the piece's
+		# TOP surface, in open air: `point` itself is the piece's volumetric
+		# centre, and a burst starting there is inside solid wood and
+		# depth-occluded — exactly the failure-scar bug ("drawn outward, not
+		# carved in") in a new coat of paint. Caught by actually rendering it.
+		var burst_mesh: Mesh = target.get_meta("mesh_ref")
+		var burst_height: float = burst_mesh.get_aabb().size.y if burst_mesh != null else 0.2
+		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
 		if not _perform_split(target, point, normal, dir_enum):
 			break   # belt-and-braces: preflight said yes but the real cut refused
 		cuts += 1
+		var branch := SkillTree.branch_for_proc(proc_def.id)
+		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
+		ProcBurst.spawn(self, burst_point, _last_proc_burst_color)
 	_last_double_strike_cuts = cuts
 	if cuts > 0:
 		bonus_proc_announced.emit(&"double_strike", cuts)
@@ -917,6 +935,10 @@ func debug_set_precision_guard(enabled: bool) -> void:
 
 func debug_last_double_strike_cuts() -> int:
 	return _last_double_strike_cuts
+
+
+func debug_last_proc_burst_color() -> Color:
+	return _last_proc_burst_color
 
 
 ## The odds that ONE swing cleaves `piece`, all in one place:

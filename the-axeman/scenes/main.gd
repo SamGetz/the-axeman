@@ -12,28 +12,16 @@ extends Node
 ## switch remains available for future transitions, but management opens as HUD
 ## panels over the live chopping scene instead of entering a separate 2D mode.
 
-## Typed via a preloaded-script const, not a class_name, the same trick
-## chopping_minigame.gd itself uses for PieceAnimator/WoodPile — its root has
-## no class_name of its own, so this is what lets _chopping below resolve
-## `bonus_proc_announced` statically instead of needing a bare untyped Node.
-const _ChoppingMinigame := preload("res://scenes/3d_action/chopping_minigame.gd")
-
 var _save_queued := false
 
 @onready var _action_viewport: SubViewport = $"UI_Canvas/SubViewportContainer/Action_Viewport"
 @onready var _world_root: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root"
-@onready var _chopping: _ChoppingMinigame = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame"
-@onready var _yard_hud: YardHUD = $"UI_Overlay/YardHUD"
 
 
 func _ready() -> void:
 	EventBus.minigame_entered.connect(_on_minigame_entered)
 	EventBus.minigame_exited.connect(_on_minigame_exited)
 	_enter_3d_mode()
-
-	# M7C: a local scene-to-HUD connection, exactly like every other cross-file
-	# signal wired here — never a frozen A7 EventBus signal.
-	_chopping.bonus_proc_announced.connect(_yard_hud.show_proc_banner)
 
 	# Boot the player's yard back up. Autoloads have already run their _ready by
 	# now, so the registry is parsed and both serialisers are safe to call.

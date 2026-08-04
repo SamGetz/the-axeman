@@ -115,6 +115,17 @@ static func total_levels(kind: SkillNodeDef.Effect) -> int:
 	return total
 
 
+## Which branch a proc's home skill node belongs to — a node names its proc,
+## not the other way round, so this walks the live tree once rather than
+## authoring a second id->branch mapping. Used to derive a fired proc's color
+## for VFX (ProcBurst) from data instead of a branch name hardcoded per proc.
+static func branch_for_proc(proc_id: StringName) -> SkillBranchDef:
+	for n: SkillNodeDef in get_nodes():
+		if n != null and n.proc_id == proc_id:
+			return M7CContent.branches().by_id(n.branch_id) if M7CContent.branches() != null else null
+	return null
+
+
 ## ------------------------------------------------------------------ purchase
 ## Buys one level. Returns the NEW level, or -1 if nothing happened — in which
 ## case nothing happened at all: no points spent, no level moved, no signal.
