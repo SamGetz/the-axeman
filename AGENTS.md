@@ -173,8 +173,12 @@ future retuning are follow-up content work, not a reason to reopen M7A.
 
 **M7C — Axeman career and species mastery — is next.** Its binding preparation
 brief is `handoff/12_M7C_AXEMAN_CAREER_AND_SPECIES_MASTERY_BRIEF.md`. That brief
-does not authorise feature code until Sam approves its explicit choices and
-tuning/placeholder gate. M7B reputation/business work remains deferred.
+was approved by Sam on 2026-08-04 with **“Approved—begin M7C slice 1.”** The
+approved choices are Follow-Up, Splitting Maul, Log Cradle rank 2, per-log
+precision guard with automatic strict-work suppression, discovery on manual
+completion of the delivered first specimen, separate mastery/certification,
+free yard respec, and labelled `.tres` placeholders pending Sam's later tuning
+gate. M7B reputation/business work remains deferred.
 
 ### OPEN — cleanup calls, do not invent answers
 

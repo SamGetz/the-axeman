@@ -1,10 +1,12 @@
 # M7C — Axeman Career and Species Mastery Implementation Brief
 
-**Status:** Draft binding implementation brief for Creative Director approval,
-4 August 2026. M7A is signed off. M7C is the authorised next milestone, but
-feature coding must not begin until Sam approves the decisions in **Approval
-gate before coding**. No number labelled **Creative Director tuning decision**
-below is an implementation value.
+**Status:** **Approved by Sam, Creative Director, 4 August 2026. M7C slice 1
+(documentation and approval gate) is complete.** M7A is signed off and M7C is
+the active milestone. Sam approved
+the save-v2 migration, scope fence, recommended choices recorded below, and use
+of clearly labelled `.tres` placeholders pending the mandatory Creative
+Director tuning pass. No placeholder becomes final merely because it is used to
+build or test a system.
 
 **Authority:** `AGENTS.md`, `handoff/08_COZY_LUMBERYARD_ROADMAP.md`,
 `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md`, the approved
@@ -13,6 +15,38 @@ and Sam's 4 August 2026 direction in this brief's request.
 
 **Visual reference:** `Axeman UI Mockups (standalone).html` is visual and layout
 direction only. It is not gameplay, progression, content, or tuning authority.
+
+## Creative Director approval record — 2026-08-04
+
+Sam approved the brief with the exact instruction **“Approved—begin M7C slice
+1.”** The approved implementation choices are now binding:
+
+- save version 2 migration and refund behavior exactly as specified below;
+- **Follow-Up** is Speed's first proc: it opens a limited opportunity for the
+  next player-initiated swing to bypass ordinary recovery once; it never swings
+  automatically and cannot recursively create another root proc event;
+- M7C ships the first **Double Strike**, **Quick Study**, and **Follow-Up**
+  families. Triple/Quad chains, Earthshaker, Flow State, Eureka, and other full
+  capstones remain deferred unless Sam approves a later scope amendment;
+- **Splitting Maul** is the first M7C axe sidegrade;
+- **Log Cradle / Reinforced Chopping Block rank 2** is the next workstation
+  feature/rank;
+- precision protection is a per-log player guard, with automatic suppression
+  during any strict precision work; suppression has no penalty and does not
+  consume proc fairness state;
+- discovery occurs when the player manually completes the delivered first
+  specimen, never on access, purchase, or arrival;
+- species mastery and certification are separate ordered states;
+- respec is free and available at the yard: it atomically refunds player-skill
+  spend without changing XP, career level, business equipment, species state,
+  cash, or reputation; it cannot interrupt a committed swing or proc chain;
+- unresolved odds, ranks, point costs, XP multipliers, certification counts,
+  prices, gates, windows, and effect magnitudes may use clearly labelled `.tres`
+  placeholders while their systems are built, and must return to Sam for the
+  later Creative Director tuning/sign-off gate.
+
+The mockup remains a creative representation only. Its exact composition,
+dimensions, copy, assets, and numbers are not an implementation specification.
 
 ## Milestone outcome
 
@@ -132,10 +166,9 @@ a second real, prevalidated slicer operation on a useful remaining target.
   or later chain depth.
 - Long-horizon capstone identity: a rare, escalating multi-strike spectacle.
 
-The M7C recommendation is to ship Double Strike and one geometry/safety
-modifier, while authoring later triple/quad names as hidden data only if needed
-for validation. Whether a triple/quad capstone ships now is a **Creative
-Director scope and tuning decision**.
+M7C ships Double Strike and one geometry/safety modifier. Later triple/quad
+chains and Earthshaker remain deferred and must not appear as purchasable or
+nearby teased nodes in this milestone.
 
 ### Speed — recovery, readiness, and player-controlled flurries
 
@@ -149,10 +182,11 @@ while preserving axe weight and a hard recovery floor.
 - Long-horizon capstone identity: **Flow State**, a short audiovisual frenzy,
   never a permanent extreme multiplier.
 
-The exact first Speed proc, its window, whether it refunds cooldown or only
-readies input, and whether a Speed capstone ships in M7C are **Creative Director
-decisions**. Coffee Thermos remains baseline equipment and cannot grant any of
-these mechanics.
+The first Speed proc is approved as **Follow-Up**: it readies the next manual
+swing and lets that one player-initiated swing bypass ordinary recovery. Its
+chance, window, ranks, bad-luck behavior, and modifiers remain placeholder
+tuning calls. Flow State remains deferred. Coffee Thermos remains baseline
+equipment and cannot grant any of these mechanics.
 
 ### Technique — grain knowledge, precision, and learning jackpots
 
@@ -277,19 +311,19 @@ M7A already owns the Balanced Axe and Reinforced Chopping Block rank 1. M7C
 must add one sidegrade and one visible workstation feature/rank; it must not
 turn either into an invisible best-in-slot percentage ladder.
 
-### Recommended approval choices
+### Approved M7C choices
 
-- **Axe:** recommend the **Splitting Maul** as the first true sidegrade. It is
+- **Axe:** the **Splitting Maul** is the first true sidegrade. It is
   slower and weightier but suited to resistant woods and Strength/scar play.
-  The alternative is the **Camp Hatchet**, which is faster and control-oriented
-  but depends more heavily on kindling/size-request gameplay deferred to M7B.
-- **Block:** recommend **Log Cradle / Reinforced Block rank 2**. It visibly
+  The Camp Hatchet remains a later candidate because it depends more heavily on
+  kindling/size-request gameplay deferred to M7B.
+- **Block:** **Log Cradle / Reinforced Block rank 2** is approved. It visibly
   steadies and lets the player deliberately reorient the active log, supporting
   grain reading and precision protection without changing the slice result.
-  Iron banding is the lower-interaction alternative.
+  Iron banding remains a later candidate.
 
-Sam must choose the exact item/feature, unlock, price, ranks, effects,
-trade-offs, proc affinity, art status, and magnitude before its gameplay code.
+Their exact unlocks, prices, ranks, numeric effects, proc affinity, art status,
+and magnitudes remain labelled `.tres` placeholders until Sam's tuning pass.
 
 ### Loadout contract
 
@@ -530,39 +564,41 @@ Each slice is independently testable and committed only after its tests pass.
 
 ## Creative Director tuning decisions still unresolved
 
-Every item below requires Sam's value or explicit permission to use labelled
-`.tres` placeholders for implementation and return for a later feel-tuning
-gate:
+Sam explicitly authorised labelled `.tres` placeholders for every item below
+so implementation can proceed. Each still requires Sam's final value or scope
+decision at the later feel-tuning gate:
 
 1. Career-rank names, level boundaries, and cosmetic/unlock rewards.
 2. Complete M7C node graph: node names, prerequisites, point costs, rank caps,
    and whether the full tree must cost more than level 99 awards in this slice.
 3. Retained foundation magnitudes and caps, including Strong Arms, Quick Hands,
    Ready Stance, Thermos stacking order, and hard timing floor.
-4. Respec availability, location, cost/cooldown if any, and whether it is part
-   of M7C or deferred.
+4. Respec presentation and confirmation copy. Its M7C behavior is approved as a
+   free, atomic yard action with no cash cost or cooldown.
 5. Double Strike odds by rank, eligibility, bad-luck model/bound, target choice,
    modifier magnitude, and maximum chain depth.
-6. Whether Triple Strike/Quad Cleave/Earthshaker ship in M7C or remain later
-   hidden content.
-7. The first Speed proc, its odds, bad-luck behavior, timing window, streak
-   softening, modifier, and capstone scope.
-8. Quick Study odds/ranks, XP multiplier(s), bad-luck behavior, larger insight
-   event, and whether Eureka ships now.
+6. Future Triple Strike/Quad Cleave/Earthshaker design and tuning. They are
+   deferred and hidden throughout M7C.
+7. Follow-Up's odds, bad-luck behavior, timing window, ranks, streak softening,
+   and modifier. Flow State is deferred.
+8. Quick Study odds/ranks, XP multiplier(s), bad-luck behavior, and larger
+   insight presentation. Eureka is deferred.
 9. Grain-reading proc/availability, cue duration/width, precision band,
    gameplay benefit, and accessibility presentation.
-10. Precision-protection UX: per-log toggle, held modifier, global loadout
-    switch, automatic strict-work suppression, or an approved combination.
+10. Precision-guard presentation, input binding, and announcement treatment.
+    Its per-log scope and automatic strict-work suppression are approved.
 11. Mastery award amounts and reveal thresholds for every live M7C species.
-12. Discovery trigger and whether certification and mastery are one stage or
-    two.
+12. Mastery/certification presentation and exact ordered thresholds. Discovery
+    on manual completion of the delivered first specimen and separate states
+    are approved.
 13. Authored certification requirement kinds and exact counts per live species.
 14. Perfect-log geometric criteria, tolerance bands, record categories, and
     certification relationship.
-15. First sidegrade choice, unlock, price, effects, trade-off, proc affinity,
-    art/audio status, and magnitude.
-16. Next block feature/rank choice, later rank count if exposed, unlock, price,
-    effect, art/audio status, and magnitude.
+15. Splitting Maul unlock, price, effects, trade-off magnitudes, proc affinity,
+    and art/audio status. The item choice and slow resistant-wood role are
+    approved.
+16. Log Cradle rank-2 unlock, price, effect magnitudes, later rank count, and
+    art/audio status. Deliberate reorientation/steadying is approved.
 17. Loadout slots, when equipment may be changed, and final comparison fields.
 18. Proc banner copy, duration, animation, audio, hit-pause/shake intensity,
     branch colors/shapes, reduced-motion treatment, and priority when events
@@ -597,25 +633,22 @@ gate:
     to Negotiator. Both legacy ids are retired/refunded; neither survives in a
     player branch.
 
-## Approval gate before coding
+## Approval gate — passed for M7C slice 1
 
-M7C coding begins only after Sam provides one explicit approval covering all of
-the following:
+Sam passed this gate on 4 August 2026 with **“Approved—begin M7C slice 1.”** The
+approval covers:
 
 1. approve this document as the M7C scope and confirm the exclusions;
 2. approve the save-v2 mapping and refund rules exactly as written;
-3. approve the M7C branch graph and which proc/capstone families ship now;
-4. choose the first Speed proc, first axe sidegrade, next block feature/rank,
-   precision-protection UX, discovery/certification relationship, and respec
-   scope;
-5. provide the M7C tuning sheet for odds, ranks, point costs, multipliers,
-   certification counts, prices, gates, effect magnitudes, and feedback timing,
-   **or** explicitly authorise labelled `.tres` placeholders for those values
-   with a mandatory later Creative Director tuning gate;
-6. approve the 1280x720 native UI mapping and either approve licensed
-   Caprasimo/Figtree import with OFL attribution or choose fallback fonts.
+3. Double Strike, Quick Study, and Follow-Up as the three M7C proc families,
+   with Triple/Quad, Earthshaker, Flow State, and Eureka deferred;
+4. Follow-Up, Splitting Maul, Log Cradle rank 2, per-log precision guard with
+   automatic strict suppression, discovery on first manual specimen completion,
+   separate mastery/certification, and free yard respec;
+5. labelled `.tres` placeholders for unresolved tuning with a mandatory later
+   Creative Director tuning gate;
+6. the 1280x720 native UI mapping. Font import remains a later art/asset call;
+   use the current fallback until separately approved.
 
-The exact approval phrase may be: **“I approve handoff 12 as the M7C scope,
-including the save-v2 migration and the choices/tuning sheet listed in the
-approval gate. Begin M7C slice 1.”** Any changed choice should be written beside
-that approval before implementation.
+Any later changed choice must be recorded in this document before its
+implementation changes.
