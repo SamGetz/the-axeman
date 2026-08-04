@@ -24,8 +24,9 @@ const _POLICY_BOUNDED_DRY_STREAK := &"bounded_dry_streak"
 ## project's existing debug-seam pattern (chopping_minigame's
 ## `debug_split_roll`): -1 rolls for real, 0 always fails, 1 always fires.
 ## Every outcome — forced or rolled — is recorded to GameState so a reload or a
-## fresh scene instance can never cheaply reroll a live streak.
-static func should_proc(proc: ProcDef, forced: int = -1) -> bool:
+## fresh scene instance can never cheaply reroll a live streak. `owned_rank`
+## weights the authored per-rank chance; omitted callers retain rank-1 behavior.
+static func should_proc(proc: ProcDef, forced: int = -1, owned_rank: int = 1) -> bool:
 	if proc == null:
 		return false
 	var fired: bool
@@ -34,17 +35,19 @@ static func should_proc(proc: ProcDef, forced: int = -1) -> bool:
 	elif forced == 1:
 		fired = true
 	else:
-		fired = _roll(proc)
+		fired = _roll(proc, owned_rank)
 	GameState.note_proc_result(proc.id, fired)
 	return fired
 
 
-static func _roll(proc: ProcDef) -> bool:
+static func _roll(proc: ProcDef, owned_rank: int) -> bool:
+	var chance := clampf(proc.base_chance
+		+ proc.chance_per_rank * float(maxi(0, owned_rank - 1)), 0.0, 1.0)
 	if proc.bad_luck_policy_key != _POLICY_BOUNDED_DRY_STREAK:
 		push_warning("ProcResolver: unknown bad-luck policy '%s' for proc '%s' — rolling without pity."
 			% [proc.bad_luck_policy_key, proc.id])
-		return randf() < proc.base_chance
+		return randf() < chance
 	var streak := GameState.get_proc_dry_streak(proc.id)
 	if streak >= proc.bad_luck_bound - 1:
 		return true   # pity: this roll would be the bound-th dry one in a row — guarantee it instead
-	return randf() < proc.base_chance
+	return randf() < chance

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://data/skill_tree_table.gd" id="1_tree"]
 [ext_resource type="Script" path="res://data/skill_node_def.gd" id="2_node"]
@@ -49,21 +49,30 @@ cost = 2
 effect = 3
 effect_step = 0.05
 
+[sub_resource type="Resource" id="Modifier_quick_study_grain_cue"]
+script = ExtResource("3_modifier")
+id = &"quick_study_grain_cue"
+kind = 7
+operation = 2
+magnitude = 1.0
+tuning_status = "PLACEHOLDER — Creative Director tuning required"
+
 [sub_resource type="Resource" id="Resource_quick_study"]
 resource_name = "quick_study"
 script = ExtResource("2_node")
 id = &"quick_study"
 display_name = "Quick Study"
-description = "Every log teaches you something. Finished logs yield more experience."
+description = "Read a brief grain opportunity, and sometimes one manually finished log teaches you much more."
 branch_id = &"technique"
 node_type = 1
 presentation_position = Vector2i(0, 0)
 proc_id = &"quick_study"
+modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_quick_study_grain_cue")])
 requires = []
 max_level = 5
 cost = 3
-effect = 4
-effect_step = 0.05
+effect = 0
+effect_step = 0.0
 
 [sub_resource type="Resource" id="Resource_double_strike"]
 resource_name = "double_strike"

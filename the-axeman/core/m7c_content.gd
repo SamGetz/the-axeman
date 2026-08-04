@@ -163,6 +163,9 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 			errors.append("proc %s has illegal eligibility" % proc.id)
 		if proc.base_chance < 0.0 or proc.base_chance > 1.0 or is_nan(proc.base_chance) or is_inf(proc.base_chance):
 			errors.append("proc %s has invalid chance" % proc.id)
+		if proc.chance_per_rank < 0.0 or proc.chance_per_rank > 1.0 \
+				or is_nan(proc.chance_per_rank) or is_inf(proc.chance_per_rank):
+			errors.append("proc %s has invalid rank chance" % proc.id)
 		if proc.chain_cap <= 0:
 			errors.append("proc %s has invalid chain cap" % proc.id)
 		if proc.bad_luck_bound <= 0 or proc.bad_luck_policy_key == &"":
@@ -172,7 +175,19 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 		if proc.tuning_status.is_empty():
 			errors.append("proc %s is missing tuning status" % proc.id)
 		errors.append_array(_validate_modifiers(proc.modifiers, "proc %s" % proc.id))
+		if proc.family == ProcDef.Family.QUICK_STUDY and not _has_manual_xp_multiplier(proc):
+			errors.append("proc %s has no valid manual XP multiplier" % proc.id)
 	return errors
+
+
+static func _has_manual_xp_multiplier(proc: ProcDef) -> bool:
+	for modifier: GameplayModifierDef in proc.modifiers:
+		if modifier != null \
+				and modifier.kind == GameplayModifierDef.Kind.MANUAL_XP \
+				and modifier.operation == GameplayModifierDef.Operation.MULTIPLY \
+				and modifier.magnitude > 1.0:
+			return true
+	return false
 
 
 static func validate_mastery(table: SpeciesMasteryTable) -> PackedStringArray:

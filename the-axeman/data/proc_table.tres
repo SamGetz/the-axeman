@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="ProcTable" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="ProcTable" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://data/proc_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/proc_def.gd" id="2_proc"]
+[ext_resource type="Script" path="res://data/gameplay_modifier_def.gd" id="3_modifier"]
 
 ; ALL NUMBERS ARE SYSTEM-BUILDING PLACEHOLDERS. Sam's later tuning gate owns them.
 [sub_resource type="Resource" id="Proc_double_strike"]
@@ -26,6 +27,15 @@ base_chance = 0.1
 chain_cap = 1
 bad_luck_bound = 10
 
+[sub_resource type="Resource" id="Modifier_quick_study_manual_xp"]
+script = ExtResource("3_modifier")
+id = &"quick_study_manual_xp_multiplier"
+kind = 3
+operation = 1
+magnitude = 2.0
+tuning_status = "PLACEHOLDER — Creative Director tuning required"
+
+; The multiplier is authored data. Quick Study's code never owns this number.
 [sub_resource type="Resource" id="Proc_quick_study"]
 script = ExtResource("2_proc")
 id = &"quick_study"
@@ -34,8 +44,10 @@ family = 2
 eligibility = 1
 announcement_key = &"quick_study"
 base_chance = 0.1
+chance_per_rank = 0.025
 chain_cap = 1
 bad_luck_bound = 10
+modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_quick_study_manual_xp")])
 
 [resource]
 script = ExtResource("1_table")

@@ -13,6 +13,9 @@ enum Eligibility { MANUAL_SWING, MANUAL_LOG_COMPLETION }
 @export var announcement_key: StringName
 ## All values below are labelled placeholders pending Sam's tuning pass.
 @export_range(0.0, 1.0, 0.001) var base_chance: float = 0.1
+## Additional chance contributed by each owned rank after the first. The live
+## value belongs in proc_table.tres; code only clamps the resulting probability.
+@export_range(0.0, 1.0, 0.001) var chance_per_rank: float = 0.0
 @export var chain_cap: int = 1
 @export var bad_luck_bound: int = 10
 @export var bad_luck_policy_key: StringName = &"bounded_dry_streak"

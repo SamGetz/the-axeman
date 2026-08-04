@@ -3,9 +3,9 @@ extends Node
 ## ATTACHES TO: res://core/tests/m7c_acceptance.tscn. Not shipped.
 ##
 ## M7C grows slice by slice. Current groups cover save-v2 skill migration,
-## typed content schemas/validators, the three-bough UI, and (Slice 5) the
-## Strength vertical slice's shared proc resolver and Double Strike. Mastery,
-## Speed/Technique procs and equipment loadout still have no gameplay.
+## typed content schemas/validators, the three-bough UI, Slice 5 Strength, and
+## Slice 6 Technique (Quick Study plus grain-reading feedback). Mastery, Speed,
+## and equipment loadout still have no gameplay.
 
 const _FIXTURES := "res://core/tests/fixtures/"
 const _BACKUP_PATH := "user://the_axeman_save.m7c_testbackup"
@@ -29,6 +29,9 @@ func _ready() -> void:
 	await _test_double_strike_precision_guard()
 	_test_double_strike_bad_luck_bound_and_persistence()
 	await _test_double_strike_requires_ownership()
+	await _test_quick_study_manual_completion_event()
+	await _test_quick_study_source_and_once_guards()
+	await _test_grain_cue_validity_and_cleanup()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -574,6 +577,232 @@ func _test_double_strike_requires_ownership() -> void:
 	mg2.queue_free()
 	await get_tree().process_frame
 
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+# --------------------------------------------- M7C Slice 6: Technique vertical
+func _grant_quick_study() -> void:
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(4))
+	_check(SkillTree.buy(&"quick_study") == 1, "test setup: Quick Study bought")
+
+
+func _quick_study_multiplier() -> float:
+	var proc_def: ProcDef = M7CContent.procs().by_id(&"quick_study")
+	if proc_def == null:
+		return 1.0
+	for modifier: GameplayModifierDef in proc_def.modifiers:
+		if modifier != null \
+				and modifier.kind == GameplayModifierDef.Kind.MANUAL_XP \
+				and modifier.operation == GameplayModifierDef.Operation.MULTIPLY:
+			return modifier.magnitude
+	return 1.0
+
+
+func _make_quick_study_minigame(owns_skill := true) -> Node3D:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	if owns_skill:
+		_grant_quick_study()
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_forced_mesh = 0
+	mg.debug_split_roll = 1
+	mg.debug_force_proc = 1
+	mg.auto_sell = true
+	mg.orbs_enabled = false
+	add_child(mg)
+	await get_tree().process_frame
+	return mg
+
+
+## Group 7 of the brief's acceptance matrix: one forced, owned Quick Study is a
+## multiplier on ONE manual completed-log root. The award is one transaction,
+## the corresponding ProcBurst uses Technique's authored branch colour, and an
+## unowned skill can neither roll nor add bonus XP.
+func _test_quick_study_manual_completion_event() -> void:
+	var multiplier := _quick_study_multiplier()
+	_check(multiplier > 1.0,
+		"Quick Study's manual-XP multiplier is typed placeholder data, not a code literal")
+
+	var mg := await _make_quick_study_minigame(true)
+	var has_seams := mg.has_method("debug_last_quick_study_bonus") \
+		and mg.has_method("debug_last_quick_study_root_id")
+	_check(has_seams, "Quick Study exposes the completed root/bonus receipt for acceptance")
+	var base: int = SpeciesTable.at(0).xp_reward
+	var before := GameState.get_xp()
+	mg.min_vol = 1000.0   # one split empties the block: one manually completed log
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	var expected_total := int(round(float(base) * multiplier))
+	_check(GameState.get_xp() - before == expected_total,
+		"forced Quick Study multiplies the base XP once (%d x %.3f = %d)"
+			% [base, multiplier, expected_total])
+	_check(has_seams and mg.debug_last_quick_study_bonus() == expected_total - base,
+		"the receipt separates base XP from the one non-recursive Quick Study bonus")
+	_check(has_seams and mg.debug_last_quick_study_root_id() != &"",
+		"the manual completion owns one explicit root event id")
+	var technique := SkillTree.branch_for_proc(&"quick_study")
+	_check(technique != null and mg.debug_last_proc_burst_color().is_equal_approx(technique.color),
+		"Quick Study announces through ProcBurst in the authored Technique branch colour")
+	mg.queue_free()
+	await get_tree().process_frame
+
+	var unowned := await _make_quick_study_minigame(false)
+	base = SpeciesTable.at(0).xp_reward
+	before = GameState.get_xp()
+	unowned.min_vol = 1000.0
+	unowned.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(GameState.get_xp() - before == base,
+		"an unowned Quick Study awards ordinary base XP only")
+	_check(GameState.get_proc_dry_streak(&"quick_study") == 0,
+		"an unowned Quick Study is never rolled and spends no fairness state")
+	unowned.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Eligibility/root guards are driven through a narrow debug seam over the SAME
+## completion transaction used by live play. Every excluded source must do
+## literally nothing: no XP, no ProcResolver fairness mutation, no announcement.
+func _test_quick_study_source_and_once_guards() -> void:
+	var mg := await _make_quick_study_minigame(true)
+	var has_seam := mg.has_method("debug_award_log_xp_event")
+	_check(has_seam, "acceptance can inject typed manual/automation/restore completion roots")
+	if not has_seam:
+		_check(false, "one root id cannot award or roll Quick Study twice")
+		_check(false, "Quick Study cannot recurse from its own bonus event")
+		_check(false, "automation cannot award or multiply Axeman XP")
+		_check(false, "a loaded/restored log cannot award or trigger Quick Study")
+		_check(false, "incomplete work cannot award or trigger Quick Study")
+		mg.queue_free()
+		await get_tree().process_frame
+		return
+
+	var base: int = SpeciesTable.at(0).xp_reward
+	var multiplier := _quick_study_multiplier()
+	var before := GameState.get_xp()
+	mg.debug_award_log_xp_event(&"manual", &"acceptance_manual_root", true, false, base)
+	var after_once := GameState.get_xp()
+	var streak_once := GameState.get_proc_dry_streak(&"quick_study")
+	mg.debug_award_log_xp_event(&"manual", &"acceptance_manual_root", true, false, base)
+	_check(after_once - before == int(round(float(base) * multiplier))
+		and GameState.get_xp() == after_once
+		and GameState.get_proc_dry_streak(&"quick_study") == streak_once,
+		"one root id cannot award or roll Quick Study twice")
+
+	before = GameState.get_xp()
+	var streak_before := GameState.get_proc_dry_streak(&"quick_study")
+	mg.debug_award_log_xp_event(&"manual", &"acceptance_bonus", true, true, base)
+	_check(GameState.get_xp() == before
+		and GameState.get_proc_dry_streak(&"quick_study") == streak_before,
+		"Quick Study cannot recurse from its own bonus event")
+
+	for excluded: Dictionary in [
+		{"source": &"automation", "root": &"acceptance_auto", "label": "automation cannot award or multiply Axeman XP"},
+		{"source": &"restored", "root": &"acceptance_restore", "label": "a loaded/restored log cannot award or trigger Quick Study"},
+	]:
+		before = GameState.get_xp()
+		streak_before = GameState.get_proc_dry_streak(&"quick_study")
+		mg.debug_award_log_xp_event(excluded.source, excluded.root, true, false, base)
+		_check(GameState.get_xp() == before
+			and GameState.get_proc_dry_streak(&"quick_study") == streak_before,
+			excluded.label)
+	before = GameState.get_xp()
+	streak_before = GameState.get_proc_dry_streak(&"quick_study")
+	mg.debug_award_log_xp_event(&"manual", &"acceptance_restore", true, false, base)
+	_check(GameState.get_xp() == before
+		and GameState.get_proc_dry_streak(&"quick_study") == streak_before,
+		"a restored root cannot be resubmitted later wearing a manual source")
+
+	before = GameState.get_xp()
+	streak_before = GameState.get_proc_dry_streak(&"quick_study")
+	mg.debug_award_log_xp_event(&"manual", &"acceptance_incomplete", false, false, base)
+	_check(GameState.get_xp() == before
+		and GameState.get_proc_dry_streak(&"quick_study") == streak_before,
+		"incomplete work cannot award or trigger Quick Study")
+
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Group 11: the grain opportunity is a real preflighted plane on one current
+## piece, rendered in both world and screen space. Its owner centrally tears it
+## down for every invalidating lifecycle edge instead of leaving orphan visuals.
+func _test_grain_cue_validity_and_cleanup() -> void:
+	var mg := await _make_quick_study_minigame(true)
+	var methods := [
+		"debug_has_grain_cue", "debug_grain_plane_valid", "debug_grain_top_mark_count",
+		"debug_grain_overlay_visible", "debug_grain_cue_copy", "debug_grain_cue_color",
+		"debug_invalidate_grain_candidate", "debug_grain_clear_reason",
+	]
+	var has_seams := true
+	for method: String in methods:
+		has_seams = has_seams and mg.has_method(method)
+	_check(has_seams, "grain-cue acceptance seams expose geometry and both real visual layers")
+	if not has_seams:
+		_check(false, "owned Technique work exposes one slicer-valid current-piece candidate")
+		_check(false, "grain feedback has a high-contrast top mark plus screen-space bracket/copy")
+		_check(false, "grain feedback derives its colour from Technique branch data")
+		_check(false, "an invalid candidate clears every grain visual immediately")
+		_check(false, "fresh-log piece change removes the previous candidate cleanly")
+		_check(false, "animation settle expires the short grain opportunity")
+		_check(false, "splitting the target removes its candidate before mutation")
+		mg.queue_free()
+		await get_tree().process_frame
+		return
+
+	_check(mg.debug_has_grain_cue() and mg.debug_grain_plane_valid(),
+		"owned Technique work exposes one slicer-valid current-piece candidate")
+	_check(mg.debug_grain_top_mark_count() >= 2
+		and mg.debug_grain_overlay_visible()
+		and not String(mg.debug_grain_cue_copy()).is_empty(),
+		"grain feedback has a high-contrast top mark plus screen-space bracket/copy")
+	var technique := SkillTree.branch_for_proc(&"quick_study")
+	_check(technique != null and mg.debug_grain_cue_color().is_equal_approx(technique.color),
+		"grain feedback derives its colour from Technique branch data")
+
+	mg.debug_invalidate_grain_candidate()
+	await get_tree().process_frame
+	_check(not mg.debug_has_grain_cue() and mg.debug_grain_clear_reason() == &"invalid",
+		"an invalid candidate clears every grain visual immediately")
+
+	mg._spawn_fresh_log()
+	await get_tree().process_frame
+	mg._spawn_fresh_log()
+	await get_tree().process_frame
+	_check(mg.debug_grain_clear_reason() == &"piece_changed",
+		"fresh-log piece change removes the previous candidate cleanly")
+
+	var settle_deadline := Time.get_ticks_msec() + 1000
+	while mg.debug_has_grain_cue() and Time.get_ticks_msec() < settle_deadline:
+		await get_tree().process_frame
+	_check(not mg.debug_has_grain_cue() and mg.debug_grain_clear_reason() == &"settled",
+		"animation settle expires the short grain opportunity")
+
+	mg._spawn_fresh_log()
+	await get_tree().process_frame
+	mg.min_vol = 1000.0
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(not mg.debug_has_grain_cue() and mg.debug_grain_clear_reason() == &"split",
+		"splitting the target removes its candidate before mutation")
+
+	mg.queue_free()
+	await get_tree().process_frame
+
+	var exit_mg := await _make_quick_study_minigame(true)
+	_check(exit_mg.debug_has_grain_cue(), "test setup: block-exit cue is live")
+	remove_child(exit_mg)   # triggers the real _exit_tree while leaving state inspectable
+	_check(not exit_mg.debug_has_grain_cue()
+		and exit_mg.debug_grain_clear_reason() == &"block_exit",
+		"leaving the chopping block clears both grain layers through the shared owner")
+	exit_mg.free()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 

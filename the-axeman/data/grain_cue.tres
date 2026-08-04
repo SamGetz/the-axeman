@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="GrainCueDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/grain_cue_def.gd" id="1_grain"]
+
+; EVERY NUMBER IS A PLACEHOLDER pending the Technique feel-tuning gate.
+[resource]
+script = ExtResource("1_grain")
+minimum_skill_rank = 1
+duration_sec = 0.8
+candidate_tolerance = 0.01
+mark_length_fraction = 0.82
+mark_core_width = 0.01
+mark_light_width = 0.018
+mark_dark_width = 0.028
+surface_lift = 0.006
+layer_lift = 0.0005
+bracket_size = Vector2(116, 66)
+bracket_arm = 18.0
+bracket_core_width = 3.0
+bracket_outline_width = 7.0
+label_offset_y = 42.0
+cue_text = "Read the grain — cut here"
+tuning_status = "PLACEHOLDER — Creative Director tuning required"

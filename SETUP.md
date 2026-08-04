@@ -137,10 +137,15 @@ inside `the-axeman/`**, never from the repo root.
 ```
 
 ```bash
+"$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7c_acceptance.tscn
+```
+
+```bash
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
-Expected: M1 21/21, M2 24/24, M3 16/16, M4 55/55, M7A 285/285, slicer 34/34.
+Expected: M1 19/19, M2 24/24, M3 16/16, M4 55/55, M7A 285/285,
+M7C 134/134, slicer 34/34.
 **The original suite was confirmed on a fresh clone + double import on
 2026-08-02; the expanded M4/M7A counts were confirmed on the desktop on
 2026-08-04.** They are the expected current shipping-asset results.
@@ -150,7 +155,7 @@ Two of them will not behave headless, by design:
 - **`pile_smoke` must run NON-headless.** Its last check waits out the pile
   animation, which runs on a real-time clock that uncapped headless frames
   outrun. Same for the render tools (`hud_shot`, `shot_runner`, `scar_shot`,
-  `species_shot`) — they need a real renderer.
+  `species_shot`, `proc_shot`, `grain_shot`) — they need a real renderer.
 - **Red `ERROR:` lines during M1 tests 2, 5, 7 and 8 are EXPECTED.** Those tests
   deliberately provoke the error paths. Only lines beginning `FAIL:` are
   failures.

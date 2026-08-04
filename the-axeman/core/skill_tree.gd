@@ -126,6 +126,20 @@ static func branch_for_proc(proc_id: StringName) -> SkillBranchDef:
 	return null
 
 
+## Whether an OWNED player-skill node carries one typed modifier. Equipment
+## definitions are intentionally not consulted: gear may weight a learned proc,
+## but it cannot grant Technique's grain-reading capability by itself.
+static func owns_modifier(kind: GameplayModifierDef.Kind,
+		operation: GameplayModifierDef.Operation = GameplayModifierDef.Operation.ENABLE) -> bool:
+	for n: SkillNodeDef in get_nodes():
+		if n == null or get_level(n.id) <= 0:
+			continue
+		for modifier: GameplayModifierDef in n.modifiers:
+			if modifier != null and modifier.kind == kind and modifier.operation == operation:
+				return true
+	return false
+
+
 ## ------------------------------------------------------------------ purchase
 ## Buys one level. Returns the NEW level, or -1 if nothing happened — in which
 ## case nothing happened at all: no points spent, no level moved, no signal.

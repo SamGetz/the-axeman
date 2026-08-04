@@ -1,8 +1,9 @@
 # M7C — Axeman Career and Species Mastery Implementation Brief
 
-**Status:** **Approved by Sam, Creative Director, 4 August 2026. M7C slice 1
-(documentation and approval gate) is complete.** M7A is signed off and M7C is
-the active milestone. Sam approved
+**Status:** **Approved by Sam, Creative Director, 4 August 2026. M7C slices 1–6
+are implemented through the Technique vertical slice; Slice 6 awaits Creative
+Director feel/tuning sign-off.** M7A is signed off and M7C is the active
+milestone. Sam approved
 the save-v2 migration, scope fence, recommended choices recorded below, and use
 of clearly labelled `.tres` placeholders pending the mandatory Creative
 Director tuning pass. No placeholder becomes final merely because it is used to

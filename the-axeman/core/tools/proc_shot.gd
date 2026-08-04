@@ -3,11 +3,10 @@ extends Node
 ## ATTACHES TO: root Node of res://core/tools/proc_shot.tscn. DEV TOOL,
 ## RUN NON-HEADLESS. Not shipped.
 ##
-## Photographs M7C's Strength proc — RUN THIS ON ANY CHANGE TO Double Strike,
-## the proc resolver, or ProcBurst. m7c_acceptance proves the mechanic (exact
-## cut counts, caps, fairness state); only these PNGs prove a fired proc
-## actually LOOKS like a second real cut with a visible, correctly-colored
-## burst, and that a suppressed or geometry-refused proc stays invisible.
+## Photographs M7C's named procs — RUN THIS ON ANY CHANGE TO Double Strike,
+## Quick Study, the proc resolver, or ProcBurst. m7c_acceptance proves the
+## mechanics; only these PNGs prove each fired proc is visible and wears its
+## authored branch colour in the real chopping scene.
 ##
 ## Drives the chopping scene DIRECTLY — no main.tscn/HUD needed. The
 ## announcement is a self-contained 3D VFX (ProcBurst) fired from inside the
@@ -96,6 +95,28 @@ func _ready() -> void:
 	print("D precision_safe_with_modifier: cuts=%d burst_color=%s (guard on, WITH Steady Continuation)"
 		% [mg.debug_last_double_strike_cuts(), mg.debug_last_proc_burst_color()])
 	_save("_4_precision_safe_with_modifier")
+
+	# --- E: Quick Study — ONE manual completed log, multiplied XP, Technique burst ---
+	var curve2 := load("res://data/level_curve.tres") as LevelCurve
+	var quick_target := curve2.total_xp_for_level(10)
+	if GameState.get_xp() < quick_target:
+		GameState.add_xp(quick_target - GameState.get_xp())
+	SkillTree.buy(&"quick_study")
+	mg.debug_set_precision_guard(false)
+	mg.min_vol = 1000.0   # one swing completes this log; no Double Strike geometry remains
+	mg.auto_sell = true
+	mg.orbs_enabled = true
+	mg._spawn_fresh_log()
+	for i in range(6):
+		await get_tree().process_frame
+	await _wait_ms(500)   # let the spawn smoke clear; this frame judges XP + ProcBurst
+	var xp_before := GameState.get_xp()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await _wait_ms(150)
+	print("E quick_study: xp_delta=%d bonus=%d root=%s burst_color=%s"
+		% [GameState.get_xp() - xp_before, mg.debug_last_quick_study_bonus(),
+			mg.debug_last_quick_study_root_id(), mg.debug_last_proc_burst_color()])
+	_save("_5_quick_study_xp_burst")
 
 	mg.queue_free()
 	await get_tree().process_frame

@@ -139,17 +139,18 @@ a tracked `.DS_Store`.
 
 ---
 
-## CURRENT PROJECT STATUS (as of 2026-08-03)
+## CURRENT PROJECT STATUS (as of 2026-08-04)
 
 Suite results, all re-run after the pivot on the shipping assets:
 
 | Suite | How to run | Result |
 |---|---|---|
-| M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **21/21** |
+| M1 | `--quit-after 900 res://core/tests/m1_acceptance.tscn` | **19/19** |
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 20000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **245/245** |
+| M7A | `--quit-after 20000 res://core/tests/m7a_acceptance.tscn` | **285/285** |
+| M7C | `--quit-after 20000 res://core/tests/m7c_acceptance.tscn` | **134/134** — slices 1–6 through Technique |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |
@@ -164,7 +165,7 @@ must run TWICE before any suite means anything, the suites and their expected
 counts, and what does and does not travel between machines). Verified end to end
 on a clean clone on 2026-08-02.
 
-- **M1 (Core Contracts): DONE, signed off.** 21/21. Red errors during tests
+- **M1 (Core Contracts): DONE, signed off.** 19/19. Red errors during tests
   2, 5, 7, 8 are EXPECTED; only `FAIL:` lines are failures.
 - **M2 (main scene shell + pixel pipeline): DONE, functionality accepted;
   art direction deferred by Sam.** Known: SpotLight3D `light_projector` gobo
@@ -228,7 +229,7 @@ and drives the A10 2D/3D toggle (the temp M key it replaced is gone).
   was deleted 2026-08-04. `maya_working/` still has unimported `log_03/04/05.fbx`
   (raw Maya exports, never referenced from the project — see ASSET PIPELINE).
   CLAUDE.md previously claimed log_01…log_05 were live; they were not, and are not.
-- **Acceptance:** `m4_acceptance.tscn` **54/54** — drives `debug_slice_world` to
+- **Acceptance:** `m4_acceptance.tscn` **55/55** — drives `debug_slice_world` to
   completion, checks inventory deposit == firewood count, per-species yield, one
   hit per slice, the A12 budget, and (since 2026-08-02) the axe viewmodel's contact
   key and its failsafe. It calls `get_tree().quit()` on finish, so run headless
@@ -885,6 +886,46 @@ frame, it looks weird."*
 - **PLACEHOLDERS (Directive 3):** every pose, both timings and the axe's 1.4 scale.
   These are a starting point for Sam to re-key in the animation editor — which is
   the whole reason the motion moved into a data file.
+
+### M7C — Strength and Technique vertical slices (2026-08-04)
+
+M7C slices 1–6 are implemented through the Technique vertical slice. Slice 5's
+Double Strike and Slice 6's Quick Study both roll through the one shared
+`res://core/proc_resolver.gd`; forced outcomes still pass through the same
+fairness write, and ineligible work never reaches the resolver.
+
+- **Proc announcement Creative Director call (2026-08-04):** the old text banner
+  is gone. Every fired named proc uses `ProcBurst.spawn()` at the physical event.
+  Its colour comes from `SkillTree.branch_for_proc()` and therefore from the live
+  branch resource — Strength is authored red, Speed blue, and Technique is the
+  currently authored green. There is no hardcoded red/blue/yellow proc palette
+  and no second announcement mechanism.
+- **Quick Study is no longer passive `XP_GAIN`.** One manually completed log
+  creates one `ManualLogOutcome` root. The completion transaction consumes that
+  root once, rejects incomplete/bonus/automation/restored sources before any XP
+  or fairness movement, resolves owned Quick Study once, and performs one
+  `GameState.add_xp(base + bonus)` write. The fired receipt spawns the Technique
+  ProcBurst above the block; the XP orbs remain the already-built award receipt.
+- **Grain reading is an opportunity, never an automatic cut.** An owned typed
+  `GRAIN_CUE` modifier preflights one actual `MeshSlicer` plane for the current
+  on-block piece. Three raised unshaded meshes (dark outline, white contrast,
+  Technique-colour core) draw on its top surface without `Decal`; a projected
+  bracket, centre diamond, and plain-language cue stay readable independently of
+  bark and colour. One owner clears both layers on invalid geometry, piece
+  change, animation settle, split, fresh-log replacement, and block exit.
+- **Directive 3 placeholders:** Quick Study chance/rank weighting and multiplier
+  live in `res://data/proc_table.tres`; its ranks/cost and typed grain enable live
+  in `res://data/skill_tree.tres`; every grain duration, tolerance, world-mark,
+  bracket and copy value lives in labelled `res://data/grain_cue.tres`. None is a
+  signed-off final.
+- **Acceptance discipline:** the initial Slice 6 group was first run red against
+  the Slice 5 code (111 pass / 19 fail). The later explicit block-exit guard was
+  separately proven red with its cleanup line removed (133 pass / 1 fail).
+  Final M7C is **134/134**. The new visual tools are
+  `core/tools/grain_shot.tscn` (dark/pale readable cue plus invalid, settle and
+  split cleanup) and the Quick Study frame added to
+  `core/tools/proc_shot.tscn`. Both were run non-headless and their 1280×720 PNGs
+  inspected before the slice was called complete.
 
 ### Files the chopping game owns
 
