@@ -7,7 +7,7 @@
 
 **Implementation checkpoint, 4 August 2026:** The approved structure, gates,
 greybox physical consequences, shop presentation, save support, pacing probe and
-acceptance coverage are implemented. M1–M4, M7A (281/281), slicer, chopping
+acceptance coverage are implemented. M1–M4, M7A (283/283), slicer, chopping
 smoke and non-headless pile smoke are green under Godot 4.7.1 Compatibility.
 Final authored art/audio and the measured 30-minute tuning/sign-off session are
 still outstanding; all shop prices and effect magnitudes remain candidate data.
@@ -24,8 +24,9 @@ allowed to make a purchased object disappear.
 tabs of one Shop overlay; Skills remains its own overlay. Skills and Shop icons
 carry red live-count badges for spendable points and currently affordable
 purchases respectively. Handcart staging no longer changes the arrival path:
-the next log appears over the block with the original drop/little hop, then a
-six-piece low-poly smoke puff fires around its base on contact.
+the next log appears over the block with the original compact 0.4 m drop/little
+hop, then a randomly varied six-piece low-poly smoke puff fires around its base
+on contact.
 
 ## Approved boundaries carried into this proposal
 

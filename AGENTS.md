@@ -149,8 +149,9 @@ Shop overlay with **Items** and **Trees** tabs; the skill tree remains separate.
 There is no standalone Wood dock button/panel. Red numeric badges show usable
 skill points on Skills and purchases affordable right now (equipment plus the
 next tree) on Shop. A staged Handcart log must use the original centred
-drop/little-hop arrival, never fly in laterally; a small low-poly smoke puff
-fires around its base on landing.
+drop/little-hop arrival, never fly in laterally; its drop height is the compact
+0.4 m version, and a small, randomly varied low-poly smoke puff fires around its
+base on landing.
 
 The prototype skill migration is also approved for the next M7C work: retain
 Strong Arms as Strength foundation and Quick Hands as Speed foundation; rename
@@ -184,7 +185,7 @@ Suite results, all re-run after the pivot on the shipping assets:
 | M2 | `--quit-after 900 res://core/tests/m2_acceptance.tscn` | **24/24** — the A1 finding is fixed (Amendment 16) |
 | M3 | `--quit-after 900 res://core/tests/m3_acceptance.tscn` | **16/16** |
 | M4 | `--quit-after 8000 res://core/tests/m4_acceptance.tscn` | **55/55** |
-| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **281/281** |
+| M7A | `--quit-after 8000 res://core/tests/m7a_acceptance.tscn` | **283/283** |
 | Slicer | `-s res://core/tools/test_slicer.gd` | **34/34** |
 | Chopping smoke | `--quit-after 8000 res://core/tools/chopping_smoke.tscn` | green |
 | Pile smoke | `res://core/tools/pile_smoke.tscn` | **green; run NON-headless** — it polls the real pile/respawn outcome against a real-time deadline because uncapped frame counts outrun the animation clock |

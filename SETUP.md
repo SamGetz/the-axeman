@@ -140,7 +140,7 @@ inside `the-axeman/`**, never from the repo root.
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
-Expected: M1 21/21, M2 24/24, M3 16/16, M4 55/55, M7A 281/281, slicer 34/34.
+Expected: M1 21/21, M2 24/24, M3 16/16, M4 55/55, M7A 283/283, slicer 34/34.
 **The original suite was confirmed on a fresh clone + double import on
 2026-08-02; the expanded M4/M7A counts were confirmed on the desktop on
 2026-08-04.** They are the expected current shipping-asset results.

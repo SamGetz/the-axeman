@@ -126,7 +126,7 @@ signal log_completed(species_id: StringName, piece_count: int)
 @export var min_cut_width := 0.127       # only reorient to a long axis while it's at least this thick (m); below this the piece is small enough to just cut
 @export var cross_axis_turn_deg := 90.0  # cut axis too short -> snap camera this far to the perpendicular (long) axis so cuts make firewood chunks
 @export var long_axis_bias := 1.15       # snap to the perpendicular axis when it is more than this * the axis you'd cut (hysteresis; 1.0 = always cut the strictly longer axis)
-@export var drop_height := 0.5           # how far above rest a fresh log drops in from
+@export var drop_height := 0.4           # compact spawn-in: visible drop without a high floating beat
 
 # --- cut face (roughen the split so it's cloven wood, not a laser cut) -----
 @export_group("Cut face")
@@ -1363,34 +1363,44 @@ func _spawn_log_smoke(mesh: Mesh) -> void:
 	# the fixed chopping camera, including when nearby equipment is installed.
 	var radius := maxf(0.20, maxf(footprint.x, footprint.z) * 0.65)
 	for i in range(6):
-		var angle := TAU * float(i) / 6.0 + randf_range(-0.12, 0.12)
+		# One puff per loose sector preserves a ring while keeping repeated log
+		# arrivals from looking stamped out by a particle machine.
+		var angle := TAU * (float(i) + randf_range(-0.32, 0.32)) / 6.0
 		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var puff_radius := randf_range(0.052, 0.078)
+		var start_radius := radius * randf_range(0.82, 1.18)
+		var duration := randf_range(0.27, 0.42)
 		var puff_mesh := SphereMesh.new()
-		puff_mesh.radius = 0.07
+		puff_mesh.radius = puff_radius
 		# SphereMesh requires height >= diameter; shorter values silently produce
 		# no useful geometry on some Compatibility drivers.
-		puff_mesh.height = 0.14
+		puff_mesh.height = puff_radius * 2.0
 		puff_mesh.radial_segments = 6
 		puff_mesh.rings = 3
 		var material := StandardMaterial3D.new()
 		# Keep the brief puff opaque. Alpha-blended particles disappeared against
 		# the lit stump on Compatibility; these pale faceted chunks read clearly
 		# and vanish through motion/scale instead of a transparency fade.
-		material.albedo_color = Color(0.82, 0.78, 0.70, 1.0)
+		var shade := randf_range(-0.055, 0.04)
+		material.albedo_color = Color(0.82 + shade, 0.78 + shade, 0.70 + shade, 1.0)
 		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		var puff := MeshInstance3D.new()
 		puff.name = "Puff%d" % i
 		puff.mesh = puff_mesh
 		puff.material_override = material
 		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		puff.position = direction * radius + Vector3(0, _stump_top_y + 0.025, 0)
-		puff.scale = Vector3.ONE * 0.65
+		puff.position = direction * start_radius + Vector3(0, _stump_top_y + randf_range(0.018, 0.042), 0)
+		var start_scale := randf_range(0.50, 0.78)
+		puff.scale = Vector3(start_scale, start_scale * randf_range(0.78, 1.20), start_scale)
 		root.add_child(puff)
 		var tween := puff.create_tween().set_parallel(true)
-		tween.tween_property(puff, "position", puff.position + direction * 0.08 + Vector3.UP * 0.055, 0.34)
-		tween.tween_property(puff, "scale", Vector3.ONE * 1.35, 0.34)
+		var travel := randf_range(0.055, 0.12)
+		var lift := randf_range(0.035, 0.085)
+		tween.tween_property(puff, "position", puff.position + direction * travel + Vector3.UP * lift, duration)
+		var end_scale := randf_range(1.08, 1.52)
+		tween.tween_property(puff, "scale", Vector3.ONE * end_scale, duration)
 		tween.chain().tween_callback(puff.queue_free)
-	var cleanup := get_tree().create_timer(0.5)
+	var cleanup := get_tree().create_timer(0.55)
 	cleanup.timeout.connect(root.queue_free)
 
 
