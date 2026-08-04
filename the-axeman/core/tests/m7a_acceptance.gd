@@ -1397,8 +1397,15 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	game._stage_next_log()
 	_check(game.debug_has_staged_log(),
 		"the Handcart stages exactly the selected next log without chopping or paying it")
-	_check(game.drop_height > 0.0 and game.drop_height < 0.5,
+	_check(is_equal_approx(game.drop_height, 0.25),
 		"the centred arrival uses the approved lower drop height (%.2fm)" % game.drop_height)
+	var smoke_pool := game.find_child("LogSpawnSmoke", false, false)
+	var pooled_ids: Array[int] = []
+	if smoke_pool != null:
+		for puff: Node3D in smoke_pool.get_children():
+			pooled_ids.append(puff.get_instance_id())
+	_check(smoke_pool != null and smoke_pool.get_child_count() == 6,
+		"all six smoke meshes/materials are prewarmed before the landing frame")
 	game._spawn_fresh_log(false)
 	var appeared_log: Node3D = game.get_node("OnBlock").get_child(0)
 	_check(is_zero_approx(appeared_log.position.x) and is_zero_approx(appeared_log.position.z),
@@ -1407,6 +1414,12 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	var smoke := game.find_child("LogSpawnSmoke", false, false)
 	_check(smoke != null and smoke.get_child_count() == 6,
 		"the in-place arrival throws six low-poly smoke puffs around the log base")
+	var landed_ids: Array[int] = []
+	if smoke != null:
+		for puff: Node3D in smoke.get_children():
+			landed_ids.append(puff.get_instance_id())
+	_check(landed_ids == pooled_ids,
+		"landing reuses the prewarmed puff nodes instead of allocating on impact")
 	var puff_sizes := {}
 	if smoke != null:
 		for puff: Node3D in smoke.get_children():

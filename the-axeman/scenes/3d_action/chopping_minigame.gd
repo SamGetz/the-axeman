@@ -126,7 +126,7 @@ signal log_completed(species_id: StringName, piece_count: int)
 @export var min_cut_width := 0.127       # only reorient to a long axis while it's at least this thick (m); below this the piece is small enough to just cut
 @export var cross_axis_turn_deg := 90.0  # cut axis too short -> snap camera this far to the perpendicular (long) axis so cuts make firewood chunks
 @export var long_axis_bias := 1.15       # snap to the perpendicular axis when it is more than this * the axis you'd cut (hysteresis; 1.0 = always cut the strictly longer axis)
-@export var drop_height := 0.4           # compact spawn-in: visible drop without a high floating beat
+@export var drop_height := 0.25          # compact spawn-in: visible drop without a high floating beat
 
 # --- cut face (roughen the split so it's cloven wood, not a laser cut) -----
 @export_group("Cut face")
@@ -281,6 +281,14 @@ var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D 
 var _bark_mats: Dictionary = {}           # "species index|source material id" -> re-skinned duplicate (see _apply_species_look)
 var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
 var _scar_meshes: Dictionary = {}         # species index -> ArrayMesh: the gouge a failed swing leaves
+var _smoke_root: Node3D                    # landing puff pool; built before play to keep allocations off impact
+var _smoke_puffs: Array[MeshInstance3D] = []
+var _smoke_age := PackedFloat32Array()
+var _smoke_duration := PackedFloat32Array()
+var _smoke_start_pos: Array[Vector3] = []
+var _smoke_end_pos: Array[Vector3] = []
+var _smoke_start_scale: Array[Vector3] = []
+var _smoke_end_scale: Array[Vector3] = []
 var _phys_mat: PhysicsMaterial
 var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut faces
 var _stump_top_y := 0.5
@@ -319,6 +327,7 @@ func _ready() -> void:
 	# from the species it actually puts on the block, so building one up front only
 	# loaded and scaled an FBX for a random species that was thrown away.
 	_build_stump()
+	_build_smoke_pool()
 	GameState.building_tiers_changed.connect(_refresh_equipment_effects)
 	_refresh_equipment_effects()
 	$Floor.physics_material_override = _phys_mat
@@ -341,6 +350,7 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	_animator.update()
+	_update_log_smoke(delta)
 
 	if _cooldown_left > 0.0:
 		_cooldown_left -= delta
@@ -1350,14 +1360,44 @@ func _on_log_landed(mesh: Mesh) -> void:
 	_spawn_log_smoke(mesh)
 
 
-## A small low-poly dust/smoke ring at the block surface makes the in-place log
-## arrival feel grounded. Native meshes/materials only; every puff frees itself.
+## Build all smoke geometry/materials before the first log lands. Creating six
+## procedural meshes, materials, nodes and RenderingServer resources inside the
+## contact callback caused the visible landing hitch; the hot path below now
+## only resets values in a six-slot animation pool on these native nodes.
+func _build_smoke_pool() -> void:
+	_smoke_root = Node3D.new()
+	_smoke_root.name = "LogSpawnSmoke"
+	add_child(_smoke_root)
+	var shared_mesh := SphereMesh.new()
+	shared_mesh.radius = 0.07
+	shared_mesh.height = 0.14
+	shared_mesh.radial_segments = 6
+	shared_mesh.rings = 3
+	for i in range(6):
+		var material := StandardMaterial3D.new()
+		material.albedo_color = Color(0.82, 0.78, 0.70, 1.0)
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var puff := MeshInstance3D.new()
+		puff.name = "Puff%d" % i
+		puff.mesh = shared_mesh
+		puff.material_override = material
+		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		puff.visible = false
+		_smoke_root.add_child(puff)
+		_smoke_puffs.append(puff)
+		_smoke_age.append(-1.0)
+		_smoke_duration.append(0.0)
+		_smoke_start_pos.append(Vector3.ZERO)
+		_smoke_end_pos.append(Vector3.ZERO)
+		_smoke_start_scale.append(Vector3.ONE)
+		_smoke_end_scale.append(Vector3.ONE)
+
+
+## A small randomized low-poly dust/smoke ring at the block surface makes the
+## in-place arrival feel grounded. All geometry/materials are reused from pool.
 func _spawn_log_smoke(mesh: Mesh) -> void:
-	if mesh == null:
+	if mesh == null or _smoke_root == null:
 		return
-	var root := Node3D.new()
-	root.name = "LogSpawnSmoke"
-	add_child(root)
 	var footprint := mesh.get_aabb().size
 	# Clear the log silhouette so at least the side puffs remain readable from
 	# the fixed chopping camera, including when nearby equipment is installed.
@@ -1367,41 +1407,46 @@ func _spawn_log_smoke(mesh: Mesh) -> void:
 		# arrivals from looking stamped out by a particle machine.
 		var angle := TAU * (float(i) + randf_range(-0.32, 0.32)) / 6.0
 		var direction := Vector3(cos(angle), 0.0, sin(angle))
-		var puff_radius := randf_range(0.052, 0.078)
+		var radius_scale := randf_range(0.74, 1.12)
 		var start_radius := radius * randf_range(0.82, 1.18)
 		var duration := randf_range(0.27, 0.42)
-		var puff_mesh := SphereMesh.new()
-		puff_mesh.radius = puff_radius
-		# SphereMesh requires height >= diameter; shorter values silently produce
-		# no useful geometry on some Compatibility drivers.
-		puff_mesh.height = puff_radius * 2.0
-		puff_mesh.radial_segments = 6
-		puff_mesh.rings = 3
-		var material := StandardMaterial3D.new()
+		var puff := _smoke_puffs[i]
 		# Keep the brief puff opaque. Alpha-blended particles disappeared against
 		# the lit stump on Compatibility; these pale faceted chunks read clearly
 		# and vanish through motion/scale instead of a transparency fade.
 		var shade := randf_range(-0.055, 0.04)
+		var material := puff.material_override as StandardMaterial3D
 		material.albedo_color = Color(0.82 + shade, 0.78 + shade, 0.70 + shade, 1.0)
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var puff := MeshInstance3D.new()
-		puff.name = "Puff%d" % i
-		puff.mesh = puff_mesh
-		puff.material_override = material
-		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		puff.position = direction * start_radius + Vector3(0, _stump_top_y + randf_range(0.018, 0.042), 0)
-		var start_scale := randf_range(0.50, 0.78)
+		var start_scale := randf_range(0.50, 0.78) * radius_scale
 		puff.scale = Vector3(start_scale, start_scale * randf_range(0.78, 1.20), start_scale)
-		root.add_child(puff)
-		var tween := puff.create_tween().set_parallel(true)
+		puff.visible = true
 		var travel := randf_range(0.055, 0.12)
 		var lift := randf_range(0.035, 0.085)
-		tween.tween_property(puff, "position", puff.position + direction * travel + Vector3.UP * lift, duration)
-		var end_scale := randf_range(1.08, 1.52)
-		tween.tween_property(puff, "scale", Vector3.ONE * end_scale, duration)
-		tween.chain().tween_callback(puff.queue_free)
-	var cleanup := get_tree().create_timer(0.55)
-	cleanup.timeout.connect(root.queue_free)
+		var end_scale := randf_range(1.08, 1.52) * radius_scale
+		_smoke_age[i] = 0.0
+		_smoke_duration[i] = duration
+		_smoke_start_pos[i] = puff.position
+		_smoke_end_pos[i] = puff.position + direction * travel + Vector3.UP * lift
+		_smoke_start_scale[i] = puff.scale
+		_smoke_end_scale[i] = Vector3.ONE * end_scale
+
+
+## Manual interpolation avoids constructing Tween/Tweener objects on the exact
+## frame the log contacts the block. The six packed slots are allocated once.
+func _update_log_smoke(delta: float) -> void:
+	for i in range(_smoke_puffs.size()):
+		if _smoke_age[i] < 0.0:
+			continue
+		_smoke_age[i] += delta
+		var t := clampf(_smoke_age[i] / _smoke_duration[i], 0.0, 1.0)
+		var eased := 1.0 - (1.0 - t) * (1.0 - t)
+		var puff := _smoke_puffs[i]
+		puff.position = _smoke_start_pos[i].lerp(_smoke_end_pos[i], eased)
+		puff.scale = _smoke_start_scale[i].lerp(_smoke_end_scale[i], eased)
+		if t >= 1.0:
+			puff.visible = false
+			_smoke_age[i] = -1.0
 
 
 ## Prepare one mesh while the completed log is already waiting/stacking. It is
