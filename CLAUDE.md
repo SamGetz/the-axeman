@@ -40,7 +40,11 @@ project). Two commits exist:
 | `38b4425` | The pivot: everything tree-related removed. |
 
 `.godot/` and `*.log` are gitignored. **Commit as you work now** — the safety
-net exists, use it. Nothing has been pushed to a remote; there is no remote.
+net exists, use it. **UPDATED 2026-08-04: a remote now exists** —
+`origin` → `https://github.com/SamGetz/the-axeman.git`, tracking `master`.
+This line originally said there was no remote; it was stale. See Operational
+Rule 7 below — sync with `origin/master` at the start of every session before
+starting new work.
 
 ### APPROVED POST-PIVOT DIRECTION (2026-08-01)
 
@@ -939,6 +943,15 @@ was failing for a stale reason on top of the real one.
 6. Writes to inventory happen ONLY inside InventoryManager; writes to
    progression ONLY inside GameState (via EventBus signals or their own
    public methods). Everything else queries read-only.
+7. **Start every session by syncing with the repo before touching anything.**
+   Run `git status` (uncommitted or stray work must be surfaced and handled —
+   never silently overwritten) and `git fetch origin && git log HEAD..origin/master
+   --oneline` (or `git status -sb`, which shows ahead/behind once fetched) to
+   check the local branch against `origin/master`. If local is behind, pull
+   (fast-forward only — never `--force`) before starting new work, so changes
+   land on top of the latest committed state instead of forking off something
+   stale. `origin` is a real GitHub remote (see the pivot section above) — do
+   not assume a solo local repo with no upstream to check.
 
 ### Lessons this project has paid for repeatedly
 
