@@ -3,9 +3,10 @@ extends Node
 ## ATTACHES TO: res://core/tests/m7c_acceptance.tscn. Not shipped.
 ##
 ## M7C grows slice by slice. Current groups cover save-v2 skill migration,
-## typed content schemas/validators, the three-bough UI, Slice 5 Strength, and
-## Slice 6 Technique (Quick Study plus grain-reading feedback). Mastery, Speed,
-## and equipment loadout still have no gameplay.
+## typed content schemas/validators, the three-bough UI, Slice 5 Strength,
+## Slice 6 Technique (Quick Study plus grain-reading feedback), and Slice 7
+## Speed (Follow-Up plus Ready Stance's CHOP_SPEED wiring). Mastery and
+## equipment loadout still have no gameplay.
 
 const _FIXTURES := "res://core/tests/fixtures/"
 const _BACKUP_PATH := "user://the_axeman_save.m7c_testbackup"
@@ -32,6 +33,14 @@ func _ready() -> void:
 	await _test_quick_study_manual_completion_event()
 	await _test_quick_study_source_and_once_guards()
 	await _test_grain_cue_validity_and_cleanup()
+	_test_follow_up_bad_luck_bound_and_persistence()
+	await _test_follow_up_requires_ownership()
+	await _test_follow_up_fires_on_a_scar_and_can_itself_fail()
+	await _test_follow_up_does_not_recurse_into_double_strike()
+	await _test_follow_up_precision_guard_has_no_escape()
+	await _test_follow_up_can_complete_a_log()
+	await _test_ready_stance_shortens_the_windup_only()
+	_test_orphan_proc_validator_rejects_unowned_procs()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -1041,6 +1050,346 @@ func _test_grain_cue_validity_and_cleanup() -> void:
 	exit_mg.free()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
+
+
+# --------------------------------------- M7C Slice 7: Speed vertical (2026-08-05)
+## Routes every skill purchase through the REAL GameState.add_xp + SkillTree.buy
+## path, same discipline as _grant_double_strike_chain/_grant_quick_study.
+func _grant_follow_up() -> void:
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(6))
+	_check(SkillTree.buy(&"quick_hands") == 1, "test setup: Quick Hands bought")
+	_check(SkillTree.buy(&"follow_up") == 1, "test setup: Follow-Up bought")
+
+
+func _make_follow_up_minigame(owns_skill := true) -> Node3D:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	if owns_skill:
+		_grant_follow_up()
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_forced_mesh = 0
+	mg.debug_split_roll = 1      # the primary swing always cleaves by default — cases override this
+	mg.debug_force_proc = 1      # Follow-Up always fires when it is rolled at all
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+	return mg
+
+
+## Pure ProcResolver/GameState logic, mirroring
+## _test_double_strike_bad_luck_bound_and_persistence exactly: bounded dry-streak
+## protection reaches its bound and is guaranteed to fire there, and the streak
+## survives a save/load round trip so a reload cannot cheaply reroll it.
+func _test_follow_up_bad_luck_bound_and_persistence() -> void:
+	GameState.reset_to_defaults()
+	var proc_def: ProcDef = M7CContent.procs().by_id(&"follow_up")
+	_check(proc_def != null, "test setup: the follow_up proc is registered")
+	if proc_def == null:
+		return
+
+	for i in range(proc_def.bad_luck_bound - 1):
+		var fired: bool = ProcResolver.should_proc(proc_def, 0)   # forced fail; still recorded
+		_check(not fired, "forced-fail roll %d of %d does not fire" % [i + 1, proc_def.bad_luck_bound - 1])
+	_check(GameState.get_proc_dry_streak(&"follow_up") == proc_def.bad_luck_bound - 1,
+		"the dry streak climbed to one short of the bound (%d)" % (proc_def.bad_luck_bound - 1))
+
+	var pity: bool = ProcResolver.should_proc(proc_def)   # a REAL roll, not forced
+	_check(pity, "a real roll at the bad-luck bound is guaranteed to fire (pity)")
+	_check(GameState.get_proc_dry_streak(&"follow_up") == 0, "...and firing resets the streak")
+
+	for i in range(proc_def.bad_luck_bound - 2):
+		ProcResolver.should_proc(proc_def, 0)
+	var streak_before := GameState.get_proc_dry_streak(&"follow_up")
+	_check(streak_before == proc_def.bad_luck_bound - 2, "rebuilt streak before save (%d)" % streak_before)
+
+	var saved := GameState.to_save_dict()
+	GameState.reset_to_defaults()
+	_check(GameState.get_proc_dry_streak(&"follow_up") == 0, "a fresh save starts with no streak")
+	GameState.apply_save_dict(saved)
+	_check(GameState.get_proc_dry_streak(&"follow_up") == streak_before,
+		"loading the save restores the exact streak — reload cannot cheaply reroll it")
+
+	GameState.reset_to_defaults()
+
+
+## Mirrors _test_double_strike_requires_ownership: forcing the proc without
+## owning it must never fire, and spending the identical number of points
+## entirely off-branch grants nothing either.
+func _test_follow_up_requires_ownership() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	_check(SkillTree.get_level(&"follow_up") == 0, "test setup: Follow-Up starts unowned")
+	var mg := await _make_follow_up_minigame(false)
+	var before: int = mg.piece_count()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.debug_last_follow_up_swings() == 0,
+		"an unlearned Follow-Up never fires, however hard the proc is forced")
+	_check(mg.piece_count() == before + 1, "...only the ordinary root split landed")
+	_check(GameState.get_proc_dry_streak(&"follow_up") == 0,
+		"...and an unowned proc is never even rolled — no fairness state spent")
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+	# The SAME number of points (4), spent entirely in Strength instead.
+	# _make_follow_up_minigame() resets GameState internally (same shape as
+	# _make_quick_study_minigame), so the purchases have to happen AFTER
+	# construction, not before — buying them first would just be wiped.
+	var mg2 := await _make_follow_up_minigame(false)
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(5))
+	_check(SkillTree.buy(&"strong_arms") == 1, "test setup: Strong Arms bought")
+	_check(SkillTree.buy(&"double_strike") == 1, "test setup: 4 points spent entirely off-branch")
+	_check(SkillTree.get_level(&"follow_up") == 0,
+		"spending points off-branch does not grant an unlearned Speed proc")
+
+	var before2: int = mg2.piece_count()
+	mg2.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg2.debug_last_follow_up_swings() == 0,
+		"...so the identical forced proc still performs zero bonus swings")
+	_check(mg2.piece_count() == before2 + 2, "...only the root split and Double Strike's owned cut landed")
+	mg2.queue_free()
+	await get_tree().process_frame
+
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Follow-Up's own defining difference from Double Strike: it rolls on a
+## SCARRED root swing, not only a split one, and the bonus swing it spends is a
+## REAL roll of its own that can also fail. With debug_split_roll forced to 0,
+## every roll in this whole event fails — the root scars, and Follow-Up's own
+## bonus swing (targeting the same still-whole piece, since it never left the
+## block) scars it a second time rather than cutting it.
+func _test_follow_up_fires_on_a_scar_and_can_itself_fail() -> void:
+	var mg := await _make_follow_up_minigame(true)
+	mg.debug_split_roll = 0
+	var before: int = mg.piece_count()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.debug_last_follow_up_swings() == 1,
+		"Follow-Up fires on a SCAR, not only on a successful split — unlike Double Strike")
+	_check(mg.debug_scar_count() == 2,
+		"...the root scar and Follow-Up's own (also forced-fail) bonus swing both mark the same piece")
+	_check(mg.piece_count() == before,
+		"a bonus SWING can fail too: nothing was cut, the piece is still whole")
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Both signature procs owned and forced: a root swing may spawn AT MOST one
+## chain of EACH kind, but a fired Follow-Up must never spawn a Double Strike
+## chain of its own (the is_bonus recursion guard in _resolve_strike). Proven
+## by the exact cut count — three, not four — which is the number that would
+## grow if the guard were missing, and by each proc's own announcement colour
+## surviving to the end of the same event.
+func _test_follow_up_does_not_recurse_into_double_strike() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(10))
+	_check(SkillTree.buy(&"strong_arms") == 1, "test setup: Strong Arms bought")
+	_check(SkillTree.buy(&"double_strike") == 1, "test setup: Double Strike bought")
+	_check(SkillTree.buy(&"quick_hands") == 1, "test setup: Quick Hands bought")
+	_check(SkillTree.buy(&"follow_up") == 1, "test setup: Follow-Up bought")
+
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_split_roll = 1
+	mg.debug_force_proc = 1
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+
+	var before: int = mg.piece_count()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.debug_last_double_strike_cuts() == 1,
+		"the root swing's own Double Strike chain still fires normally")
+	_check(mg.debug_last_follow_up_swings() == 1,
+		"...and the same root swing's Follow-Up chain fires too — a root swing may spawn ONE of EACH kind")
+	_check(mg.piece_count() == before + 3,
+		"exactly three real cuts landed this event: the root split, Double Strike's bonus cut, and " +
+		"Follow-Up's bonus swing (%d -> %d) — a fourth would mean Follow-Up recursed into its own chain"
+			% [before, mg.piece_count()])
+	var speed := M7CContent.branches().by_id(&"speed")
+	_check(speed != null and mg.debug_last_proc_burst_color().is_equal_approx(speed.color),
+		"Follow-Up announces LAST in the event, through ProcBurst in the authored Speed branch colour")
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Mirrors _test_double_strike_precision_guard's suppression half exactly.
+## UNLIKE Double Strike, Follow-Up has no owned-modifier escape today — no
+## Speed-side Steady Continuation equivalent exists yet (a Directive 3
+## authoring gap this slice flags but does not fill).
+func _test_follow_up_precision_guard_has_no_escape() -> void:
+	var mg := await _make_follow_up_minigame(true)
+	mg.debug_set_precision_guard(true)
+	var streak_before := GameState.get_proc_dry_streak(&"follow_up")
+	var before: int = mg.piece_count()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.debug_last_follow_up_swings() == 0,
+		"the precision guard suppresses Follow-Up even with the proc forced on")
+	_check(mg.piece_count() == before + 1,
+		"...the base swing itself still landed normally, untouched by the guard")
+	_check(GameState.get_proc_dry_streak(&"follow_up") == streak_before,
+		"...and suppression spent no fairness state — the roll never happened")
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## A Follow-Up swing that happens to be the one to empty the block must still
+## route through the SAME single-root XP transaction as any other completing
+## swing — one manual root, exactly once, whichever swing in the chain
+## actually finished it.
+##
+## Built as two separate clicks rather than tuned geometry: the first (default
+## min_vol, Follow-Up still unowned) is nothing more than the ordinary "primary
+## swing splits the fresh log" setup every other test in this file starts from.
+## The second raises min_vol so high that any further split immediately flies
+## off as firewood, THEN grants Follow-Up: that click's own root swing consumes
+## one of the two remaining halves (both its new pieces fly off, but whichever
+## OTHER half from the first click is still on the block, so the log is not yet
+## finished) — it is specifically Follow-Up's bonus swing, targeting that last
+## remaining half, whose _perform_split is what empties _on_block and fires
+## _award_log_xp().
+func _test_follow_up_can_complete_a_log() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_forced_mesh = 0
+	mg.debug_split_roll = 1
+	mg.debug_force_proc = 1
+	mg.auto_sell = true
+	mg.orbs_enabled = false
+	add_child(mg)
+	await get_tree().process_frame
+
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+	_check(mg.cuttable_count() == 2,
+		"test setup: the fresh log's primary split leaves two ordinary chunky halves on the block")
+
+	_grant_follow_up()
+	mg.min_vol = 1000.0   # from here on, any further split immediately flies off as firewood
+	var base: int = SpeciesTable.at(0).xp_reward
+	var xp_before := GameState.get_xp()
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await get_tree().process_frame
+
+	_check(mg.cuttable_count() == 0, "the log is fully finished: nothing left on the block")
+	_check(mg.debug_last_double_strike_cuts() == 0,
+		"test isolation: Double Strike was never granted in this test")
+	_check(mg.debug_last_follow_up_swings() == 1,
+		"...it was Follow-Up's bonus swing, not the root, that consumed the last remaining half")
+	_check(GameState.get_xp() - xp_before == base,
+		"exactly one un-multiplied manual root XP award fired (%d), whichever swing in the chain finished the log"
+			% base)
+	_check(mg.debug_last_quick_study_root_id() != &"",
+		"the completing transaction still recorded one explicit root event id")
+
+	mg.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## Ready Stance (Speed, SkillNodeDef.Effect.CHOP_SPEED) is authored as "fraction
+## off the axe's wind-up" — the interval from swing start to the animation's
+## contact key — but before this slice nothing outside skill_node_def.gd read
+## CHOP_SPEED at all, so a player could spend real skill points on it and get
+## nothing. This compares the SAME fixed click's contact_time()/swing_duration()
+## at 0 ranks vs 5 (maxed): the wind-up must measurably shorten, and the
+## authored post-contact follow-through's OWN duration must NOT change (Ready
+## Stance speeds up the drop, never re-times Sam's follow-through keys).
+func _test_ready_stance_shortens_the_windup_only() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(15))
+	# Bought ONCE, before EITHER measurement, and never re-bought: Quick Hands
+	# is Ready Stance's own prerequisite, but it is ALSO a SWING_SPEED node —
+	# owning it changes current_swing_cooldown() and therefore the axe's
+	# set_speed() ratio, which would shift BOTH segments of swing_duration(),
+	# not just the wind-up. Owning it identically across both runs isolates
+	# CHOP_SPEED as the only thing that differs.
+	_check(SkillTree.buy(&"quick_hands") == 1, "test setup: Quick Hands bought")
+
+	var mg: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+	var axe: Node = mg.get_node_or_null("CameraPivot/Camera3D/AxeViewmodelAnchor")
+	_check(axe != null, "test setup: the axe viewmodel is present")
+	if axe == null:
+		mg.queue_free()
+		await get_tree().process_frame
+		return
+	mg._on_click(Vector2(640.0, 360.0))
+	var base_contact: float = axe.contact_time()
+	var base_duration: float = axe.swing_duration()
+	_check(base_contact > 0.0 and base_duration > base_contact,
+		"test setup: the baseline swing (Quick Hands owned, Ready Stance not) has a measurable wind-up and follow-through")
+	mg.queue_free()
+	await get_tree().process_frame
+
+	for i in range(5):
+		SkillTree.buy(&"ready_stance")
+	_check(SkillTree.get_level(&"ready_stance") == 5, "test setup: Ready Stance maxed")
+
+	var mg2: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg2.debug_forced_species = 0
+	mg2.auto_sell = false
+	add_child(mg2)
+	await get_tree().process_frame
+	var axe2: Node = mg2.get_node_or_null("CameraPivot/Camera3D/AxeViewmodelAnchor")
+	mg2._on_click(Vector2(640.0, 360.0))
+	var boosted_contact: float = axe2.contact_time()
+	var boosted_duration: float = axe2.swing_duration()
+	_check(boosted_contact < base_contact,
+		("Ready Stance shortens the wind-up (%.3fs -> %.3fs) — this is the exact " +
+			"bug this slice exists to fix: CHOP_SPEED was authored but never read")
+			% [base_contact, boosted_contact])
+	_check(is_equal_approx(boosted_duration - boosted_contact, base_duration - base_contact),
+		"...but leaves the authored post-contact follow-through's OWN duration untouched (%.3fs vs %.3fs)"
+			% [boosted_duration - boosted_contact, base_duration - base_contact])
+	mg2.queue_free()
+	await get_tree().process_frame
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+
+
+## The validator whose absence is exactly how `follow_up` sat dead in shipped
+## proc_table.tres data since 2026-08-04: a proc no PROC node names is fully
+## "valid" on its own terms (validate_procs is silent) yet can never be bought
+## and can never fire. Also proves the SHIPPING data has zero such orphans.
+func _test_orphan_proc_validator_rejects_unowned_procs() -> void:
+	var orphan_tree := SkillTreeTable.new()
+	orphan_tree.nodes = [_test_skill(&"acceptance_unrelated_skill")]
+	var orphan_errors := M7CContent.validate_skill_tree(
+		orphan_tree, M7CContent.branches(), M7CContent.procs())
+	_check(_has_error(orphan_errors, "not owned by any skill tree node"),
+		"a proc with no owning PROC node anywhere in the tree is flagged, not silently accepted")
+
+	var live_errors := M7CContent.validate_all()
+	_check(not _has_error(live_errors, "not owned by any skill tree node"),
+		"the shipping proc_table.tres/skill_tree.tres data has zero orphaned procs")
 
 
 func _test_skill(id: StringName) -> SkillNodeDef:

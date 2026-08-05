@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://data/skill_tree_table.gd" id="1_tree"]
 [ext_resource type="Script" path="res://data/skill_node_def.gd" id="2_node"]
@@ -48,6 +48,26 @@ max_level = 5
 cost = 2
 effect = 3
 effect_step = 0.05
+
+; M7C Slice 7 (2026-08-05): Speed's own signature proc. Follow-Up is a bonus
+; SWING, not a bonus cut — it re-enters _resolve_strike and can leave a scar
+; like any other swing, which is what keeps it mechanically distinct from
+; Strength's Double Strike (see chopping_minigame._attempt_follow_up()).
+[sub_resource type="Resource" id="Resource_follow_up"]
+resource_name = "follow_up"
+script = ExtResource("2_node")
+id = &"follow_up"
+display_name = "Follow-Up"
+description = "Your hands are already moving. Sometimes the axe doesn't stop after one swing — a second real swing on whatever's in front of you, split or not."
+branch_id = &"speed"
+node_type = 1
+presentation_position = Vector2i(0, 1)
+proc_id = &"follow_up"
+requires = [&"quick_hands"]
+max_level = 3
+cost = 3
+effect = 0
+effect_step = 0.0
 
 [sub_resource type="Resource" id="Modifier_quick_study_grain_cue"]
 script = ExtResource("3_modifier")
@@ -118,4 +138,4 @@ modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_double_strik
 
 [resource]
 script = ExtResource("1_tree")
-nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_ready_stance"), SubResource("Resource_quick_study"), SubResource("Resource_double_strike"), SubResource("Resource_steady_continuation")])
+nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_ready_stance"), SubResource("Resource_follow_up"), SubResource("Resource_quick_study"), SubResource("Resource_double_strike"), SubResource("Resource_steady_continuation")])

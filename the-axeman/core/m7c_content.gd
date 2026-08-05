@@ -94,6 +94,11 @@ static func validate_skill_tree(table: SkillTreeTable, branch_table: SkillBranch
 		return errors
 	var seen: Dictionary = {}
 	var occupied_layout: Dictionary = {}
+	# M7C Slice 7: tracks which procs are actually reachable through the tree.
+	# Its absence is exactly how `follow_up` sat dead in shipped proc_table.tres
+	# data since 2026-08-04 — a fully authored, valid ProcDef that no node
+	# named, so it could never be bought and could never fire.
+	var owned_procs: Dictionary = {}
 	for node: SkillNodeDef in table.nodes:
 		if node == null:
 			errors.append("skill tree contains null")
@@ -122,8 +127,19 @@ static func validate_skill_tree(table: SkillTreeTable, branch_table: SkillBranch
 		if node.node_type == SkillNodeDef.NodeType.PROC:
 			if node.proc_id == &"" or proc_table == null or proc_table.by_id(node.proc_id) == null:
 				errors.append("skill %s has unknown proc:%s" % [node.id, node.proc_id])
+			else:
+				owned_procs[node.proc_id] = true
 		elif node.proc_id != &"":
 			errors.append("non-proc skill %s names proc:%s" % [node.id, node.proc_id])
+		for modifier: GameplayModifierDef in node.modifiers:
+			if modifier != null and modifier.kind == GameplayModifierDef.Kind.GRAIN_CUE:
+				# grain_read is deliberately NOT owned through a node's proc_id
+				# the way every other proc is — the 2026-08-04 grain-mark
+				# rework gates it behind an ENABLE-kind GRAIN_CUE modifier on
+				# whichever node grants the capability (quick_study today; see
+				# chopping_minigame.gd's grain-opportunity section). This is
+				# the one documented exception to "a node names its proc".
+				owned_procs[&"grain_read"] = true
 		errors.append_array(_validate_modifiers(node.modifiers, "skill %s" % node.id))
 
 	for node: SkillNodeDef in table.nodes:
@@ -139,6 +155,15 @@ static func validate_skill_tree(table: SkillTreeTable, branch_table: SkillBranch
 	for node: SkillNodeDef in table.nodes:
 		if node != null:
 			_visit_skill(table, node.id, visit_state, [], errors)
+
+	# Every authored proc must be reachable through the tree. A proc with no
+	# owning node can never be bought and can never fire — dead data that
+	# validate_procs() alone cannot catch, since a ProcDef is fully valid on
+	# its own terms regardless of whether any skill points at it.
+	if proc_table != null:
+		for proc: ProcDef in proc_table.procs:
+			if proc != null and proc.id != &"" and not owned_procs.has(proc.id):
+				errors.append("proc %s is not owned by any skill tree node" % proc.id)
 	return errors
 
 

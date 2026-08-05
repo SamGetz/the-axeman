@@ -4,9 +4,9 @@ extends Node
 ## RUN NON-HEADLESS. Not shipped.
 ##
 ## Photographs M7C's named procs — RUN THIS ON ANY CHANGE TO Double Strike,
-## Quick Study, the proc resolver, or ProcBurst. m7c_acceptance proves the
-## mechanics; only these PNGs prove each fired proc is visible and wears its
-## authored branch colour in the real chopping scene.
+## Follow-Up, Quick Study, the proc resolver, or ProcBurst. m7c_acceptance
+## proves the mechanics; only these PNGs prove each fired proc is visible and
+## wears its authored branch colour in the real chopping scene.
 ##
 ## Drives the chopping scene DIRECTLY — no main.tscn/HUD needed. The
 ## announcement is a self-contained 3D VFX (ProcBurst) fired from inside the
@@ -117,6 +117,32 @@ func _ready() -> void:
 		% [GameState.get_xp() - xp_before, mg.debug_last_quick_study_bonus(),
 			mg.debug_last_quick_study_root_id(), mg.debug_last_proc_burst_color()])
 	_save("_5_quick_study_xp_burst")
+
+	# --- F: Follow-Up — a bonus SWING, not a bonus cut; Speed's own blue burst ---
+	# debug_swing_world (not debug_slice_world) is used deliberately here — it is
+	# the seam that goes through the real roll, and Follow-Up is called from
+	# inside _resolve_strike specifically so this exact seam exercises it (see
+	# _resolve_strike's doc comment).
+	var curve3 := load("res://data/level_curve.tres") as LevelCurve
+	var follow_target := curve3.total_xp_for_level(15)
+	if GameState.get_xp() < follow_target:
+		GameState.add_xp(follow_target - GameState.get_xp())
+	SkillTree.buy(&"quick_hands")
+	SkillTree.buy(&"follow_up")
+	mg.min_vol = 0.018   # restore the shipping default (E raised it)
+	mg.auto_sell = false
+	mg.orbs_enabled = false
+	mg._spawn_fresh_log()
+	for i in range(10):
+		await get_tree().process_frame
+	mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	await _wait_ms(150)   # catch ProcBurst mid-flight, well inside its ~0.4s life
+	print("F follow_up: swings=%d pieces=%d burst_color=%s"
+		% [mg.debug_last_follow_up_swings(), mg.piece_count(), mg.debug_last_proc_burst_color()])
+	_save("_6_follow_up_burst_mid_flight")
+	for i in range(20):
+		await get_tree().process_frame
+	_save("_6b_follow_up_settled")
 
 	mg.queue_free()
 	await get_tree().process_frame

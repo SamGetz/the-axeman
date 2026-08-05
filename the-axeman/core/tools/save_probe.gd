@@ -14,6 +14,9 @@ extends Node
 ##                     already exists, for feel-testing the real proc in real
 ##                     play without a ~120-log grind. TEMPORARY dev convenience,
 ##                     not a shipped cheat.
+##   seed_speed        grant M7C Slice 7's whole Speed branch (Quick Hands,
+##                     Follow-Up, Ready Stance maxed) — same shape and same
+##                     reason as seed_double_strike.
 ##
 ## Runs as a SCENE, not with -s: a -s script replaces the main loop and the
 ## autoloads are never instantiated, so GameState/InventoryManager would not
@@ -30,8 +33,9 @@ func _ready() -> void:
 		"quit": await _quit_cycle()
 		"wipe": _wipe()
 		"seed_double_strike": _seed_double_strike()
+		"seed_speed": _seed_speed()
 		_:
-			print("save_probe: unknown mode '%s' (dump | seed | quit | wipe | seed_double_strike)" % mode)
+			print("save_probe: unknown mode '%s' (dump | seed | quit | wipe | seed_double_strike | seed_speed)" % mode)
 	if mode != "quit":
 		get_tree().quit()
 
@@ -120,3 +124,35 @@ func _seed_double_strike() -> void:
 		+ "strong_arms=%d double_strike=%d steady_continuation=%d (-1 = already owned/maxed, "
 		+ "now guaranteed affordable) -> saved=%s")
 		% [GameState.get_level(), GameState.get_skill_points_available(), strong, strike, steady, ok])
+
+
+## TEMPORARY dev convenience for feel-testing M7C Slice 7's whole Speed branch
+## in the real game — Quick Hands costs 1, Follow-Up 3, Ready Stance 2 per rank
+## up to 5 ranks (10), 14 points total, and points only come from levelling.
+## Same shape as _seed_double_strike, including its own lesson: grant points
+## RELATIVE to wherever the player already is, never a flat target level, or a
+## save with prior spend elsewhere silently underfunds the buy.
+func _seed_speed() -> void:
+	var result := SaveSystem.load_or_start_fresh()
+	print("save_probe: loaded existing save (%s) before granting the Speed branch"
+		% SaveSystem.LoadResult.keys()[result])
+
+	# 20 MORE points from wherever the player already is. 14 are needed
+	# (1 + 3 + 5x2); 20 leaves comfortable headroom the way Double Strike's own
+	# 11-for-6 buffer does.
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var target_level := mini(LevelCurve.MAX_LEVEL, GameState.get_level() + 20)
+	var target_xp := curve.total_xp_for_level(target_level)
+	if target_xp > GameState.get_xp():
+		GameState.add_xp(target_xp - GameState.get_xp())
+
+	var hands := SkillTree.buy(&"quick_hands")
+	var follow := SkillTree.buy(&"follow_up")
+	for i in range(5):
+		SkillTree.buy(&"ready_stance")
+	var ok := SaveSystem.save_game()
+	print(("save_probe: Speed branch test-seeded — level %d, %d skill points left, "
+		+ "quick_hands=%d follow_up=%d ready_stance_level=%d (-1 = already owned/maxed, "
+		+ "now guaranteed affordable) -> saved=%s")
+		% [GameState.get_level(), GameState.get_skill_points_available(), hands, follow,
+			SkillTree.get_level(&"ready_stance"), ok])

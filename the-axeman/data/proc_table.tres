@@ -16,6 +16,10 @@ base_chance = 0.1
 chain_cap = 1
 bad_luck_bound = 10
 
+; Rolled once per landed ROOT swing (Eligibility.MANUAL_SWING), split or scar —
+; unlike Double Strike, Follow-Up does not require a successful cut to fire, so
+; it can turn a bounced axe into a second real swing on the same piece. See
+; chopping_minigame._attempt_follow_up().
 [sub_resource type="Resource" id="Proc_follow_up"]
 script = ExtResource("2_proc")
 id = &"follow_up"
@@ -24,6 +28,7 @@ family = 1
 eligibility = 0
 announcement_key = &"follow_up"
 base_chance = 0.1
+chance_per_rank = 0.03
 chain_cap = 1
 bad_luck_bound = 10
 

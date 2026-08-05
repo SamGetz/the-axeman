@@ -272,6 +272,12 @@ signal grain_read_awarded(bonus_xp: int)
 ## Hard floor shared by skills and permanent equipment so the axe never loses
 ## its authored weight. PLACEHOLDER pending the measured tuning session.
 @export var min_swing_cooldown := 0.25
+## M7C Ready Stance: hard ceiling on how much faster than authored the WIND-UP
+## (swing start through the contact key) may ever play, however many ranks are
+## owned — this is a SPEED MULTIPLIER (2.0 = twice as fast), not a duration, so
+## the cap is a maximum. Mirrors min_swing_cooldown's role for the coffee/
+## SWING_SPEED chain. PLACEHOLDER pending the measured tuning session.
+@export var max_windup_scale := 2.5
 
 # --- audio (hooks; drop a stream in to hear it) ---------------------------
 @export_group("Audio")
@@ -309,6 +315,7 @@ var _staged_log: Dictionary = {}          # Handcart's one prepared next log; ne
 ## debug_* seam in this file until Sam picks the real control.
 var _precision_guard := false
 var _last_double_strike_cuts := -1        # debug seam: cuts by the most recent continuation attempt
+var _last_follow_up_swings := -1          # debug seam: swings by the most recent Follow-Up attempt
 var _last_proc_burst_color := Color.TRANSPARENT   # debug seam: color of the most recent ProcBurst
 var _manual_log_serial := 0
 var _handled_log_roots: Dictionary = {}
@@ -943,30 +950,49 @@ func _tween_pivot(target_y: float, t: float) -> void:
 ## struck — the mark is PERMANENT and stays wherever it is until it is taken or a
 ## real lifecycle edge removes it (see _clear_grain_cue's callers); chopping
 ## around the yard must not sweep away an opportunity sitting on another piece.
+##
+## `is_bonus` marks this as a M7C bonus swing (a Follow-Up continuation) rather
+## than the player's own root swing. A bonus swing never spawns a Double Strike
+## OR a Follow-Up chain of its own — that recursion guard is what keeps a root
+## swing to AT MOST one bonus chain of one kind, exactly like
+## _attempt_double_strike's own "never back through _resolve_strike" comment
+## keeps its chain to one root cut. Also why Follow-Up is rolled HERE and not
+## from _resolve_pending(): `debug_swing_world` (the dev-tool/test seam used
+## throughout m7c_acceptance and proc_shot) calls _resolve_strike directly,
+## never through _resolve_pending, and Double Strike already has to work there.
 func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int,
-		local_override: Variant = null) -> bool:
+		local_override: Variant = null, is_bonus: bool = false) -> bool:
+	var split: bool
 	if _roll_splits(piece):
 		piece.set_meta("scars", 0)
-		var split := _perform_split(piece, world_point, normal, dir_enum, local_override)
+		split = _perform_split(piece, world_point, normal, dir_enum, local_override)
 		strike_resolved.emit(split)
-		if split:
+		if split and not is_bonus:
 			# M7C: the ONLY call site. A continuation cut lands through
 			# _perform_split directly, never back through _resolve_strike, so a
 			# root swing can never spawn a second root event — see
 			# _attempt_double_strike.
 			_attempt_double_strike(normal, dir_enum)
-		return split
+	else:
+		# It bit, it did not go through. Mark the wood and make the next swing
+		# into this piece more likely — the pity bonus, worn where the player
+		# can see it.
+		piece.set_meta("scars", _scars_on(piece) + 1)
+		_add_scar(piece, world_point, normal)
+		# Shake WITHOUT the hit-pause: a split keeps the time-stop to itself, so
+		# the two outcomes feel different before the player has read a number.
+		GameFeel.register_impact(fail_impact, false)
+		_play_sfx(thud_sfx)
+		strike_resolved.emit(false)
+		split = false
 
-	# It bit, it did not go through. Mark the wood and make the next swing into
-	# this piece more likely — the pity bonus, worn where the player can see it.
-	piece.set_meta("scars", _scars_on(piece) + 1)
-	_add_scar(piece, world_point, normal)
-	# Shake WITHOUT the hit-pause: a split keeps the time-stop to itself, so the
-	# two outcomes feel different before the player has read a single number.
-	GameFeel.register_impact(fail_impact, false)
-	_play_sfx(thud_sfx)
-	strike_resolved.emit(false)
-	return false
+	# M7C Follow-Up: rolled once per landed ROOT swing, split OR scar — after
+	# everything about THIS swing (including any Double Strike chain) has
+	# resolved. Never for a bonus swing itself, so a fired Follow-Up can only
+	# ever be one swing deep from a root event — see the doc comment above.
+	if not is_bonus:
+		_attempt_follow_up(piece, normal, dir_enum)
+	return split
 
 
 # ------------------------------------------------------- M7C: Double Strike
@@ -998,7 +1024,7 @@ func _attempt_double_strike(normal: Vector3, dir_enum: int) -> void:
 		if target == null:
 			break   # no useful geometry left on the block — stop, do not roll
 		var point: Vector3 = target.global_position
-		if not _double_strike_preflight(target, point, normal):
+		if not _bonus_cut_preflight(target, point, normal):
 			break   # this target cannot take the cut either — stop, do not roll
 		if not ProcResolver.should_proc(
 				proc_def, debug_force_proc, SkillTree.get_level(&"double_strike")):
@@ -1021,6 +1047,87 @@ func _attempt_double_strike(normal: Vector3, dir_enum: int) -> void:
 	_last_double_strike_cuts = cuts
 	if cuts > 0:
 		bonus_proc_announced.emit(&"double_strike", cuts)
+
+
+# ------------------------------------------------------------ M7C: Follow-Up
+## Speed's own signature proc — a bonus SWING, not a bonus cut (contrast
+## _attempt_double_strike). Rolled once per landed ROOT swing, split or scar,
+## from the tail of _resolve_strike itself, guarded by `not is_bonus` exactly
+## like Double Strike's own call site — so a bonus swing's own outcome can
+## never trigger a second Follow-Up roll, and a fired Follow-Up can never spawn
+## a Double Strike chain of its own (a root swing spawns AT MOST one bonus
+## chain, of one kind). Called from _resolve_strike rather than
+## _resolve_pending() specifically so debug_swing_world — the seam
+## m7c_acceptance and proc_shot both drive Double Strike through — exercises
+## Follow-Up too, not just the real mouse-click path.
+##
+## Prefers the just-struck piece if it is still on the block (the mercy case:
+## a scar becomes a second real chance at the SAME wood) and falls back to the
+## largest remaining piece otherwise, exactly like Double Strike's own target
+## rule — see _pick_bonus_target().
+func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> void:
+	_last_follow_up_swings = 0
+	if _precision_guard:
+		# Suppressed with no escape: no owned modifier grants Follow-Up an
+		# exception the way Steady Continuation does for Double Strike (no such
+		# Speed node exists yet — a Directive 3 authoring call for Sam).
+		return   # no target lookup, no roll, no fairness spend
+	if SkillTree.get_level(&"follow_up") <= 0:
+		return
+	var proc_def: ProcDef = M7CContent.procs().by_id(&"follow_up") if M7CContent.procs() != null else null
+	if proc_def == null:
+		return
+	var cap := mini(proc_def.chain_cap, global_proc_chain_cap)
+	var swings := 0
+	var preferred := piece
+	while swings < cap:
+		var target := _pick_bonus_target(preferred)
+		preferred = null   # only the root's own piece gets first refusal
+		if target == null:
+			break   # no useful geometry left on the block — stop, do not roll
+		var point: Vector3 = target.global_position
+		if not _bonus_cut_preflight(target, point, normal):
+			break   # this target cannot take the cut either — stop, do not roll
+		if not ProcResolver.should_proc(
+				proc_def, debug_force_proc, SkillTree.get_level(&"follow_up")):
+			break   # rolled and it did not fire — the chain ends here
+		# Measured BEFORE the swing resolves, from the target while it is still
+		# valid — a split frees it. Raised above the TOP surface for the same
+		# reason as Double Strike's own burst point (see its comment above).
+		var burst_mesh: Mesh = target.get_meta("mesh_ref")
+		var burst_height: float = burst_mesh.get_aabb().size.y if burst_mesh != null else 0.2
+		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
+		# A real SWING, not a forced cut: it rolls its own split chance and can
+		# leave the wood scarred instead, which is what makes Follow-Up feel
+		# different from Double Strike. `is_bonus = true` so it can never spawn
+		# a Double Strike chain of its own.
+		#
+		# Plays the axe again (Sam, 2026-08-05, feel-testing seed_speed: "It
+		# splits it does do two strikes on the log, but you only get one
+		# animation"). Purely a visual flourish — it does NOT gate the
+		# resolution below, which stays synchronous exactly like every other
+		# debug/test seam in this file (debug_swing_world) already assumes.
+		# Double Strike is deliberately left alone: its own flavour text is
+		# "one good swing... a second real cut", not a second swing.
+		_swing_axe(point, normal)
+		_resolve_strike(target, point, normal, dir_enum, null, true)
+		swings += 1
+		var branch := SkillTree.branch_for_proc(proc_def.id)
+		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
+		ProcBurst.spawn(self, burst_point, _last_proc_burst_color)
+	_last_follow_up_swings = swings
+	if swings > 0:
+		bonus_proc_announced.emit(&"follow_up", swings)
+
+
+## Shared by Double Strike and Follow-Up: `preferred`, when it is still a live
+## on-block piece, is used as-is (Follow-Up's mercy case — the piece the player
+## just struck). Otherwise falls back to the deterministic largest-on-block
+## rule both procs share.
+func _pick_bonus_target(preferred: Area3D) -> Area3D:
+	if preferred != null and is_instance_valid(preferred) and preferred in _on_block:
+		return preferred
+	return _pick_double_strike_target()
 
 
 ## Does an owned modifier explicitly make Double Strike safe during precision
@@ -1057,8 +1164,9 @@ func _pick_double_strike_target() -> Area3D:
 ## world-to-local, sliver guard) but stops before any mutation — nothing is
 ## queue_free'd, nothing joins _on_block, no signal fires. Kept as a separate
 ## trial rather than a refactor of _perform_split so the well-tested M4 cut
-## path is never touched by an M7C change.
-func _double_strike_preflight(piece: Area3D, world_point: Vector3, normal: Vector3) -> bool:
+## path is never touched by an M7C change. Shared by Double Strike and
+## Follow-Up — both are "one more real cut, if the geometry can take it".
+func _bonus_cut_preflight(piece: Area3D, world_point: Vector3, normal: Vector3) -> bool:
 	var mesh: Mesh = piece.get_meta("mesh_ref")
 	if mesh == null:
 		return false
@@ -1079,6 +1187,10 @@ func debug_set_precision_guard(enabled: bool) -> void:
 
 func debug_last_double_strike_cuts() -> int:
 	return _last_double_strike_cuts
+
+
+func debug_last_follow_up_swings() -> int:
+	return _last_follow_up_swings
 
 
 func debug_last_proc_burst_color() -> Color:
@@ -1629,6 +1741,19 @@ func current_swing_cooldown() -> float:
 	var after_skill := swing_cooldown * pow(1.0 - coffee_step, float(level))
 	var equipment := clampf(Shop.total_effect(UpgradeDef.Effect.SWING_RECOVERY), 0.0, 0.9)
 	return maxf(min_swing_cooldown, after_skill * (1.0 - equipment))
+
+
+## M7C Ready Stance: how much faster than authored the axe's WIND-UP (swing
+## start through the contact key) plays. `SkillNodeDef.Effect.CHOP_SPEED`'s own
+## doc calls it "fraction off the axe's wind-up" — a fraction SUMS across ranks
+## (unlike SWING_SPEED, which compounds and therefore asks the tree for levels
+## instead), so this reads `total_effect()`'s summed magnitude directly. That
+## fraction becomes a SPEED MULTIPLIER (AxeViewmodel.set_windup_scale expects
+## 1.0 == authored rate), clamped so the wind-up can neither reverse nor exceed
+## `max_windup_scale`.
+func current_windup_scale() -> float:
+	var fraction := clampf(SkillTree.total_effect(SkillNodeDef.Effect.CHOP_SPEED), 0.0, 0.95)
+	return clampf(1.0 / (1.0 - fraction), 1.0, max_windup_scale)
 
 
 # --------------------------------------------------------------- slicing
@@ -2256,6 +2381,9 @@ func _swing_axe(world_point := Vector3(0.0, _stump_top_y, 0.0), _normal := Vecto
 	# bought it down to, so the ratio is exactly what the player paid for.
 	var base := maxf(current_swing_cooldown(), 0.001)
 	_axe.set_speed(clampf(swing_cooldown / base, 0.25, 4.0))
+	# M7C Ready Stance: shortens the WIND-UP only — see current_windup_scale()
+	# and AxeViewmodel.set_windup_scale().
+	_axe.set_windup_scale(current_windup_scale())
 	_axe.swing(_aim_from_screen(screen_pos, world_point))
 
 

@@ -90,6 +90,12 @@ const _RAW_AXE_REACH := 0.502
 const _BALANCED_AXE_TINT := Color(0.62, 0.82, 1.0, 1.0)
 
 var _speed := 1.0
+## M7C Ready Stance: how much faster than `_speed` the WIND-UP (swing start
+## through the contact key) plays. Only the wind-up is affected — the
+## follow-through after contact always resumes at the ordinary `_speed`, so a
+## shorter wind-up reads as "the blade drops quicker", not as clipped frames.
+## See set_windup_scale() and chopping_minigame.current_windup_scale().
+var _windup_scale := 1.0
 var _authored_model_scale := Vector3.ONE
 var _balanced_enabled := false
 
@@ -188,7 +194,10 @@ func swing(aim := Vector2.ZERO) -> void:
 	_apply_aim(aim)
 	if _root != null:
 		_root.visible = true
-	_anim.speed_scale = _speed
+	# Windup scale applies from the first frame; _on_swing_contact() restores the
+	# ordinary rate the instant the blade bites, so the follow-through is always
+	# authored speed regardless of how fast the drop was.
+	_anim.speed_scale = _speed * _windup_scale
 	_anim.play(swing_anim)
 	_anim.seek(0.0, true)   # true = update now, so frame one is the rest pose
 
@@ -214,27 +223,51 @@ func bounce() -> bool:
 ## can only measure.
 func set_speed(speed: float) -> void:
 	_speed = maxf(speed, 0.01)
+	# A live change mid-swing (not something any current caller does — set_speed
+	# is always called before swing()) resets to the ordinary rate rather than
+	# guessing whether the swing is still in its wind-up; _on_swing_contact()
+	# would otherwise be the only thing that can safely make that call.
 	if _anim != null and _anim.is_playing():
 		_anim.speed_scale = _speed
+
+
+## M7C Ready Stance: how much faster than `set_speed()`'s rate the wind-up
+## plays. `_swing_axe()` sets this immediately before every `swing()` call, from
+## `chopping_minigame.current_windup_scale()`. 1.0 = authored rate, unaffected.
+func set_windup_scale(scale: float) -> void:
+	_windup_scale = maxf(scale, 0.01)
 
 
 func is_swinging() -> bool:
 	return _anim != null and _anim.is_playing()
 
 
-## Authored length of the whole swing, in seconds, at the CURRENT speed.
+## Authored length of the whole swing, in seconds, at the CURRENT speed AND the
+## current wind-up scale. Two segments, because only the wind-up is boosted:
+## the pre-contact portion plays at `_speed * _windup_scale`, the post-contact
+## follow-through at plain `_speed`. At the default `_windup_scale == 1.0` this
+## is numerically identical to the un-split calculation it replaces.
 func swing_duration() -> float:
 	if _anim == null or not _anim.has_animation(swing_anim):
 		return 0.0
-	return _anim.get_animation(swing_anim).length / _speed
+	var length := _anim.get_animation(swing_anim).length
+	var contact := _authored_contact_time()
+	if contact < 0.0:
+		# No contact key to split on — fall back to the whole-length reading.
+		return length / _speed
+	var pre := contact / (_speed * _windup_scale)
+	var post := (length - contact) / _speed
+	return pre + post
 
 
 ## When the blade bites, in seconds from the start of the swing, at the CURRENT
-## speed. -1.0 if the animation carries no contact key at all — which the caller
-## must treat as "this animation cannot resolve a strike", not as "time zero".
+## speed AND wind-up scale (the whole contact key falls inside the wind-up
+## segment by definition). -1.0 if the animation carries no contact key at all
+## — which the caller must treat as "this animation cannot resolve a strike",
+## not as "time zero".
 func contact_time() -> float:
 	var t := _authored_contact_time()
-	return -1.0 if t < 0.0 else t / _speed
+	return -1.0 if t < 0.0 else t / (_speed * _windup_scale)
 
 
 func has_contact_key() -> bool:
@@ -243,7 +276,13 @@ func has_contact_key() -> bool:
 
 ## THE METHOD TRACK'S TARGET. Renaming it renames the key in
 ## res://data/axe_swing_lib.tres, and m4_acceptance checks the two still agree.
+##
+## Restores the ordinary (non-wind-up-boosted) rate BEFORE emitting `contact`,
+## so Sam's authored follow-through always plays at the speed it was keyed at —
+## Ready Stance only ever touches how fast the blade FALLS, never how it lands.
 func _on_swing_contact() -> void:
+	if _anim != null:
+		_anim.speed_scale = _speed
 	contact.emit()
 
 

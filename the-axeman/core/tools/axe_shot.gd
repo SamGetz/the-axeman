@@ -25,7 +25,16 @@ extends Node
 ## (A11: Engine.time_scale 0.05), and the animation crawls through it while this
 ## tool's clock keeps real time.
 ##
-## Output: user://axe_shot_<tag>.png, or user://axe_bounce_shot_<tag>.png
+## M7C SLICE 7: also shoots a SECOND swing with Ready Stance maxed (Speed
+## branch, SkillNodeDef.Effect.CHOP_SPEED), at the SAME fixed timeline as the
+## baseline pass — the point is to catch the blade further along an identical
+## clock, not to re-derive new beat times from the shortened duration (which
+## the printed swing_duration()/contact_time() numbers already prove moved).
+## RUN THIS ON ANY CHANGE TO Ready Stance or current_windup_scale(), same as
+## every other change to the swing.
+##
+## Output: user://axe_shot_<tag>.png, or user://axe_bounce_shot_<tag>.png (plus
+## a `_ready_stance_maxed` set for the non-bounce branch).
 ##
 ## Run: "<godot>" --path . --quit-after 12000 res://core/tools/axe_shot.tscn
 ## Failed-strike branch: append `-- --bounce` to that command.
@@ -53,19 +62,7 @@ func _ready() -> void:
 		printerr("axe_shot: no AxeViewmodelAnchor under the camera — nothing to shoot.")
 		get_tree().quit()
 		return
-	var shot_name := "axe_bounce_shot" if show_bounce else "axe_shot"
-	print("=== %s: swing %.3fs, contact key at %.3fs ==="
-		% [shot_name, axe.swing_duration(), axe.contact_time()])
-
-	# The real click path, not _swing_axe(): this tool has to see the wood break on
-	# the contact frame, and only a real strike is pending when that key fires.
-	game._on_click(_CLICK)
-
-	# TIMED, NOT FRAME-COUNTED (the lesson orb_shot paid for): saving a PNG costs
-	# tens of milliseconds, so a frame-counted shot list drifts further behind a
-	# real-time animation with every save. Images are held and written after the run.
-	var shots: Array = []
-	var t0 := float(Time.get_ticks_msec())
+	var base_name := "axe_bounce_shot" if show_bounce else "axe_shot"
 	# The first shot is DELIBERATELY at the very first frame of the swing: the axe
 	# enters within about a twentieth of a second, so a shot 0.05s in has already
 	# missed the empty frame it exists to prove.
@@ -78,6 +75,45 @@ func _ready() -> void:
 		["4_contact", 0.20], ["5_follow", 0.30], ["6_recovery", 0.42],
 		["7_gone", 0.62],
 	]
+
+	await _run_pass(game, axe, base_name, beats)
+
+	# Ready Stance only touches the wind-up (swing start through contact) — the
+	# bounce plays entirely post-contact at plain set_speed() and is untouched
+	# by the wind-up scale (see AxeViewmodel.bounce()), so there is nothing new
+	# to shoot on that branch.
+	if not show_bounce:
+		game._spawn_fresh_log()
+		for i in range(20):
+			await get_tree().process_frame
+		var curve := load("res://data/level_curve.tres") as LevelCurve
+		GameState.add_xp(curve.total_xp_for_level(20))
+		SkillTree.buy(&"quick_hands")
+		for i in range(5):
+			SkillTree.buy(&"ready_stance")
+		await _run_pass(game, axe, base_name + "_ready_stance_maxed", beats)
+
+	print("=== %s: done ===" % base_name)
+	get_tree().quit()
+
+
+## Clicks once (the real path — only a real strike is pending when the contact
+## key fires, and this tool has to see the wood break exactly there) and
+## captures `beats` against a REAL-TIME clock, not a frame count (the lesson
+## orb_shot paid for: saving a PNG costs tens of milliseconds, so a frame-
+## counted shot list drifts further behind a real-time animation with every
+## save). Images are held and written after the run.
+##
+## Prints AFTER the click, not before: current_windup_scale() is only applied
+## to the viewmodel inside _swing_axe(), which the click triggers — printing
+## first would report the PREVIOUS pass's numbers on the Ready Stance run.
+func _run_pass(game: Node3D, axe: Node, shot_name: String, beats: Array) -> void:
+	game._on_click(_CLICK)
+	print("=== %s: swing %.3fs, contact key at %.3fs ==="
+		% [shot_name, axe.swing_duration(), axe.contact_time()])
+
+	var shots: Array = []
+	var t0 := float(Time.get_ticks_msec())
 	for tag: Array in beats:
 		while (float(Time.get_ticks_msec()) - t0) / 1000.0 < float(tag[1]):
 			await get_tree().process_frame
@@ -90,6 +126,3 @@ func _ready() -> void:
 		(s[1] as Image).save_png(path)
 		print("  SHOT %s (t=%.2fs, pieces=%d) -> %s"
 			% [s[0], s[2], s[3], ProjectSettings.globalize_path(path)])
-
-	print("=== %s: done ===" % shot_name)
-	get_tree().quit()
