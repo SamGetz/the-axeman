@@ -147,7 +147,12 @@ static func sell_batch(lines: Array) -> int:
 	# kept separate for: the market's base value is one thing, what THIS axeman
 	# gets for it is another. Applied to the whole basket after it is priced, so a
 	# sale is still all-or-nothing and rounding cannot make a line free.
-	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.CASH_GAIN)
+	# Skill and mastery percentages are same-stat contributions: add them first,
+	# then round the basket once. Fixed order premiums are paid later by
+	# GameState.record_order_piece(), so this ordinary-sale modifier cannot touch
+	# them.
+	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.CASH_GAIN) \
+		+ SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN)
 	if bonus > 0.0:
 		payout = maxi(payout, int(round(float(payout) * (1.0 + bonus))))
 

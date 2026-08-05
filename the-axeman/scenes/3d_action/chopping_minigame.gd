@@ -784,6 +784,13 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 		if _last_quick_study_bonus > 0:
 			fired_proc = proc_def.id
 
+	# Mastery is a global percentage on the already-resolved manual transaction.
+	# Keeping this after Quick Study preserves one proc roll, one rounding step per
+	# layer and the existing recursion guard around the root receipt.
+	var mastery_xp := SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP)
+	if mastery_xp > 0.0:
+		awarded = maxi(awarded, int(round(float(awarded) * (1.0 + mastery_xp))))
+
 	_last_quick_study_root_id = outcome.root_event_id
 	GameState.add_xp(awarded)
 	_burst_xp_orbs(awarded)
@@ -1514,6 +1521,9 @@ func _award_grain_bonus(burst_point: Vector3) -> void:
 	# literal "3.0" in code.
 	var multiplier := _manual_xp_multiplier(proc_def)
 	var bonus := maxi(1, int(round(float(_current_species.xp_reward) * multiplier)))
+	var mastery_xp := SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP)
+	if mastery_xp > 0.0:
+		bonus = maxi(bonus, int(round(float(bonus) * (1.0 + mastery_xp))))
 	_last_grain_bonus = bonus
 	GameState.add_xp(bonus)
 	_burst_xp_orbs(bonus, burst_point, grain_orb_count_min, grain_orb_count_max)
@@ -1602,6 +1612,7 @@ func split_chance_for(piece: Area3D) -> float:
 	# reliability. Separate queries prevent equipment from granting a skill id.
 	base += SkillTree.total_effect(SkillNodeDef.Effect.SPLIT_STRENGTH)
 	base += Shop.total_effect(UpgradeDef.Effect.SPLIT_RELIABILITY)
+	base += SpeciesMastery.total_effect(GameplayModifierDef.Kind.SPLIT_RELIABILITY)
 	return clampf(base, 0.0, max_split_chance)
 
 

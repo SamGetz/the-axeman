@@ -1,7 +1,7 @@
 extends Node
-## M8 Slice 1 acceptance: typed mastery reward contracts, bounded per-species
-## progress, save-v3 migration/persistence and the manual-root once guard.
-## Reward application and presentation deliberately begin in later slices.
+## M8 acceptance: typed mastery reward contracts, bounded per-species progress,
+## save-v3 migration/persistence, the manual-root once guard, and Slice 2's
+## cumulative effect application plus Trees-tab presentation.
 
 const _BACKUP_PATH := "user://the_axeman_save.m8_testbackup"
 const _ChoppingMinigame := preload("res://scenes/3d_action/chopping_minigame.gd")
@@ -11,7 +11,7 @@ var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M8 SLICE 1 ACCEPTANCE — mastery contracts + persistence ===")
+	print("=== M8 SLICE 2 ACCEPTANCE — cumulative mastery effects + presentation ===")
 	_stash_real_save()
 	_test_live_mastery_contracts()
 	_test_threshold_validator()
@@ -21,12 +21,17 @@ func _ready() -> void:
 	_test_save_reload()
 	await _test_manual_root_once_guard()
 	await _test_mastery_autosave()
+	_test_cumulative_mastery_service()
+	_test_market_mastery_and_order_exclusion()
+	await _test_manual_xp_composition()
+	await _test_split_reliability_and_cap()
+	await _test_trees_mastery_presentation()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	print("=== M8 SLICE 1 RESULT: %d passed, %d failed ===" % [_passes, _fails])
+	print("=== M8 SLICE 2 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
-		print("=== ALL M8 SLICE 1 ACCEPTANCE CRITERIA PASS ===")
+		print("=== ALL M8 SLICE 2 ACCEPTANCE CRITERIA PASS ===")
 	get_tree().quit()
 
 
@@ -243,6 +248,206 @@ func _test_mastery_autosave() -> void:
 		"the autosave contains the exact new mastery total")
 	main.queue_free()
 	await get_tree().process_frame
+
+
+func _test_cumulative_mastery_service() -> void:
+	var aspen := SpeciesTable.at(0).id
+	var pine := SpeciesTable.at(1).id
+	GameState.apply_save_dict({"species_mastery_progress": {
+		String(aspen): 5,
+		String(pine): 1,
+	}})
+	_check(is_equal_approx(
+		SpeciesMastery.effect_for_species(aspen, GameplayModifierDef.Kind.CASH_GAIN), 0.003)
+		and is_equal_approx(
+			SpeciesMastery.effect_for_species(pine, GameplayModifierDef.Kind.CASH_GAIN), 0.001),
+		"each species contributes every reward on every threshold it has reached")
+	_check(is_equal_approx(
+		SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN), 0.004)
+		and is_equal_approx(
+			SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP), 0.004)
+		and is_equal_approx(
+			SpeciesMastery.total_effect(GameplayModifierDef.Kind.SPLIT_RELIABILITY), 0.002),
+		"same-stat cash, XP and reliability rewards add globally across species")
+	var next := SpeciesMastery.next_threshold(aspen)
+	_check(next != null and next.required_progress == 10,
+		"the mastery service exposes the next unreached authored reward rung")
+
+
+func _test_market_mastery_and_order_exclusion() -> void:
+	GameState.apply_save_dict({"species_mastery_progress": {
+		String(SpeciesTable.at(0).id): 10,
+		String(SpeciesTable.at(1).id): 5,
+	}})
+	InventoryManager.apply_save_dict({})
+	var item := SpeciesTable.at(0).yield_item
+	var count := 1000
+	var base_payout := Market.get_price(item) * count
+	var mastery_cash := SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN)
+	var expected := int(round(float(base_payout) * (1.0 + mastery_cash)))
+	InventoryManager.add_item(item, count)
+	_check(Market.sell(item, count) == expected and GameState.get_cash() == expected,
+		"ordinary firewood applies the summed mastery cash percentage once at the basket boundary")
+
+	InventoryManager.add_item(item, 1)
+	var cash_before_failed := GameState.get_cash()
+	_check(Market.sell(item, 2) == 0
+		and GameState.get_cash() == cash_before_failed
+		and InventoryManager.get_count(item) == 1,
+		"a mastery-bearing failed sale remains atomic in both cash and stock")
+	InventoryManager.apply_save_dict({})
+
+	var order := Orders.by_id(&"campfire_warmup")
+	var before_order := GameState.get_cash()
+	var ordinary_sales := 0
+	_check(order != null and GameState.accept_order(order.id),
+		"test setup: the introductory fixed-bonus order is accepted")
+	if order != null:
+		for _i in range(order.required_count):
+			InventoryManager.add_item(item, 1)
+			ordinary_sales += Orders.settle_piece(item)
+		_check(GameState.get_cash() - before_order == ordinary_sales + order.cash_bonus,
+			"mastery changes ordinary sale receipts but leaves the fixed order bonus exact")
+
+
+func _test_manual_xp_composition() -> void:
+	_set_every_species_mastered()
+	var curve := load("res://data/level_curve.tres") as LevelCurve
+	GameState.add_xp(curve.total_xp_for_level(4))
+	_check(SkillTree.buy(&"quick_study") == 1,
+		"test setup: Quick Study is owned for mastery composition")
+	var mg: _ChoppingMinigame = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_forced_mesh = 0
+	mg.debug_force_proc = 1
+	mg.auto_sell = true
+	mg.orbs_enabled = false
+	add_child(mg)
+	await get_tree().process_frame
+
+	var base: int = SpeciesTable.at(0).xp_reward
+	var proc_multiplier := _manual_xp_multiplier(&"quick_study")
+	var proc_total := int(round(float(base) * proc_multiplier))
+	var mastery_xp := SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP)
+	var expected := int(round(float(proc_total) * (1.0 + mastery_xp)))
+	var before := GameState.get_xp()
+	var awarded: int = mg.debug_award_log_xp_event(
+		&"manual", &"m8_composed_xp", true, false, base)
+	_check(awarded == expected and GameState.get_xp() - before == expected,
+		"manual-log mastery XP applies once after the existing Quick Study calculation")
+	_check(mg.debug_last_quick_study_bonus() == proc_total - base
+		and mg.debug_award_log_xp_event(
+			&"manual", &"m8_composed_xp", true, false, base) == 0,
+		"the proc receipt and completed-root recursion guard remain unchanged")
+
+	var grain_multiplier := _manual_xp_multiplier(&"grain_read")
+	var grain_proc_total := int(round(float(base) * grain_multiplier))
+	var expected_grain := int(round(float(grain_proc_total) * (1.0 + mastery_xp)))
+	before = GameState.get_xp()
+	mg._award_grain_bonus(Vector3.ZERO)
+	_check(mg.debug_last_grain_bonus() == expected_grain
+		and GameState.get_xp() - before == expected_grain,
+		"the manual grain-reward transaction also receives mastery after proc calculation")
+	mg.queue_free()
+	await get_tree().process_frame
+
+
+func _test_split_reliability_and_cap() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var mg: _ChoppingMinigame = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	mg.debug_forced_species = 0
+	mg.debug_forced_mesh = 0
+	mg.auto_sell = false
+	add_child(mg)
+	await get_tree().process_frame
+	var before := mg.debug_split_chance()
+	_set_every_species_mastered()
+	var reliability := SpeciesMastery.total_effect(GameplayModifierDef.Kind.SPLIT_RELIABILITY)
+	var after := mg.debug_split_chance()
+	_check(is_equal_approx(after, before + reliability),
+		"all reached split-reliability rewards add before the existing split cap")
+	mg.max_split_chance = before + reliability * 0.5
+	_check(is_equal_approx(mg.debug_split_chance(), mg.max_split_chance),
+		"the authored maximum split chance still caps cumulative mastery")
+	mg.queue_free()
+	await get_tree().process_frame
+
+
+func _test_trees_mastery_presentation() -> void:
+	GameState.reset_to_defaults()
+	var aspen := SpeciesTable.at(0).id
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
+	var tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
+	var wood_list: VBoxContainer = hud.get_node(
+		"ShopPanel/Column/ShopTabs/Trees/WoodScroll/WoodList")
+	shop_button.pressed.emit()
+	tabs.current_tab = 1
+	var fresh_text := _text_under(wood_list)
+	_check(fresh_text.contains("Mastery 0 / 10")
+		and fresh_text.contains("Next reward at 1")
+		and fresh_text.contains("+0.1% cash")
+		and fresh_text.contains("+0.1% manual XP")
+		and fresh_text.contains("+0.05 pts split"),
+		"each owned Trees row shows progress and the complete next-threshold reward")
+	GameState.record_species_completion(aspen)
+	_check(_text_under(wood_list).contains("Mastery 1 / 10\nNext reward at 5"),
+		"the open Trees tab repaints live from species_mastery_changed")
+	for _i in range(9):
+		GameState.record_species_completion(aspen)
+	var mastered_text := _text_under(wood_list)
+	var progress := _first_progress_bar(wood_list)
+	_check(mastered_text.contains("Mastery 10 / 10  ·  Mastered")
+		and progress != null
+		and is_equal_approx(progress.value, 10.0)
+		and is_equal_approx(progress.max_value, 10.0),
+		"a completed species shows its mastered state and a full bounded progress bar")
+	hud.queue_free()
+	await get_tree().process_frame
+
+
+func _set_every_species_mastered() -> void:
+	var progress: Dictionary = {}
+	var table := M7CContent.mastery()
+	if table != null:
+		for definition: SpeciesMasteryDef in table.definitions:
+			if definition != null:
+				progress[String(definition.species_id)] = definition.mastery_target
+	GameState.apply_save_dict({"species_mastery_progress": progress})
+
+
+func _manual_xp_multiplier(proc_id: StringName) -> float:
+	var proc_def: ProcDef = M7CContent.procs().by_id(proc_id)
+	if proc_def == null:
+		return 1.0
+	for modifier: GameplayModifierDef in proc_def.modifiers:
+		if modifier != null \
+				and modifier.kind == GameplayModifierDef.Kind.MANUAL_XP \
+				and modifier.operation == GameplayModifierDef.Operation.MULTIPLY:
+			return modifier.magnitude
+	return 1.0
+
+
+func _text_under(root: Node) -> String:
+	var text := ""
+	if root is Label:
+		text += (root as Label).text + "\n"
+	for child: Node in root.get_children():
+		text += _text_under(child)
+	return text
+
+
+func _first_progress_bar(root: Node) -> ProgressBar:
+	if root is ProgressBar:
+		return root as ProgressBar
+	for child: Node in root.get_children():
+		var found := _first_progress_bar(child)
+		if found != null:
+			return found
+	return null
 
 
 func _has_error(errors: PackedStringArray, needle: String) -> bool:

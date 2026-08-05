@@ -27,7 +27,7 @@ Latest verified baseline on 2026-08-05:
 | M4 | 55/55 |
 | M7A | 285/285 |
 | M7C | 221/221 |
-| M8 Slice 1 | 29/29 |
+| M8 Slice 2 | 45/45 |
 | Slicer | 34/34 |
 
 M1 deliberately exercises error paths; expected red engine messages are not

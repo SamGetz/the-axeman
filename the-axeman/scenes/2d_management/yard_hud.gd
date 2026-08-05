@@ -121,6 +121,7 @@ func _ready() -> void:
 	# just earned, and the counter the next milestone is measured against.
 	GameState.selected_species_changed.connect(_on_selected_species_changed)
 	GameState.species_purchased.connect(_on_species_purchased)
+	GameState.species_mastery_changed.connect(_on_species_mastery_changed)
 	# XP moves the level, the level opens woods AND pays for skills, so both
 	# panels and the bar ride on it.
 	GameState.xp_changed.connect(_on_xp_changed)
@@ -338,6 +339,13 @@ func _on_species_purchased(_id: StringName) -> void:
 	_refresh_badges()
 
 
+func _on_species_mastery_changed(_id: StringName, _progress: int) -> void:
+	# The progress bar and next-reward copy advance from the same authoritative
+	# signal as the saved counter. Closed panels rebuild when next opened.
+	if _shop_panel.visible and _shop_tabs.current_tab == _TREES_TAB:
+		_rebuild_woodshed()
+
+
 ## XP moves the level, and the level is what puts a wood on sale — so the shed's
 ## "needs level N" rows can go live without the player touching anything. Only
 ## repaints an OPEN panel: this fires once per finished log.
@@ -396,14 +404,18 @@ func _rebuild_woodshed() -> void:
 				next.display_name, _thousands(next.unlock_cost)]
 
 
-func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> VBoxContainer:
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+
+	var heading := HBoxContainer.new()
+	heading.add_theme_constant_override("separation", 8)
+	row.add_child(heading)
 
 	var name_label := Label.new()
 	name_label.text = def.display_name
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(name_label)
+	heading.add_child(name_label)
 
 	# What the player is actually choosing between: what it pays, and how hard it
 	# fights. Janka is the honest one-number answer to "how hard" and it is the
@@ -411,7 +423,7 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
 	var stat := Label.new()
 	stat.text = "%s per piece   ·   %d lbf" % [_thousands(Market.get_price(def.yield_item)), def.janka]
 	stat.add_theme_font_size_override("font_size", 13)
-	row.add_child(stat)
+	heading.add_child(stat)
 
 	var pick := Button.new()
 	pick.custom_minimum_size = Vector2(112, 32)
@@ -427,8 +439,75 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> HBoxContainer:
 		pick.disabled = is_chosen
 		if not is_chosen:
 			pick.pressed.connect(_on_wood_row_pressed.bind(def.id))
-	row.add_child(pick)
+	heading.add_child(pick)
+
+	if GameState.owns_species(def.id):
+		var mastery := Label.new()
+		mastery.text = _mastery_row_text(def)
+		mastery.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		mastery.add_theme_font_size_override("font_size", 13)
+		mastery.modulate = Color(0.85, 0.88, 0.90, 1.0)
+		row.add_child(mastery)
+
+		var progress := ProgressBar.new()
+		progress.custom_minimum_size = Vector2(0.0, 8.0)
+		progress.max_value = float(maxi(1, _mastery_target(def.id)))
+		progress.value = float(GameState.get_species_mastery_progress(def.id))
+		progress.show_percentage = false
+		progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var progress_background := StyleBoxFlat.new()
+		progress_background.bg_color = Color(0.12, 0.15, 0.16, 0.85)
+		progress_background.set_corner_radius_all(3)
+		progress.add_theme_stylebox_override("background", progress_background)
+		var progress_fill := StyleBoxFlat.new()
+		progress_fill.bg_color = XPOrb.COLOR
+		progress_fill.set_corner_radius_all(3)
+		progress.add_theme_stylebox_override("fill", progress_fill)
+		row.add_child(progress)
 	return row
+
+
+func _mastery_row_text(def: SpeciesDef) -> String:
+	var current := GameState.get_species_mastery_progress(def.id)
+	var target := _mastery_target(def.id)
+	if GameState.is_species_mastered(def.id):
+		return "Mastery %d / %d  ·  Mastered  ·  All global rewards active" % [current, target]
+	var next := SpeciesMastery.next_threshold(def.id)
+	if next == null:
+		return "Mastery %d / %d" % [current, target]
+	return "Mastery %d / %d\nNext reward at %d: %s" % [
+		current, target, next.required_progress, _mastery_reward_text(next)]
+
+
+func _mastery_target(species_id: StringName) -> int:
+	var table := M7CContent.mastery()
+	var definition: SpeciesMasteryDef = table.by_species_id(species_id) if table != null else null
+	return definition.mastery_target if definition != null else 0
+
+
+func _mastery_reward_text(threshold: SpeciesMasteryThresholdDef) -> String:
+	var parts: PackedStringArray = []
+	for reward: GameplayModifierDef in threshold.rewards:
+		if reward == null:
+			continue
+		var amount := _percent_text(reward.magnitude)
+		match reward.kind:
+			GameplayModifierDef.Kind.CASH_GAIN:
+				parts.append("+%s%% cash" % amount)
+			GameplayModifierDef.Kind.MANUAL_XP:
+				parts.append("+%s%% manual XP" % amount)
+			GameplayModifierDef.Kind.SPLIT_RELIABILITY:
+				parts.append("+%s pts split" % amount)
+	return "  ·  ".join(parts)
+
+
+func _percent_text(magnitude: float) -> String:
+	var text := String.num(magnitude * 100.0, 2)
+	while text.contains(".") and text.ends_with("0"):
+		text = text.left(-1)
+	if text.ends_with("."):
+		text = text.left(-1)
+	return text
 
 
 func _on_wood_row_pressed(id: StringName) -> void:

@@ -53,11 +53,11 @@ func _ready() -> void:
 	_save("_2_shop")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 
-	# The woodshed, mid-ladder: several woods earned, one still to come. The 40
-	# gathers above have already unlocked the first few rungs, so this is the real
-	# list rather than a staged one — the thing worth looking at is whether an
-	# earned wood, the wood on the block and the next milestone are all
-	# distinguishable at a glance.
+	# The woodshed with an authored mastery rung reached. Progress moves through
+	# the same GameState receipt used by completed manual logs, so this shot shows
+	# the live next-reward copy and bar rather than a UI-only staged value.
+	for _i in range(5):
+		GameState.record_species_completion(SpeciesTable.starting_species().id)
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()
 	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
 	await get_tree().process_frame

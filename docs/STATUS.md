@@ -23,7 +23,7 @@ automation design. Do not begin a new module or slice without Sam's approval.
 | M7C Strength, Technique, Speed slices | Signed off 2026-08-05; 221/221 with M8 completion regression |
 | Runtime slicer | 34/34 |
 | M8 Slice 1 mastery contracts/persistence | Signed off 2026-08-05; 29/29 |
-| M8 Slice 2 mastery effects/UI | Authorized 2026-08-05; implementation pending |
+| M8 Slice 2 mastery effects/UI | Implemented for review 2026-08-05; 45/45 |
 | M8 Slice 3 and later | Not authorized to start |
 
 M7C Slice 7 made Follow-Up an automatic bonus swing after a landed root swing,
@@ -32,9 +32,13 @@ axe wind-up only; contact restores the ordinary follow-through rate.
 
 M8 Slice 1 records one bounded mastery counter per species from the existing
 de-duplicated manual log root. Shared 1 / 5 / 10 reward thresholds carry labelled
-cash, XP and reliability placeholders, but do not affect gameplay until Slice 2.
-Save version 3 persists the counters and migrates versions 1 and 2 without
-inventing historical mastery.
+cash, XP and reliability placeholders. Save version 3 persists the counters and
+migrates versions 1 and 2 without inventing historical mastery.
+
+M8 Slice 2 sums every reached threshold across species. Cash modifies ordinary
+Market baskets but not fixed order premiums; manual XP applies after existing
+proc calculation; split reliability adds before the existing cap. Owned rows in
+the Trees tab show live progress, the next authored reward, and mastered state.
 
 ## Known, undecided gaps
 
@@ -50,5 +54,5 @@ inventing historical mastery.
 ## Current test baseline
 
 The authoritative tests are the live test files. The latest verified human
-baseline is M1 19, M2 24, M3 16, M4 55, M7A 285, M7C 221, M8 Slice 1 29,
+baseline is M1 19, M2 24, M3 16, M4 55, M7A 285, M7C 221, M8 Slice 2 45,
 slicer 34. See `docs/TESTING.md` for commands and non-headless requirements.
