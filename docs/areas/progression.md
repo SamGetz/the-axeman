@@ -40,6 +40,10 @@ ownership, or the yard HUD.
   forward promise before that point.
 - The skill tree is the exception: it is an authored prerequisite map, so its
   connected locked nodes remain visible to explain branch structure.
+- The contract board has Open and Completed tabs. Open lists the active contract
+  first, then every revealed incomplete contract in authored order, including
+  exact ownership requirements. Completed is compact and read-only. Neither tab
+  exposes unrevealed work; the XP strip names only the next unrevealed contract.
 
 ## Startup save boundary
 
@@ -74,8 +78,12 @@ ownership, or the yard HUD.
   initial scene load. `Main` submits their materials for one covered render frame
   behind the startup menu so first-use shader compilation does not land on the
   first completion or level-up.
+- The Mechanical Splitter owns separate resident coin/orb/chip pools. Settlement
+  start stages one unpaid coin before cash changes; success attaches the exact
+  runtime cash/XP receipt and cancellation removes the unpaid proxy. Manual and
+  splitter effects may overlap without borrowing nodes or progression authority.
 
-## Watched Mechanical Splitter (M8 Slice 4)
+## Watched Mechanical Splitter (M8 Slices 4-6)
 
 - `GameState.get_splitter_assigned_species()` is the sole species route. The
   runtime admits it only through `MechanicalSplitter.can_accept_species()`.
@@ -93,8 +101,13 @@ ownership, or the yard HUD.
   `GameState`. It does not advance orders, emit manual gather/log roots, add
   lifetime chopped or mastery/certification, or trigger manual skill procs.
 - One static representative log proxy is shown during processing regardless of
-  species or Logs per Split rank. It disappears on settlement; no runtime slice
-  or multi-species geometry load occurs.
+  species or Logs per Split rank. It uses the assigned species' existing bark
+  and inside treatment, then disappears on settlement; no runtime slice or
+  multi-species geometry load occurs.
+- Every species has one profile. Aspen, Pine and Norway retain their approved
+  early values; Balsam Fir through Lignum Vitae require their matching one-time
+  contract, own certification and the installed machine. Their authored prices
+  remain labelled post-M8 tuning placeholders.
 - Splitter upgrades reveal sequentially: Speed → Auto Loading → Logs per Split
   → Experience Gain → Money Gain. The first prior rank/purchase reveals the next
   line. Auto Loading is one-time; the other four are bounded ranks persisted in
@@ -134,7 +147,9 @@ ownership, or the yard HUD.
 - For yard/pile presentation, pair acceptance coverage with the relevant
   non-headless HUD or pile shot tool.
 - For the watched splitter, run `core/tools/m8_splitter_shot.tscn` non-headless
-  and inspect the native greybox, missing-art label, card state and progress.
+  and inspect the full contract/profile/runtime matrix. Run
+  `core/tools/m8_slice6_pacing_probe.tscn` headless for the labelled level
+  9/49/96 economy snapshot.
 
 Historical narrative is in `docs/history/03_m7a_progression_economy.md`. The old
 M7 management and purchase briefs are background, not prerequisites.

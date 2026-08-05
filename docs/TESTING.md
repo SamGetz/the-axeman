@@ -26,9 +26,9 @@ Latest verified baseline on 2026-08-05:
 | M2 | 24/24 |
 | M3 | 16/16 |
 | M4 | 55/55 |
-| M7A | 285/285 |
+| M7A | 289/289 |
 | M7C | 221/221 |
-| M8 Slice 5 + measured splitter tuning + discovery | 104/104 |
+| M8 Slice 6 Certified Yard Expansion | 121/121 |
 | Startup New Game / Load Game | 17/17 |
 | Slicer | 34/34 |
 
@@ -60,6 +60,24 @@ band: machine/profile gates and prices, five-second cycle, one output per
 represented log, 50% Speed floor, five Speed ranks, one-time Auto Loading,
 5-to-12 Logs per Split, 20-to-100% automation XP and five Money Gain ranks.
 
+Slice 6 expands M7A to 289 checks and M8 to 121. Loop-based checks cover all 26
+contracts and 25 profiles; focused checks cover the three later-profile gates,
+atomic purchase/save/assignment, early/middle/final watched cycles, settlement
+start/cancel ordering, retry identity, separate bounded reward pools, exact
+counter reconciliation, species bark/end treatment, and reduced missing-art
+marker hierarchy.
+
+The read-only placeholder pacing snapshot runs at the approved representative
+levels 9, 49 and 96:
+
+```bash
+"$GODOT" --headless --path . res://core/tools/m8_slice6_pacing_probe.tscn
+```
+
+It prints unlock cost, unit sale value, contract count/base/bonus, profile cost,
+mastery target and base splitter cash/XP. A passing snapshot confirms the
+authored formulae and labels, not final pacing approval.
+
 M1 deliberately exercises error paths; expected red engine messages are not
 failures. Treat lines beginning with `FAIL:` as failures.
 
@@ -68,9 +86,11 @@ depends on the real animation clock, while shot tools require a renderer. Visual
 or geometry changes should run their focused shot tool and be inspected, not
 only asserted numerically.
 
-M8's focused non-headless render tool captures fresh shop placement, the
-mastery unlock-reward copy, the partially ranked Mechanical Splitter shelf,
-the populated Purchased tab, ready, processing and completed cash/XP machine/HUD states to
+M8's focused non-headless render tool captures the next-contract strip; mixed
+Open and early/middle/level-99 Completed boards; each missing later-profile gate;
+actionable, Purchased and Tree Catalog profile states; early/middle/final
+assignments; ready, maximum-speed processing, settlement, blocked/retry and
+simultaneous manual/splitter receipt states to
 `/private/tmp/axeman_m8_splitter_*.png`:
 
 ```bash

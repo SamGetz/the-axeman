@@ -441,7 +441,10 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var backdrop: ColorRect = hud.get_node("ModalBackdrop")
 	var orders_button: Button = hud.get_node("QuickMenu/OrdersButton")
 	var orders_panel: PanelContainer = hud.get_node("OrdersPanel")
-	var orders_list: VBoxContainer = hud.get_node("OrdersPanel/Column/Scroll/List")
+	var orders_tabs: TabContainer = hud.get_node("OrdersPanel/Column/Tabs")
+	var orders_list: VBoxContainer = hud.get_node("OrdersPanel/Column/Tabs/Open/Scroll/List")
+	var completed_orders_list: VBoxContainer = hud.get_node(
+		"OrdersPanel/Column/Tabs/Completed/Scroll/List")
 
 	_check(cash_label.text == "0", "a fresh chopping session reads 0 cash")
 	_check(is_equal_approx(xp_bar.position.x, 0.0)
@@ -528,10 +531,20 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var order_copy := ""
 	for node: Node in orders_list.find_children("*", "Label", true, false):
 		order_copy += (node as Label).text + "\n"
+	_check(orders_tabs.get_tab_count() == 2
+			and orders_tabs.get_tab_title(0) == "Open"
+			and orders_tabs.get_tab_title(1) == "Completed",
+		"...splits the expanded catalogue into Open and Completed views")
 	_check(orders_list.get_child_count() == 1
 			and Orders.visible().size() == 1
 			and order_copy.contains("Unlocks Supplier Ledger in Shop"),
 		"...shows only available work and names its hidden shop unlock as a reward")
+	var completed_copy := ""
+	for node: Node in completed_orders_list.find_children("*", "Label", true, false):
+		completed_copy += (node as Label).text + "\n"
+	_check(completed_orders_list.get_child_count() == 1
+			and completed_copy.contains("Completed deliveries will be recorded here"),
+		"...and gives the empty completed history a clear read-only state")
 	_check(orders_panel.get_theme_stylebox("panel") is StyleBoxFlat,
 		"...using a replaceable basic-material board treatment while final art is pending")
 	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
@@ -1260,7 +1273,7 @@ func _test_28_orders_route_pay_and_persist() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 	var authored := Orders.all()
-	_check(authored.size() == 3, "the introductory board has exactly three authored orders")
+	_check(authored.size() == 26, "the authored board spans all 26 one-time contracts")
 
 	var ids: Dictionary = {}
 	var data_is_valid := true
@@ -1271,9 +1284,28 @@ func _test_28_orders_route_pay_and_persist() -> void:
 		if order.required_item != &"":
 			data_is_valid = data_is_valid and Market.is_sellable(order.required_item)
 		ids[order.id] = true
-	_check(data_is_valid, "all three orders have unique ids, positive data and sellable requirements")
+	_check(data_is_valid and Orders.validate_live_catalogue().is_empty(),
+		"all orders have unique ids, positive sellable data and pass cross-table validation")
 	_check([authored[0].cash_bonus, authored[1].cash_bonus, authored[2].cash_bonus] == [50, 150, 400],
 		"the approved introductory bonuses are exactly 50 / 150 / 400")
+	var ladder_ok := true
+	for species_index in range(2, SpeciesTable.count()):
+		var species := SpeciesTable.at(species_index)
+		var order: OrderDef = authored[species_index + 1]
+		var expected_bonus := maxi(400,
+			int(ceil(float(species.unlock_cost) * 0.10 / 50.0)) * 50)
+		ladder_ok = ladder_ok and order.id == StringName("%s_delivery" % species.id) \
+			and order.title == "%s Delivery" % species.display_name \
+			and order.customer_name == "Local Buyer" \
+			and order.description == "A one-time delivery of %s firewood." % species.display_name \
+			and order.unlock_level == species.unlock_level \
+			and order.required_species == species.id \
+			and order.required_item == species.yield_item \
+			and order.required_count == 20 \
+			and order.cash_bonus == expected_bonus \
+			and order.tuning_status == "PLACEHOLDER — post-M8 measured tuning required"
+	_check(ladder_ok,
+		"Norway Spruce through Lignum Vitae each map once to their own labelled placeholder contract")
 
 	var first_order := Orders.by_id(&"campfire_warmup")
 	var aspen_order := Orders.by_id(&"aspen_hearth_load")
@@ -1327,6 +1359,26 @@ func _test_28_orders_route_pay_and_persist() -> void:
 	_check(pine_cash == Market.get_price(&"pine_firewood")
 			and GameState.get_active_order_progress() == 0,
 		"unmatched Pine sells for %d without advancing the Aspen load" % pine_cash)
+
+	var balsam_order := Orders.by_id(&"balsam_fir_delivery")
+	var machine := MechanicalSplitter.machine_definition()
+	GameState.apply_save_dict({
+		"xp": 999999999,
+		"completed_orders": [String(balsam_order.id)],
+		"building_tiers": {
+			String(machine.id): GameState.DEFAULT_BUILDING_TIER + 1,
+		},
+	})
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	var completed_row: Control = hud._build_completed_order_row(balsam_order)
+	var completed_copy := ""
+	for label: Node in completed_row.find_children("*", "Label", true, false):
+		completed_copy += (label as Label).text + "\n"
+	_check(completed_copy.contains("Splitter Profile · Balsam Fir")
+			and completed_copy.contains("available after Balsam Fir certification"),
+		"completion before mastery names the profile and its remaining certification gate")
+	completed_row.queue_free()
+	hud.queue_free()
 
 	GameState.order_completed.disconnect(on_completed)
 	InventoryManager.apply_save_dict({})

@@ -51,6 +51,7 @@ const _ManualLogOutcome := preload("res://data/manual_log_outcome.gd")
 const _GRAIN_CUE_CONFIG := preload("res://data/grain_cue.tres")
 const _LevelUpBurst := preload("res://scenes/3d_action/level_up_burst.gd")
 const _CoinRewardPool := preload("res://scenes/3d_action/coin_reward_pool.gd")
+const _SplitterRewardPresenter := preload("res://scenes/3d_action/splitter_reward_presenter.gd")
 
 ## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
 ## the pacing probe observes this scene directly while a measured play session
@@ -383,6 +384,7 @@ var _xp_screen_target := Callable()
 var _level_up_vfx_queued := false
 var _level_up_vfx
 var _coin_reward_pool
+var _splitter_reward_presenter
 var _xp_orb_pool_root: Node3D
 var _xp_orb_pool: Array[XPOrb] = []
 var _render_warmup_nodes: Array[Node] = []
@@ -443,11 +445,15 @@ func _ready() -> void:
 ## headless scenes leave it empty and retain the camera-centre fallback.
 func set_xp_screen_target(provider: Callable) -> void:
 	_xp_screen_target = provider
+	if _splitter_reward_presenter != null:
+		_splitter_reward_presenter.set_xp_screen_target(provider)
 
 
 func set_coin_screen_target(provider: Callable) -> void:
 	if _coin_reward_pool != null:
 		_coin_reward_pool.set_screen_target(provider)
+	if _splitter_reward_presenter != null:
+		_splitter_reward_presenter.set_coin_screen_target(provider)
 
 
 ## Build every procedural VFX mesh/material cache during the initial scene load,
@@ -476,6 +482,17 @@ func _prewarm_vfx_geometry() -> void:
 	_coin_reward_pool.coin_collected.connect(coin_collected.emit)
 	_coin_reward_pool.coins_cancelled.connect(coins_cancelled.emit)
 	_coin_reward_pool.batch_finished.connect(coin_batch_finished.emit)
+	_splitter_reward_presenter = _SplitterRewardPresenter.new()
+	_splitter_reward_presenter.name = "SplitterRewardPresenter"
+	add_child(_splitter_reward_presenter)
+	_splitter_reward_presenter.initialize(_camera, $MechanicalSplitterRuntime,
+		Callable($YardEquipment, "splitter_output_world_position"))
+	_splitter_reward_presenter.xp_orb_batch_started.connect(xp_orb_batch_started.emit)
+	_splitter_reward_presenter.xp_orb_collected.connect(xp_orb_collected.emit)
+	_splitter_reward_presenter.coin_batch_started.connect(coin_batch_started.emit)
+	_splitter_reward_presenter.coin_collected.connect(coin_collected.emit)
+	_splitter_reward_presenter.coins_cancelled.connect(coins_cancelled.emit)
+	_splitter_reward_presenter.coin_batch_finished.connect(coin_batch_finished.emit)
 	var proc_colors: Array[Color] = []
 	var branch_table := M7CContent.branches()
 	if branch_table != null:
@@ -500,6 +517,9 @@ func begin_initial_vfx_render_warmup() -> void:
 		_coin_reward_pool.show_for_render_warmup(warm_position + Vector3.RIGHT * 0.12)
 	if not _xp_orb_pool.is_empty():
 		_xp_orb_pool[0].show_for_render_warmup(warm_position + Vector3.LEFT * 0.12)
+	if _splitter_reward_presenter != null:
+		_splitter_reward_presenter.show_for_render_warmup(
+			warm_position + Vector3.FORWARD * 0.12)
 
 	# Proc materials vary by branch colour, so submit one of each cached variant.
 	var branch_table := M7CContent.branches()
@@ -521,6 +541,8 @@ func end_initial_vfx_render_warmup() -> void:
 		_coin_reward_pool.hide_render_warmup()
 	if not _xp_orb_pool.is_empty():
 		_xp_orb_pool[0].hide_render_warmup()
+	if _splitter_reward_presenter != null:
+		_splitter_reward_presenter.hide_render_warmup()
 	for node: Node in _render_warmup_nodes:
 		if is_instance_valid(node):
 			node.queue_free()

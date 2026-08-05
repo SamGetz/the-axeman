@@ -57,6 +57,52 @@ static func settle_piece(item_id: StringName) -> int:
 	return payout
 
 
+## Cross-table validation for the authored one-time ladder. This remains a
+## read-only service: it reports malformed data but never repairs progression.
+static func validate_live_catalogue() -> PackedStringArray:
+	var errors := PackedStringArray()
+	var seen_ids: Dictionary = {}
+	var previous_level := 0
+	for index in range(all().size()):
+		var order: OrderDef = all()[index]
+		if order == null:
+			errors.append("null order at index:%d" % index)
+			continue
+		if order.id == &"":
+			errors.append("order has empty id at index:%d" % index)
+		elif seen_ids.has(order.id):
+			errors.append("duplicate order id:%s" % order.id)
+		else:
+			seen_ids[order.id] = true
+		if order.required_count <= 0 or order.cash_bonus <= 0:
+			errors.append("order %s has non-positive count/bonus" % order.id)
+		if order.unlock_level < previous_level:
+			errors.append("order %s breaks authored reveal ordering" % order.id)
+		previous_level = order.unlock_level
+		if order.required_item != &"" and not Market.is_sellable(order.required_item):
+			errors.append("order %s requires unsellable item:%s" % [order.id, order.required_item])
+		if order.required_species == &"":
+			continue
+		var species := SpeciesTable.by_id(order.required_species)
+		if species == null:
+			errors.append("order %s requires unknown species:%s" % [order.id, order.required_species])
+			continue
+		if species.yield_item != order.required_item:
+			errors.append("order %s item does not match species yield" % order.id)
+		if order.id == StringName("%s_delivery" % species.id):
+			if order.unlock_level != species.unlock_level:
+				errors.append("order %s reveal level does not match species" % order.id)
+			if order.required_count != 20:
+				errors.append("order %s breaks the Slice 6 placeholder count" % order.id)
+			var expected_bonus := maxi(400,
+				int(ceil(float(species.unlock_cost) * 0.10 / 50.0)) * 50)
+			if order.cash_bonus != expected_bonus:
+				errors.append("order %s breaks the Slice 6 placeholder bonus formula" % order.id)
+			if not order.tuning_status.begins_with("PLACEHOLDER"):
+				errors.append("order %s lacks a PLACEHOLDER tuning label" % order.id)
+	return errors
+
+
 static func _table() -> OrderTable:
 	if _orders == null:
 		_orders = load(_TABLE_PATH) as OrderTable

@@ -26,6 +26,11 @@ var _splitter_ram: MeshInstance3D
 var _splitter_wheel: MeshInstance3D
 var _splitter_log: MeshInstance3D
 var _splitter_label: Label3D
+var _splitter_state_label: Label3D
+var _splitter_log_ends: Array[MeshInstance3D] = []
+var _splitter_rest_position := Vector3.ZERO
+var _splitter_completion_left := 0.0
+var _splitter_skin_species: StringName = &""
 
 
 func _ready() -> void:
@@ -35,6 +40,7 @@ func _ready() -> void:
 	if _splitter_runtime != null:
 		_splitter_runtime.state_changed.connect(_refresh_splitter_runtime.unbind(1))
 		_splitter_runtime.progress_changed.connect(_refresh_splitter_runtime.unbind(1))
+		_splitter_runtime.cycle_completed.connect(_on_splitter_cycle_completed)
 	# Parent builds the runtime stump in its _ready; wait until that has happened
 	# before measuring its real imported mesh.
 	refresh.call_deferred()
@@ -46,6 +52,9 @@ func refresh() -> void:
 	_splitter_wheel = null
 	_splitter_log = null
 	_splitter_label = null
+	_splitter_state_label = null
+	_splitter_log_ends.clear()
+	_splitter_skin_species = &""
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -161,6 +170,7 @@ func _build_mechanical_splitter() -> void:
 	_splitter_root.set_meta("art_status",
 		"greybox_missing_authored_mechanical_splitter_asset")
 	_splitter_root.position = Vector3(-1.22, 0.34, -0.72)
+	_splitter_rest_position = _splitter_root.position
 	_splitter_root.rotation_degrees.y = 12.0
 	add_child(_splitter_root)
 
@@ -194,17 +204,40 @@ func _build_mechanical_splitter() -> void:
 		"single_preauthored_log_proxy_no_runtime_slicing")
 	_splitter_log.visible = false
 	_splitter_root.add_child(_splitter_log)
+	var end_mesh := CylinderMesh.new()
+	end_mesh.top_radius = 0.11
+	end_mesh.bottom_radius = 0.11
+	end_mesh.height = 0.006
+	end_mesh.radial_segments = 14
+	for index in range(2):
+		var end := MeshInstance3D.new()
+		end.name = "InsideEnd%d" % index
+		end.mesh = end_mesh
+		end.position.y = -0.213 if index == 0 else 0.213
+		end.material_override = _material(Color(0.72, 0.52, 0.28, 1.0))
+		_splitter_log.add_child(end)
+		_splitter_log_ends.append(end)
 
 	_splitter_label = Label3D.new()
 	_splitter_label.name = "MissingArtAndStateLabel"
-	_splitter_label.position = Vector3(0, 0.76, 0)
+	_splitter_label.position = Vector3(0, 0.73, 0)
 	_splitter_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_splitter_label.fixed_size = true
 	_splitter_label.no_depth_test = true
-	_splitter_label.font_size = 14
-	_splitter_label.outline_size = 4
-	_splitter_label.modulate = Color(1.0, 0.92, 0.68, 1.0)
+	_splitter_label.font_size = 8
+	_splitter_label.outline_size = 3
+	_splitter_label.modulate = Color(0.76, 0.72, 0.64, 0.82)
 	_splitter_root.add_child(_splitter_label)
+	_splitter_state_label = Label3D.new()
+	_splitter_state_label.name = "OperationalStateLabel"
+	_splitter_state_label.position = Vector3(0, 0.61, 0)
+	_splitter_state_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_splitter_state_label.fixed_size = true
+	_splitter_state_label.no_depth_test = true
+	_splitter_state_label.font_size = 14
+	_splitter_state_label.outline_size = 4
+	_splitter_state_label.modulate = Color(1.0, 0.92, 0.68, 1.0)
+	_splitter_root.add_child(_splitter_state_label)
 	_refresh_splitter_runtime()
 
 
@@ -225,13 +258,54 @@ func _process(delta: float) -> void:
 		_splitter_ram.position.x = 0.08
 		if _splitter_log != null:
 			_splitter_log.visible = false
+	if _splitter_completion_left > 0.0:
+		_splitter_completion_left = maxf(0.0, _splitter_completion_left - delta)
+		var phase := 1.0 - _splitter_completion_left / 0.28
+		var pulse := sin(phase * PI)
+		_splitter_root.position = _splitter_rest_position + Vector3.UP * pulse * 0.025
+		_splitter_root.scale = Vector3(1.0 + pulse * 0.025,
+			1.0 - pulse * 0.012, 1.0 + pulse * 0.025)
+	else:
+		_splitter_root.position = _splitter_rest_position
+		_splitter_root.scale = Vector3.ONE
 
 
 func _refresh_splitter_runtime() -> void:
 	if _splitter_runtime == null or _splitter_label == null:
 		return
-	_splitter_label.text = "MECH SPLITTER\nAUTHORED ART MISSING\n%s" % \
-		MechanicalSplitterRuntime.state_title(_splitter_runtime.current_state())
+	_splitter_label.text = "AUTHORED ART MISSING · MECH SPLITTER"
+	if _splitter_state_label != null:
+		_splitter_state_label.text = MechanicalSplitterRuntime.state_title(
+			_splitter_runtime.current_state())
+	var assigned := GameState.get_splitter_assigned_species()
+	if _splitter_log != null and assigned != _splitter_skin_species:
+		_splitter_skin_species = assigned
+		var species := SpeciesTable.by_id(assigned)
+		if species != null:
+			var material := _material(species.bark_tint)
+			if species.bark_tex != "":
+				var texture := load(species.bark_tex) as Texture2D
+				if texture != null:
+					material.albedo_texture = texture
+			_splitter_log.material_override = material
+			var inside_material := _material(species.inside_tint)
+			if species.inside_tex != "":
+				var inside_texture := load(species.inside_tex) as Texture2D
+				if inside_texture != null:
+					inside_material.albedo_texture = inside_texture
+			for end: MeshInstance3D in _splitter_log_ends:
+				end.material_override = inside_material
+
+
+func _on_splitter_cycle_completed(_species_id: StringName, _item_id: StringName,
+		_amount: int, _receipt_id: StringName) -> void:
+	_splitter_completion_left = 0.28
+
+
+func splitter_output_world_position() -> Vector3:
+	if _splitter_root != null and is_instance_valid(_splitter_root):
+		return _splitter_root.to_global(Vector3(0.72, 0.22, 0.0))
+	return to_global(Vector3(-0.50, 0.56, -0.72))
 
 
 func _box(parent: Node3D, node_name: String, size: Vector3, pos: Vector3,

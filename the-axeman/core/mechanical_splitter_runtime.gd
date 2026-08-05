@@ -9,6 +9,11 @@ signal state_changed(state: State)
 signal progress_changed(progress: float)
 signal cycle_completed(species_id: StringName, item_id: StringName, amount: int,
 	receipt_id: StringName)
+## Presentation-only settlement boundary. The started signal fires before cash
+## becomes authoritative so a pooled coin can hold the HUD counter; cancellation
+## removes that unpaid receipt when inventory/buyer settlement blocks.
+signal cycle_settlement_started(receipt_id: StringName, species_id: StringName)
+signal cycle_settlement_cancelled(receipt_id: StringName)
 
 enum State {
 	LOCKED,
@@ -255,19 +260,23 @@ func _deliver_pending_output() -> bool:
 	# Reserve before calling the writer so a synchronous inventory listener cannot
 	# re-enter this handoff and receive the same completion twice.
 	_completed_receipt_id = receipt_id
+	cycle_settlement_started.emit(receipt_id, species_id)
 	if not inventory_deposited:
 		if not Market.is_sellable(item_id):
 			_completed_receipt_id = &""
+			cycle_settlement_cancelled.emit(receipt_id)
 			_publish_state(true)
 			return false
 		if not InventoryManager.add_item(item_id, amount):
 			_completed_receipt_id = &""
+			cycle_settlement_cancelled.emit(receipt_id)
 			_publish_state(true)
 			return false
 		_pending_output["inventory_deposited"] = true
 	var cash_earned := Market.sell_automation(item_id, amount, automation_cash_bonus())
 	if cash_earned <= 0:
 		_completed_receipt_id = &""
+		cycle_settlement_cancelled.emit(receipt_id)
 		_publish_state(true)
 		return false
 	var species := SpeciesTable.by_id(species_id)

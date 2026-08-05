@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="OrderTable" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="OrderTable" load_steps=29 format=3]
 
 [ext_resource type="Script" path="res://data/order_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/order_def.gd" id="2_def"]
 
-; REQUIRED COUNTS AND REVEAL LEVELS ARE CANDIDATE TUNING. Sam approved the
-; three bonuses exactly as 50 / 150 / 400 on 2026-08-04.
+; The original three bonuses are approved exactly as 50 / 150 / 400. Their
+; required counts and reveal levels remain the existing candidate tuning.
 [sub_resource type="Resource" id="Order_any"]
 script = ExtResource("2_def")
 id = &"campfire_warmup"
@@ -38,6 +38,309 @@ required_species = &"eastern_white_pine"
 required_count = 20
 cash_bonus = 400
 
+; M8 SLICE 6 PLACEHOLDERS. Every later contract uses 20 pieces and a bonus of
+; max(400, round_up_to_50(species.unlock_cost * 0.10)). These values are authored
+; here, never computed at runtime, and require Sam's measured-tuning review.
+
+[sub_resource type="Resource" id="Order_norway_spruce"]
+script = ExtResource("2_def")
+id = &"norway_spruce_delivery"
+customer_name = "Local Buyer"
+title = "Norway Spruce Delivery"
+description = "A one-time delivery of Norway Spruce firewood."
+unlock_level = 6
+required_item = &"norway_spruce_firewood"
+required_species = &"norway_spruce"
+required_count = 20
+cash_bonus = 400
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_balsam_fir"]
+script = ExtResource("2_def")
+id = &"balsam_fir_delivery"
+customer_name = "Local Buyer"
+title = "Balsam Fir Delivery"
+description = "A one-time delivery of Balsam Fir firewood."
+unlock_level = 9
+required_item = &"balsam_fir_firewood"
+required_species = &"balsam_fir"
+required_count = 20
+cash_bonus = 400
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_lodgepole_pine"]
+script = ExtResource("2_def")
+id = &"lodgepole_pine_delivery"
+customer_name = "Local Buyer"
+title = "Lodgepole Pine Delivery"
+description = "A one-time delivery of Lodgepole Pine firewood."
+unlock_level = 13
+required_item = &"lodgepole_pine_firewood"
+required_species = &"lodgepole_pine"
+required_count = 20
+cash_bonus = 400
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_white_spruce"]
+script = ExtResource("2_def")
+id = &"white_spruce_delivery"
+customer_name = "Local Buyer"
+title = "White Spruce Delivery"
+description = "A one-time delivery of White Spruce firewood."
+unlock_level = 17
+required_item = &"white_spruce_firewood"
+required_species = &"white_spruce"
+required_count = 20
+cash_bonus = 400
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_black_spruce"]
+script = ExtResource("2_def")
+id = &"black_spruce_delivery"
+customer_name = "Local Buyer"
+title = "Black Spruce Delivery"
+description = "A one-time delivery of Black Spruce firewood."
+unlock_level = 21
+required_item = &"black_spruce_firewood"
+required_species = &"black_spruce"
+required_count = 20
+cash_bonus = 700
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_scots_pine"]
+script = ExtResource("2_def")
+id = &"scots_pine_delivery"
+customer_name = "Local Buyer"
+title = "Scots Pine Delivery"
+description = "A one-time delivery of Scots Pine firewood."
+unlock_level = 25
+required_item = &"scots_pine_firewood"
+required_species = &"scots_pine"
+required_count = 20
+cash_bonus = 1500
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_western_hemlock"]
+script = ExtResource("2_def")
+id = &"western_hemlock_delivery"
+customer_name = "Local Buyer"
+title = "Western Hemlock Delivery"
+description = "A one-time delivery of Western Hemlock firewood."
+unlock_level = 29
+required_item = &"hemlock_firewood"
+required_species = &"western_hemlock"
+required_count = 20
+cash_bonus = 3100
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_red_pine"]
+script = ExtResource("2_def")
+id = &"red_pine_delivery"
+customer_name = "Local Buyer"
+title = "Red Pine Delivery"
+description = "A one-time delivery of Red Pine firewood."
+unlock_level = 33
+required_item = &"red_pine_firewood"
+required_species = &"red_pine"
+required_count = 20
+cash_bonus = 6200
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_douglas_fir"]
+script = ExtResource("2_def")
+id = &"douglas_fir_delivery"
+customer_name = "Local Buyer"
+title = "Douglas Fir Delivery"
+description = "A one-time delivery of Douglas Fir firewood."
+unlock_level = 37
+required_item = &"douglas_fir_firewood"
+required_species = &"douglas_fir"
+required_count = 20
+cash_bonus = 12000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_black_ash"]
+script = ExtResource("2_def")
+id = &"black_ash_delivery"
+customer_name = "Local Buyer"
+title = "Black Ash Delivery"
+description = "A one-time delivery of Black Ash firewood."
+unlock_level = 41
+required_item = &"black_ash_firewood"
+required_species = &"black_ash"
+required_count = 20
+cash_bonus = 23000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_paper_birch"]
+script = ExtResource("2_def")
+id = &"paper_birch_delivery"
+customer_name = "Local Buyer"
+title = "Paper Birch Delivery"
+description = "A one-time delivery of Paper Birch firewood."
+unlock_level = 45
+required_item = &"birch_firewood"
+required_species = &"paper_birch"
+required_count = 20
+cash_bonus = 43000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_pedunculate_oak"]
+script = ExtResource("2_def")
+id = &"pedunculate_oak_delivery"
+customer_name = "Local Buyer"
+title = "Pedunculate Oak Delivery"
+description = "A one-time delivery of Pedunculate Oak firewood."
+unlock_level = 49
+required_item = &"oak_firewood"
+required_species = &"pedunculate_oak"
+required_count = 20
+cash_bonus = 79000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_silver_birch"]
+script = ExtResource("2_def")
+id = &"silver_birch_delivery"
+customer_name = "Local Buyer"
+title = "Silver Birch Delivery"
+description = "A one-time delivery of Silver Birch firewood."
+unlock_level = 53
+required_item = &"silver_birch_firewood"
+required_species = &"silver_birch"
+required_count = 20
+cash_bonus = 140000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_yellow_birch"]
+script = ExtResource("2_def")
+id = &"yellow_birch_delivery"
+customer_name = "Local Buyer"
+title = "Yellow Birch Delivery"
+description = "A one-time delivery of Yellow Birch firewood."
+unlock_level = 57
+required_item = &"yellow_birch_firewood"
+required_species = &"yellow_birch"
+required_count = 20
+cash_bonus = 250000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_northern_red_oak"]
+script = ExtResource("2_def")
+id = &"northern_red_oak_delivery"
+customer_name = "Local Buyer"
+title = "Northern Red Oak Delivery"
+description = "A one-time delivery of Northern Red Oak firewood."
+unlock_level = 61
+required_item = &"red_oak_firewood"
+required_species = &"northern_red_oak"
+required_count = 20
+cash_bonus = 440000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_american_beech"]
+script = ExtResource("2_def")
+id = &"american_beech_delivery"
+customer_name = "Local Buyer"
+title = "American Beech Delivery"
+description = "A one-time delivery of American Beech firewood."
+unlock_level = 65
+required_item = &"beech_firewood"
+required_species = &"american_beech"
+required_count = 20
+cash_bonus = 760000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_white_ash"]
+script = ExtResource("2_def")
+id = &"white_ash_delivery"
+customer_name = "Local Buyer"
+title = "White Ash Delivery"
+description = "A one-time delivery of White Ash firewood."
+unlock_level = 69
+required_item = &"white_ash_firewood"
+required_species = &"white_ash"
+required_count = 20
+cash_bonus = 1300000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_white_oak"]
+script = ExtResource("2_def")
+id = &"white_oak_delivery"
+customer_name = "Local Buyer"
+title = "White Oak Delivery"
+description = "A one-time delivery of White Oak firewood."
+unlock_level = 73
+required_item = &"white_oak_firewood"
+required_species = &"white_oak"
+required_count = 20
+cash_bonus = 2200000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_sugar_maple"]
+script = ExtResource("2_def")
+id = &"sugar_maple_delivery"
+customer_name = "Local Buyer"
+title = "Sugar Maple Delivery"
+description = "A one-time delivery of Sugar Maple firewood."
+unlock_level = 77
+required_item = &"sugar_maple_firewood"
+required_species = &"sugar_maple"
+required_count = 20
+cash_bonus = 3700000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_european_beech"]
+script = ExtResource("2_def")
+id = &"european_beech_delivery"
+customer_name = "Local Buyer"
+title = "European Beech Delivery"
+description = "A one-time delivery of European Beech firewood."
+unlock_level = 81
+required_item = &"european_beech_firewood"
+required_species = &"european_beech"
+required_count = 20
+cash_bonus = 6200000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_river_red_gum"]
+script = ExtResource("2_def")
+id = &"river_red_gum_delivery"
+customer_name = "Local Buyer"
+title = "River Red Gum Delivery"
+description = "A one-time delivery of River Red Gum firewood."
+unlock_level = 86
+required_item = &"river_red_gum_firewood"
+required_species = &"river_red_gum"
+required_count = 20
+cash_bonus = 10500000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_tasmanian_blue_gum"]
+script = ExtResource("2_def")
+id = &"tasmanian_blue_gum_delivery"
+customer_name = "Local Buyer"
+title = "Tasmanian Blue Gum Delivery"
+description = "A one-time delivery of Tasmanian Blue Gum firewood."
+unlock_level = 91
+required_item = &"blue_gum_firewood"
+required_species = &"tasmanian_blue_gum"
+required_count = 20
+cash_bonus = 17500000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Order_lignum_vitae"]
+script = ExtResource("2_def")
+id = &"lignum_vitae_delivery"
+customer_name = "Local Buyer"
+title = "Lignum Vitae Delivery"
+description = "A one-time delivery of Lignum Vitae firewood."
+unlock_level = 96
+required_item = &"lignum_vitae_firewood"
+required_species = &"lignum_vitae"
+required_count = 20
+cash_bonus = 30000000
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
 [resource]
 script = ExtResource("1_table")
-orders = Array[ExtResource("2_def")]([SubResource("Order_any"), SubResource("Order_aspen"), SubResource("Order_pine")])
+orders = Array[ExtResource("2_def")]([SubResource("Order_any"), SubResource("Order_aspen"), SubResource("Order_pine"), SubResource("Order_norway_spruce"), SubResource("Order_balsam_fir"), SubResource("Order_lodgepole_pine"), SubResource("Order_white_spruce"), SubResource("Order_black_spruce"), SubResource("Order_scots_pine"), SubResource("Order_western_hemlock"), SubResource("Order_red_pine"), SubResource("Order_douglas_fir"), SubResource("Order_black_ash"), SubResource("Order_paper_birch"), SubResource("Order_pedunculate_oak"), SubResource("Order_silver_birch"), SubResource("Order_yellow_birch"), SubResource("Order_northern_red_oak"), SubResource("Order_american_beech"), SubResource("Order_white_ash"), SubResource("Order_white_oak"), SubResource("Order_sugar_maple"), SubResource("Order_european_beech"), SubResource("Order_river_red_gum"), SubResource("Order_tasmanian_blue_gum"), SubResource("Order_lignum_vitae")])

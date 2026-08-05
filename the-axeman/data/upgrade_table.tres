@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UpgradeTable" load_steps=17 format=3]
+[gd_resource type="Resource" script_class="UpgradeTable" load_steps=39 format=3]
 
 [ext_resource type="Script" path="res://data/upgrade_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/upgrade_def.gd" id="2_def"]
@@ -218,6 +218,385 @@ automation_role = 2
 automation_species_id = &"norway_spruce"
 tuning_status = "APPROVED — Sam 2026-08-05: 250 cash per certified profile"
 
+; M8 SLICE 6 PLACEHOLDERS. Later profiles require their matching authored
+; contract plus certification and use max(250, round_up_to_50(unlock_cost * 0.20)).
+; Values stay explicit here and require Sam's measured-tuning review.
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_balsam_fir"]
+script = ExtResource("2_def")
+id = &"splitter_profile_balsam_fir"
+display_name = "Splitter Profile · Balsam Fir"
+description = "Installs the certified Balsam Fir cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Balsam Fir, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"balsam_fir_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"balsam_fir"
+base_cost = 250
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"balsam_fir"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_lodgepole_pine"]
+script = ExtResource("2_def")
+id = &"splitter_profile_lodgepole_pine"
+display_name = "Splitter Profile · Lodgepole Pine"
+description = "Installs the certified Lodgepole Pine cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Lodgepole Pine, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"lodgepole_pine_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"lodgepole_pine"
+base_cost = 300
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"lodgepole_pine"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_white_spruce"]
+script = ExtResource("2_def")
+id = &"splitter_profile_white_spruce"
+display_name = "Splitter Profile · White Spruce"
+description = "Installs the certified White Spruce cutting profile in the Mechanical Splitter."
+limitation = "Does not certify White Spruce, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"white_spruce_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"white_spruce"
+base_cost = 650
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"white_spruce"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_black_spruce"]
+script = ExtResource("2_def")
+id = &"splitter_profile_black_spruce"
+display_name = "Splitter Profile · Black Spruce"
+description = "Installs the certified Black Spruce cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Black Spruce, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"black_spruce_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"black_spruce"
+base_cost = 1400
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"black_spruce"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_scots_pine"]
+script = ExtResource("2_def")
+id = &"splitter_profile_scots_pine"
+display_name = "Splitter Profile · Scots Pine"
+description = "Installs the certified Scots Pine cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Scots Pine, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"scots_pine_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"scots_pine"
+base_cost = 3000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"scots_pine"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_western_hemlock"]
+script = ExtResource("2_def")
+id = &"splitter_profile_western_hemlock"
+display_name = "Splitter Profile · Western Hemlock"
+description = "Installs the certified Western Hemlock cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Western Hemlock, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"western_hemlock_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"western_hemlock"
+base_cost = 6200
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"western_hemlock"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_red_pine"]
+script = ExtResource("2_def")
+id = &"splitter_profile_red_pine"
+display_name = "Splitter Profile · Red Pine"
+description = "Installs the certified Red Pine cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Red Pine, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"red_pine_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"red_pine"
+base_cost = 12400
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"red_pine"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_douglas_fir"]
+script = ExtResource("2_def")
+id = &"splitter_profile_douglas_fir"
+display_name = "Splitter Profile · Douglas Fir"
+description = "Installs the certified Douglas Fir cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Douglas Fir, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"douglas_fir_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"douglas_fir"
+base_cost = 24000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"douglas_fir"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_black_ash"]
+script = ExtResource("2_def")
+id = &"splitter_profile_black_ash"
+display_name = "Splitter Profile · Black Ash"
+description = "Installs the certified Black Ash cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Black Ash, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"black_ash_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"black_ash"
+base_cost = 46000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"black_ash"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_paper_birch"]
+script = ExtResource("2_def")
+id = &"splitter_profile_paper_birch"
+display_name = "Splitter Profile · Paper Birch"
+description = "Installs the certified Paper Birch cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Paper Birch, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"paper_birch_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"paper_birch"
+base_cost = 86000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"paper_birch"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_pedunculate_oak"]
+script = ExtResource("2_def")
+id = &"splitter_profile_pedunculate_oak"
+display_name = "Splitter Profile · Pedunculate Oak"
+description = "Installs the certified Pedunculate Oak cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Pedunculate Oak, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"pedunculate_oak_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"pedunculate_oak"
+base_cost = 158000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"pedunculate_oak"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_silver_birch"]
+script = ExtResource("2_def")
+id = &"splitter_profile_silver_birch"
+display_name = "Splitter Profile · Silver Birch"
+description = "Installs the certified Silver Birch cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Silver Birch, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"silver_birch_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"silver_birch"
+base_cost = 280000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"silver_birch"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_yellow_birch"]
+script = ExtResource("2_def")
+id = &"splitter_profile_yellow_birch"
+display_name = "Splitter Profile · Yellow Birch"
+description = "Installs the certified Yellow Birch cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Yellow Birch, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"yellow_birch_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"yellow_birch"
+base_cost = 500000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"yellow_birch"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_northern_red_oak"]
+script = ExtResource("2_def")
+id = &"splitter_profile_northern_red_oak"
+display_name = "Splitter Profile · Northern Red Oak"
+description = "Installs the certified Northern Red Oak cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Northern Red Oak, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"northern_red_oak_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"northern_red_oak"
+base_cost = 880000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"northern_red_oak"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_american_beech"]
+script = ExtResource("2_def")
+id = &"splitter_profile_american_beech"
+display_name = "Splitter Profile · American Beech"
+description = "Installs the certified American Beech cutting profile in the Mechanical Splitter."
+limitation = "Does not certify American Beech, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"american_beech_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"american_beech"
+base_cost = 1520000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"american_beech"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_white_ash"]
+script = ExtResource("2_def")
+id = &"splitter_profile_white_ash"
+display_name = "Splitter Profile · White Ash"
+description = "Installs the certified White Ash cutting profile in the Mechanical Splitter."
+limitation = "Does not certify White Ash, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"white_ash_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"white_ash"
+base_cost = 2600000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"white_ash"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_white_oak"]
+script = ExtResource("2_def")
+id = &"splitter_profile_white_oak"
+display_name = "Splitter Profile · White Oak"
+description = "Installs the certified White Oak cutting profile in the Mechanical Splitter."
+limitation = "Does not certify White Oak, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"white_oak_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"white_oak"
+base_cost = 4400000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"white_oak"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_sugar_maple"]
+script = ExtResource("2_def")
+id = &"splitter_profile_sugar_maple"
+display_name = "Splitter Profile · Sugar Maple"
+description = "Installs the certified Sugar Maple cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Sugar Maple, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"sugar_maple_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"sugar_maple"
+base_cost = 7400000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"sugar_maple"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_european_beech"]
+script = ExtResource("2_def")
+id = &"splitter_profile_european_beech"
+display_name = "Splitter Profile · European Beech"
+description = "Installs the certified European Beech cutting profile in the Mechanical Splitter."
+limitation = "Does not certify European Beech, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"european_beech_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"european_beech"
+base_cost = 12400000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"european_beech"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_river_red_gum"]
+script = ExtResource("2_def")
+id = &"splitter_profile_river_red_gum"
+display_name = "Splitter Profile · River Red Gum"
+description = "Installs the certified River Red Gum cutting profile in the Mechanical Splitter."
+limitation = "Does not certify River Red Gum, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"river_red_gum_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"river_red_gum"
+base_cost = 21000000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"river_red_gum"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_tasmanian_blue_gum"]
+script = ExtResource("2_def")
+id = &"splitter_profile_tasmanian_blue_gum"
+display_name = "Splitter Profile · Tasmanian Blue Gum"
+description = "Installs the certified Tasmanian Blue Gum cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Tasmanian Blue Gum, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"tasmanian_blue_gum_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"tasmanian_blue_gum"
+base_cost = 35000000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"tasmanian_blue_gum"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_lignum_vitae"]
+script = ExtResource("2_def")
+id = &"splitter_profile_lignum_vitae"
+display_name = "Splitter Profile · Lignum Vitae"
+description = "Installs the certified Lignum Vitae cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Lignum Vitae, complete its delivery contract, improve hand chopping, or admit any other species."
+purchase_form = 0
+unlock_order_id = &"lignum_vitae_delivery"
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"lignum_vitae"
+base_cost = 60000000
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"lignum_vitae"
+tuning_status = "PLACEHOLDER — post-M8 measured tuning required"
+
+
 [resource]
 script = ExtResource("1_table")
-upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_balanced_axe"), SubResource("Upgrade_reinforced_block"), SubResource("Upgrade_supplier_ledger"), SubResource("Upgrade_handcart"), SubResource("Upgrade_coffee_thermos"), SubResource("Upgrade_mechanical_splitter"), SubResource("Upgrade_splitter_profile_aspen"), SubResource("Upgrade_splitter_profile_pine"), SubResource("Upgrade_splitter_profile_spruce"), SubResource("Upgrade_splitter_speed"), SubResource("Upgrade_splitter_auto_load"), SubResource("Upgrade_splitter_logs_per_split"), SubResource("Upgrade_splitter_xp_gain"), SubResource("Upgrade_splitter_cash_gain")])
+upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_balanced_axe"), SubResource("Upgrade_reinforced_block"), SubResource("Upgrade_supplier_ledger"), SubResource("Upgrade_handcart"), SubResource("Upgrade_coffee_thermos"), SubResource("Upgrade_mechanical_splitter"), SubResource("Upgrade_splitter_profile_aspen"), SubResource("Upgrade_splitter_profile_pine"), SubResource("Upgrade_splitter_profile_spruce"), SubResource("Upgrade_splitter_profile_balsam_fir"), SubResource("Upgrade_splitter_profile_lodgepole_pine"), SubResource("Upgrade_splitter_profile_white_spruce"), SubResource("Upgrade_splitter_profile_black_spruce"), SubResource("Upgrade_splitter_profile_scots_pine"), SubResource("Upgrade_splitter_profile_western_hemlock"), SubResource("Upgrade_splitter_profile_red_pine"), SubResource("Upgrade_splitter_profile_douglas_fir"), SubResource("Upgrade_splitter_profile_black_ash"), SubResource("Upgrade_splitter_profile_paper_birch"), SubResource("Upgrade_splitter_profile_pedunculate_oak"), SubResource("Upgrade_splitter_profile_silver_birch"), SubResource("Upgrade_splitter_profile_yellow_birch"), SubResource("Upgrade_splitter_profile_northern_red_oak"), SubResource("Upgrade_splitter_profile_american_beech"), SubResource("Upgrade_splitter_profile_white_ash"), SubResource("Upgrade_splitter_profile_white_oak"), SubResource("Upgrade_splitter_profile_sugar_maple"), SubResource("Upgrade_splitter_profile_european_beech"), SubResource("Upgrade_splitter_profile_river_red_gum"), SubResource("Upgrade_splitter_profile_tasmanian_blue_gum"), SubResource("Upgrade_splitter_profile_lignum_vitae"), SubResource("Upgrade_splitter_speed"), SubResource("Upgrade_splitter_auto_load"), SubResource("Upgrade_splitter_logs_per_split"), SubResource("Upgrade_splitter_xp_gain"), SubResource("Upgrade_splitter_cash_gain")])

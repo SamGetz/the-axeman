@@ -5,6 +5,8 @@ extends Node
 ## Mechanical Splitter purchase/assignment foundation; Slice 4 adds one bounded,
 ## visible watched production cycle with receipt-safe inventory output. Slice 5
 ## adds a read-only Purchased shop tab derived from existing ownership tiers.
+## Slice 6 expands the authored contract/profile ladder and adds dedicated,
+## prewarmed watched-splitter reward presentation.
 
 const _BACKUP_PATH := "user://the_axeman_save.m8_testbackup"
 const _ChoppingMinigame := preload("res://scenes/3d_action/chopping_minigame.gd")
@@ -15,7 +17,7 @@ var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M8 SLICE 5 ACCEPTANCE — derived Purchased shop tab ===")
+	print("=== M8 SLICE 6 ACCEPTANCE — Certified Yard Expansion ===")
 	_stash_real_save()
 	_test_live_mastery_contracts()
 	_test_threshold_validator()
@@ -31,6 +33,7 @@ func _ready() -> void:
 	await _test_split_reliability_and_cap()
 	await _test_trees_mastery_presentation()
 	_test_splitter_catalogue_contracts()
+	_test_later_profile_contract_mastery_gates()
 	_test_splitter_unlocks_and_atomic_purchase()
 	_test_splitter_save_reload()
 	await _test_mastery_splitter_navigation()
@@ -38,6 +41,7 @@ func _ready() -> void:
 	await _test_purchased_shop_tab()
 	await _test_splitter_runtime_contract_and_states()
 	await _test_splitter_watched_cycle()
+	await _test_splitter_species_ladder_samples()
 	await _test_splitter_restore_safety()
 	_test_splitter_upgrade_catalogue_and_pacing()
 	await _test_splitter_upgrade_runtime()
@@ -45,9 +49,9 @@ func _ready() -> void:
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	print("=== M8 SLICE 5 RESULT: %d passed, %d failed ===" % [_passes, _fails])
+	print("=== M8 SLICE 6 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
-		print("=== ALL M8 SLICE 5 ACCEPTANCE CRITERIA PASS ===")
+		print("=== ALL M8 SLICE 6 ACCEPTANCE CRITERIA PASS ===")
 	get_tree().quit()
 
 
@@ -430,14 +434,15 @@ func _test_trees_mastery_presentation() -> void:
 func _test_splitter_catalogue_contracts() -> void:
 	var machine: UpgradeDef = _MechanicalSplitter.machine_definition()
 	var profiles: Array[UpgradeDef] = _MechanicalSplitter.profile_definitions()
-	_check(machine != null and profiles.size() == 3,
-		"the live catalogue has one Mechanical Splitter and three early profiles")
+	_check(machine != null and profiles.size() == SpeciesTable.count(),
+		"the live catalogue has one Mechanical Splitter and one profile for all 25 species")
 	var early_species: Array[StringName] = []
 	var approved_tuning_ok := machine != null \
 		and machine.required_mastered_species_count == 3 \
 		and machine.base_cost == 1000 \
 		and machine.tuning_status.begins_with("APPROVED")
-	for profile: UpgradeDef in profiles:
+	for index in range(mini(3, profiles.size())):
+		var profile: UpgradeDef = profiles[index]
 		early_species.append(profile.automation_species_id)
 		approved_tuning_ok = approved_tuning_ok \
 			and profile.base_cost == 250 \
@@ -445,22 +450,93 @@ func _test_splitter_catalogue_contracts() -> void:
 			and profile.effect == UpgradeDef.Effect.NONE
 	_check(early_species == [SpeciesTable.at(0).id, SpeciesTable.at(1).id,
 		SpeciesTable.at(2).id],
-		"the first splitter accepts only the authored early-species profile group")
+		"the first three profiles preserve their approved Aspen, Pine and Norway order")
 	_check(approved_tuning_ok,
 		"machine certification gate and profile prices carry Sam's approved tuning")
-	_check(_MechanicalSplitter.validate_live_catalogue().is_empty(),
-		"the shipping splitter catalogue passes semantic validation")
+	var later_profiles_ok := profiles.size() == SpeciesTable.count()
+	for index in range(3, profiles.size()):
+		var profile: UpgradeDef = profiles[index]
+		var species := SpeciesTable.at(index)
+		var expected_cost := maxi(250,
+			int(ceil(float(species.unlock_cost) * 0.20 / 50.0)) * 50)
+		later_profiles_ok = later_profiles_ok \
+			and profile.id == StringName("splitter_profile_%s" % species.id) \
+			and profile.display_name == "Splitter Profile · %s" % species.display_name \
+			and profile.automation_species_id == species.id \
+			and profile.required_mastery_species_id == species.id \
+			and profile.required_upgrade_id == machine.id \
+			and profile.unlock_order_id == StringName("%s_delivery" % species.id) \
+			and profile.base_cost == expected_cost \
+			and profile.tuning_status == "PLACEHOLDER — post-M8 measured tuning required"
+	_check(later_profiles_ok,
+		"Balsam Fir through Lignum Vitae each have their own contract-gated labelled profile")
+	_check(_MechanicalSplitter.validate_live_catalogue().is_empty()
+			and Orders.validate_live_catalogue().is_empty(),
+		"the shipping contract/profile catalogues pass semantic and cross-table validation")
 
 	var malformed := UpgradeDef.new()
 	malformed.id = &"bad_profile"
 	malformed.automation_role = UpgradeDef.AutomationRole.CUTTING_PROFILE
 	malformed.automation_species_id = &"invented_wood"
-	var malformed_catalogue: Array[UpgradeDef] = [malformed]
+	var uncertified := UpgradeDef.new()
+	uncertified.id = &"uncertified_profile"
+	uncertified.automation_role = UpgradeDef.AutomationRole.CUTTING_PROFILE
+	uncertified.automation_species_id = SpeciesTable.at(0).id
+	var malformed_catalogue: Array[UpgradeDef] = [malformed, uncertified]
 	var errors: PackedStringArray = _MechanicalSplitter.validate_catalogue(malformed_catalogue)
 	_check(_has_error(errors, "purchase is missing")
 		and _has_error(errors, "unknown species")
 		and _has_error(errors, "own certification"),
 		"validation rejects an orphaned profile for an unknown, uncertified species")
+
+
+func _test_later_profile_contract_mastery_gates() -> void:
+	SaveSystem.delete_save()
+	GameState.reset_to_defaults()
+	var machine := _MechanicalSplitter.machine_definition()
+	var profile: UpgradeDef = _MechanicalSplitter.profile_definitions()[3]
+	var species := SpeciesTable.by_id(profile.automation_species_id)
+	var target: int = M7CContent.mastery().by_species_id(species.id).mastery_target
+	var machine_tiers := {String(machine.id): GameState.DEFAULT_BUILDING_TIER + 1}
+	var mastery := {String(species.id): target}
+
+	GameState.apply_save_dict({
+		"building_tiers": machine_tiers,
+		"species_mastery_progress": mastery,
+	})
+	_check(not Shop.is_visible(profile.id),
+		"a later profile stays hidden when only its matching contract gate is missing")
+	GameState.apply_save_dict({
+		"building_tiers": machine_tiers,
+		"completed_orders": [String(profile.unlock_order_id)],
+	})
+	_check(not Shop.is_visible(profile.id),
+		"a later profile stays hidden when only its species certification is missing")
+	GameState.apply_save_dict({
+		"building_tiers": {},
+		"species_mastery_progress": mastery,
+		"completed_orders": [String(profile.unlock_order_id)],
+	})
+	_check(not Shop.is_visible(profile.id),
+		"a later profile stays hidden when only the Mechanical Splitter is missing")
+	GameState.apply_save_dict({
+		"building_tiers": machine_tiers,
+		"species_mastery_progress": mastery,
+		"completed_orders": [String(profile.unlock_order_id)],
+	})
+	_check(Shop.is_visible(profile.id) and Shop.is_unlocked(profile.id),
+		"contract, own certification and machine ownership reveal the later profile together")
+	GameState.add_cash(profile.base_cost)
+	_check(Shop.buy(profile.id) == 1
+			and _MechanicalSplitter.can_accept_species(species.id)
+			and GameState.assign_splitter_species(species.id),
+		"the revealed later profile purchases atomically and admits only its own species")
+	_check(SaveSystem.save_game(), "the later profile and assignment write through save version 4")
+	GameState.reset_to_defaults()
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK
+			and Shop.get_level(profile.id) == 1
+			and GameState.get_splitter_assigned_species() == species.id,
+		"the later contract, certification, profile and assignment restore together")
 
 
 func _test_splitter_unlocks_and_atomic_purchase() -> void:
@@ -795,6 +871,31 @@ func _test_splitter_runtime_contract_and_states() -> void:
 	GameState._splitter_assigned_species = profile.automation_species_id
 	_check(runtime.current_state() == MechanicalSplitterRuntime.State.MISSING_PROFILE,
 		"a stale assignment without its installed profile is diagnosed as missing profile")
+	GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
+	var started_receipts: Array[StringName] = []
+	var cancelled_receipts: Array[StringName] = []
+	runtime.cycle_settlement_started.connect(func(receipt_id: StringName,
+			_species_id: StringName) -> void: started_receipts.append(receipt_id))
+	runtime.cycle_settlement_cancelled.connect(func(receipt_id: StringName) -> void:
+		cancelled_receipts.append(receipt_id))
+	runtime._pending_output = {
+		"receipt_id": &"m8_blocked_receipt",
+		"species_id": profile.automation_species_id,
+		"item_id": &"invented_firewood",
+		"amount": 1,
+		"logs": 5,
+		"inventory_deposited": false,
+	}
+	var cash_before := GameState.get_cash()
+	_check(not runtime.retry_blocked_output()
+			and started_receipts == [&"m8_blocked_receipt"]
+			and cancelled_receipts == [&"m8_blocked_receipt"]
+			and GameState.get_cash() == cash_before,
+		"a failed handoff starts then cancels the same cosmetic receipt without progression")
+	_check(not runtime.retry_blocked_output()
+			and started_receipts == [&"m8_blocked_receipt", &"m8_blocked_receipt"]
+			and cancelled_receipts == [&"m8_blocked_receipt", &"m8_blocked_receipt"],
+		"retry creates one fresh pending presentation for the immutable blocked output")
 	runtime.queue_free()
 	await get_tree().process_frame
 
@@ -823,10 +924,19 @@ func _test_splitter_watched_cycle() -> void:
 	var order_started := order != null and GameState.accept_order(order.id)
 	var before_order_progress := GameState.get_active_order_progress()
 	var receipts: Array[Dictionary] = []
+	var settlement_events: Array[String] = []
+	runtime.cycle_settlement_started.connect(func(receipt_id: StringName,
+			_species_id: StringName) -> void:
+		settlement_events.append("started:%s" % receipt_id))
+	runtime.cycle_settlement_cancelled.connect(func(receipt_id: StringName) -> void:
+		settlement_events.append("cancelled:%s" % receipt_id))
+	GameState.cash_changed.connect(func(_cash: int) -> void:
+		settlement_events.append("cash"), CONNECT_ONE_SHOT)
 	runtime.cycle_completed.connect(func(species_id: StringName, item_id: StringName,
 			amount: int, receipt_id: StringName) -> void:
 		receipts.append({"species": species_id, "item": item_id,
-			"amount": amount, "receipt": receipt_id}))
+			"amount": amount, "receipt": receipt_id})
+		settlement_events.append("completed:%s" % receipt_id))
 	_check(runtime.current_state() == MechanicalSplitterRuntime.State.READY
 		and runtime.state_detail().contains(species.display_name),
 		"the persisted Tree Catalog assignment is the ready runtime's sole route")
@@ -856,6 +966,9 @@ func _test_splitter_watched_cycle() -> void:
 		and GameState.get_cash() == before_cash + expected_cash
 		and GameState.get_xp() == before_xp + expected_xp,
 		"completion sells SpeciesDef.yield_item once and pays base cash plus 20% species XP")
+	_check(settlement_events == ["started:%s" % receipts[0].receipt, "cash",
+			"completed:%s" % receipts[0].receipt],
+		"presentation starts before authoritative cash and completes with the same immutable receipt")
 	runtime._process(config.processing_duration_seconds * 4.0)
 	_check(InventoryManager.get_count(species.yield_item) == before_item
 		and receipts.size() == 1 and runtime.current_state() == MechanicalSplitterRuntime.State.READY
@@ -896,6 +1009,45 @@ func _test_splitter_restore_safety() -> void:
 		"restored runtime cannot finish discarded work or create free output")
 	runtime.queue_free()
 	await get_tree().process_frame
+
+
+func _test_splitter_species_ladder_samples() -> void:
+	var profiles := _MechanicalSplitter.profile_definitions()
+	for index in [0, 12, 24]:
+		GameState.reset_to_defaults()
+		InventoryManager.apply_save_dict({})
+		var profile: UpgradeDef = profiles[index]
+		var species := SpeciesTable.by_id(profile.automation_species_id)
+		GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
+		var unrelated := Orders.by_id(&"campfire_warmup")
+		if unrelated != null and not GameState.has_completed_order(unrelated.id):
+			GameState.accept_order(unrelated.id)
+		var order_progress := GameState.get_active_order_progress()
+		var runtime := MechanicalSplitterRuntime.new()
+		add_child(runtime)
+		await get_tree().process_frame
+		runtime.set_yard_active(true)
+		var expected_cash := Market.get_price(species.yield_item) \
+			* runtime.effective_output_amount()
+		var expected_xp := int(round(float(species.xp_reward \
+			* runtime.effective_logs_per_split()) * runtime.automation_xp_rate()))
+		var cash_before := GameState.get_cash()
+		var xp_before := GameState.get_xp()
+		var lifetime_before := GameState.get_lifetime_wood_chopped()
+		var completed_before: Array = GameState.to_save_dict().get("completed_orders", []).duplicate()
+		var completed := runtime.try_queue_assigned_input()
+		runtime._process(runtime.effective_duration_seconds())
+		completed = completed and runtime.last_cash_earned() == expected_cash \
+			and runtime.last_xp_earned() == expected_xp \
+			and GameState.get_cash() == cash_before + expected_cash \
+			and GameState.get_xp() == xp_before + expected_xp \
+			and GameState.get_lifetime_wood_chopped() == lifetime_before \
+			and GameState.get_active_order_progress() == order_progress \
+			and GameState.to_save_dict().get("completed_orders", []) == completed_before
+		_check(completed,
+			"%s completes an exact watched cycle without manual progression leakage" % species.display_name)
+		runtime.queue_free()
+		await get_tree().process_frame
 
 
 func _test_splitter_upgrade_catalogue_and_pacing() -> void:
@@ -1013,23 +1165,49 @@ func _test_splitter_runtime_presentation() -> void:
 	var runtime: MechanicalSplitterRuntime = game.get_node("MechanicalSplitterRuntime")
 	runtime.set_yard_active(true)
 	hud.bind_splitter_runtime(runtime)
+	hud.bind_xp_source(game)
 	var presenter: YardEquipmentPresenter = game.get_node("YardEquipment")
+	var rewards: SplitterRewardPresenter = game.get_node("SplitterRewardPresenter")
+	var manual_coin_pool: Node = game.get_node("CoinRewardPool")
+	var splitter_coin_pool: Node = rewards.get_node("SplitterCoinPool")
+	var splitter_orb_pool: Node = rewards.get_node("SplitterXPOrbPool")
 	var machine := presenter.get_node_or_null("mechanical_splitter")
 	var art_label: Label3D = presenter.get_node_or_null(
 		"mechanical_splitter/MissingArtAndStateLabel")
+	var world_state_label: Label3D = presenter.get_node_or_null(
+		"mechanical_splitter/OperationalStateLabel")
 	var representative_log: MeshInstance3D = presenter.get_node_or_null(
 		"mechanical_splitter/RepresentativeAssignedLog")
 	_check(machine != null
 		and machine.get_meta("art_status", "") ==
 			"greybox_missing_authored_mechanical_splitter_asset"
 		and art_label != null and art_label.text.contains("AUTHORED ART MISSING")
+		and world_state_label != null and art_label.font_size < world_state_label.font_size
 		and representative_log != null
 		and representative_log.get_meta("art_status", "") ==
 			"single_preauthored_log_proxy_no_runtime_slicing",
 		"the purchased machine appears as an explicitly labelled native-node greybox")
+	_check(manual_coin_pool != splitter_coin_pool
+			and manual_coin_pool.get_child_count() == 40
+			and splitter_coin_pool.get_child_count() == 40
+			and splitter_orb_pool.get_child_count() == 10
+			and rewards.get_node_or_null("SplitterChip11") != null,
+		"manual and splitter cash/XP/chip effects use separate bounded prewarmed pools")
+	var skin := representative_log.material_override as StandardMaterial3D
+	var inside_skin := representative_log.get_node("InsideEnd0").material_override \
+		as StandardMaterial3D
+	var species := SpeciesTable.by_id(profile.automation_species_id)
+	_check(skin != null and inside_skin != null and species != null
+			and skin.albedo_color == species.bark_tint
+			and inside_skin.albedo_color == species.inside_tint,
+		"the representative splitter log separates assigned-species bark and inside treatments")
 	var state_label: Label = hud.get_node("SplitterRuntimeCard/Column/State")
 	var detail: Label = hud.get_node("SplitterRuntimeCard/Column/Detail")
 	var action: Button = hud.get_node("SplitterRuntimeCard/Column/Action")
+	var cash_label: Label = hud.get_node("TopBar/CashRow/CashLabel")
+	var xp_progress: ProgressBar = hud.get_node("XPBar/Progress")
+	var cash_before := GameState.get_cash()
+	var xp_before := GameState.get_xp()
 	_check(state_label.text == "READY" and detail.text.contains("5 log batch")
 		and not action.disabled and action.text == "Load assigned log",
 		"the always-on runtime card legibly shows the ready assigned species and action")
@@ -1042,12 +1220,24 @@ func _test_splitter_runtime_presentation() -> void:
 		and representative_log.visible,
 		"the runtime card and one representative log show the active processing batch")
 	runtime._process(runtime.config.processing_duration_seconds)
-	await get_tree().process_frame
+	var chips_visible := false
+	for index in range(12):
+		chips_visible = chips_visible or rewards.get_node("SplitterChip%d" % index).visible
+	_check(GameState.get_cash() > cash_before and GameState.get_xp() > xp_before
+			and cash_label.text == str(cash_before)
+			and is_equal_approx(xp_progress.value,
+				GameState.get_level_progress_for_xp(xp_before))
+			and chips_visible,
+		"successful settlement is authoritative immediately while exact cash/XP remain visually pending and chips burst")
+	await get_tree().create_timer(1.8).timeout
 	_check(state_label.text == "READY"
 		and not representative_log.visible
 		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("cash")
-		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("XP"),
-		"the watched UI returns ready and exposes the cash/XP completion receipt")
+		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("XP")
+		and cash_label.text == str(GameState.get_cash())
+		and is_equal_approx(xp_progress.value,
+			GameState.get_level_progress_for_xp(GameState.get_xp())),
+		"the watched UI returns ready and exact pooled receipts reconcile both counters")
 	hud.queue_free()
 	game.queue_free()
 	await get_tree().process_frame
@@ -1057,7 +1247,7 @@ func _splitter_runtime_save_shape(profile: UpgradeDef) -> Dictionary:
 	var machine := _MechanicalSplitter.machine_definition()
 	var target: int = M7CContent.mastery().by_species_id(
 		profile.automation_species_id).mastery_target
-	return {
+	var data := {
 		"building_tiers": {
 			String(machine.id): GameState.DEFAULT_BUILDING_TIER + 1,
 			String(profile.id): GameState.DEFAULT_BUILDING_TIER + 1,
@@ -1067,6 +1257,9 @@ func _splitter_runtime_save_shape(profile: UpgradeDef) -> Dictionary:
 		},
 		"splitter_assigned_species": String(profile.automation_species_id),
 	}
+	if profile.unlock_order_id != &"":
+		data["completed_orders"] = [String(profile.unlock_order_id)]
+	return data
 
 
 func _set_mastery_for_species(count: int) -> void:

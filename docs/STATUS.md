@@ -27,11 +27,12 @@ automation design. Do not begin a new module or slice without Sam's approval.
 | M8 Slice 3 certified splitter purchases/assignment | Approved by Sam 2026-08-05; covered by the verified M8 completion suite |
 | M8 Slice 4 watched Mechanical Splitter runtime/progression | Approved by Sam 2026-08-05; 93/93 |
 | M8 Slice 5 derived Purchased shop tab | Approved by Sam 2026-08-05; 104/104 with discovery regression |
+| M8 Slice 6 Certified Yard Expansion | Implemented for Sam's review 2026-08-05; M8 121/121, M7A 289/289 |
 | M8 Mechanical Splitter measured tuning | Approved by Sam 2026-08-05; 104/104 with discovery regression |
 | Startup New Game / Load Game boundary | Approved by Sam 2026-08-05; 17/17 |
 | Hidden-lock progression discovery | Approved by Sam 2026-08-05; M7A 285/285, M8 104/104 |
 | Manual reward receipts and level-up feedback | Approved by Sam 2026-08-05; M4 55/55, M7A 285/285, M7C 221/221 |
-| M8 Slice 6 and later | Not authorized to start |
+| M8 Slice 7 and later | Not authorized to start |
 
 M7C Slice 7 made Follow-Up an automatic bonus swing after a landed root swing,
 with its own real split roll and a recursion guard. Ready Stance accelerates the
@@ -94,6 +95,25 @@ Mechanical Splitter remain separate tabs; Tree Catalog remains its standalone
 bottom-right window. Save version remains 4 because the on-disk shape is
 unchanged.
 
+M8 Slice 6 extends the one-time contract ladder to all 25 species and gives
+every species one certified Mechanical Splitter profile. The first three
+contracts/profiles and approved splitter upgrade band remain unchanged. The 23
+later contracts and 22 later profiles use explicitly labelled placeholder
+counts, bonuses and prices pending measured post-M8 tuning. Later profiles
+require their matching contract, their own species certification and the
+installed machine. The contract board separates revealed incomplete work into
+Open and compact read-only history into Completed; unrevealed contracts remain
+absent.
+
+Watched splitter settlement now emits presentation-only start/cancel signals
+around the existing authoritative completion receipt. A separate prewarmed
+pool stages one unpaid splitter coin, exact cash and XP receipts, and procedural
+wood chips without sharing manual reward nodes. The representative greybox log
+uses the assigned species' bark and inside treatments, the machine has a short
+completion impulse, and the required authored-art marker is subordinate to a
+larger operational state. Queue and receipt presentation remain ephemeral;
+save version stays 4.
+
 Locked progression content no longer appears as disabled shelf rows or future
 contract cards. The Shop lists unlocked/owned rows only, hides the entire
 Mechanical Splitter tab until the machine gate is earned, and hides the runtime
@@ -132,10 +152,15 @@ and feel values remain explicitly replaceable stand-ins.
   thresholds and mastery reward magnitudes remain labelled tuning placeholders.
 - M4's `max_firewood` soft cap and the nominal fragment physics budget are still
   separate tuning concepts.
+- Slice 6's 20-piece contract counts, scaled contract bonuses, scaled profile
+  prices and splitter receipt timing remain visibly labelled placeholders.
+  Level 9/49/96 structural probes pass, but a later live pacing review must
+  decide whether any authored row should change.
 
 ## Current test baseline
 
-The authoritative tests are the live test files. The latest verified human
-baseline is M1 19, M2 24, M3 16, M4 55, M7A 285, M7C 221, M8 Slice 5 and
-measured splitter tuning 104, startup 17, slicer 34. See `docs/TESTING.md` for
-commands and non-headless requirements.
+The authoritative tests are the live test files. The latest verified baseline
+is M1 19, M2 24, M3 16, M4 55, M7A 289, M7C 221, M8 Slice 6 121, startup 17,
+slicer 34. The Slice 6 pacing probe passes at levels 9, 49 and 96, and the
+expanded non-headless tool captures the full 1280x720 contract/profile/runtime
+matrix. See `docs/TESTING.md` for commands and non-headless requirements.

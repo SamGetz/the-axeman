@@ -111,7 +111,9 @@ const _PURCHASED_TAB := 2
 @onready var _orders_button: Button = $QuickMenu/OrdersButton
 @onready var _orders_badge: Label = $QuickMenu/OrdersButton/Badge
 @onready var _orders_panel: PanelContainer = $OrdersPanel
-@onready var _orders_list: VBoxContainer = $OrdersPanel/Column/Scroll/List
+@onready var _orders_tabs: TabContainer = $OrdersPanel/Column/Tabs
+@onready var _orders_list: VBoxContainer = $OrdersPanel/Column/Tabs/Open/Scroll/List
+@onready var _orders_completed_list: VBoxContainer = $OrdersPanel/Column/Tabs/Completed/Scroll/List
 @onready var _orders_active: Label = $OrdersPanel/Column/Active
 @onready var _close_orders_button: Button = $OrdersPanel/Column/CloseButton
 @onready var _modal_backdrop: ColorRect = $ModalBackdrop
@@ -147,6 +149,8 @@ func _ready() -> void:
 	_skill_detail_buy.pressed.connect(_on_buy_selected_skill_pressed)
 	_orders_button.pressed.connect(_on_orders_pressed)
 	_close_orders_button.pressed.connect(_on_close_orders_pressed)
+	_orders_tabs.set_tab_title(0, "Open")
+	_orders_tabs.set_tab_title(1, "Completed")
 	_modal_backdrop.gui_input.connect(_on_modal_backdrop_gui_input)
 
 	GameState.cash_changed.connect(_on_cash_changed)
@@ -925,6 +929,9 @@ func _rebuild_orders() -> void:
 	for child in _orders_list.get_children():
 		_orders_list.remove_child(child)
 		child.queue_free()
+	for child in _orders_completed_list.get_children():
+		_orders_completed_list.remove_child(child)
+		child.queue_free()
 
 	var active := GameState.get_active_order()
 	if active == null:
@@ -933,9 +940,31 @@ func _rebuild_orders() -> void:
 		_orders_active.text = "Active: %s — %d / %d" % [
 			active.title, GameState.get_active_order_progress(), active.required_count]
 
+	# Active first, then every other revealed incomplete contract in authored
+	# order. Completed work owns a compact read-only tab instead of crowding the
+	# actionable board as the 26-contract ladder opens up.
+	if active != null:
+		_orders_list.add_child(_build_order_row(active))
+	var open_count := 1 if active != null else 0
+	var completed_count := 0
 	for order: OrderDef in Orders.visible():
-		if order != null:
+		if order == null:
+			continue
+		if GameState.has_completed_order(order.id):
+			_orders_completed_list.add_child(_build_completed_order_row(order))
+			completed_count += 1
+		elif order.id != GameState.get_active_order_id():
 			_orders_list.add_child(_build_order_row(order))
+			open_count += 1
+	if open_count == 0:
+		var empty := Label.new()
+		empty.text = "No revealed contracts are open. Keep chopping toward the next level reward."
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_orders_list.add_child(empty)
+	if completed_count == 0:
+		var empty := Label.new()
+		empty.text = "Completed deliveries will be recorded here."
+		_orders_completed_list.add_child(empty)
 
 
 func _build_order_row(order: OrderDef) -> VBoxContainer:
@@ -950,9 +979,19 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 	var detail := Label.new()
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var rewards: PackedStringArray = ["+%s coins" % _thousands(order.cash_bonus)]
-	for def: UpgradeDef in Shop.get_upgrades():
-		if def != null and def.unlock_order_id == order.id:
-			rewards.append("Unlocks %s in Shop" % def.display_name)
+	var profile := _matching_contract_profile(order)
+	if profile != null:
+		var species := SpeciesTable.by_id(profile.required_mastery_species_id)
+		var species_name := String(profile.required_mastery_species_id) \
+			if species == null else species.display_name
+		var reward_prefix := "Profile reward" if profile.unlock_order_id == order.id \
+			else "Certified route"
+		rewards.append("%s: %s — available after %s certification and Mechanical Splitter installation" % [
+			reward_prefix, profile.display_name, species_name])
+	else:
+		for def: UpgradeDef in Shop.get_upgrades():
+			if def != null and def.unlock_order_id == order.id:
+				rewards.append("Unlocks %s in Shop" % def.display_name)
 	detail.text = "%s\n%d pieces\nRewards: %s" % [
 		order.description, order.required_count, "  ·  ".join(rewards)]
 	row.add_child(detail)
@@ -987,6 +1026,71 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 		button.pressed.connect(_on_accept_order_pressed.bind(order.id))
 	row.add_child(button)
 	return row
+
+
+func _build_completed_order_row(order: OrderDef) -> VBoxContainer:
+	var row := VBoxContainer.new()
+	row.name = String(order.id)
+	row.add_theme_constant_override("separation", 2)
+	var heading := HBoxContainer.new()
+	var title := Label.new()
+	title.text = order.title
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", 16)
+	heading.add_child(title)
+	var state := Label.new()
+	state.text = "Completed"
+	state.modulate = Color(0.78, 0.88, 0.64, 1.0)
+	heading.add_child(state)
+	row.add_child(heading)
+	var detail := Label.new()
+	detail.text = "%s · %d pieces · +%s coins" % [
+		order.customer_name, order.required_count, _thousands(order.cash_bonus)]
+	detail.add_theme_font_size_override("font_size", 12)
+	detail.modulate = Color(0.78, 0.78, 0.78, 1.0)
+	row.add_child(detail)
+	var profile := _matching_contract_profile(order)
+	if profile != null:
+		var reward := Label.new()
+		reward.text = "Profile reward · %s · %s" % [
+			profile.display_name, _completed_profile_requirement(profile)]
+		reward.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		reward.add_theme_font_size_override("font_size", 12)
+		reward.modulate = Color(0.76, 0.86, 0.63, 1.0)
+		row.add_child(reward)
+	return row
+
+
+func _matching_contract_profile(order: OrderDef) -> UpgradeDef:
+	if order == null:
+		return null
+	for def: UpgradeDef in MechanicalSplitter.profile_definitions():
+		if def != null and def.unlock_order_id == order.id:
+			return def
+	# Norway Spruce's profile keeps its approved pre-Slice-6 gate. Its newly
+	# authored species contract still names the route without falsely claiming to
+	# be an additional progression prerequisite.
+	if order.required_species != &"" \
+			and order.id == StringName("%s_delivery" % order.required_species):
+		return MechanicalSplitter.profile_for_species(order.required_species)
+	return null
+
+
+func _completed_profile_requirement(profile: UpgradeDef) -> String:
+	if Shop.get_level(profile.id) > 0:
+		return "purchased"
+	if Shop.is_unlocked(profile.id):
+		return "available in Shop"
+	var requirements := PackedStringArray()
+	if profile.required_mastery_species_id != &"" \
+			and not GameState.is_species_mastered(profile.required_mastery_species_id):
+		var species := SpeciesTable.by_id(profile.required_mastery_species_id)
+		requirements.append("%s certification" % (
+			String(profile.required_mastery_species_id) if species == null else species.display_name))
+	if profile.required_upgrade_id != &"" and Shop.get_level(profile.required_upgrade_id) <= 0:
+		requirements.append("Mechanical Splitter installation")
+	return "available after remaining requirements" if requirements.is_empty() \
+		else "available after %s" % " and ".join(requirements)
 
 
 func _on_accept_order_pressed(order_id: StringName) -> void:
@@ -1298,10 +1402,10 @@ func _on_coins_cancelled(count: int) -> void:
 
 
 func _on_coin_batch_finished() -> void:
-	_pending_coin_count = 0
-	# Covers an interrupted pool or unrelated cash mutation during the flight.
-	# Ordinary sale batches already land exactly here, so this is normally a no-op.
-	_set_displayed_cash(GameState.get_cash(), false)
+	# Manual and splitter pools may overlap. Collected/cancelled receipts own the
+	# shared count; finishing one pool must not erase the other pool's pending coin.
+	if _pending_coin_count == 0:
+		_set_displayed_cash(GameState.get_cash(), false)
 
 
 ## ----------------------------------------------------------------- live view

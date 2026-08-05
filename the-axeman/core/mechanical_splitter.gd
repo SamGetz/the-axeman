@@ -141,8 +141,12 @@ static func validate_catalogue(upgrades: Array[UpgradeDef]) -> PackedStringArray
 
 		if definition.base_cost <= 0:
 			errors.append("automation upgrade %s has invalid approved price" % definition.id)
-		if not definition.tuning_status.begins_with("APPROVED"):
-			errors.append("automation upgrade %s lacks an APPROVED tuning label" % definition.id)
+		var tuning_is_approved := definition.tuning_status.begins_with("APPROVED")
+		var tuning_is_placeholder := definition.tuning_status.begins_with("PLACEHOLDER")
+		if not tuning_is_approved and not (
+				definition.automation_role == UpgradeDef.AutomationRole.CUTTING_PROFILE
+				and tuning_is_placeholder):
+			errors.append("automation upgrade %s lacks a valid tuning label" % definition.id)
 
 		if definition.automation_role == UpgradeDef.AutomationRole.MECHANICAL_SPLITTER:
 			if definition.purchase_form != UpgradeDef.PurchaseForm.ONE_TIME \
@@ -193,10 +197,20 @@ static func validate_catalogue(upgrades: Array[UpgradeDef]) -> PackedStringArray
 			errors.append("duplicate cutting profile species:%s" % species_id)
 		else:
 			seen_species[species_id] = true
-		if definition.required_mastery_species_id != species_id:
-			errors.append("cutting profile %s is not gated by its own certification" % definition.id)
-		if machine != null and definition.required_upgrade_id != machine.id:
-			errors.append("cutting profile %s is not gated by the Mechanical Splitter" % definition.id)
+			if definition.required_mastery_species_id != species_id:
+				errors.append("cutting profile %s is not gated by its own certification" % definition.id)
+			if machine != null and definition.required_upgrade_id != machine.id:
+				errors.append("cutting profile %s is not gated by the Mechanical Splitter" % definition.id)
+			if tuning_is_placeholder:
+				var expected_order := StringName("%s_delivery" % species_id)
+				if definition.unlock_order_id != expected_order or Orders.by_id(expected_order) == null:
+					errors.append("cutting profile %s lacks its matching contract gate" % definition.id)
+				var species := SpeciesTable.by_id(species_id)
+				if species != null:
+					var expected_cost := maxi(250,
+						int(ceil(float(species.unlock_cost) * 0.20 / 50.0)) * 50)
+					if definition.base_cost != expected_cost:
+						errors.append("cutting profile %s breaks the Slice 6 placeholder price formula" % definition.id)
 
 	for effect: UpgradeDef.Effect in required_upgrade_effects:
 		if not seen_upgrade_effects.has(effect):
