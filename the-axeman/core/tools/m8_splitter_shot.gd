@@ -1,7 +1,7 @@
 extends Node
 ## Focused non-headless render QA for M8 Slices 4-5. It drives the real main
-## scene, captures fresh/functional/Purchased shop placement, the mastered-tree
-## purchase route, then one purchased/assigned splitter and its watched native
+## scene, captures fresh/functional/Purchased shop placement, the mastery reward
+## copy, then one purchased/assigned splitter and its watched native
 ## greybox cycle.
 
 const OUT := "/private/tmp/axeman_m8_splitter"
@@ -12,6 +12,7 @@ func _ready() -> void:
 	_stash_save()
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
+	main.start_new_game()
 	for _i in range(10):
 		await get_tree().process_frame
 	GameState.reset_to_defaults()
@@ -45,7 +46,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 	hud.get_node("QuickMenu/TreesButton").pressed.emit()
 	await get_tree().process_frame
-	_save("_mastery_route")
+	_save("_mastery_reward")
 	hud.get_node("TreesPanel/Column/CloseButton").pressed.emit()
 
 	GameState.apply_save_dict({

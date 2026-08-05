@@ -17,7 +17,7 @@ extends MeshInstance3D
 ##                height and speed each time until it settles.
 ##   3. REST    — it sits there for a beat, bobbing, so the player SEES the wood's
 ##                worth lying on the ground before it is theirs.
-##   4. DRAW    — it gives up and ARCS into the player, accelerating the whole way.
+##   4. DRAW    — it ARCS into the live fill edge of the XP bar and delivers its share.
 ##
 ## It is a translucent bead wearing an additive halo, so it reads as a little light
 ## lying in the dirt rather than a green bead (Creative Director call, 2026-08-02:
@@ -30,7 +30,7 @@ extends MeshInstance3D
 ## THE ARC IS INTEGRATED, NOT LERPED. Phases 1-2 advance a velocity under gravity
 ## and reflect it off the floor, because a bounce is exactly the thing a keyframed
 ## path cannot fake — the second hop has to be a consequence of the first landing,
-## or every orb bounces identically. Only the final rush to the player is eased by
+## or every orb bounces identically. Only the final rush to the HUD is eased by
 ## hand, since that one is not physics but a magnet.
 ##
 ## WHERE IT LANDS IS AIMED, THOUGH. The horizontal speed is solved from the orb's
@@ -50,6 +50,8 @@ extends MeshInstance3D
 ## EVERY NUMBER HERE IS A PLACEHOLDER per Directive 3.
 
 enum Phase { FLIGHT, REST, DRAW }
+
+signal collected(amount: int)
 
 ## Shared across every orb ever spawned — one sphere, one halo and one material
 ## each for the whole effect, rather than a fresh set per orb for the renderer to
@@ -113,6 +115,38 @@ var _arc_up := 0.18                 # control point height, as a fraction of the
 var _arc_side := 0.0                # ...and its lean, signed so the burst fans out
 var _absorb_off := Vector2.ZERO     # where on the absorb disc THIS orb passes the lens
 var _spin := 0.0
+var _xp_amount := 0
+var _screen_target := Callable()
+var _collection_reported := false
+var _render_warmup_active := false
+
+
+## Called during the initial chopping-scene load. Keep the first reward burst's
+## geometry/material setup off the frame where the player first sees an orb.
+static func prewarm() -> void:
+	_shared()
+
+
+## Builds this orb's complete core + halo graph once. Chopping preallocates the
+## largest overlapping reward wave during initial load and reuses those nodes.
+func prepare_for_pool() -> void:
+	var shared := _shared()
+	mesh = shared[0]
+	material_override = shared[1]
+	if get_node_or_null("Halo") == null:
+		var halo := MeshInstance3D.new()
+		halo.name = "Halo"
+		halo.mesh = _halo_mesh
+		halo.material_override = _halo_mat
+		halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(halo)
+	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	visible = false
+	set_process(false)
+
+
+func is_available() -> bool:
+	return not is_processing() and not _render_warmup_active
 
 
 static func _shared() -> Array:
@@ -157,6 +191,10 @@ static func _shared() -> Array:
 		_halo_mat.albedo_texture = _halo_texture()
 		# TINY, per the brief — the falloff does the work, the strength stays low.
 		_halo_mat.albedo_color = Color(0.5, 1.0, 0.4, 0.5)
+		_shared_mesh.get_rid()
+		_shared_mat.get_rid()
+		_halo_mesh.get_rid()
+		_halo_mat.get_rid()
 	return [_shared_mesh, _shared_mat]
 
 
@@ -190,7 +228,7 @@ static func _halo_texture() -> GradientTexture2D:
 	return tex
 
 
-## `target` is what the orb flies into — the camera, which is where the player is.
+## `target` is the 3D camera used to project the HUD's normalized screen target.
 ## `ground_y` is the yard floor the burst falls onto, and `clear_radius` is the
 ## stump's own radius: the orb is aimed to touch down OUTSIDE it, "near the log"
 ## rather than on top of the block it just came off.
@@ -201,19 +239,20 @@ static func _halo_texture() -> GradientTexture2D:
 ## happens at once"*. A per-orb rest timer, which is what this had first, stacked on
 ## top of each orb's own landing time and dribbled them home one at a time.
 func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
-		ground_y := 0.0, clear_radius := 0.0, collect_at := 0.9) -> void:
-	var shared := _shared()
-	mesh = shared[0]
-	material_override = shared[1]
-
-	var halo := MeshInstance3D.new()
-	halo.name = "Halo"
-	halo.mesh = _halo_mesh
-	halo.material_override = _halo_mat
-	add_child(halo)
+		ground_y := 0.0, clear_radius := 0.0, collect_at := 0.9,
+		xp_amount := 0, screen_target := Callable()) -> void:
+	prepare_for_pool()
 
 	_target = target
+	_xp_amount = xp_amount
+	_screen_target = screen_target
 	_delay = delay
+	_phase = Phase.FLIGHT
+	_age = 0.0
+	_phase_age = 0.0
+	_collection_reported = false
+	rotation = Vector3.ZERO
+	scale = Vector3.ONE
 	position = from
 	# Hidden until its turn: a burst of twelve orbs all leaving on the same frame
 	# reads as one object, and the stagger is what makes it read as a handful.
@@ -244,11 +283,12 @@ func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
 	var reach := maxf(clear_radius * 1.15, scatter_radius) * randf_range(1.0, 1.5)
 	var angle := randf() * TAU
 	_vel = Vector3(cos(angle) * reach / fall, up, sin(angle) * reach / fall)
+	set_process(true)
 
 
 func _process(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
-		queue_free()
+		_finish_collection()
 		return
 
 	_age += delta
@@ -272,7 +312,7 @@ func _process(delta: float) -> void:
 				_begin_draw()
 		Phase.DRAW:
 			var k := clampf(_phase_age / _draw_time, 0.0, 1.0)
-			# Accelerating INTO the player, which is the feel of being collected: it
+			# Accelerating into the HUD, which is the feel of being collected: it
 			# hesitates, then comes. QUADRATIC, not cubic — orb_probe showed a cubic
 			# ease left the orb almost stationary for the first 20 frames of the draw
 			# and then crossed the last half of the trip in three, so the approach was
@@ -289,15 +329,15 @@ func _process(delta: float) -> void:
 			var s := maxf(0.05, 1.0 - eased * _DRAW_SHRINK)
 			scale = Vector3(s, s, s)
 			if k >= 1.0:
-				queue_free()
+				_finish_collection()
 				return
 
 	rotate_y(_spin * delta)
 
 
-## Where the orb actually ends: `_ABSORB_DIST` short of the player, ON THE CAMERA'S
-## VIEW AXIS — which is the middle of the screen, and therefore reads as flying INTO
-## the player.
+## Where the orb actually ends. Production supplies the HUD's normalized live
+## progress edge, projected onto a plane just in front of the camera. Standalone
+## harnesses retain the old camera-centre fallback.
 ##
 ## It used to back off along the line the orb was travelling, and since every orb
 ## starts on the ground that line came up from below: the burst converged under the
@@ -305,9 +345,42 @@ func _process(delta: float) -> void:
 ## Director, 2026-08-02). Where the orb came from should not decide where the player
 ## is standing.
 func _absorb_point() -> Vector3:
+	var camera := _target as Camera3D
+	if camera != null and _screen_target.is_valid():
+		var normalized: Vector2 = _screen_target.call()
+		var viewport_size := Vector2(camera.get_viewport().get_visible_rect().size)
+		return camera.project_position(normalized * viewport_size, _ABSORB_DIST)
 	var cam := _target.global_transform
 	return cam.origin - cam.basis.z * _ABSORB_DIST \
 		+ cam.basis.x * _absorb_off.x + cam.basis.y * _absorb_off.y
+
+
+func _finish_collection() -> void:
+	if not _collection_reported:
+		_collection_reported = true
+		collected.emit(_xp_amount)
+	visible = false
+	set_process(false)
+	_target = null
+	_screen_target = Callable()
+	_xp_amount = 0
+
+
+func show_for_render_warmup(world_position: Vector3) -> void:
+	if not is_available():
+		return
+	_render_warmup_active = true
+	global_position = world_position
+	scale = Vector3.ONE * 2.0
+	visible = true
+
+
+func hide_render_warmup() -> void:
+	if not _render_warmup_active:
+		return
+	_render_warmup_active = false
+	visible = false
+	scale = Vector3.ONE
 
 
 ## THE RUSH HOME IS A CURVE, NOT A LINE (Creative Director call, 2026-08-02: *"I

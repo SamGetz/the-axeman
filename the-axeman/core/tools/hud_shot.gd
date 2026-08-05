@@ -25,6 +25,7 @@ func _ready() -> void:
 
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
+	main.start_new_game()
 	for i in range(10):
 		await get_tree().process_frame
 
@@ -46,6 +47,13 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_save("_1_chopping")
+
+	# Fresh discovery state: only the currently available contract is present,
+	# and its card carries the shop item it will unlock as an explicit reward.
+	hud.get_node("QuickMenu/OrdersButton").pressed.emit()
+	await get_tree().process_frame
+	_save("_1b_contracts_fresh")
+	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
 
 	# The shop: Sam's coin on the button and on the counter.
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()

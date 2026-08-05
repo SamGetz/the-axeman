@@ -46,17 +46,16 @@ static func get_upgrade(id: StringName) -> UpgradeDef:
 	return null if table == null else table.get_upgrade(id)
 
 
-## Catalogue rows visible right now: every unlocked row in approved order plus
-## the first adjacent lock. A locked row stops the reveal, so a later order event
-## cannot leak distant progression around the Handcart gate.
+## Catalogue rows visible right now: unlocked or already-owned rows only, in
+## approved order. Locked content is advertised by the reward that reveals it,
+## never by a disabled shelf row.
 static func get_visible_upgrades() -> Array[UpgradeDef]:
 	var out: Array[UpgradeDef] = []
 	for def: UpgradeDef in get_upgrades():
 		if def == null:
 			continue
-		out.append(def)
-		if not is_unlocked(def.id):
-			break
+		if is_unlocked(def.id):
+			out.append(def)
 	return out
 
 

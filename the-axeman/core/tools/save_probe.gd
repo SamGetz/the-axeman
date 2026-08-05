@@ -72,11 +72,15 @@ func _quit_cycle() -> void:
 	await get_tree().process_frame
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	get_tree().root.add_child(main)
+	if SaveSystem.has_save():
+		main.load_saved_game()
+	else:
+		main.start_new_game()
 	await get_tree().process_frame
 
-	# Earn AFTER main's _ready, not before: booting main.tscn loads the save (or
-	# starts fresh), which would otherwise overwrite whatever was staged here and
-	# make this tool "prove" a save of the wrong numbers.
+	# Earn AFTER the explicit startup choice, not before: loading or starting the
+	# session would otherwise overwrite whatever was staged here and make this
+	# tool "prove" a save of the wrong numbers.
 	GameState.add_cash(4321)
 	EventBus.resource_gathered.emit(&"oak_firewood", 12)
 	print("save_probe: staged cash=%d lifetime=%d, firing the close notification..." % [

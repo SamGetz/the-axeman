@@ -12,7 +12,8 @@ ownership, or the yard HUD.
 - Static helpers such as Market, Shop, SkillTree, and SaveSystem are not
   autoloads unless the live project says otherwise.
 - The bottom-right Tree Catalog is a standalone frequently checked window. The
-  Shop contains separate Items, Mechanical Splitter and Purchased tabs;
+  Shop contains Items and Purchased tabs, revealing its separate Mechanical
+  Splitter tab only after the machine gate is earned;
   certified profile assignment is chosen from the relevant Tree Catalog row and
   written by `GameState`.
 - Purchased is a read-only view derived from existing building tiers. Completed
@@ -21,6 +22,58 @@ ownership, or the yard HUD.
   duplicate purchase-history authority or save field for this presentation.
 - Cash changes are atomic through the current `GameState` methods. A failed
   purchase changes nothing.
+
+## Discovery rules
+
+- Shop shelves contain unlocked unfinished rows only. Owned/maxed rows remain
+  authoritative in Purchased, but a future row must never appear as a disabled
+  teaser.
+- A hidden row is advertised by the source that will reveal it: contract cards
+  name their shop unlocks, prerequisite purchases name the next row, the first
+  haul names the Handcart reward, the XP strip names the next contract, and the
+  final mastery reward names splitter certification.
+- The Mechanical Splitter tab is hidden until its combined prerequisite gate is
+  satisfied. Certified profiles and the paced upgrade chain appear only when
+  their own purchase/mastery prerequisites are satisfied.
+- The splitter runtime card and Tree Catalog assignment controls are hidden
+  until the machine/profile interaction exists. Mastery reward copy remains the
+  forward promise before that point.
+- The skill tree is the exception: it is an authored prerequisite map, so its
+  connected locked nodes remain visible to explain branch structure.
+
+## Startup save boundary
+
+- `Main` presents New Game / Load Game before activating the yard. It does not
+  call `load_or_start_fresh()` in production or infer the player's choice.
+- Rendering, yard processing, HUD interaction, autosave and save-on-quit stay
+  inactive until one choice succeeds.
+- Load is available only when `SaveSystem.has_save()` is true. Missing, corrupt
+  and newer-version results remain at the menu; they never fall through into a
+  fresh autosaving session.
+- New Game over an existing autosave requires confirmation. It resets through
+  the public GameState and InventoryManager ownership routes, then uses the
+  existing atomic `SaveSystem.save_game()` replacement before gameplay starts.
+  A failed write leaves the prior save intact and reloads it into memory.
+- Use `core/tests/startup_acceptance.tscn` for the behavioural boundary and
+  `core/tools/startup_shot.tscn` for the native stand-in presentation.
+
+## Reward presentation
+
+- `GameState` remains authoritative for XP and cash. Flying orbs and coins are
+  presentation receipts; quitting during their animation cannot lose or create
+  progression.
+- A completed manual log banks XP once, divides that exact award across pooled
+  orbs, and lets the HUD advance its displayed total as each orb reaches the live
+  XP-fill edge. The HUD reconciles to the authoritative total after the batch.
+- Manual firewood still sells only when each pile piece lands. The exact cash
+  delta from `Orders.settle_piece()`—including any completion bonus—is attached
+  to one pooled coin. A coin waits in the yard until that delta exists, then its
+  counter impact increments the displayed cash and applies one capped grow/bounce
+  impulse. It must never hover beside the HUD awaiting authority.
+- XP orbs, coins and the level-up celebration own resident node pools built at
+  initial scene load. `Main` submits their materials for one covered render frame
+  behind the startup menu so first-use shader compilation does not land on the
+  first completion or level-up.
 
 ## Watched Mechanical Splitter (M8 Slice 4)
 

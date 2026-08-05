@@ -224,6 +224,21 @@ func get_level_progress() -> float:
 	return _level_curve().progress_through_level(_xp)
 
 
+## Presentation may trail the authoritative total while XP orbs are in flight.
+## These read-only helpers let the HUD draw that earlier total without owning or
+## mutating progression itself.
+func get_level_for_xp(total_xp: int) -> int:
+	return _level_curve().level_for_xp(maxi(0, total_xp))
+
+
+func get_level_progress_for_xp(total_xp: int) -> float:
+	return _level_curve().progress_through_level(maxi(0, total_xp))
+
+
+func get_xp_to_next_level_for_xp(total_xp: int) -> int:
+	return _level_curve().xp_remaining(maxi(0, total_xp))
+
+
 func get_xp_to_next_level() -> int:
 	return _level_curve().xp_remaining(_xp)
 

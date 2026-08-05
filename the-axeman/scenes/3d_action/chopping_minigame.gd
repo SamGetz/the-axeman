@@ -49,6 +49,8 @@ const _PieceAnimator := preload("res://scenes/3d_action/piece_animator.gd")
 const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 const _ManualLogOutcome := preload("res://data/manual_log_outcome.gd")
 const _GRAIN_CUE_CONFIG := preload("res://data/grain_cue.tres")
+const _LevelUpBurst := preload("res://scenes/3d_action/level_up_burst.gd")
+const _CoinRewardPool := preload("res://scenes/3d_action/coin_reward_pool.gd")
 
 ## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
 ## the pacing probe observes this scene directly while a measured play session
@@ -66,6 +68,16 @@ signal manual_xp_awarded(base_xp: int, bonus_xp: int, proc_id: StringName)
 ## only, same shape as manual_xp_awarded — GameState.add_xp is still the only
 ## write, this just lets presentation/tests observe the transaction happened.
 signal grain_read_awarded(bonus_xp: int)
+## Presentation receipts only. XP is already authoritative in GameState; these
+## let the HUD visually hold and release that value as the receipt orbs arrive.
+signal xp_orb_batch_started(amount: int)
+signal xp_orb_collected(amount: int)
+## Cash presentation mirrors the XP receipt flow: the economy settles first,
+## then one exact payout is released visually when its pooled coin hits the HUD.
+signal coin_batch_started(count: int)
+signal coin_collected(amount: int)
+signal coins_cancelled(count: int)
+signal coin_batch_finished
 
 # --- log species ---------------------------------------------------------
 ## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
@@ -367,6 +379,13 @@ var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut
 var _stump_top_y := 0.5
 var _stump_radius := 0.4
 var _current_species: SpeciesDef = null   # the species of the log currently on the block; drives the yield item
+var _xp_screen_target := Callable()
+var _level_up_vfx_queued := false
+var _level_up_vfx
+var _coin_reward_pool
+var _xp_orb_pool_root: Node3D
+var _xp_orb_pool: Array[XPOrb] = []
+var _render_warmup_nodes: Array[Node] = []
 
 
 func _ready() -> void:
@@ -401,8 +420,10 @@ func _ready() -> void:
 	# loaded and scaled an FBX for a random species that was thrown away.
 	_build_stump()
 	_build_smoke_pool()
+	_prewarm_vfx_geometry()
 	GameState.building_tiers_changed.connect(_refresh_equipment_effects)
 	GameState.skill_level_changed.connect(_on_grain_progression_changed)
+	GameState.level_gained.connect(_on_level_gained)
 	_refresh_equipment_effects()
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
@@ -416,6 +437,112 @@ func _ready() -> void:
 	# read the save off disk, and the pile it builds in _spawn_fresh_log above is
 	# necessarily empty. The load lands moments later and this rebuilds on it.
 	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
+
+
+## Main binds this to the HUD's live progress-edge position. Harnesses and
+## headless scenes leave it empty and retain the camera-centre fallback.
+func set_xp_screen_target(provider: Callable) -> void:
+	_xp_screen_target = provider
+
+
+func set_coin_screen_target(provider: Callable) -> void:
+	if _coin_reward_pool != null:
+		_coin_reward_pool.set_screen_target(provider)
+
+
+## Build every procedural VFX mesh/material cache during the initial scene load,
+## while the startup screen still covers the yard. Smoke, coins and the heavier
+## level-up effect own complete node pools; short-lived effects reuse warmed resources.
+func _prewarm_vfx_geometry() -> void:
+	XPOrb.prewarm()
+	_xp_orb_pool_root = Node3D.new()
+	_xp_orb_pool_root.name = "XPOrbPool"
+	add_child(_xp_orb_pool_root)
+	# A gold-grain burst can overlap the routine completed-log burst. Building
+	# both ceilings now means neither path allocates meshes or halo nodes on chop.
+	for i in range(maxi(orb_count_max + grain_orb_count_max, 1)):
+		var orb := XPOrb.new()
+		orb.name = "XPOrb%d" % i
+		_xp_orb_pool_root.add_child(orb)
+		orb.prepare_for_pool()
+		orb.collected.connect(_on_pooled_xp_orb_collected.bind(orb))
+		_xp_orb_pool.append(orb)
+	_level_up_vfx = _LevelUpBurst.create_prewarmed(self, maxf(0.3, _stump_radius * 1.08))
+	_coin_reward_pool = _CoinRewardPool.new()
+	_coin_reward_pool.name = "CoinRewardPool"
+	add_child(_coin_reward_pool)
+	_coin_reward_pool.initialize(_camera)
+	_coin_reward_pool.batch_started.connect(coin_batch_started.emit)
+	_coin_reward_pool.coin_collected.connect(coin_collected.emit)
+	_coin_reward_pool.coins_cancelled.connect(coins_cancelled.emit)
+	_coin_reward_pool.batch_finished.connect(coin_batch_finished.emit)
+	var proc_colors: Array[Color] = []
+	var branch_table := M7CContent.branches()
+	if branch_table != null:
+		for branch: SkillBranchDef in branch_table.branches:
+			if branch != null and not proc_colors.has(branch.color):
+				proc_colors.append(branch.color)
+	ProcBurst.prewarm(proc_colors)
+	_grain_unit_line_mesh().get_rid()
+	for material: Material in _grain_mark_materials():
+		material.get_rid()
+	_scar_mesh().get_rid()
+
+
+## Called by Main only while the opaque startup screen is still on top. These
+## nodes are already resident; briefly making one instance of every surface
+## drawable moves renderer pipeline compilation off the first chop/level frame.
+func begin_initial_vfx_render_warmup() -> void:
+	var warm_position := Vector3(0.0, _stump_top_y + 0.2, 0.0)
+	if _level_up_vfx != null:
+		_level_up_vfx.show_for_render_warmup(warm_position)
+	if _coin_reward_pool != null:
+		_coin_reward_pool.show_for_render_warmup(warm_position + Vector3.RIGHT * 0.12)
+	if not _xp_orb_pool.is_empty():
+		_xp_orb_pool[0].show_for_render_warmup(warm_position + Vector3.LEFT * 0.12)
+
+	# Proc materials vary by branch colour, so submit one of each cached variant.
+	var branch_table := M7CContent.branches()
+	if branch_table != null:
+		var color_index := 0
+		for branch: SkillBranchDef in branch_table.branches:
+			if branch == null:
+				continue
+			var node := ProcBurst.spawn(self,
+				warm_position + Vector3(float(color_index) * 0.03, 0.0, 0.0), branch.color)
+			_render_warmup_nodes.append(node)
+			color_index += 1
+
+
+func end_initial_vfx_render_warmup() -> void:
+	if _level_up_vfx != null:
+		_level_up_vfx.hide_render_warmup()
+	if _coin_reward_pool != null:
+		_coin_reward_pool.hide_render_warmup()
+	if not _xp_orb_pool.is_empty():
+		_xp_orb_pool[0].hide_render_warmup()
+	for node: Node in _render_warmup_nodes:
+		if is_instance_valid(node):
+			node.queue_free()
+	_render_warmup_nodes.clear()
+
+
+func _on_level_gained(_level: int) -> void:
+	# One award can cross several levels synchronously. Coalesce that transaction
+	# into one stronger readable celebration instead of stacking identical lights.
+	if _level_up_vfx_queued:
+		return
+	_level_up_vfx_queued = true
+	_spawn_level_up_vfx.call_deferred()
+
+
+func _spawn_level_up_vfx() -> void:
+	_level_up_vfx_queued = false
+	if not is_inside_tree() or _level_up_vfx == null:
+		return
+	# The effect surrounds the workpiece footprint at the top of the stump. It is
+	# presentation only; the level was already awarded by GameState.
+	_level_up_vfx.play_at(Vector3(0.0, _stump_top_y + 0.025, 0.0))
 
 
 func _on_grain_progression_changed(skill_id: StringName, _new_level: int) -> void:
@@ -650,7 +777,14 @@ func _on_piece_landed(item_id: StringName) -> void:
 		return
 	# Orders always pays through the unlimited Market first, then credits a
 	# matching contract. Unmatched work therefore follows the original path.
-	if Orders.settle_piece(item_id) <= 0:
+	var cash_before := GameState.get_cash()
+	var payout := Orders.settle_piece(item_id)
+	var exact_receipt := maxi(0, GameState.get_cash() - cash_before)
+	if exact_receipt > 0 and _coin_reward_pool != null:
+		_coin_reward_pool.queue_payout(exact_receipt)
+	if payout <= 0:
+		if _coin_reward_pool != null:
+			_coin_reward_pool.cancel_next_unpaid()
 		# Priced at nothing, or nothing in stock to sell: the piece still stacks,
 		# so the yard never eats wood it did not pay for.
 		push_warning("chopping_minigame: '%s' landed on the pile but could not be sold." % item_id)
@@ -705,6 +839,8 @@ func _begin_stacking() -> void:
 		proxies.append(proxy)
 		body.queue_free()
 	_firewood.clear()
+	if _coin_reward_pool != null:
+		_coin_reward_pool.trim_unpaid_to_count(proxies.size())
 
 	if proxies.is_empty():
 		_spawn_fresh_log(false)
@@ -815,7 +951,7 @@ func _manual_xp_multiplier(proc_def: ProcDef) -> float:
 
 
 ## The green orbs, Minecraft-style: they pop off the block and are drawn into the
-## player (Creative Director call, 2026-08-02).
+## live fill edge of the XP bar.
 ##
 ## THE XP IS ALREADY BANKED by the time these spawn, and deliberately so — see
 ## xp_orb.gd. Quitting during the second of flight must not cost the player the log
@@ -838,12 +974,39 @@ func _burst_xp_orbs(amount: int, from := Vector3(0.0, _stump_top_y + 0.12, 0.0),
 	if not orbs_enabled or _camera == null or amount <= 0:
 		return
 	var count := clampi(int(round(sqrt(float(amount)) * orb_density)), count_min, count_max)
+	# Every visible orb carries XP, so an unusually tiny award cannot create a
+	# handful of zero-value receipts.
+	count = mini(count, amount)
+	xp_orb_batch_started.emit(amount)
+	var share := floori(float(amount) / float(count))
+	var remainder := amount % count
 	for i in range(count):
-		var orb := XPOrb.new()
-		orb.name = "XPOrb%d" % i
-		add_child(orb)
+		var orb := _acquire_xp_orb()
+		if orb == null:
+			push_warning("chopping_minigame: XP orb pool exhausted; reward remains banked.")
+			break
 		orb.setup(from, _camera, float(i) * orb_stagger, orb_scatter_radius,
-			pile_ground_y, _stump_radius, orb_collect_at)
+			pile_ground_y, _stump_radius, orb_collect_at,
+			share + (1 if i < remainder else 0), _xp_screen_target)
+
+
+func _acquire_xp_orb() -> XPOrb:
+	for orb: XPOrb in _xp_orb_pool:
+		if orb.get_parent() == _xp_orb_pool_root and orb.is_available():
+			orb.reparent(self)
+			return orb
+	return null
+
+
+func _on_pooled_xp_orb_collected(amount: int, orb: XPOrb) -> void:
+	xp_orb_collected.emit(amount)
+	_return_xp_orb_to_pool.call_deferred(orb)
+
+
+func _return_xp_orb_to_pool(orb: XPOrb) -> void:
+	if is_instance_valid(orb) and is_instance_valid(_xp_orb_pool_root) \
+			and orb.get_parent() != _xp_orb_pool_root:
+		orb.reparent(_xp_orb_pool_root)
 
 
 # --------------------------------------------------------------- input
@@ -1848,6 +2011,12 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	if _on_block.is_empty():
 		_awaiting_stack = true
 		_await_since = Time.get_ticks_msec() / 1000.0
+		if auto_sell and _coin_reward_pool != null and not _firewood.is_empty():
+			# Coins erupt from the same final cut as XP, then wait near the stump
+			# until the shared XP/coin collection beat calls both reward waves home.
+			_coin_reward_pool.begin_burst(
+				world_point + Vector3.UP * 0.06, _firewood.size(), pile_ground_y,
+				_stump_radius, orb_collect_at, orb_stagger)
 		# THE XP LANDS ON THE SPLIT ITSELF, not when the firewood has settled
 		# (Creative Director call, 2026-08-02: *"pop out the moment the final piece
 		# is split, so all the collecting happens at once"*). The settle wait is up

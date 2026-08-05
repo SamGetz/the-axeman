@@ -15,8 +15,9 @@ extends Node
 ##         FSR/FSR2 `scaling_3d_mode` isn't supported under the Compatibility
 ##         renderer — left at default Bilinear).
 ##   A9  — exact root hierarchy (names, types, canvas layers).
-##   A10 — the production game boots in its chopping view; an explicit 2D mode
-##         still disables viewport rendering + 3D processing and restores both.
+##   A10 — after the startup decision the production game enters its chopping
+##         view; an explicit 2D mode still disables viewport rendering + 3D
+##         processing and restores both.
 ## No deliberate contract violations in this suite — any red error is real.
 
 var _passes := 0
@@ -31,7 +32,7 @@ func _ready() -> void:
 		_finish()
 		return
 	var main := main_scene.instantiate()
-	add_child(main) # runs Main._ready(), which now boots into chopping
+	add_child(main) # runs Main._ready(), which now waits safely at startup
 
 	_test_a9_hierarchy(main)
 	_test_a1_pipeline(main)
@@ -125,11 +126,15 @@ func _test_a10_mode_switching(main: Node) -> void:
 		"UI_Canvas/SubViewportContainer/Action_Viewport")
 	var world: Node3D = main.get_node(
 		"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root")
+	# Persistence behaviour and the visible choice are covered by the focused
+	# startup suite. Activate the already-built shell without touching the save so
+	# this frozen M2 contract can keep testing only A10 mode switching.
+	main._finish_startup()
 
 	_check(viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS,
-		"boots into the chopping view: viewport rendering is live")
+		"the startup decision enters chopping: viewport rendering is live")
 	_check(world.process_mode == Node.PROCESS_MODE_INHERIT,
-		"boots into the chopping view: 3D_World_Root processing is live")
+		"the startup decision enters chopping: 3D_World_Root processing is live")
 
 	EventBus.minigame_exited.emit()
 	_check(viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED,

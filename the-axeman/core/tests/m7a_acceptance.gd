@@ -270,7 +270,8 @@ func _test_8_unregistered_ids_are_dropped() -> void:
 func _test_9_autosave_on_inventory_change() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
-	await get_tree().process_frame   # main._ready: loads, then connects
+	main.start_new_game()
+	await get_tree().process_frame   # explicit boot completed, autosave connected
 
 	SaveSystem.delete_save()
 	GameState.reset_to_defaults()
@@ -509,8 +510,9 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(shop_tabs.get_tab_count() == 3
 			and shop_tabs.get_tab_title(0) == "Items"
 			and shop_tabs.get_tab_title(1) == "Mechanical Splitter"
-			and shop_tabs.get_tab_title(2) == "Purchased",
-		"...with separate Items, Mechanical Splitter and Purchased tabs")
+			and shop_tabs.get_tab_title(2) == "Purchased"
+			and shop_tabs.is_tab_hidden(1),
+		"...with the locked Mechanical Splitter tab hidden until its reward is earned")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 	trees_button.pressed.emit()
 	_check(trees_panel.visible
@@ -523,10 +525,13 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(not orders_panel.visible, "the contract board starts closed")
 	orders_button.pressed.emit()
 	_check(orders_panel.visible, "...and its square icon opens it")
-	_check(orders_list.get_child_count() == Orders.visible().size()
-			and Orders.visible().size() < Orders.all().size(),
-		"...with the available order and one nearby tease, while distant work stays hidden (%d / %d)"
-			% [orders_list.get_child_count(), Orders.all().size()])
+	var order_copy := ""
+	for node: Node in orders_list.find_children("*", "Label", true, false):
+		order_copy += (node as Label).text + "\n"
+	_check(orders_list.get_child_count() == 1
+			and Orders.visible().size() == 1
+			and order_copy.contains("Unlocks Supplier Ledger in Shop"),
+		"...shows only available work and names its hidden shop unlock as a reward")
 	_check(orders_panel.get_theme_stylebox("panel") is StyleBoxFlat,
 		"...using a replaceable basic-material board treatment while final art is pending")
 	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
@@ -1352,10 +1357,11 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 			and defs[1].purchase_form == UpgradeDef.PurchaseForm.TIERED
 			and defs[1].max_level == 1,
 		"M7A ships one Balanced Axe and only the first authored block rank")
-	_check(Shop.get_visible_upgrades().size() == 3
+	_check(Shop.get_visible_upgrades().size() == 2
 			and not Shop.is_unlocked(GameState.UPGRADE_SUPPLIER_LEDGER)
+			and not Shop.is_visible(GameState.UPGRADE_SUPPLIER_LEDGER)
 			and not Shop.is_visible(GameState.UPGRADE_HANDCART),
-		"a fresh shop shows two choices plus the adjacent Ledger lock, hiding distant items")
+		"a fresh shop shows only its two unlocked purchases")
 
 	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
 	game.debug_forced_species = 0
@@ -1391,15 +1397,17 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	for _i in range(first.required_count):
 		GameState.record_order_piece(&"aspen_firewood")
 	_check(Shop.is_unlocked(GameState.UPGRADE_SUPPLIER_LEDGER)
-			and Shop.is_visible(GameState.UPGRADE_HANDCART),
-		"finishing it unlocks the Ledger and reveals only the adjacent Handcart lock")
+			and Shop.is_visible(GameState.UPGRADE_SUPPLIER_LEDGER)
+			and not Shop.is_visible(GameState.UPGRADE_HANDCART),
+		"finishing it reveals the Ledger while the still-locked Handcart stays hidden")
 	_check(Shop.buy(GameState.UPGRADE_SUPPLIER_LEDGER) == 1
 			and presenter.has_physical(GameState.UPGRADE_SUPPLIER_LEDGER),
 		"the Ledger purchase appears immediately and opens supplier eligibility")
 
 	GameState.record_haul_away()
-	_check(Shop.is_unlocked(GameState.UPGRADE_HANDCART),
-		"the first real 50-piece haul-away unlocks the Handcart")
+	_check(Shop.is_unlocked(GameState.UPGRADE_HANDCART)
+			and Shop.is_visible(GameState.UPGRADE_HANDCART),
+		"the first real 50-piece haul-away reveals the Handcart")
 	_check(Shop.buy(GameState.UPGRADE_HANDCART) == 1
 			and presenter.has_physical(GameState.UPGRADE_HANDCART),
 		"the bought Handcart appears immediately")
@@ -1452,10 +1460,9 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 			and Shop.get_next_cost(GameState.UPGRADE_COFFEE_THERMOS) == 0,
 		"the Thermos is permanent one-time equipment, not a consumable")
 	var visible := Shop.get_visible_upgrades()
-	_check(visible.size() == approved.size() + 1
-			and visible[approved.size()].id == defs[approved.size()].id
-			and not Shop.is_unlocked(defs[approved.size()].id),
-		"all five owned M7A rows remain visible before one adjacent later-milestone lock")
+	_check(visible.size() == approved.size()
+			and not Shop.is_visible(defs[approved.size()].id),
+		"all five owned M7A rows remain authoritative while the locked later milestone stays hidden")
 	var missing_art_is_visible := true
 	for id: StringName in [GameState.UPGRADE_SUPPLIER_LEDGER,
 			GameState.UPGRADE_HANDCART, GameState.UPGRADE_COFFEE_THERMOS]:

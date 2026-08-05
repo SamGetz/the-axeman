@@ -245,6 +245,7 @@ func _test_mastery_autosave() -> void:
 	# then remove that file so the mastery write's deferred flush is observable.
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
+	main.start_new_game()
 	await get_tree().process_frame
 	SaveSystem.delete_save()
 	var aspen := SpeciesTable.at(0).id
@@ -486,8 +487,9 @@ func _test_splitter_unlocks_and_atomic_purchase() -> void:
 		"the machine remains locked below its labelled certification-count gate")
 	_set_mastery_for_species(3)
 	_check(Shop.is_unlocked(machine.id) and Shop.is_visible(machine.id)
-		and not Shop.is_unlocked(profiles[0].id),
-		"three certifications reveal the machine while profiles still require its purchase")
+		and not Shop.is_unlocked(profiles[0].id)
+		and not Shop.is_visible(profiles[0].id),
+		"three certifications reveal only the machine while locked profiles stay hidden")
 	var cash_before := GameState.get_cash()
 	_check(Shop.buy(machine.id) == -1
 		and GameState.get_cash() == cash_before
@@ -580,11 +582,13 @@ func _test_mastery_splitter_navigation() -> void:
 	var shop_panel: Control = hud.get_node("ShopPanel")
 	trees_button.pressed.emit()
 	var machine_route := _find_button_with_text(wood_list, "Open Splitter shop")
-	if machine_route != null:
-		machine_route.pressed.emit()
-	_check(machine_route != null and not machine_route.disabled
-		and shop_panel.visible and tabs.current_tab == 1,
-		"mastery enables the certified tree's route to the Mechanical Splitter shop")
+	var mastery_copy := _control_text_under(wood_list)
+	_check(machine_route == null and mastery_copy.contains("Splitter certifications 3 / 3"),
+		"mastery advertises its machine reward without exposing locked splitter controls")
+	hud.get_node("QuickMenu/ShopButton").pressed.emit()
+	_check(shop_panel.visible and not tabs.is_tab_hidden(1),
+		"earning the machine reward reveals the Mechanical Splitter shop tab")
+	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 
 	var machine := _MechanicalSplitter.machine_definition()
 	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
@@ -618,23 +622,28 @@ func _test_splitter_shop_presentation() -> void:
 	var shop_list: VBoxContainer = hud.get_node(
 		"ShopPanel/Column/ShopTabs/Splitter/Scroll/List")
 	shop_button.pressed.emit()
-	tabs.current_tab = 1
+	_check(tabs.is_tab_hidden(1) and shop_list.get_child_count() == 0,
+		"below three certifications the entire locked splitter shelf stays hidden")
 	var locked_text := _control_text_under(shop_list)
-	_check(locked_text.contains("Mechanical Splitter")
-		and locked_text.contains("Master 3 species"),
-		"the Mechanical Splitter tab explains the machine's current certification gate")
+	_check(not locked_text.contains("Mechanical Splitter"),
+		"the hidden splitter shelf leaks no disabled machine row")
 	var third := SpeciesTable.at(2).id
 	var target: int = M7CContent.mastery().by_species_id(third).mastery_target
 	for _i in range(target):
 		GameState.record_species_completion(third)
+	tabs.current_tab = 1
 	var unlocked_text := _control_text_under(shop_list)
 	_check(unlocked_text.contains(str(_MechanicalSplitter.machine_definition().base_cost))
-		and unlocked_text.contains("Splitter Profile · Quaking Aspen")
-		and unlocked_text.contains("Requires Mechanical Splitter"),
-		"the open Mechanical Splitter tab repaints when certification reveals the machine and profile")
+		and not unlocked_text.contains("Splitter Profile · Quaking Aspen")
+		and not tabs.is_tab_hidden(1),
+		"the earned splitter tab reveals the machine but keeps unearned profiles hidden")
 	var machine := _MechanicalSplitter.machine_definition()
-	var profile := _MechanicalSplitter.profile_for_species(SpeciesTable.at(0).id)
 	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	unlocked_text = _control_text_under(shop_list)
+	_check(unlocked_text.contains("Splitter Profile · Quaking Aspen")
+		and unlocked_text.contains("Unlock reward · Splitter Auto Loading in Shop"),
+		"buying the machine reveals certified profiles and the upgrade chain advertises its next reward")
+	var profile := _MechanicalSplitter.profile_for_species(SpeciesTable.at(0).id)
 	EventBus.building_upgraded.emit(profile.id, GameState.DEFAULT_BUILDING_TIER + 1)
 	var trees_button: Button = hud.get_node("QuickMenu/TreesButton")
 	var wood_list: VBoxContainer = hud.get_node("TreesPanel/Column/WoodScroll/WoodList")
@@ -715,15 +724,15 @@ func _test_purchased_shop_tab() -> void:
 	purchased_text = _control_text_under(purchased)
 	_check(splitter_text.contains("Splitter Speed  (rank 1)")
 		and splitter_text.contains(str(speed.cost_for_level(1)))
-		and not purchased_text.contains(speed.display_name),
+		and purchased.get_node_or_null(String(speed.id)) == null,
 		"a partially purchased tiered upgrade stays functional while another rank remains")
 
 	EventBus.building_upgraded.emit(speed.id,
 		GameState.DEFAULT_BUILDING_TIER + speed.max_level)
 	splitter_text = _control_text_under(splitter)
 	purchased_text = _control_text_under(purchased)
-	_check(not splitter_text.contains(speed.display_name)
-		and purchased_text.contains(speed.display_name)
+	_check(splitter.get_node_or_null(String(speed.id)) == null
+		and purchased.get_node_or_null(String(speed.id)) != null
 		and purchased_text.contains("Maxed · rank %d/%d" % [speed.max_level,
 			speed.max_level])
 		and _button_count(purchased) == 0,
@@ -741,7 +750,7 @@ func _test_purchased_shop_tab() -> void:
 		and purchased_text.contains(profile.display_name)
 		and purchased_text.contains("Maxed · rank %d/%d" % [speed.max_level,
 			speed.max_level])
-		and not splitter_text.contains(speed.display_name),
+		and splitter.get_node_or_null(String(speed.id)) == null,
 		"save restoration re-derives identical Purchased placement from building tiers")
 	hud.queue_free()
 	await get_tree().process_frame
@@ -935,8 +944,8 @@ func _test_splitter_upgrade_catalogue_and_pacing() -> void:
 	GameState.apply_save_dict(progression)
 	_set_mastery_for_species(3)
 	_check(Shop.is_visible(speed.id) and Shop.is_unlocked(speed.id)
-		and not Shop.is_unlocked(auto_load.id),
-		"Speed introduces first while Auto Loading waits for one Speed rank")
+		and not Shop.is_unlocked(auto_load.id) and not Shop.is_visible(auto_load.id),
+		"Speed introduces first while the unearned Auto Loading row stays hidden")
 	GameState.add_cash(100000)
 	var chain_ok := Shop.buy(speed.id) == 1 and Shop.is_unlocked(auto_load.id) \
 		and Shop.buy(auto_load.id) == 1 and Shop.is_unlocked(logs.id) \

@@ -54,14 +54,28 @@ var _age := 0.0
 ## convenience so a caller never has to remember the setup/add_child order —
 ## same shape as how chopping_minigame builds firewood/scar meshes.
 static func spawn(parent: Node, world_pos: Vector3, color: Color) -> ProcBurst:
-	if _shared_mesh == null:
-		_shared_mesh = QuadMesh.new()
-		_shared_mesh.size = Vector2(_QUAD_SIZE, _QUAD_SIZE)
+	_ensure_shared_mesh()
 	var burst := ProcBurst.new()
 	parent.add_child(burst)
 	burst.global_position = world_pos
 	burst._build(color)
 	return burst
+
+
+## Called while the chopping scene is constructed behind the startup screen so
+## the first real proc does not have to build geometry, gradients and materials.
+static func prewarm(colors: Array[Color]) -> void:
+	_ensure_shared_mesh()
+	for color: Color in colors:
+		_material_for(color).get_rid()
+
+
+static func _ensure_shared_mesh() -> void:
+	if _shared_mesh != null:
+		return
+	_shared_mesh = QuadMesh.new()
+	_shared_mesh.size = Vector2(_QUAD_SIZE, _QUAD_SIZE)
+	_shared_mesh.get_rid()
 
 
 func _build(color: Color) -> void:

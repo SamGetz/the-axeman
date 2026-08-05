@@ -2,7 +2,8 @@ extends Node
 ## FILE: res://scenes/main.gd
 ## ATTACHES TO: Main (Node), the root of res://scenes/main.tscn.
 ##
-## M2 — main scene shell. Owns the A10 2D/3D mode switch and nothing else:
+## Main scene shell. Owns the startup transaction, autosave boundary, and A10
+## 2D/3D mode switch:
 ##   2D mode: Action_Viewport stops rendering, 3D_World_Root stops processing.
 ##   3D mode (on EventBus.minigame_entered): both restored.
 ## No gameplay logic lives here. Gameplay UI goes in UI_Overlay (A9), never
@@ -13,30 +14,130 @@ extends Node
 ## panels over the live chopping scene instead of entering a separate 2D mode.
 
 var _save_queued := false
+var _session_started := false
+var _autosave_connected := false
 
 @onready var _action_viewport: SubViewport = $"UI_Canvas/SubViewportContainer/Action_Viewport"
 @onready var _world_root: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root"
+@onready var _chopping_minigame: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame"
 @onready var _splitter_runtime: MechanicalSplitterRuntime = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame/MechanicalSplitterRuntime"
 @onready var _yard_hud: Control = $UI_Overlay/YardHUD
+@onready var _startup_menu: StartupMenu = $StartupOverlay/StartupMenu
 
 
 func _ready() -> void:
 	EventBus.minigame_entered.connect(_on_minigame_entered)
 	EventBus.minigame_exited.connect(_on_minigame_exited)
+	_yard_hud.bind_splitter_runtime(_splitter_runtime)
+	_yard_hud.bind_xp_source(_chopping_minigame)
+	_yard_hud.hide()
+	_enter_2d_mode()
+	_startup_menu.new_game_requested.connect(start_new_game)
+	_startup_menu.load_game_requested.connect(load_saved_game)
+	_startup_menu.configure(SaveSystem.has_save())
+	_initial_vfx_render_warmup.call_deferred()
+
+	# Godot tears the window down the moment it is closed unless told otherwise.
+	# While the startup menu is open we must also intercept close so stale autoload
+	# memory can never overwrite the save the player has not chosen to load.
+	get_tree().auto_accept_quit = false
+
+
+## RID creation does not compile Compatibility-renderer pipelines. Give every
+## pooled reward surface one covered draw submission behind the opaque startup
+## menu, then return the dormant yard to its normal disabled menu state.
+func _initial_vfx_render_warmup() -> void:
+	if not is_inside_tree():
+		return
+	# Let the boot boundary settle in its authored disabled state first. A human
+	# cannot act inside this single frame, and startup harnesses can still observe
+	# the exact menu contract before the covered renderer-only pass begins.
+	await get_tree().process_frame
+	if not is_inside_tree() or _session_started:
+		return
+	# Rendering once does not require advancing gameplay. UPDATE_ONCE returns to
+	# disabled automatically, preserving the startup boundary while still forcing
+	# real first-draw pipeline compilation.
+	_world_root.process_mode = Node.PROCESS_MODE_DISABLED
+	_chopping_minigame.call("begin_initial_vfx_render_warmup")
+	_action_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	await RenderingServer.frame_post_draw
+	if not is_inside_tree():
+		return
+	_chopping_minigame.call("end_initial_vfx_render_warmup")
+	if not _session_started:
+		_enter_2d_mode()
+
+
+## Starts a genuinely fresh yard. SaveSystem's temp-file replacement makes this
+## atomic: an existing save is replaced only after the fresh state is fully
+## written. If writing fails, the old save is loaded back into memory and the
+## player remains at the menu.
+func start_new_game() -> bool:
+	if _session_started:
+		return false
+	var had_save := SaveSystem.has_save()
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	if not SaveSystem.save_game():
+		if had_save:
+			SaveSystem.load_game()
+		_startup_menu.show_error(
+			"The new yard could not be saved. Your existing save was left intact.")
+		return false
+	_finish_startup()
+	print("Main: new game started.")
+	return true
+
+
+## Loads only when the player asks. Failures stay on the menu rather than
+## silently resetting the yard and allowing the first autosave to clobber it.
+func load_saved_game() -> bool:
+	if _session_started:
+		return false
+	var result := SaveSystem.load_game()
+	match result:
+		SaveSystem.LoadResult.OK:
+			_finish_startup()
+			print("Main: save loaded — %d cash, %d wood chopped lifetime." % [
+				GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
+			])
+			return true
+		SaveSystem.LoadResult.NO_FILE:
+			_startup_menu.configure(false)
+			_startup_menu.show_error("That save is no longer available. Start a new yard.")
+		SaveSystem.LoadResult.CORRUPT:
+			_startup_menu.show_error(
+				"The saved yard could not be read. It was not overwritten.")
+		SaveSystem.LoadResult.TOO_NEW:
+			_startup_menu.configure(SaveSystem.has_save())
+			_startup_menu.show_error(
+				"This save belongs to a newer build and was preserved as a backup.")
+	return false
+
+
+func has_started_session() -> bool:
+	return _session_started
+
+
+func _finish_startup() -> void:
+	if _session_started:
+		return
+	_session_started = true
+	_connect_autosave()
+	_startup_menu.dismiss()
+	_yard_hud.show()
 	_enter_3d_mode()
 
-	# Boot the player's yard back up. Autoloads have already run their _ready by
-	# now, so the registry is parsed and both serialisers are safe to call.
-	var result := SaveSystem.load_or_start_fresh()
-	if result == SaveSystem.LoadResult.OK:
-		print("Main: save loaded — %d cash, %d wood chopped lifetime." % [
-			GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
-		])
-	_yard_hud.bind_splitter_runtime(_splitter_runtime)
 
-	# Autosave whenever owned stock OR progression moves. Connected AFTER the load
-	# on purpose: every serialiser emits as it restores fields, so connecting any
-	# of these earlier would make loading immediately rewrite what was just read.
+## Autosave whenever owned stock OR progression moves. Connected only AFTER a
+## deliberate successful New Game or Load Game: every serialiser emits as it
+## restores fields, and menu-time mutations must never overwrite an unchosen
+## save.
+func _connect_autosave() -> void:
+	if _autosave_connected:
+		return
+	_autosave_connected = true
 	InventoryManager.inventory_changed.connect(_on_inventory_changed)
 	GameState.cash_changed.connect(_queue_autosave.unbind(1))
 	GameState.yard_pile_changed.connect(_queue_autosave.unbind(1))
@@ -47,10 +148,6 @@ func _ready() -> void:
 	GameState.species_mastery_changed.connect(_queue_autosave.unbind(2))
 	GameState.splitter_assignment_changed.connect(_queue_autosave.unbind(1))
 	GameState.order_state_changed.connect(_queue_autosave)
-
-	# Godot tears the window down the moment it is closed unless told otherwise,
-	# which would drop everything earned since the last save.
-	get_tree().auto_accept_quit = false
 
 
 ## ---------------------------------------------------------------- autosave
@@ -71,7 +168,7 @@ func _on_inventory_changed(_item_id: StringName, _new_count: int) -> void:
 
 
 func _queue_autosave() -> void:
-	if _save_queued:
+	if not _session_started or _save_queued:
 		return
 	_save_queued = true
 	_flush_autosave.call_deferred()
@@ -96,12 +193,14 @@ func _flush_autosave() -> void:
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_CLOSE_REQUEST:
 		return
-	if not SaveSystem.save_game():
+	if _session_started and not SaveSystem.save_game():
 		push_error("Main: the save failed on quit — this session's progress is lost.")
 	get_tree().quit()
 
 
 func _on_minigame_entered(_biome: Enums.Biome) -> void:
+	if not _session_started:
+		return
 	_enter_3d_mode()
 
 

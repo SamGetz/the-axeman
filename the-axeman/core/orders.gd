@@ -22,17 +22,21 @@ static func is_revealed(order: OrderDef) -> bool:
 	return order != null and GameState.get_level() >= order.unlock_level
 
 
-## Every revealed order plus exactly one next-order tease. Distant contracts stay
-## hidden even if their species data already exists.
+## Only revealed orders. The XP strip advertises the next contract as a level
+## reward, so the board itself never contains disabled future work.
 static func visible() -> Array[OrderDef]:
 	var out: Array[OrderDef] = []
 	for order: OrderDef in all():
-		if order == null:
-			continue
-		out.append(order)
-		if not is_revealed(order):
-			break
+		if is_revealed(order):
+			out.append(order)
 	return out
+
+
+static func next_unrevealed() -> OrderDef:
+	for order: OrderDef in all():
+		if order != null and not is_revealed(order):
+			return order
+	return null
 
 
 static func is_available(order: OrderDef) -> bool:

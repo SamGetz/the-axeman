@@ -14,6 +14,7 @@ Set `GODOT` to the Godot 4.7.1 executable for the current machine, then run:
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7a_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7c_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m8_acceptance.tscn
+"$GODOT" --headless --path . --quit-after 20000 res://core/tests/startup_acceptance.tscn
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
@@ -27,8 +28,16 @@ Latest verified baseline on 2026-08-05:
 | M4 | 55/55 |
 | M7A | 285/285 |
 | M7C | 221/221 |
-| M8 Slice 5 + measured splitter tuning | 101/101 |
+| M8 Slice 5 + measured splitter tuning + discovery | 104/104 |
+| Startup New Game / Load Game | 17/17 |
 | Slicer | 34/34 |
+
+The focused startup suite drives the production main scene and real save
+service. It verifies the dormant/no-autosave menu boundary, disabled Load state,
+fresh-game atomic write, explicit progression-and-inventory restore, existing
+save confirmation and non-destructive corrupt-save failure. Like M7A, M7C and
+M8, it moves any existing player save aside for the run and restores it before
+quitting.
 
 `m8_acceptance.tscn` includes the approved 68-check Slice 3 foundation and 25
 focused Slice 4 checks for typed cycle data, all six runtime states, one-slot
@@ -41,11 +50,12 @@ functional placement, completed one-time Items and splitter movement, partial
 and maxed tiered placement, read-only owned/maxed rows, and restoration derived
 from existing building tiers without a purchase-history field.
 
-Two focused navigation checks verify that mastering a supported tree enables
-its machine-shop route and that installing the machine leaves the required
-profile-purchase route actionable rather than disabled.
+Focused discovery checks verify that locked splitter shelves and profiles stay
+absent, mastery names its certification reward, earning the machine gate reveals
+the tab, and installing the machine leaves the earned profile-purchase route
+actionable.
 
-The verified 101-check completion run also pins Sam's complete measured splitter
+The verified 104-check completion run also pins Sam's complete measured splitter
 band: machine/profile gates and prices, five-second cycle, one output per
 represented log, 50% Speed floor, five Speed ranks, one-time Auto Loading,
 5-to-12 Logs per Split, 20-to-100% automation XP and five Money Gain ranks.
@@ -59,13 +69,29 @@ or geometry changes should run their focused shot tool and be inspected, not
 only asserted numerically.
 
 M8's focused non-headless render tool captures fresh shop placement, the
-mastered-tree purchase route, the partially ranked Mechanical Splitter shelf,
+mastery unlock-reward copy, the partially ranked Mechanical Splitter shelf,
 the populated Purchased tab, ready, processing and completed cash/XP machine/HUD states to
 `/private/tmp/axeman_m8_splitter_*.png`:
 
 ```bash
 "$GODOT" --path . res://core/tools/m8_splitter_shot.tscn
 ```
+
+The startup stand-in has a focused non-headless render check which captures the
+saved-yard menu and its New Game replacement confirmation without touching the
+real save:
+
+```bash
+"$GODOT" --path . res://core/tools/startup_shot.tscn
+```
+
+The approved reward-feedback checkpoint was also inspected in the production
+1280x720 yard: XP orbs advance the live bar edge per receipt, coins remain in the
+yard until their exact payout exists and disappear on counter impact, stacked
+coin impacts grow the cash counter, and the prewarmed level-up effect surrounds
+the workpiece without a first-trigger hitch. These animated checks require a
+live play session; the static HUD/startup/M8 tools remain the layout regression
+captures.
 
 On a fresh clone, run the import pass twice before trusting test results:
 

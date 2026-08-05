@@ -38,8 +38,8 @@ extends Control
 ## LIVE, NEVER POLLED: it listens to GameState.cash_changed, which is precisely
 ## what that local signal exists for (Amendment 2's precedent).
 ##
-## THE SHOP ROWS ARE BUILT FROM DATA at runtime, from the currently visible
-## prefix of `Shop.get_upgrades()` — so
+## THE SHOP ROWS ARE BUILT FROM DATA at runtime, from currently unlocked
+## `Shop.get_upgrades()` entries — so
 ## a new thing to buy is a row in `res://data/upgrade_table.tres` and nothing else.
 ## Prices, effect magnitudes and later block ranks remain candidate tuning until
 ## the measured M7A session and Sam's sign-off.
@@ -68,6 +68,7 @@ const _PURCHASED_TAB := 2
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
 @onready var _splitter_runtime_state: Label = $SplitterRuntimeCard/Column/State
+@onready var _splitter_runtime_card: PanelContainer = $SplitterRuntimeCard
 @onready var _splitter_runtime_detail: Label = $SplitterRuntimeCard/Column/Detail
 @onready var _splitter_runtime_progress: ProgressBar = $SplitterRuntimeCard/Column/Progress
 @onready var _splitter_runtime_action: Button = $SplitterRuntimeCard/Column/Action
@@ -75,6 +76,7 @@ const _PURCHASED_TAB := 2
 @onready var _shop_tabs: TabContainer = $ShopPanel/Column/ShopTabs
 @onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Items/ShopScroll/ShopList
 @onready var _shop_empty: Label = $ShopPanel/Column/ShopTabs/Items/ShopEmpty
+@onready var _shop_unlock_hint: Label = $ShopPanel/Column/ShopTabs/Items/UnlockHint
 @onready var _splitter_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Splitter/Scroll/List
 @onready var _splitter_empty: Label = $ShopPanel/Column/ShopTabs/Splitter/Empty
 @onready var _splitter_status: Label = $ShopPanel/Column/ShopTabs/Splitter/Status
@@ -87,6 +89,7 @@ const _PURCHASED_TAB := 2
 @onready var _trees_panel: PanelContainer = $TreesPanel
 @onready var _trees_button: Button = $QuickMenu/TreesButton
 @onready var _trees_badge: Label = $QuickMenu/TreesButton/Badge
+@onready var _trees_blurb: Label = $TreesPanel/Column/Blurb
 @onready var _close_trees_button: Button = $TreesPanel/Column/CloseButton
 @onready var _wood_list: VBoxContainer = $TreesPanel/Column/WoodScroll/WoodList
 @onready var _next_wood: Label = $TreesPanel/Column/NextWood
@@ -106,6 +109,7 @@ const _PURCHASED_TAB := 2
 @onready var _skill_detail_buy: Button = $SkillPanel/Column/SkillBody/DetailPanel/Column/BuyButton
 @onready var _close_skill_button: Button = $SkillPanel/Column/CloseSkillButton
 @onready var _orders_button: Button = $QuickMenu/OrdersButton
+@onready var _orders_badge: Label = $QuickMenu/OrdersButton/Badge
 @onready var _orders_panel: PanelContainer = $OrdersPanel
 @onready var _orders_list: VBoxContainer = $OrdersPanel/Column/Scroll/List
 @onready var _orders_active: Label = $OrdersPanel/Column/Active
@@ -114,6 +118,11 @@ const _PURCHASED_TAB := 2
 
 var _selected_skill_id: StringName = &""
 var _splitter_runtime: MechanicalSplitterRuntime
+var _displayed_xp_total := 0
+var _pending_orb_xp := 0
+var _displayed_cash := 0
+var _pending_coin_count := 0
+var _cash_bounce_tween: Tween
 
 const _SKILL_BG := Color(0.961, 0.918, 0.847, 1.0)
 const _SKILL_SURFACE := Color(0.922, 0.867, 0.773, 1.0)
@@ -123,6 +132,8 @@ const _SKILL_MUTED := Color(0.392, 0.361, 0.314, 1.0)
 
 
 func _ready() -> void:
+	_displayed_xp_total = GameState.get_xp()
+	_displayed_cash = GameState.get_cash()
 	_splitter_runtime_action.pressed.connect(_on_splitter_runtime_action_pressed)
 	_shop_button.pressed.connect(_on_shop_pressed)
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
@@ -188,6 +199,33 @@ func bind_splitter_runtime(runtime: MechanicalSplitterRuntime) -> void:
 	_refresh_splitter_runtime_card()
 
 
+## The chopping scene owns orb timing; this HUD owns only their screen target and
+## the displayed (never authoritative) XP total while those receipts are moving.
+func bind_xp_source(source: Node) -> void:
+	if source == null:
+		return
+	var batch_callback := Callable(self, "_on_xp_orb_batch_started")
+	var collected_callback := Callable(self, "_on_xp_orb_collected")
+	if not source.is_connected(&"xp_orb_batch_started", batch_callback):
+		source.connect(&"xp_orb_batch_started", batch_callback)
+	if not source.is_connected(&"xp_orb_collected", collected_callback):
+		source.connect(&"xp_orb_collected", collected_callback)
+	var coin_batch_callback := Callable(self, "_on_coin_batch_started")
+	var coin_collected_callback := Callable(self, "_on_coin_collected")
+	var coins_cancelled_callback := Callable(self, "_on_coins_cancelled")
+	var coin_finished_callback := Callable(self, "_on_coin_batch_finished")
+	if not source.is_connected(&"coin_batch_started", coin_batch_callback):
+		source.connect(&"coin_batch_started", coin_batch_callback)
+	if not source.is_connected(&"coin_collected", coin_collected_callback):
+		source.connect(&"coin_collected", coin_collected_callback)
+	if not source.is_connected(&"coins_cancelled", coins_cancelled_callback):
+		source.connect(&"coins_cancelled", coins_cancelled_callback)
+	if not source.is_connected(&"coin_batch_finished", coin_finished_callback):
+		source.connect(&"coin_batch_finished", coin_finished_callback)
+	source.call("set_xp_screen_target", Callable(self, "xp_orb_target_normalized"))
+	source.call("set_coin_screen_target", Callable(self, "coin_target_normalized"))
+
+
 func _on_splitter_runtime_state_changed(_state: MechanicalSplitterRuntime.State) -> void:
 	_refresh_splitter_runtime_card()
 
@@ -222,6 +260,9 @@ func _on_splitter_runtime_action_pressed() -> void:
 
 
 func _refresh_splitter_runtime_card(reset_receipt := true) -> void:
+	_splitter_runtime_card.visible = MechanicalSplitter.is_installed()
+	if not _splitter_runtime_card.visible:
+		return
 	var state := MechanicalSplitterRuntime.State.LOCKED
 	if _splitter_runtime != null:
 		state = _splitter_runtime.current_state()
@@ -419,13 +460,17 @@ func _rebuild_shop() -> void:
 	for def: UpgradeDef in purchased:
 		_purchased_list.add_child(_build_purchased_row(def))
 	_purchased_empty.visible = purchased.is_empty()
+	_shop_tabs.set_tab_hidden(_SPLITTER_TAB, splitter_count == 0)
+	if _shop_tabs.is_tab_hidden(_shop_tabs.current_tab):
+		_shop_tabs.current_tab = 0
+	_refresh_shop_unlock_hint()
 	_refresh_splitter_status()
 	_refresh_badges()
 
 
 func _refresh_splitter_status() -> void:
 	if not MechanicalSplitter.is_installed():
-		_splitter_status.text = "Certify the required early woods, then purchase the machine and profiles here. Assignment lives in the Tree Catalog."
+		_splitter_status.text = "Mechanical Splitter unlocked · Purchase the machine here."
 		return
 	var assigned := GameState.get_splitter_assigned_species()
 	if assigned == &"":
@@ -439,7 +484,6 @@ func _refresh_splitter_status() -> void:
 func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	var level := Shop.get_level(def.id)
 	var maxed := def.is_maxed(level)
-	var unlocked := Shop.is_unlocked(def.id)
 
 	var row := VBoxContainer.new()
 	row.name = String(def.id)
@@ -455,10 +499,7 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 
 	var buy := Button.new()
 	buy.custom_minimum_size = Vector2(92, 34)   # room for the coin beside the price
-	if not unlocked:
-		buy.text = _upgrade_unlock_text(def)
-		buy.disabled = true
-	elif maxed:
+	if maxed:
 		buy.text = "Maxed"
 		buy.disabled = true
 	else:
@@ -482,6 +523,7 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 		limit.add_theme_font_size_override("font_size", 12)
 		limit.modulate = Color(0.78, 0.78, 0.78, 1.0)
 		row.add_child(limit)
+	_add_upgrade_reward(row, def)
 	return row
 
 
@@ -522,27 +564,48 @@ func _build_purchased_row(def: UpgradeDef) -> VBoxContainer:
 		limit.add_theme_font_size_override("font_size", 12)
 		limit.modulate = Color(0.78, 0.78, 0.78, 1.0)
 		row.add_child(limit)
+	_add_upgrade_reward(row, def)
 	return row
 
 
-func _upgrade_unlock_text(def: UpgradeDef) -> String:
-	if def.unlock_after_haul_aways > GameState.get_haul_aways_completed():
-		return "After first haul"
-	if def.unlock_order_id != &"" and not GameState.has_completed_order(def.unlock_order_id):
-		var order := Orders.by_id(def.unlock_order_id)
-		return "After %s" % (String(def.unlock_order_id) if order == null else order.title)
-	if def.required_upgrade_id != &"" and Shop.get_level(def.required_upgrade_id) <= 0:
-		var upgrade := Shop.get_upgrade(def.required_upgrade_id)
-		return "Requires %s" % (String(def.required_upgrade_id) \
-			if upgrade == null else upgrade.display_name)
-	if def.required_mastery_species_id != &"" \
-			and not GameState.is_species_mastered(def.required_mastery_species_id):
-		var species := SpeciesTable.by_id(def.required_mastery_species_id)
-		return "Master %s" % (String(def.required_mastery_species_id) \
-			if species == null else species.display_name)
-	if def.required_mastered_species_count > GameState.get_mastered_species_count():
-		return "Master %d species" % def.required_mastered_species_count
-	return "Locked"
+func _refresh_shop_unlock_hint() -> void:
+	var rewards: PackedStringArray = []
+	for candidate: UpgradeDef in Shop.get_upgrades():
+		if candidate != null \
+				and candidate.unlock_after_haul_aways > GameState.get_haul_aways_completed():
+			rewards.append("First full haul unlocks %s in Shop." % candidate.display_name)
+	_shop_unlock_hint.visible = not rewards.is_empty()
+	_shop_unlock_hint.text = "Yard reward · " + "  ·  ".join(rewards)
+
+
+func _add_upgrade_reward(row: VBoxContainer, def: UpgradeDef) -> void:
+	var rewards: PackedStringArray = []
+	var has_profile_reward := false
+	for candidate: UpgradeDef in Shop.get_upgrades():
+		if candidate == null or candidate.required_upgrade_id != def.id:
+			continue
+		if candidate.automation_role == UpgradeDef.AutomationRole.CUTTING_PROFILE:
+			has_profile_reward = true
+			continue
+		var reward := "%s in Shop" % candidate.display_name
+		if candidate.required_mastered_species_count > 0:
+			reward += " after %d species certifications" % \
+				candidate.required_mastered_species_count
+		rewards.append(reward)
+	if has_profile_reward:
+		rewards.append("certified tree profiles in Shop")
+	for species: SpeciesDef in SpeciesTable.all():
+		if species != null and species.supplier_upgrade_id == def.id:
+			rewards.append("%s in the Tree Catalog once its level gate is met" % \
+				species.display_name)
+	if rewards.is_empty():
+		return
+	var reward_label := Label.new()
+	reward_label.text = "Unlock reward · " + "  ·  ".join(rewards)
+	reward_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	reward_label.add_theme_font_size_override("font_size", 12)
+	reward_label.modulate = Color(0.78, 0.88, 0.64, 1.0)
+	row.add_child(reward_label)
 
 
 func _on_buy_pressed(id: StringName) -> void:
@@ -588,7 +651,14 @@ func _on_splitter_assignment_changed(_id: StringName) -> void:
 ## XP moves the level, and the level is what puts a wood on sale — so the shed's
 ## "needs level N" rows can go live without the player touching anything. Only
 ## repaints an OPEN panel: this fires once per finished log.
-func _on_xp_changed(_total: int) -> void:
+func _on_xp_changed(total: int) -> void:
+	# Loads/resets have no orb receipt. Ordinary awards update here and are wound
+	# back within the same frame when their batch-start receipt arrives below.
+	if total < _displayed_xp_total:
+		_pending_orb_xp = 0
+		_displayed_xp_total = total
+	elif _pending_orb_xp == 0:
+		_displayed_xp_total = total
 	_refresh_xp_bar()
 	if _trees_panel.visible:
 		_rebuild_woodshed()
@@ -617,6 +687,9 @@ func _rebuild_woodshed() -> void:
 	for child in _wood_list.get_children():
 		_wood_list.remove_child(child)
 		child.queue_free()
+	_trees_blurb.text = "Check mastery and choose the next log for the block."
+	if MechanicalSplitter.is_installed():
+		_trees_blurb.text += " Assign one installed certified profile to the Mechanical Splitter."
 
 	var chosen := GameState.get_selected_species()
 	for def: SpeciesDef in GameState.get_owned_species():
@@ -708,6 +781,10 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> VBoxContainer:
 
 
 func _add_splitter_assignment(row: VBoxContainer, def: SpeciesDef) -> void:
+	var profile := MechanicalSplitter.profile_for_species(def.id)
+	if not MechanicalSplitter.is_installed() or profile == null \
+			or not GameState.is_species_mastered(def.id):
+		return
 	var line := HBoxContainer.new()
 	line.name = "SplitterAssignment"
 	line.add_theme_constant_override("separation", 8)
@@ -722,21 +799,8 @@ func _add_splitter_assignment(row: VBoxContainer, def: SpeciesDef) -> void:
 	assign.custom_minimum_size = Vector2(142, 32)
 	line.add_child(assign)
 
-	var profile := MechanicalSplitter.profile_for_species(def.id)
 	var assigned := GameState.get_splitter_assigned_species() == def.id
-	if not GameState.is_species_mastered(def.id):
-		status.text = "Splitter · Certification required"
-		assign.text = "Master this tree"
-		assign.disabled = true
-	elif profile == null:
-		status.text = "Splitter · No profile for this machine"
-		assign.text = "Unavailable"
-		assign.disabled = true
-	elif not MechanicalSplitter.is_installed():
-		status.text = "Splitter · Certified · Machine purchase required"
-		assign.text = "Open Splitter shop"
-		assign.pressed.connect(_open_splitter_shop)
-	elif not MechanicalSplitter.has_installed_profile(def.id):
+	if not MechanicalSplitter.has_installed_profile(def.id):
 		status.text = "Splitter · Certified · Profile purchase required"
 		assign.text = "Buy profile in Shop"
 		assign.pressed.connect(_open_splitter_shop)
@@ -754,12 +818,19 @@ func _mastery_row_text(def: SpeciesDef) -> String:
 	var current := GameState.get_species_mastery_progress(def.id)
 	var target := _mastery_target(def.id)
 	if GameState.is_species_mastered(def.id):
-		return "Mastery %d / %d  ·  Mastered  ·  All global rewards active" % [current, target]
+		var machine := MechanicalSplitter.machine_definition()
+		var required := 0 if machine == null else machine.required_mastered_species_count
+		var certified := mini(GameState.get_mastered_species_count(), required)
+		var certification := ""
+		if required > 0:
+			certification = "  ·  Splitter certifications %d / %d" % [certified, required]
+		return "Mastery %d / %d  ·  Mastered%s  ·  All global rewards active" % [
+			current, target, certification]
 	var next := SpeciesMastery.next_threshold(def.id)
 	if next == null:
 		return "Mastery %d / %d" % [current, target]
 	return "Mastery %d / %d\nNext reward at %d: %s" % [
-		current, target, next.required_progress, _mastery_reward_text(next)]
+		current, target, next.required_progress, _mastery_reward_text(next, target)]
 
 
 func _mastery_target(species_id: StringName) -> int:
@@ -768,7 +839,7 @@ func _mastery_target(species_id: StringName) -> int:
 	return definition.mastery_target if definition != null else 0
 
 
-func _mastery_reward_text(threshold: SpeciesMasteryThresholdDef) -> String:
+func _mastery_reward_text(threshold: SpeciesMasteryThresholdDef, mastery_target: int) -> String:
 	var parts: PackedStringArray = []
 	for reward: GameplayModifierDef in threshold.rewards:
 		if reward == null:
@@ -781,6 +852,11 @@ func _mastery_reward_text(threshold: SpeciesMasteryThresholdDef) -> String:
 				parts.append("+%s%% manual XP" % amount)
 			GameplayModifierDef.Kind.SPLIT_RELIABILITY:
 				parts.append("+%s pts split" % amount)
+	if threshold.required_progress >= mastery_target:
+		var machine := MechanicalSplitter.machine_definition()
+		var required := 0 if machine == null else machine.required_mastered_species_count
+		if required > 0:
+			parts.append("+1 splitter certification (%d unlock the machine in Shop)" % required)
 	return "  ·  ".join(parts)
 
 
@@ -873,8 +949,12 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 
 	var detail := Label.new()
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	detail.text = "%s\n%d pieces · +%s coin bonus" % [
-		order.description, order.required_count, _thousands(order.cash_bonus)]
+	var rewards: PackedStringArray = ["+%s coins" % _thousands(order.cash_bonus)]
+	for def: UpgradeDef in Shop.get_upgrades():
+		if def != null and def.unlock_order_id == order.id:
+			rewards.append("Unlocks %s in Shop" % def.display_name)
+	detail.text = "%s\n%d pieces\nRewards: %s" % [
+		order.description, order.required_count, "  ·  ".join(rewards)]
 	row.add_child(detail)
 
 	if GameState.get_active_order_id() == order.id:
@@ -1140,37 +1220,147 @@ func _on_buy_skill_pressed(id: StringName) -> void:
 func _refresh_xp_bar() -> void:
 	if _xp_level_label == null:
 		return
-	var level := GameState.get_level()
-	_xp_progress.value = GameState.get_level_progress()
-	if GameState.is_max_level():
+	var level := GameState.get_level_for_xp(_displayed_xp_total)
+	_xp_progress.value = GameState.get_level_progress_for_xp(_displayed_xp_total)
+	if level >= LevelCurve.MAX_LEVEL:
 		_xp_level_label.text = "Level %d — master axeman" % level
 		return
 	var available := GameState.get_skill_points_available()
 	var points := "   ·   %d pt%s" % [available, "" if available == 1 else "s"] if available > 0 else ""
-	_xp_level_label.text = "Level %d   ·   %s XP to go%s" % [
-		level, _thousands(GameState.get_xp_to_next_level()), points]
+	var next_order := Orders.next_unrevealed()
+	var next_reward := ""
+	if next_order != null:
+		next_reward = "   ·   Level %d unlocks %s contract" % [
+			next_order.unlock_level, next_order.title]
+	_xp_level_label.text = "Level %d   ·   %s XP to go%s%s" % [
+		level, _thousands(GameState.get_xp_to_next_level_for_xp(_displayed_xp_total)),
+		points, next_reward]
+
+
+func _on_xp_orb_batch_started(amount: int) -> void:
+	if amount <= 0:
+		return
+	_pending_orb_xp += amount
+	_displayed_xp_total = maxi(0, GameState.get_xp() - _pending_orb_xp)
+	_refresh_xp_bar()
+
+
+func _on_xp_orb_collected(amount: int) -> void:
+	var delivered := clampi(amount, 0, _pending_orb_xp)
+	_pending_orb_xp -= delivered
+	_displayed_xp_total += delivered
+	if _pending_orb_xp == 0:
+		_displayed_xp_total = GameState.get_xp()
+	_refresh_xp_bar()
+
+
+## Normalized window coordinate of the live fill edge. XPOrb maps this into its
+## own SubViewport before projecting it onto a plane in front of the 3D camera.
+func xp_orb_target_normalized() -> Vector2:
+	var viewport_size := Vector2(get_viewport().get_visible_rect().size)
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return Vector2(0.5, 0.0)
+	var rect := _xp_progress.get_global_rect()
+	var span := maxf(_xp_progress.max_value - _xp_progress.min_value, 0.0001)
+	var progress := clampf((_xp_progress.value - _xp_progress.min_value) / span, 0.0, 1.0)
+	# Keep the orb centre just inside the window at empty/full while still landing
+	# on the bar's visible leading edge.
+	var inset := minf(4.0, rect.size.x * 0.5)
+	var target := Vector2(
+		lerpf(rect.position.x + inset, rect.end.x - inset, progress),
+		rect.position.y + rect.size.y * 0.5)
+	return Vector2(target.x / viewport_size.x, target.y / viewport_size.y)
+
+
+func coin_target_normalized() -> Vector2:
+	var viewport_size := Vector2(get_viewport().get_visible_rect().size)
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return Vector2.ZERO
+	var rect := _cash_label.get_global_rect()
+	var target := rect.position + rect.size * 0.5
+	return Vector2(target.x / viewport_size.x, target.y / viewport_size.y)
+
+
+func _on_coin_batch_started(count: int) -> void:
+	_pending_coin_count += maxi(0, count)
+
+
+func _on_coin_collected(amount: int) -> void:
+	_pending_coin_count = maxi(0, _pending_coin_count - 1)
+	# The authoritative cash already exists by the time a coin is released. Clamp
+	# to it so presentation can never mint money, then punch once for this impact.
+	var next_amount := mini(GameState.get_cash(), _displayed_cash + maxi(0, amount))
+	_set_displayed_cash(next_amount, next_amount > _displayed_cash)
+
+
+func _on_coins_cancelled(count: int) -> void:
+	_pending_coin_count = maxi(0, _pending_coin_count - maxi(0, count))
+
+
+func _on_coin_batch_finished() -> void:
+	_pending_coin_count = 0
+	# Covers an interrupted pool or unrelated cash mutation during the flight.
+	# Ordinary sale batches already land exactly here, so this is normally a no-op.
+	_set_displayed_cash(GameState.get_cash(), false)
 
 
 ## ----------------------------------------------------------------- live view
-func _on_cash_changed(_new_amount: int) -> void:
-	_refresh_stats()
+func _on_cash_changed(new_amount: int) -> void:
+	# While receipt coins are live, positive awards remain visually pending until
+	# each coin reaches this counter. Reductions (purchases/load/reset) still paint
+	# immediately so the displayed balance can never exceed authoritative cash.
+	if _pending_coin_count == 0 or new_amount <= _displayed_cash:
+		_set_displayed_cash(new_amount, new_amount > _displayed_cash)
 	_refresh_badges()
 	if _shop_panel.visible:
 		_rebuild_shop()
 	if _trees_panel.visible:
 		_rebuild_woodshed()
 
+func _set_displayed_cash(amount: int, punch: bool) -> void:
+	var increase := maxi(0, amount - _displayed_cash)
+	_displayed_cash = amount
+	_refresh_stats()
+	if punch and increase > 0:
+		_bounce_cash_counter(increase)
+
+
+func _bounce_cash_counter(amount: int) -> void:
+	if _cash_bounce_tween != null and _cash_bounce_tween.is_valid():
+		_cash_bounce_tween.kill()
+	_cash_label.pivot_offset = _cash_label.size * 0.5
+	# Apply the growth immediately so two coins arriving in one render frame still
+	# contribute two distinct impulses instead of the later tween replacing the
+	# earlier one. The cap keeps a dense late-game wave inside the HUD.
+	# PLACEHOLDER pending the UI feel pass.
+	var impulse := clampf(0.035 + log(float(amount) + 1.0) / log(10.0) * 0.018,
+		0.035, 0.075)
+	var current_scale := maxf(1.0, _cash_label.scale.x)
+	var punched_scale := minf(1.36, current_scale + impulse)
+	_cash_label.scale = Vector2.ONE * punched_scale
+	_cash_bounce_tween = create_tween()
+	_cash_bounce_tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_cash_bounce_tween.tween_property(_cash_label, "scale", Vector2.ONE, 0.22)
+
 
 func _refresh_stats() -> void:
-	_cash_label.text = str(GameState.get_cash())
+	_cash_label.text = str(_displayed_cash)
 
 
 ## Red icon badges are a call to action, not a second economy display. Skills
-## shows unspent points; Shop counts equipment/splitter purchases the player can
-## make now, while Trees owns the next-species purchase callout.
+## shows unspent points; Contracts counts orders the player can accept now; Shop
+## counts equipment/splitter purchases the player can make now, while Trees owns
+## the next-species purchase callout.
 func _refresh_badges() -> void:
-	if _skills_badge == null or _shop_badge == null or _trees_badge == null:
+	if _orders_badge == null or _skills_badge == null or _shop_badge == null \
+			or _trees_badge == null:
 		return
+	var available_orders := 0
+	if GameState.get_active_order_id() == &"":
+		for order: OrderDef in Orders.visible():
+			if Orders.is_available(order):
+				available_orders += 1
+	_set_badge(_orders_badge, available_orders)
 	_set_badge(_skills_badge, GameState.get_skill_points_available())
 	var affordable_upgrades := 0
 	for def: UpgradeDef in Shop.get_visible_upgrades():

@@ -26,8 +26,11 @@ automation design. Do not begin a new module or slice without Sam's approval.
 | M8 Slice 2 mastery effects/UI | Implemented for review 2026-08-05; 45/45 |
 | M8 Slice 3 certified splitter purchases/assignment | Approved by Sam 2026-08-05; covered by the verified M8 completion suite |
 | M8 Slice 4 watched Mechanical Splitter runtime/progression | Approved by Sam 2026-08-05; 93/93 |
-| M8 Slice 5 derived Purchased shop tab | Approved by Sam 2026-08-05; 101/101 |
-| M8 Mechanical Splitter measured tuning | Approved by Sam 2026-08-05; 101/101 |
+| M8 Slice 5 derived Purchased shop tab | Approved by Sam 2026-08-05; 104/104 with discovery regression |
+| M8 Mechanical Splitter measured tuning | Approved by Sam 2026-08-05; 104/104 with discovery regression |
+| Startup New Game / Load Game boundary | Approved by Sam 2026-08-05; 17/17 |
+| Hidden-lock progression discovery | Approved by Sam 2026-08-05; M7A 285/285, M8 104/104 |
+| Manual reward receipts and level-up feedback | Approved by Sam 2026-08-05; M4 55/55, M7A 285/285, M7C 221/221 |
 | M8 Slice 6 and later | Not authorized to start |
 
 M7C Slice 7 made Follow-Up an automatic bonus swing after a landed root swing,
@@ -52,13 +55,11 @@ shop now separates ordinary Items from a dedicated Mechanical Splitter tab. The
 frequently checked Tree Catalog has its own bottom-right icon/window and owns the
 single validated splitter assignment, persisted by save version 4. The splitter
 service does not yet run a timer, write inventory, award XP/mastery or simulate
-offline progress. Once mastery certifies a supported tree, its Tree Catalog row
-now provides an active route to the required machine/profile purchase instead
-of presenting disabled shop prompts.
+offline progress.
 
 M8 Slice 4 makes that first machine visible as a native-node greybox with its
-missing authored art labelled in-world. An always-on card reports locked,
-unassigned, missing profile, ready, processing or output blocked. The player
+missing authored art labelled in-world. Once the machine is installed, its card
+reports unassigned, missing profile, ready, processing or output blocked. The player
 loads the one input slot from the sole persisted Tree Catalog assignment; only
 active yard time advances the watched cycle. One completed receipt deposits the
 assigned `SpeciesDef.yield_item` through `InventoryManager`, sells it through an
@@ -93,6 +94,34 @@ Mechanical Splitter remain separate tabs; Tree Catalog remains its standalone
 bottom-right window. Save version remains 4 because the on-disk shape is
 unchanged.
 
+Locked progression content no longer appears as disabled shelf rows or future
+contract cards. The Shop lists unlocked/owned rows only, hides the entire
+Mechanical Splitter tab until the machine gate is earned, and hides the runtime
+card and Tree Catalog assignment controls until their underlying machine/profile
+routes exist. Contracts, purchases, the first-haul milestone, level-ups and the
+final mastery threshold now name the content they unlock as an explicit reward.
+The skill tree remains a visible prerequisite map rather than a storefront.
+
+Startup no longer auto-loads or silently starts fresh. The native stand-in menu
+keeps the yard's rendering and processing disabled until the player explicitly
+chooses New Game or Load Game. Load is disabled when no save exists. Replacing
+an existing autosave requires confirmation, and the fresh state is written via
+SaveSystem's atomic temp-file route before gameplay begins. Missing, corrupt or
+newer-version loads remain at the menu with a player-facing error; autosave and
+save-on-quit cannot write until a session has successfully started.
+
+Manual completion feedback now keeps progression authoritative while presenting
+it one receipt at a time. XP is banked immediately, then pooled green orbs fly to
+the live fill edge and advance the displayed XP strip by their exact shares.
+Each sold firewood payout is attached to one pooled coin only after Market and
+Orders settle it; the coin waits beside the log until that receipt exists, then
+flies to the cash counter, increments it and contributes one capped bounce-grow
+impulse before disappearing. A pooled procedural gold ring/ray/spark celebration
+surrounds the block on level-up. The full XP, coin and level-up node pools are
+built during initial scene load, and one covered startup render submission warms
+their Compatibility-renderer material pipelines before gameplay. Final VFX art
+and feel values remain explicitly replaceable stand-ins.
+
 ## Known, undecided gaps
 
 - Follow-Up has no owned-modifier escape from the precision guard equivalent to
@@ -108,5 +137,5 @@ unchanged.
 
 The authoritative tests are the live test files. The latest verified human
 baseline is M1 19, M2 24, M3 16, M4 55, M7A 285, M7C 221, M8 Slice 5 and
-measured splitter tuning 101, slicer 34. See `docs/TESTING.md` for commands and
-non-headless requirements.
+measured splitter tuning 104, startup 17, slicer 34. See `docs/TESTING.md` for
+commands and non-headless requirements.

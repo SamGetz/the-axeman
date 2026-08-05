@@ -12,6 +12,7 @@ func _ready() -> void:
 	_stash_save()
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
+	main.start_new_game()
 	for _i in range(10):
 		await get_tree().process_frame
 	GameState.reset_to_defaults()
