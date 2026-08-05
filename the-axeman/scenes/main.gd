@@ -41,6 +41,7 @@ func _ready() -> void:
 	GameState.xp_changed.connect(_queue_autosave.unbind(1))
 	GameState.skill_level_changed.connect(_queue_autosave.unbind(2))
 	GameState.species_purchased.connect(_queue_autosave.unbind(1))
+	GameState.species_mastery_changed.connect(_queue_autosave.unbind(2))
 	GameState.order_state_changed.connect(_queue_autosave)
 
 	# Godot tears the window down the moment it is closed unless told otherwise,
@@ -57,9 +58,9 @@ func _ready() -> void:
 ## result. The deferred flush collapses a whole batch into one write at the end
 ## of the frame.
 ##
-## Inventory changes, cash, pile state, XP, skill purchases, species purchases
-## and the selected wood all share this coalescer. A transaction may touch three
-## of them in one frame; it still produces one complete write at frame end.
+## Inventory changes, cash, pile state, XP, skill purchases, species purchases,
+## mastery and the selected wood all share this coalescer. A transaction may
+## touch several of them in one frame; it still writes once at frame end.
 func _on_inventory_changed(_item_id: StringName, _new_count: int) -> void:
 	_queue_autosave()
 

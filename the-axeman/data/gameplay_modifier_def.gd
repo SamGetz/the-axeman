@@ -13,6 +13,9 @@ enum Kind {
 	PRECISION_SAFETY,
 	HARD_WOOD_WEIGHT,
 	GRAIN_CUE,
+	## Global percentage added to ordinary firewood-sale payouts. Appended so
+	## existing serialized Kind integers keep their M7C meaning.
+	CASH_GAIN,
 }
 
 enum Operation { ADD, MULTIPLY, ENABLE }

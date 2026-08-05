@@ -81,7 +81,7 @@ func _test_all_mappings_and_exact_refunds() -> void:
 	_check(not skills.has("splitter"), "Splitter is retired, never converted to Double Strike")
 	_check(not skills.has("double_strike"), "migration does not silently award Double Strike")
 	_check(not skills.has("master_axeman") and not skills.has("negotiator"),
-		"Master Axeman and Negotiator are both absent from version 2")
+		"Master Axeman and Negotiator remain absent from the current save shape")
 	_check(legacy == {"strong_arms": 3, "quick_hands": 4, "ready_stance": 2, "quick_study": 2},
 		"retained ranks carry their exact prototype-cost basis")
 
@@ -111,8 +111,8 @@ func _test_partial_fixture_and_idempotence() -> void:
 	_check(migrated.get("cash", 0) == 73, "unrelated progression survives migration unchanged")
 	_check((migrated.get("skill_levels", {}) as Dictionary).get("ready_stance", 0) == 1,
 		"a partial skill dictionary migrates its one known rank")
-	var twice := SaveSystem._migrate(migrated.duplicate(true), 2)
-	_check(twice == migrated, "a version-2 dictionary is byte-shape idempotent")
+	var twice := SaveSystem._migrate(migrated.duplicate(true), SaveSystem.SAVE_VERSION)
+	_check(twice == migrated, "a current-version dictionary is byte-shape idempotent")
 	var malformed := SaveSystem._migrate({"skill_levels": ["not", "a", "dictionary"]}, 1)
 	_check(malformed.get("skill_levels", null) == {}, "a malformed skill field degrades to an empty tree")
 
@@ -138,10 +138,10 @@ func _test_load_save_reload_and_source_preservation() -> void:
 	_check(SaveSystem.save_game(), "the next atomic save succeeds")
 	var upgraded := ConfigFile.new()
 	upgraded.load(SaveSystem.SAVE_PATH)
-	_check(int(upgraded.get_value("meta", "version", -1)) == 2,
-		"only that successful save replaces it with version 2")
+	_check(int(upgraded.get_value("meta", "version", -1)) == SaveSystem.SAVE_VERSION,
+		"only that successful save replaces it with the current version")
 	GameState.reset_to_defaults()
-	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "the version-2 save reloads")
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK, "the current-version save reloads")
 	_check(GameState.get_skill_level(&"ready_stance") == 2
 		and GameState.get_skill_level(&"quick_study") == 2,
 		"renamed ranks survive load-save-reload")
@@ -261,7 +261,13 @@ func _test_content_validators_reject_bad_rows() -> void:
 	bad_mastery.species_id = &"invented_wood"
 	bad_mastery.mastery_target = 2
 	bad_mastery.manual_completion_award = 0
-	bad_mastery.reveal_thresholds = PackedInt32Array([2, 1, 9])
+	var bad_threshold := SpeciesMasteryThresholdDef.new()
+	bad_threshold.required_progress = 2
+	bad_threshold.rewards = []
+	var backwards_threshold := SpeciesMasteryThresholdDef.new()
+	backwards_threshold.required_progress = 1
+	backwards_threshold.rewards = []
+	mastery_table.thresholds = [bad_threshold, backwards_threshold]
 	var bad_requirement := CertificationRequirementDef.new()
 	bad_requirement.kind = 99
 	bad_requirement.required_count = 0
@@ -272,7 +278,7 @@ func _test_content_validators_reject_bad_rows() -> void:
 	_check(_has_error(mastery_errors, "duplicate mastery species")
 		and _has_error(mastery_errors, "unknown species")
 		and _has_error(mastery_errors, "invalid target/award")
-		and _has_error(mastery_errors, "invalid reveal threshold")
+		and _has_error(mastery_errors, "invalid threshold")
 		and _has_error(mastery_errors, "illegal certification requirement"),
 		"mastery validation rejects duplicate, unknown, unordered and illegal requirements")
 
@@ -1300,6 +1306,8 @@ func _test_follow_up_can_complete_a_log() -> void:
 	_check(GameState.get_xp() - xp_before == base,
 		"exactly one un-multiplied manual root XP award fired (%d), whichever swing in the chain finished the log"
 			% base)
+	_check(GameState.get_species_mastery_progress(SpeciesTable.at(0).id) == 1,
+		"the proc-assisted finish credits exactly one player-started log to mastery")
 	_check(mg.debug_last_quick_study_root_id() != &"",
 		"the completing transaction still recorded one explicit root event id")
 

@@ -13,6 +13,7 @@ Set `GODOT` to the Godot 4.7.1 executable for the current machine, then run:
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m4_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7a_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7c_acceptance.tscn
+"$GODOT" --headless --path . --quit-after 20000 res://core/tests/m8_acceptance.tscn
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
@@ -25,7 +26,8 @@ Latest verified baseline on 2026-08-05:
 | M3 | 16/16 |
 | M4 | 55/55 |
 | M7A | 285/285 |
-| M7C | 220/220 |
+| M7C | 221/221 |
+| M8 Slice 1 | 29/29 |
 | Slicer | 34/34 |
 
 M1 deliberately exercises error paths; expected red engine messages are not

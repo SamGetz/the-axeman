@@ -765,6 +765,10 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 	_handled_log_roots[outcome.root_event_id] = true
 	if not outcome.is_manual_root_completion():
 		return 0
+	# M8 Slice 1 shares this de-duplicated manual root receipt. Follow-Up or
+	# Double Strike may land the finishing action, but they still complete the
+	# one player-started log represented by this root id, so mastery advances once.
+	GameState.record_species_completion(_current_species.id)
 
 	var base: int = outcome.base_xp
 	var awarded := base

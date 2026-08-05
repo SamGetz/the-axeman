@@ -29,7 +29,7 @@ const SAVE_PATH := "user://the_axeman_save.cfg"
 ## incremental autosave is survivable; losing the whole yard is not.
 const _TEMP_PATH := "user://the_axeman_save.cfg.tmp"
 ## Bumped whenever the on-disk shape changes in a way _migrate has to handle.
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 
 ## Version-1's prototype ranks are an on-disk compatibility contract. These
 ## caps are intentionally pinned to that prototype rather than read from the
@@ -136,14 +136,27 @@ static func delete_save() -> bool:
 
 
 ## Forward migration is PURE: it works on a deep copy and never rewrites the
-## version-1 file. load_game() applies the copy in memory; only the next complete
-## save_game() replaces the old file atomically with a version-2 one.
+## older file. load_game() applies the copy in memory; only the next complete
+## save_game() replaces the old file atomically with a version-3 one.
 static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 	if from_version == SAVE_VERSION:
 		return progression
 	var migrated := progression.duplicate(true)
-	if from_version != 1:
-		return migrated
+	var version := from_version
+	if version == 1:
+		migrated = _migrate_v1_to_v2(migrated)
+		version = 2
+	if version == 2:
+		# Mastery is an additive field. Explicitly seed it so a migrated save has
+		# the same byte-shape as a fresh v3 save and later migrations can rely on
+		# the field existing without ever inventing historical progress.
+		if not (migrated.get("species_mastery_progress") is Dictionary):
+			migrated["species_mastery_progress"] = {}
+	return migrated
+
+
+static func _migrate_v1_to_v2(progression: Dictionary) -> Dictionary:
+	var migrated := progression.duplicate(true)
 
 	var source: Variant = progression.get("skill_levels", {})
 	if not source is Dictionary:

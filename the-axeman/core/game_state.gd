@@ -45,6 +45,9 @@ signal skill_level_changed(skill_id: StringName, new_level: int)
 ## A wood was BOUGHT. Since 2026-08-02 species are owned, not derived (see
 ## `_owned_species`), so this is a real event rather than a threshold crossing.
 signal species_purchased(species_id: StringName)
+## One species' manual mastery progress changed. The total is carried so save,
+## HUD and future reward readers never need to infer a delta or poll per frame.
+signal species_mastery_changed(species_id: StringName, new_progress: int)
 ## Introductory order state is local progression, never an A7 cross-mode event.
 ## The zero-argument repaint signal covers accept, progress and restore; the
 ## completion signal carries the celebratory facts a HUD needs.
@@ -110,6 +113,10 @@ var _selected_species: StringName = &""
 ## The starting wood is never in here; `owns_species()` grants it, so a fresh save
 ## and a corrupted one both still have something to chop.
 var _owned_species: Dictionary = {}
+## Species id -> bounded manual log completions. Reached reward thresholds and
+## certification are derived from this one persisted counter; no parallel
+## booleans can drift when the shared threshold ladder is retuned.
+var _species_mastery_progress: Dictionary = {}
 ## Total experience, monotonic — nothing takes XP away, which is what lets the
 ## LEVEL be derived from it (see LevelCurve) rather than stored alongside it.
 var _xp: int = 0
@@ -321,6 +328,31 @@ func get_selected_species() -> StringName:
 	return &"" if start == null else start.id
 
 
+## ------------------------------------------------------ species mastery (M8)
+func get_species_mastery_progress(species_id: StringName) -> int:
+	var table := M7CContent.mastery()
+	var definition: SpeciesMasteryDef = table.by_species_id(species_id) \
+		if table != null else null
+	if definition == null:
+		return 0
+	return clampi(int(_species_mastery_progress.get(species_id, 0)), 0,
+		definition.mastery_target)
+
+
+func get_species_mastery_threshold_count(species_id: StringName) -> int:
+	var table := M7CContent.mastery()
+	if table == null or table.by_species_id(species_id) == null:
+		return 0
+	return table.reached_threshold_count(get_species_mastery_progress(species_id))
+
+
+func is_species_mastered(species_id: StringName) -> bool:
+	var table := M7CContent.mastery()
+	var definition: SpeciesMasteryDef = table.by_species_id(species_id) if table != null else null
+	return definition != null \
+		and get_species_mastery_progress(species_id) >= definition.mastery_target
+
+
 ## ------------------------------------------------------------- orders (M7A)
 func get_active_order_id() -> StringName:
 	return _active_order
@@ -445,6 +477,25 @@ func add_xp(amount: int) -> bool:
 	return true
 
 
+## Credit one player-started completed log. The chopping scene calls this from
+## its already de-duplicated manual root outcome, so a proc may land the final
+## swing without turning one log into two mastery awards.
+func record_species_completion(species_id: StringName) -> bool:
+	var table := M7CContent.mastery()
+	var definition: SpeciesMasteryDef = table.by_species_id(species_id) if table != null else null
+	if definition == null:
+		push_error("GameState: mastery completion names unknown species '%s' — ignored." % species_id)
+		return false
+	var before := get_species_mastery_progress(species_id)
+	if before >= definition.mastery_target:
+		return false
+	var after := mini(definition.mastery_target,
+		before + definition.manual_completion_award)
+	_species_mastery_progress[species_id] = after
+	species_mastery_changed.emit(species_id, after)
+	return true
+
+
 ## Can the player cover `amount` skill points right now?
 ##
 ## DELIBERATELY NOT `try_spend_*`, which everywhere else in this file means "take
@@ -548,6 +599,9 @@ func to_save_dict() -> Dictionary:
 	var proc_streaks: Dictionary = {}
 	for id: StringName in _proc_dry_streak:
 		proc_streaks[String(id)] = int(_proc_dry_streak[id])
+	var mastery_progress: Dictionary = {}
+	for id: StringName in _species_mastery_progress:
+		mastery_progress[String(id)] = int(_species_mastery_progress[id])
 	return {
 		"cash": _cash,
 		"lifetime_wood_chopped": _lifetime_wood_chopped,
@@ -561,6 +615,7 @@ func to_save_dict() -> Dictionary:
 		# saved level would be a second opinion that could disagree.
 		"xp": _xp,
 		"owned_species": _owned_species.keys(),
+		"species_mastery_progress": mastery_progress,
 		"skill_levels": _skill_levels.duplicate(),
 		"legacy_skill_ranks": _legacy_skill_ranks.duplicate(),
 		"proc_dry_streak": proc_streaks,
@@ -608,6 +663,21 @@ func apply_save_dict(data: Dictionary) -> void:
 			var sid := StringName(String(id))
 			if SpeciesTable.by_id(sid) != null:
 				_owned_species[sid] = true
+
+	_species_mastery_progress = {}
+	var mastery_progress: Variant = data.get("species_mastery_progress")
+	if mastery_progress is Dictionary:
+		var mastery_table := M7CContent.mastery()
+		for key: Variant in mastery_progress as Dictionary:
+			var species_id := StringName(String(key))
+			var definition: SpeciesMasteryDef = mastery_table.by_species_id(species_id) \
+				if mastery_table != null else null
+			if definition == null:
+				continue
+			var progress := clampi(int((mastery_progress as Dictionary)[key]),
+				0, definition.mastery_target)
+			if progress > 0:
+				_species_mastery_progress[species_id] = progress
 
 	_skill_levels = {}
 	var skills: Variant = data.get("skill_levels")
@@ -701,6 +771,10 @@ func apply_save_dict(data: Dictionary) -> void:
 	# The RESOLVED choice, not the raw field: a save whose wood no longer exists
 	# must repaint the HUD as the wood that will actually be on the block.
 	selected_species_changed.emit(get_selected_species())
+	for species: SpeciesDef in SpeciesTable.all():
+		if species != null:
+			species_mastery_changed.emit(species.id,
+				get_species_mastery_progress(species.id))
 	xp_changed.emit(_xp)
 	skill_points_changed.emit(get_skill_points_available())
 	order_state_changed.emit()
@@ -716,6 +790,7 @@ func reset_to_defaults() -> void:
 	_haul_aways_completed = 0
 	_selected_species = &""
 	_owned_species = {}
+	_species_mastery_progress = {}
 	_xp = 0
 	_skill_levels = {}
 	_legacy_skill_ranks = {}
@@ -733,6 +808,9 @@ func reset_to_defaults() -> void:
 	yard_pile_changed.emit(0)
 	haul_aways_changed.emit(0)
 	selected_species_changed.emit(get_selected_species())
+	for species: SpeciesDef in SpeciesTable.all():
+		if species != null:
+			species_mastery_changed.emit(species.id, 0)
 	xp_changed.emit(0)
 	skill_points_changed.emit(0)
 	order_state_changed.emit()

@@ -221,6 +221,42 @@ static func validate_mastery(table: SpeciesMasteryTable) -> PackedStringArray:
 	if table == null:
 		errors.append("mastery table is null")
 		return errors
+	var previous_threshold := 0
+	for threshold: SpeciesMasteryThresholdDef in table.thresholds:
+		if threshold == null:
+			errors.append("mastery table contains null threshold")
+			continue
+		if threshold.required_progress <= previous_threshold:
+			errors.append("mastery table has invalid threshold:%d" % threshold.required_progress)
+		previous_threshold = threshold.required_progress
+		if threshold.tuning_status.is_empty():
+			errors.append("mastery threshold %d is missing tuning status" % threshold.required_progress)
+		var reward_kinds: Dictionary = {}
+		for modifier: GameplayModifierDef in threshold.rewards:
+			if modifier == null:
+				continue
+			if reward_kinds.has(modifier.kind):
+				errors.append("mastery threshold %d has duplicate reward kind:%d" % [
+					threshold.required_progress, modifier.kind])
+			reward_kinds[modifier.kind] = true
+			if modifier.kind not in [GameplayModifierDef.Kind.CASH_GAIN,
+					GameplayModifierDef.Kind.MANUAL_XP,
+					GameplayModifierDef.Kind.SPLIT_RELIABILITY]:
+				errors.append("mastery threshold %d has unsupported reward kind:%d" % [
+					threshold.required_progress, modifier.kind])
+			if modifier.operation != GameplayModifierDef.Operation.ADD or modifier.magnitude <= 0.0:
+				errors.append("mastery threshold %d has invalid additive reward:%s" % [
+					threshold.required_progress, modifier.id])
+		errors.append_array(_validate_modifiers(threshold.rewards,
+			"mastery threshold %d" % threshold.required_progress))
+		for required_kind: int in [GameplayModifierDef.Kind.CASH_GAIN,
+				GameplayModifierDef.Kind.MANUAL_XP,
+				GameplayModifierDef.Kind.SPLIT_RELIABILITY]:
+			if not reward_kinds.has(required_kind):
+				errors.append("mastery threshold %d is missing reward kind:%d" % [
+					threshold.required_progress, required_kind])
+	if table.thresholds.is_empty():
+		errors.append("mastery table has no reward thresholds")
 	var seen: Dictionary = {}
 	for definition: SpeciesMasteryDef in table.definitions:
 		if definition == null:
@@ -233,11 +269,11 @@ static func validate_mastery(table: SpeciesMasteryTable) -> PackedStringArray:
 			errors.append("mastery references unknown species:%s" % definition.species_id)
 		if definition.mastery_target <= 0 or definition.manual_completion_award <= 0:
 			errors.append("mastery %s has invalid target/award" % definition.species_id)
-		var previous := 0
-		for threshold: int in definition.reveal_thresholds:
-			if threshold <= previous or threshold > definition.mastery_target:
-				errors.append("mastery %s has invalid reveal threshold:%d" % [definition.species_id, threshold])
-			previous = threshold
+		if not table.thresholds.is_empty():
+			var final_threshold: SpeciesMasteryThresholdDef = table.thresholds.back()
+			if final_threshold != null and final_threshold.required_progress != definition.mastery_target:
+				errors.append("mastery %s target does not match final threshold:%d" % [
+					definition.species_id, final_threshold.required_progress])
 		for requirement: CertificationRequirementDef in definition.certification_requirements:
 			if requirement == null:
 				errors.append("mastery %s has null certification requirement" % definition.species_id)
@@ -246,6 +282,10 @@ static func validate_mastery(table: SpeciesMasteryTable) -> PackedStringArray:
 				errors.append("mastery %s has illegal certification requirement" % definition.species_id)
 			if requirement.required_count <= 0:
 				errors.append("mastery %s has invalid certification count" % definition.species_id)
+			elif requirement.kind == CertificationRequirementDef.Kind.MANUAL_LOGS \
+					and requirement.required_count != definition.mastery_target:
+				errors.append("mastery %s manual certification count does not match target" \
+					% definition.species_id)
 		if definition.tuning_status.is_empty():
 			errors.append("mastery %s is missing tuning status" % definition.species_id)
 	for species: SpeciesDef in SpeciesTable.all():
@@ -299,7 +339,7 @@ static func _validate_modifiers(modifiers: Array[GameplayModifierDef], owner: St
 		elif seen.has(modifier.id):
 			errors.append("%s has duplicate modifier:%s" % [owner, modifier.id])
 		seen[modifier.id] = true
-		if modifier.kind < GameplayModifierDef.Kind.SPLIT_RELIABILITY or modifier.kind > GameplayModifierDef.Kind.GRAIN_CUE:
+		if modifier.kind < GameplayModifierDef.Kind.SPLIT_RELIABILITY or modifier.kind > GameplayModifierDef.Kind.CASH_GAIN:
 			errors.append("%s has modifier with illegal kind" % owner)
 		if modifier.operation < GameplayModifierDef.Operation.ADD or modifier.operation > GameplayModifierDef.Operation.ENABLE:
 			errors.append("%s has modifier with illegal operation" % owner)
