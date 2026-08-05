@@ -10,12 +10,23 @@ extends Resource
 ## tiered chopping-block line.
 
 enum PurchaseForm { ONE_TIME, TIERED }
+enum AutomationRole {
+	NONE,
+	MECHANICAL_SPLITTER,
+	CUTTING_PROFILE,
+	SPLITTER_UPGRADE,
+}
 enum Effect {
 	NONE,
 	SPLIT_RELIABILITY,
 	WORK_RADIUS,
 	DELIVERY_TIME,
 	SWING_RECOVERY,
+	AUTOMATION_SPEED,
+	AUTOMATION_AUTO_LOAD,
+	AUTOMATION_LOGS_PER_SPLIT,
+	AUTOMATION_XP_GAIN,
+	AUTOMATION_CASH_GAIN,
 }
 
 @export var id: StringName
@@ -32,6 +43,11 @@ enum Effect {
 ## Both requirements are cumulative. Empty/zero means no requirement.
 @export var unlock_order_id: StringName = &""
 @export var unlock_after_haul_aways: int = 0
+## Optional M8 gates. Ownership remains authoritative in Shop.is_unlocked(), so
+## a paid-for machine/profile can never be re-locked by later tuning changes.
+@export var required_upgrade_id: StringName = &""
+@export var required_mastery_species_id: StringName = &""
+@export var required_mastered_species_count: int = 0
 
 @export_group("Price")
 ## Cash for the FIRST level. Each further level multiplies by `cost_growth`.
@@ -43,8 +59,18 @@ enum Effect {
 @export_group("Effect")
 @export var effect: Effect = Effect.NONE
 ## Per purchased level. Every live value is a measured-tuning placeholder until
-## Sam signs off the relevant band; no gameplay caller owns a second copy.
+## Sam signs off the relevant band; approved values still live only here.
 @export var effect_step: float = 0.0
+
+@export_group("M8 Automation")
+## Typed catalogue metadata for the machine, species profiles and its five
+## dedicated progression lines. Automation effects are read only by the watched
+## runtime; they never leak into manual chopping through Shop.total_effect().
+@export var automation_role: AutomationRole = AutomationRole.NONE
+@export var automation_species_id: StringName = &""
+## Automation prices, certification count and rates carry their review state in
+## resource data so approved tuning cannot be mistaken for a placeholder band.
+@export var tuning_status: String = ""
 
 
 ## Cash to go from `level` to `level + 1`. Level 0 is "nothing bought yet".

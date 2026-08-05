@@ -48,6 +48,9 @@ signal species_purchased(species_id: StringName)
 ## One species' manual mastery progress changed. The total is carried so save,
 ## HUD and future reward readers never need to infer a delta or poll per frame.
 signal species_mastery_changed(species_id: StringName, new_progress: int)
+## Which certified installed profile the Mechanical Splitter should work when its
+## watched runtime arrives. Empty means installed but deliberately idle.
+signal splitter_assignment_changed(species_id: StringName)
 ## Introductory order state is local progression, never an A7 cross-mode event.
 ## The zero-argument repaint signal covers accept, progress and restore; the
 ## completion signal carries the celebratory facts a HUD needs.
@@ -117,6 +120,9 @@ var _owned_species: Dictionary = {}
 ## certification are derived from this one persisted counter; no parallel
 ## booleans can drift when the shared threshold ladder is retuned.
 var _species_mastery_progress: Dictionary = {}
+## One species at a time. Eligibility is derived from current certification and
+## purchased profile ownership; this stores only the player's routing choice.
+var _splitter_assigned_species: StringName = &""
 ## Total experience, monotonic — nothing takes XP away, which is what lets the
 ## LEVEL be derived from it (see LevelCurve) rather than stored alongside it.
 var _xp: int = 0
@@ -353,6 +359,21 @@ func is_species_mastered(species_id: StringName) -> bool:
 		and get_species_mastery_progress(species_id) >= definition.mastery_target
 
 
+## Derived certification total for M8 catalogue gates. It is deliberately not
+## persisted beside per-species progress: a retuned mastery table must never
+## leave a saved count disagreeing with the species that actually qualify.
+func get_mastered_species_count() -> int:
+	var total := 0
+	for species: SpeciesDef in SpeciesTable.all():
+		if species != null and is_species_mastered(species.id):
+			total += 1
+	return total
+
+
+func get_splitter_assigned_species() -> StringName:
+	return _splitter_assigned_species
+
+
 ## ------------------------------------------------------------- orders (M7A)
 func get_active_order_id() -> StringName:
 	return _active_order
@@ -496,6 +517,19 @@ func record_species_completion(species_id: StringName) -> bool:
 	return true
 
 
+## Routes the installed splitter to one certified, purchased profile. Invalid
+## requests change nothing and emit nothing; assignment is progression state, so
+## the tree window asks here rather than mutating a UI-local selection.
+func assign_splitter_species(species_id: StringName) -> bool:
+	if not MechanicalSplitter.can_accept_species(species_id):
+		return false
+	if _splitter_assigned_species == species_id:
+		return true
+	_splitter_assigned_species = species_id
+	splitter_assignment_changed.emit(species_id)
+	return true
+
+
 ## Can the player cover `amount` skill points right now?
 ##
 ## DELIBERATELY NOT `try_spend_*`, which everywhere else in this file means "take
@@ -616,6 +650,7 @@ func to_save_dict() -> Dictionary:
 		"xp": _xp,
 		"owned_species": _owned_species.keys(),
 		"species_mastery_progress": mastery_progress,
+		"splitter_assigned_species": String(_splitter_assigned_species),
 		"skill_levels": _skill_levels.duplicate(),
 		"legacy_skill_ranks": _legacy_skill_ranks.duplicate(),
 		"proc_dry_streak": proc_streaks,
@@ -755,6 +790,13 @@ func apply_save_dict(data: Dictionary) -> void:
 			# them up by StringName — normalise or every building reads as tier 1.
 			_building_tiers[StringName(key)] = maxi(DEFAULT_BUILDING_TIER, int((buildings as Dictionary)[key]))
 
+	# Assignment is validated only after both mastery and building tiers have
+	# loaded, because those two fields jointly decide whether a profile is real.
+	_splitter_assigned_species = &""
+	var assigned_species := StringName(String(data.get("splitter_assigned_species", "")))
+	if MechanicalSplitter.can_accept_species(assigned_species):
+		_splitter_assigned_species = assigned_species
+
 	var biomes: Variant = data.get("unlocked_biomes")
 	if biomes is Array:
 		_unlocked_biomes = {}
@@ -775,6 +817,7 @@ func apply_save_dict(data: Dictionary) -> void:
 		if species != null:
 			species_mastery_changed.emit(species.id,
 				get_species_mastery_progress(species.id))
+	splitter_assignment_changed.emit(_splitter_assigned_species)
 	xp_changed.emit(_xp)
 	skill_points_changed.emit(get_skill_points_available())
 	order_state_changed.emit()
@@ -791,6 +834,7 @@ func reset_to_defaults() -> void:
 	_selected_species = &""
 	_owned_species = {}
 	_species_mastery_progress = {}
+	_splitter_assigned_species = &""
 	_xp = 0
 	_skill_levels = {}
 	_legacy_skill_ranks = {}
@@ -811,6 +855,7 @@ func reset_to_defaults() -> void:
 	for species: SpeciesDef in SpeciesTable.all():
 		if species != null:
 			species_mastery_changed.emit(species.id, 0)
+	splitter_assignment_changed.emit(&"")
 	xp_changed.emit(0)
 	skill_points_changed.emit(0)
 	order_state_changed.emit()

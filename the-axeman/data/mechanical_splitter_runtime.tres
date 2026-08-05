@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MechanicalSplitterRuntimeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/mechanical_splitter_runtime_def.gd" id="1_runtime"]
+
+; APPROVED TUNING — Sam signed off the complete watched-cycle band after the
+; measured 4x-economy pass on 2026-08-05.
+[resource]
+script = ExtResource("1_runtime")
+processing_duration_seconds = 5.0
+queue_capacity = 1
+base_logs_per_split = 5
+maximum_logs_per_split = 12
+output_amount = 1
+base_xp_rate = 0.2
+minimum_duration_multiplier = 0.5
+tuning_status = "APPROVED — Sam 2026-08-05 measured watched-cycle tuning"

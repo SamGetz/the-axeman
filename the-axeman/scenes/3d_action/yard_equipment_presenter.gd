@@ -16,16 +16,36 @@ const _METAL := Color(0.28, 0.32, 0.34, 1.0)
 const _PAPER := Color(0.82, 0.72, 0.48, 1.0)
 const _COFFEE := Color(0.16, 0.30, 0.25, 1.0)
 const _REINFORCED_BLOCK_TINT := Color(0.58, 0.72, 0.86, 1.0)
+const _SPLITTER_BODY := Color(0.19, 0.25, 0.27, 1.0)
+const _SPLITTER_GUARD := Color(0.78, 0.43, 0.12, 1.0)
+const _SPLITTER_BLADE := Color(0.65, 0.71, 0.73, 1.0)
+
+var _splitter_runtime: MechanicalSplitterRuntime
+var _splitter_root: Node3D
+var _splitter_ram: MeshInstance3D
+var _splitter_wheel: MeshInstance3D
+var _splitter_log: MeshInstance3D
+var _splitter_label: Label3D
 
 
 func _ready() -> void:
 	GameState.building_tiers_changed.connect(refresh)
+	_splitter_runtime = get_parent().get_node_or_null("MechanicalSplitterRuntime") \
+		as MechanicalSplitterRuntime
+	if _splitter_runtime != null:
+		_splitter_runtime.state_changed.connect(_refresh_splitter_runtime.unbind(1))
+		_splitter_runtime.progress_changed.connect(_refresh_splitter_runtime.unbind(1))
 	# Parent builds the runtime stump in its _ready; wait until that has happened
 	# before measuring its real imported mesh.
 	refresh.call_deferred()
 
 
 func refresh() -> void:
+	_splitter_root = null
+	_splitter_ram = null
+	_splitter_wheel = null
+	_splitter_log = null
+	_splitter_label = null
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -43,6 +63,8 @@ func refresh() -> void:
 		_build_handcart()
 	if Shop.get_level(GameState.UPGRADE_COFFEE_THERMOS) > 0:
 		_build_thermos()
+	if MechanicalSplitter.is_installed():
+		_build_mechanical_splitter()
 
 
 func has_physical(id: StringName) -> bool:
@@ -128,7 +150,92 @@ func _build_thermos() -> void:
 		root.add_child(puff)
 
 
-func _box(parent: Node3D, node_name: String, size: Vector3, pos: Vector3, colour: Color) -> void:
+## Native-node greybox only. Every piece is an engine primitive and both the
+## scene-tree metadata and in-world placard call out the missing authored asset.
+func _build_mechanical_splitter() -> void:
+	var machine := MechanicalSplitter.machine_definition()
+	if machine == null:
+		return
+	_splitter_root = Node3D.new()
+	_splitter_root.name = String(machine.id)
+	_splitter_root.set_meta("art_status",
+		"greybox_missing_authored_mechanical_splitter_asset")
+	_splitter_root.position = Vector3(-1.22, 0.34, -0.72)
+	_splitter_root.rotation_degrees.y = 12.0
+	add_child(_splitter_root)
+
+	_box(_splitter_root, "Skid", Vector3(1.10, 0.12, 0.48),
+		Vector3(0, -0.28, 0), _DARK_WOOD)
+	_box(_splitter_root, "Body", Vector3(0.62, 0.48, 0.42),
+		Vector3(-0.18, 0.02, 0), _SPLITTER_BODY)
+	_box(_splitter_root, "Guard", Vector3(0.20, 0.42, 0.46),
+		Vector3(-0.48, 0.04, 0), _SPLITTER_GUARD)
+	_box(_splitter_root, "Bed", Vector3(0.72, 0.10, 0.28),
+		Vector3(0.42, -0.02, 0), _METAL)
+	_splitter_ram = _box(_splitter_root, "Ram", Vector3(0.18, 0.24, 0.24),
+		Vector3(0.08, 0.12, 0), _SPLITTER_GUARD)
+	_box(_splitter_root, "Blade", Vector3(0.055, 0.42, 0.34),
+		Vector3(0.66, 0.15, 0), _SPLITTER_BLADE)
+	_splitter_wheel = _cylinder(_splitter_root, "Flywheel", 0.22, 0.08,
+		Vector3(-0.20, 0.08, 0.25), _SPLITTER_GUARD)
+	_splitter_wheel.rotation_degrees.x = 90.0
+	var log_mesh := CylinderMesh.new()
+	log_mesh.top_radius = 0.11
+	log_mesh.bottom_radius = 0.12
+	log_mesh.height = 0.42
+	log_mesh.radial_segments = 14
+	_splitter_log = MeshInstance3D.new()
+	_splitter_log.name = "RepresentativeAssignedLog"
+	_splitter_log.mesh = log_mesh
+	_splitter_log.position = Vector3(0.39, 0.14, 0)
+	_splitter_log.rotation_degrees.z = 90.0
+	_splitter_log.material_override = _material(Color(0.31, 0.13, 0.045, 1.0))
+	_splitter_log.set_meta("art_status",
+		"single_preauthored_log_proxy_no_runtime_slicing")
+	_splitter_log.visible = false
+	_splitter_root.add_child(_splitter_log)
+
+	_splitter_label = Label3D.new()
+	_splitter_label.name = "MissingArtAndStateLabel"
+	_splitter_label.position = Vector3(0, 0.76, 0)
+	_splitter_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_splitter_label.fixed_size = true
+	_splitter_label.no_depth_test = true
+	_splitter_label.font_size = 14
+	_splitter_label.outline_size = 4
+	_splitter_label.modulate = Color(1.0, 0.92, 0.68, 1.0)
+	_splitter_root.add_child(_splitter_label)
+	_refresh_splitter_runtime()
+
+
+func _process(delta: float) -> void:
+	if _splitter_runtime == null or _splitter_root == null:
+		return
+	if _splitter_runtime.current_state() == MechanicalSplitterRuntime.State.PROCESSING:
+		if _splitter_wheel != null:
+			_splitter_wheel.rotate_y(delta * 7.0)
+		if _splitter_ram != null:
+			_splitter_ram.position.x = lerpf(0.08, 0.50,
+				_splitter_runtime.progress())
+		if _splitter_log != null:
+			_splitter_log.visible = true
+			_splitter_log.position.x = lerpf(0.36, 0.48,
+				_splitter_runtime.progress())
+	elif _splitter_ram != null:
+		_splitter_ram.position.x = 0.08
+		if _splitter_log != null:
+			_splitter_log.visible = false
+
+
+func _refresh_splitter_runtime() -> void:
+	if _splitter_runtime == null or _splitter_label == null:
+		return
+	_splitter_label.text = "MECH SPLITTER\nAUTHORED ART MISSING\n%s" % \
+		MechanicalSplitterRuntime.state_title(_splitter_runtime.current_state())
+
+
+func _box(parent: Node3D, node_name: String, size: Vector3, pos: Vector3,
+		colour: Color) -> MeshInstance3D:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var node := MeshInstance3D.new()
@@ -137,10 +244,11 @@ func _box(parent: Node3D, node_name: String, size: Vector3, pos: Vector3, colour
 	node.position = pos
 	node.material_override = _material(colour)
 	parent.add_child(node)
+	return node
 
 
 func _cylinder(parent: Node3D, node_name: String, radius: float, height: float,
-		pos: Vector3, colour: Color) -> void:
+		pos: Vector3, colour: Color) -> MeshInstance3D:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
@@ -152,6 +260,7 @@ func _cylinder(parent: Node3D, node_name: String, radius: float, height: float,
 	node.position = pos
 	node.material_override = _material(colour)
 	parent.add_child(node)
+	return node
 
 
 func _wheel(parent: Node3D, node_name: String, pos: Vector3) -> void:

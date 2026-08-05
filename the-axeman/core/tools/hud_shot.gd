@@ -58,11 +58,10 @@ func _ready() -> void:
 	# the live next-reward copy and bar rather than a UI-only staged value.
 	for _i in range(5):
 		GameState.record_species_completion(SpeciesTable.starting_species().id)
-	hud.get_node("QuickMenu/ShopButton").pressed.emit()
-	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
+	hud.get_node("QuickMenu/TreesButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_2b_woodshed")
-	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
+	hud.get_node("TreesPanel/Column/CloseButton").pressed.emit()
 
 	# Fresh three-bough state: every branch is present, and selecting Ready Stance
 	# explains its prerequisite rather than hiding it.

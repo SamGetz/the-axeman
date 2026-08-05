@@ -1,23 +1,27 @@
 extends Node
 ## M8 acceptance: typed mastery reward contracts, bounded per-species progress,
-## save-v3 migration/persistence, the manual-root once guard, and Slice 2's
-## cumulative effect application plus Trees-tab presentation.
+## save-v4 migration/persistence, the manual-root once guard, and Slice 2's
+## cumulative effect application plus Trees-tab presentation. Slice 3 adds the
+## Mechanical Splitter purchase/assignment foundation; Slice 4 adds one bounded,
+## visible watched production cycle with receipt-safe inventory output. Slice 5
+## adds a read-only Purchased shop tab derived from existing ownership tiers.
 
 const _BACKUP_PATH := "user://the_axeman_save.m8_testbackup"
 const _ChoppingMinigame := preload("res://scenes/3d_action/chopping_minigame.gd")
+const _MechanicalSplitter := preload("res://core/mechanical_splitter.gd")
 
 var _passes := 0
 var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M8 SLICE 2 ACCEPTANCE — cumulative mastery effects + presentation ===")
+	print("=== M8 SLICE 5 ACCEPTANCE — derived Purchased shop tab ===")
 	_stash_real_save()
 	_test_live_mastery_contracts()
 	_test_threshold_validator()
 	_test_bounded_species_progress()
 	_test_corrupt_progress_normalisation()
-	_test_v1_v2_v3_migration()
+	_test_v1_v2_v3_v4_migration()
 	_test_save_reload()
 	await _test_manual_root_once_guard()
 	await _test_mastery_autosave()
@@ -26,12 +30,24 @@ func _ready() -> void:
 	await _test_manual_xp_composition()
 	await _test_split_reliability_and_cap()
 	await _test_trees_mastery_presentation()
+	_test_splitter_catalogue_contracts()
+	_test_splitter_unlocks_and_atomic_purchase()
+	_test_splitter_save_reload()
+	await _test_mastery_splitter_navigation()
+	await _test_splitter_shop_presentation()
+	await _test_purchased_shop_tab()
+	await _test_splitter_runtime_contract_and_states()
+	await _test_splitter_watched_cycle()
+	await _test_splitter_restore_safety()
+	_test_splitter_upgrade_catalogue_and_pacing()
+	await _test_splitter_upgrade_runtime()
+	await _test_splitter_runtime_presentation()
 	_restore_real_save()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	print("=== M8 SLICE 2 RESULT: %d passed, %d failed ===" % [_passes, _fails])
+	print("=== M8 SLICE 5 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
-		print("=== ALL M8 SLICE 2 ACCEPTANCE CRITERIA PASS ===")
+		print("=== ALL M8 SLICE 5 ACCEPTANCE CRITERIA PASS ===")
 	get_tree().quit()
 
 
@@ -163,7 +179,7 @@ func _test_corrupt_progress_normalisation() -> void:
 		"a malformed mastery field costs only mastery and degrades to empty")
 
 
-func _test_v1_v2_v3_migration() -> void:
+func _test_v1_v2_v3_v4_migration() -> void:
 	var v2 := {"cash": 73}
 	var migrated_v2 := SaveSystem._migrate(v2, 2)
 	_check(migrated_v2.get("cash", 0) == 73
@@ -174,9 +190,12 @@ func _test_v1_v2_v3_migration() -> void:
 	var migrated_v1 := SaveSystem._migrate({"skill_levels": {}}, 1)
 	_check(migrated_v1.get("species_mastery_progress", null) == {},
 		"version 1 migrates sequentially through the M7C and M8 shapes")
+	var migrated_v3 := SaveSystem._migrate({"species_mastery_progress": {}}, 3)
+	_check(migrated_v3.get("splitter_assigned_species", "missing") == "",
+		"version 3 migrates to an explicitly idle splitter without inventing assignment")
 	var current := {"species_mastery_progress": {"quaking_aspen": 3}}
 	_check(SaveSystem._migrate(current, SaveSystem.SAVE_VERSION) == current,
-		"a version 3 progression dictionary is byte-shape idempotent")
+		"a version 4 progression dictionary is byte-shape idempotent")
 
 
 func _test_save_reload() -> void:
@@ -185,11 +204,11 @@ func _test_save_reload() -> void:
 	var aspen := SpeciesTable.at(0).id
 	GameState.record_species_completion(aspen)
 	GameState.record_species_completion(aspen)
-	_check(SaveSystem.save_game(), "a mastery-bearing version 3 save writes atomically")
+	_check(SaveSystem.save_game(), "a mastery-bearing version 4 save writes atomically")
 	var cfg := ConfigFile.new()
 	_check(cfg.load(SaveSystem.SAVE_PATH) == OK
 		and int(cfg.get_value("meta", "version", -1)) == SaveSystem.SAVE_VERSION,
-		"the saved file is stamped version 3")
+		"the saved file is stamped version 4")
 	GameState.reset_to_defaults()
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK
 		and GameState.get_species_mastery_progress(aspen) == 2,
@@ -380,22 +399,20 @@ func _test_trees_mastery_presentation() -> void:
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
 	await get_tree().process_frame
-	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
-	var tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
+	var trees_button: Button = hud.get_node("QuickMenu/TreesButton")
 	var wood_list: VBoxContainer = hud.get_node(
-		"ShopPanel/Column/ShopTabs/Trees/WoodScroll/WoodList")
-	shop_button.pressed.emit()
-	tabs.current_tab = 1
+		"TreesPanel/Column/WoodScroll/WoodList")
+	trees_button.pressed.emit()
 	var fresh_text := _text_under(wood_list)
 	_check(fresh_text.contains("Mastery 0 / 10")
 		and fresh_text.contains("Next reward at 1")
 		and fresh_text.contains("+0.1% cash")
 		and fresh_text.contains("+0.1% manual XP")
 		and fresh_text.contains("+0.05 pts split"),
-		"each owned Trees row shows progress and the complete next-threshold reward")
+		"each owned Tree Catalog row shows progress and the complete next-threshold reward")
 	GameState.record_species_completion(aspen)
 	_check(_text_under(wood_list).contains("Mastery 1 / 10\nNext reward at 5"),
-		"the open Trees tab repaints live from species_mastery_changed")
+		"the open Tree Catalog repaints live from species_mastery_changed")
 	for _i in range(9):
 		GameState.record_species_completion(aspen)
 	var mastered_text := _text_under(wood_list)
@@ -407,6 +424,654 @@ func _test_trees_mastery_presentation() -> void:
 		"a completed species shows its mastered state and a full bounded progress bar")
 	hud.queue_free()
 	await get_tree().process_frame
+
+
+func _test_splitter_catalogue_contracts() -> void:
+	var machine: UpgradeDef = _MechanicalSplitter.machine_definition()
+	var profiles: Array[UpgradeDef] = _MechanicalSplitter.profile_definitions()
+	_check(machine != null and profiles.size() == 3,
+		"the live catalogue has one Mechanical Splitter and three early profiles")
+	var early_species: Array[StringName] = []
+	var approved_tuning_ok := machine != null \
+		and machine.required_mastered_species_count == 3 \
+		and machine.base_cost == 1000 \
+		and machine.tuning_status.begins_with("APPROVED")
+	for profile: UpgradeDef in profiles:
+		early_species.append(profile.automation_species_id)
+		approved_tuning_ok = approved_tuning_ok \
+			and profile.base_cost == 250 \
+			and profile.tuning_status.begins_with("APPROVED") \
+			and profile.effect == UpgradeDef.Effect.NONE
+	_check(early_species == [SpeciesTable.at(0).id, SpeciesTable.at(1).id,
+		SpeciesTable.at(2).id],
+		"the first splitter accepts only the authored early-species profile group")
+	_check(approved_tuning_ok,
+		"machine certification gate and profile prices carry Sam's approved tuning")
+	_check(_MechanicalSplitter.validate_live_catalogue().is_empty(),
+		"the shipping splitter catalogue passes semantic validation")
+
+	var malformed := UpgradeDef.new()
+	malformed.id = &"bad_profile"
+	malformed.automation_role = UpgradeDef.AutomationRole.CUTTING_PROFILE
+	malformed.automation_species_id = &"invented_wood"
+	var malformed_catalogue: Array[UpgradeDef] = [malformed]
+	var errors: PackedStringArray = _MechanicalSplitter.validate_catalogue(malformed_catalogue)
+	_check(_has_error(errors, "purchase is missing")
+		and _has_error(errors, "unknown species")
+		and _has_error(errors, "own certification"),
+		"validation rejects an orphaned profile for an unknown, uncertified species")
+
+
+func _test_splitter_unlocks_and_atomic_purchase() -> void:
+	GameState.reset_to_defaults()
+	var machine: UpgradeDef = _MechanicalSplitter.machine_definition()
+	var profiles: Array[UpgradeDef] = _MechanicalSplitter.profile_definitions()
+	if machine == null or profiles.is_empty():
+		_check(false, "splitter purchase setup has live machine/profile definitions")
+		return
+	_check(not _MechanicalSplitter.is_installed()
+		and not _MechanicalSplitter.can_accept_species(SpeciesTable.at(0).id),
+		"a fresh yard has no splitter installation or automated species admission")
+
+	var owned_prerequisites := {
+		String(GameState.UPGRADE_BALANCED_AXE): 2,
+		String(GameState.UPGRADE_REINFORCED_BLOCK): 2,
+		String(GameState.UPGRADE_SUPPLIER_LEDGER): 2,
+		String(GameState.UPGRADE_HANDCART): 2,
+		String(GameState.UPGRADE_COFFEE_THERMOS): 2,
+	}
+	GameState.apply_save_dict({"building_tiers": owned_prerequisites})
+	_set_mastery_for_species(2)
+	_check(not Shop.is_unlocked(machine.id),
+		"the machine remains locked below its labelled certification-count gate")
+	_set_mastery_for_species(3)
+	_check(Shop.is_unlocked(machine.id) and Shop.is_visible(machine.id)
+		and not Shop.is_unlocked(profiles[0].id),
+		"three certifications reveal the machine while profiles still require its purchase")
+	var cash_before := GameState.get_cash()
+	_check(Shop.buy(machine.id) == -1
+		and GameState.get_cash() == cash_before
+		and not _MechanicalSplitter.is_installed(),
+		"an unaffordable machine purchase is atomic")
+	GameState.add_cash(machine.base_cost)
+	_check(Shop.buy(machine.id) == 1 and _MechanicalSplitter.is_installed(),
+		"the certified cash purchase installs exactly one Mechanical Splitter")
+	var profile := profiles[0]
+	cash_before = GameState.get_cash()
+	_check(Shop.buy(profile.id) == -1
+		and GameState.get_cash() == cash_before
+		and not _MechanicalSplitter.has_installed_profile(profile.automation_species_id),
+		"an unaffordable profile purchase spends nothing and installs nothing")
+	GameState.add_cash(profile.base_cost)
+	_check(Shop.buy(profile.id) == 1
+		and _MechanicalSplitter.can_accept_species(profile.automation_species_id)
+		and not _MechanicalSplitter.can_accept_species(profiles[1].automation_species_id),
+		"one paid certified profile admits only its own species")
+	var assignment_receipts: Array[StringName] = []
+	var receive_assignment := func(id: StringName) -> void:
+		assignment_receipts.append(id)
+	GameState.splitter_assignment_changed.connect(receive_assignment)
+	_check(GameState.assign_splitter_species(profile.automation_species_id)
+		and GameState.get_splitter_assigned_species() == profile.automation_species_id
+		and assignment_receipts == [profile.automation_species_id],
+		"the tree-side command records one eligible splitter assignment")
+	_check(not GameState.assign_splitter_species(profiles[1].automation_species_id)
+		and GameState.get_splitter_assigned_species() == profile.automation_species_id
+		and assignment_receipts.size() == 1,
+		"a species without an installed profile cannot replace the current assignment")
+	GameState.splitter_assignment_changed.disconnect(receive_assignment)
+
+
+func _test_splitter_save_reload() -> void:
+	SaveSystem.delete_save()
+	GameState.reset_to_defaults()
+	var machine: UpgradeDef = _MechanicalSplitter.machine_definition()
+	var profile: UpgradeDef = _MechanicalSplitter.profile_definitions()[0]
+	var tiers := {
+		String(machine.id): GameState.DEFAULT_BUILDING_TIER + 1,
+		String(profile.id): GameState.DEFAULT_BUILDING_TIER + 1,
+	}
+	var progress: Dictionary = {}
+	progress[String(profile.automation_species_id)] = \
+		M7CContent.mastery().by_species_id(profile.automation_species_id).mastery_target
+	GameState.apply_save_dict({
+		"building_tiers": tiers,
+		"species_mastery_progress": progress,
+		"splitter_assigned_species": String(profile.automation_species_id),
+	})
+	_check(SaveSystem.save_game(),
+		"installed splitter/profile ownership writes through the existing atomic save")
+	GameState.reset_to_defaults()
+	_check(not _MechanicalSplitter.is_installed(),
+		"reset clears installed automation without changing immutable catalogue data")
+	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK
+		and _MechanicalSplitter.is_installed()
+		and _MechanicalSplitter.can_accept_species(profile.automation_species_id)
+		and GameState.get_splitter_assigned_species() == profile.automation_species_id,
+		"machine, profile, certification and assignment survive reset and reload together")
+	GameState.reset_to_defaults()
+	GameState.apply_save_dict({
+		"species_mastery_progress": progress,
+		"splitter_assigned_species": String(profile.automation_species_id),
+	})
+	_check(GameState.get_splitter_assigned_species() == &"",
+		"a crafted assignment without installed machine/profile ownership is dropped")
+	var migrated := SaveSystem._migrate({"building_tiers": {}}, 2)
+	_check(not (migrated.get("building_tiers", {}) as Dictionary).has(String(machine.id)),
+		"an older save migration never invents splitter ownership")
+
+
+func _test_mastery_splitter_navigation() -> void:
+	GameState.reset_to_defaults()
+	GameState.apply_save_dict({"building_tiers": {
+		String(GameState.UPGRADE_BALANCED_AXE): 2,
+		String(GameState.UPGRADE_REINFORCED_BLOCK): 2,
+		String(GameState.UPGRADE_SUPPLIER_LEDGER): 2,
+		String(GameState.UPGRADE_HANDCART): 2,
+		String(GameState.UPGRADE_COFFEE_THERMOS): 2,
+	}})
+	_set_mastery_for_species(3)
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	var trees_button: Button = hud.get_node("QuickMenu/TreesButton")
+	var wood_list: VBoxContainer = hud.get_node("TreesPanel/Column/WoodScroll/WoodList")
+	var tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
+	var shop_panel: Control = hud.get_node("ShopPanel")
+	trees_button.pressed.emit()
+	var machine_route := _find_button_with_text(wood_list, "Open Splitter shop")
+	if machine_route != null:
+		machine_route.pressed.emit()
+	_check(machine_route != null and not machine_route.disabled
+		and shop_panel.visible and tabs.current_tab == 1,
+		"mastery enables the certified tree's route to the Mechanical Splitter shop")
+
+	var machine := _MechanicalSplitter.machine_definition()
+	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	trees_button.pressed.emit()
+	var profile_route := _find_button_with_text(wood_list, "Buy profile in Shop")
+	if profile_route != null:
+		profile_route.pressed.emit()
+	_check(profile_route != null and not profile_route.disabled
+		and shop_panel.visible and tabs.current_tab == 1,
+		"an installed machine leaves a mastered tree's required profile purchase actionable")
+	hud.queue_free()
+	await get_tree().process_frame
+
+
+func _test_splitter_shop_presentation() -> void:
+	GameState.reset_to_defaults()
+	var prerequisites := {
+		String(GameState.UPGRADE_BALANCED_AXE): 2,
+		String(GameState.UPGRADE_REINFORCED_BLOCK): 2,
+		String(GameState.UPGRADE_SUPPLIER_LEDGER): 2,
+		String(GameState.UPGRADE_HANDCART): 2,
+		String(GameState.UPGRADE_COFFEE_THERMOS): 2,
+	}
+	GameState.apply_save_dict({"building_tiers": prerequisites})
+	_set_mastery_for_species(2)
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
+	var tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
+	var shop_list: VBoxContainer = hud.get_node(
+		"ShopPanel/Column/ShopTabs/Splitter/Scroll/List")
+	shop_button.pressed.emit()
+	tabs.current_tab = 1
+	var locked_text := _control_text_under(shop_list)
+	_check(locked_text.contains("Mechanical Splitter")
+		and locked_text.contains("Master 3 species"),
+		"the Mechanical Splitter tab explains the machine's current certification gate")
+	var third := SpeciesTable.at(2).id
+	var target: int = M7CContent.mastery().by_species_id(third).mastery_target
+	for _i in range(target):
+		GameState.record_species_completion(third)
+	var unlocked_text := _control_text_under(shop_list)
+	_check(unlocked_text.contains(str(_MechanicalSplitter.machine_definition().base_cost))
+		and unlocked_text.contains("Splitter Profile · Quaking Aspen")
+		and unlocked_text.contains("Requires Mechanical Splitter"),
+		"the open Mechanical Splitter tab repaints when certification reveals the machine and profile")
+	var machine := _MechanicalSplitter.machine_definition()
+	var profile := _MechanicalSplitter.profile_for_species(SpeciesTable.at(0).id)
+	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	EventBus.building_upgraded.emit(profile.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	var trees_button: Button = hud.get_node("QuickMenu/TreesButton")
+	var wood_list: VBoxContainer = hud.get_node("TreesPanel/Column/WoodScroll/WoodList")
+	trees_button.pressed.emit()
+	var assign := _find_button_with_text(wood_list, "Assign to splitter")
+	if assign != null:
+		assign.pressed.emit()
+	var tree_text := _control_text_under(wood_list)
+	_check(assign != null
+		and GameState.get_splitter_assigned_species() == SpeciesTable.at(0).id
+		and tree_text.contains("Current assignment")
+		and tree_text.contains("Assigned"),
+		"the standalone Tree Catalog owns assignment and repaints the chosen profile")
+	hud.queue_free()
+	await get_tree().process_frame
+
+
+## Six Slice 5 checks pin the approved movement contract without introducing a
+## second ownership authority: before purchase, after one-time purchase, through
+## partial/maxed tiered ranks, and after a real save restoration.
+func _test_purchased_shop_tab() -> void:
+	SaveSystem.delete_save()
+	GameState.reset_to_defaults()
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	var tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
+	var items: VBoxContainer = hud.get_node(
+		"ShopPanel/Column/ShopTabs/Items/ShopScroll/ShopList")
+	var splitter: VBoxContainer = hud.get_node(
+		"ShopPanel/Column/ShopTabs/Splitter/Scroll/List")
+	var purchased: VBoxContainer = hud.get_node(
+		"ShopPanel/Column/ShopTabs/Purchased/Scroll/List")
+	hud.get_node("QuickMenu/ShopButton").pressed.emit()
+	_check(tabs.get_tab_count() == 3
+		and tabs.get_tab_title(0) == "Items"
+		and tabs.get_tab_title(1) == "Mechanical Splitter"
+		and tabs.get_tab_title(2) == "Purchased"
+		and _control_text_under(items).contains("Balanced Axe")
+		and purchased.get_child_count() == 0,
+		"fresh purchases stay in functional tabs before the empty Purchased tab")
+
+	EventBus.building_upgraded.emit(GameState.UPGRADE_BALANCED_AXE,
+		GameState.DEFAULT_BUILDING_TIER + 1)
+	_check(not _control_text_under(items).contains("Balanced Axe")
+		and _control_text_under(purchased).contains("Balanced Axe")
+		and _control_text_under(purchased).contains("Owned")
+		and _button_count(purchased) == 0,
+		"a completed Items one-time purchase moves to a read-only Owned row")
+
+	var prerequisites := {
+		String(GameState.UPGRADE_BALANCED_AXE): GameState.DEFAULT_BUILDING_TIER + 1,
+		String(GameState.UPGRADE_REINFORCED_BLOCK): GameState.DEFAULT_BUILDING_TIER + 1,
+		String(GameState.UPGRADE_SUPPLIER_LEDGER): GameState.DEFAULT_BUILDING_TIER + 1,
+		String(GameState.UPGRADE_HANDCART): GameState.DEFAULT_BUILDING_TIER + 1,
+		String(GameState.UPGRADE_COFFEE_THERMOS): GameState.DEFAULT_BUILDING_TIER + 1,
+	}
+	GameState.apply_save_dict({"building_tiers": prerequisites})
+	_set_mastery_for_species(3)
+	var machine := _MechanicalSplitter.machine_definition()
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	EventBus.building_upgraded.emit(profile.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	var splitter_text := _control_text_under(splitter)
+	var purchased_text := _control_text_under(purchased)
+	_check(splitter.get_node_or_null(String(machine.id)) == null
+		and splitter.get_node_or_null(String(profile.id)) == null
+		and splitter_text.contains("Splitter Profile · Eastern White Pine")
+		and purchased.get_node_or_null(String(machine.id)) != null
+		and purchased.get_node_or_null(String(profile.id)) != null
+		and _button_count(purchased) == 0,
+		"completed machine/profile purchases move while later splitter rows remain functional")
+
+	var speed := _MechanicalSplitter.upgrade_definition(
+		UpgradeDef.Effect.AUTOMATION_SPEED)
+	EventBus.building_upgraded.emit(speed.id, GameState.DEFAULT_BUILDING_TIER + 1)
+	splitter_text = _control_text_under(splitter)
+	purchased_text = _control_text_under(purchased)
+	_check(splitter_text.contains("Splitter Speed  (rank 1)")
+		and splitter_text.contains(str(speed.cost_for_level(1)))
+		and not purchased_text.contains(speed.display_name),
+		"a partially purchased tiered upgrade stays functional while another rank remains")
+
+	EventBus.building_upgraded.emit(speed.id,
+		GameState.DEFAULT_BUILDING_TIER + speed.max_level)
+	splitter_text = _control_text_under(splitter)
+	purchased_text = _control_text_under(purchased)
+	_check(not splitter_text.contains(speed.display_name)
+		and purchased_text.contains(speed.display_name)
+		and purchased_text.contains("Maxed · rank %d/%d" % [speed.max_level,
+			speed.max_level])
+		and _button_count(purchased) == 0,
+		"a fully purchased tiered upgrade moves to a read-only max-rank row")
+
+	var saved_without_history := SaveSystem.save_game() \
+		and not GameState.to_save_dict().has("purchase_history")
+	GameState.reset_to_defaults()
+	var restored := SaveSystem.load_game() == SaveSystem.LoadResult.OK
+	await get_tree().process_frame
+	splitter_text = _control_text_under(splitter)
+	purchased_text = _control_text_under(purchased)
+	_check(saved_without_history and restored
+		and purchased_text.contains(machine.display_name)
+		and purchased_text.contains(profile.display_name)
+		and purchased_text.contains("Maxed · rank %d/%d" % [speed.max_level,
+			speed.max_level])
+		and not splitter_text.contains(speed.display_name),
+		"save restoration re-derives identical Purchased placement from building tiers")
+	hud.queue_free()
+	await get_tree().process_frame
+
+
+func _test_splitter_runtime_contract_and_states() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var config := load("res://data/mechanical_splitter_runtime.tres") \
+		as MechanicalSplitterRuntimeDef
+	_check(config != null and config.queue_capacity == 1
+		and config.base_logs_per_split == 5
+		and config.maximum_logs_per_split == 12
+		and is_equal_approx(config.processing_duration_seconds, 5.0)
+		and config.output_amount == 1
+		and is_equal_approx(config.base_xp_rate, 0.20)
+		and is_equal_approx(config.minimum_duration_multiplier, 0.50)
+		and config.tuning_status.begins_with("APPROVED")
+		and config.validate().is_empty(),
+		"cycle data carries Sam's complete approved watched-runtime tuning band")
+	var all_titles := PackedStringArray()
+	for state: MechanicalSplitterRuntime.State in MechanicalSplitterRuntime.State.values():
+		all_titles.append(MechanicalSplitterRuntime.state_title(state))
+	_check(all_titles == PackedStringArray(["LOCKED", "UNASSIGNED", "MISSING PROFILE",
+		"READY", "PROCESSING", "OUTPUT BLOCKED"]),
+		"all six watched machine states have explicit legible player-facing titles")
+
+	var runtime := MechanicalSplitterRuntime.new()
+	add_child(runtime)
+	await get_tree().process_frame
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.LOCKED,
+		"an unpurchased splitter runtime is locked")
+	var machine := _MechanicalSplitter.machine_definition()
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	GameState.apply_save_dict({"building_tiers": {
+		String(machine.id): GameState.DEFAULT_BUILDING_TIER + 1,
+	}})
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.UNASSIGNED,
+		"a purchased splitter without a Tree Catalog route is unassigned")
+	# Deliberately inject the crafted/stale combination GameState normally rejects,
+	# proving the runtime diagnoses it rather than silently accepting the species.
+	GameState._splitter_assigned_species = profile.automation_species_id
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.MISSING_PROFILE,
+		"a stale assignment without its installed profile is diagnosed as missing profile")
+	runtime.queue_free()
+	await get_tree().process_frame
+
+
+func _test_splitter_watched_cycle() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
+	var species := SpeciesTable.by_id(profile.automation_species_id)
+	var runtime := MechanicalSplitterRuntime.new()
+	add_child(runtime)
+	await get_tree().process_frame
+	var config := runtime.config
+	var before_item := InventoryManager.get_count(species.yield_item)
+	var before_cash := GameState.get_cash()
+	var before_xp := GameState.get_xp()
+	var before_mastery := GameState.get_species_mastery_progress(species.id)
+	var before_lifetime := GameState.get_lifetime_wood_chopped()
+	var expected_logs := runtime.effective_logs_per_split()
+	var expected_amount := runtime.effective_output_amount()
+	var expected_cash := Market.get_price(species.yield_item) * expected_amount
+	var expected_xp := int(round(float(species.xp_reward * expected_logs)
+		* config.base_xp_rate))
+	var order := Orders.by_id(&"campfire_warmup")
+	var order_started := order != null and GameState.accept_order(order.id)
+	var before_order_progress := GameState.get_active_order_progress()
+	var receipts: Array[Dictionary] = []
+	runtime.cycle_completed.connect(func(species_id: StringName, item_id: StringName,
+			amount: int, receipt_id: StringName) -> void:
+		receipts.append({"species": species_id, "item": item_id,
+			"amount": amount, "receipt": receipt_id}))
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.READY
+		and runtime.state_detail().contains(species.display_name),
+		"the persisted Tree Catalog assignment is the ready runtime's sole route")
+	_check(runtime.try_queue_assigned_input() and not runtime.try_queue_assigned_input()
+		and runtime.queued_count() == config.queue_capacity
+		and runtime.current_state() == MechanicalSplitterRuntime.State.PROCESSING,
+		"one assigned log fills the bounded slot and a second admission is refused")
+	runtime._process(config.processing_duration_seconds)
+	_check(InventoryManager.get_count(species.yield_item) == before_item
+		and is_zero_approx(runtime.progress()),
+		"processing time does not advance while the yard runtime is inactive")
+	runtime.set_yard_active(true)
+	runtime._process(config.processing_duration_seconds * 0.5)
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.PROCESSING
+		and runtime.progress() > 0.0 and runtime.progress() < 1.0
+		and InventoryManager.get_count(species.yield_item) == before_item,
+		"a partial watched cycle shows progress without early output")
+	runtime._process(config.processing_duration_seconds)
+	_check(InventoryManager.get_count(species.yield_item) == before_item
+		and receipts.size() == 1
+		and receipts[0].item == species.yield_item
+		and receipts[0].species == species.id
+		and receipts[0].amount == expected_amount
+		and receipts[0].receipt != &""
+		and runtime.last_cash_earned() == expected_cash
+		and runtime.last_xp_earned() == expected_xp
+		and GameState.get_cash() == before_cash + expected_cash
+		and GameState.get_xp() == before_xp + expected_xp,
+		"completion sells SpeciesDef.yield_item once and pays base cash plus 20% species XP")
+	runtime._process(config.processing_duration_seconds * 4.0)
+	_check(InventoryManager.get_count(species.yield_item) == before_item
+		and receipts.size() == 1 and runtime.current_state() == MechanicalSplitterRuntime.State.READY
+		and GameState.get_cash() == before_cash + expected_cash
+		and GameState.get_xp() == before_xp + expected_xp,
+		"a completed receipt cannot pay cash or XP twice and the empty slot returns ready")
+	_check(GameState.get_species_mastery_progress(species.id) == before_mastery
+		and GameState.get_lifetime_wood_chopped() == before_lifetime
+		and order_started
+		and GameState.get_active_order_progress() == before_order_progress,
+		"automation XP grants no order progress, mastery, certification, lifetime chopped or manual completion progress")
+	runtime.queue_free()
+	await get_tree().process_frame
+
+
+func _test_splitter_restore_safety() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	var save_shape := _splitter_runtime_save_shape(profile)
+	GameState.apply_save_dict(save_shape)
+	var species := SpeciesTable.by_id(profile.automation_species_id)
+	var runtime := MechanicalSplitterRuntime.new()
+	add_child(runtime)
+	await get_tree().process_frame
+	runtime.set_yard_active(true)
+	var before := InventoryManager.get_count(species.yield_item)
+	_check(runtime.try_queue_assigned_input(),
+		"restore safety setup starts one watched in-memory cycle")
+	runtime._process(runtime.config.processing_duration_seconds * 0.6)
+	GameState.apply_save_dict(save_shape)
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.READY
+		and runtime.queued_count() == 0 and is_zero_approx(runtime.progress())
+		and InventoryManager.get_count(species.yield_item) == before,
+		"restoring progression discards ephemeral queue/progress without granting output")
+	runtime._process(runtime.config.processing_duration_seconds * 2.0)
+	_check(InventoryManager.get_count(species.yield_item) == before,
+		"restored runtime cannot finish discarded work or create free output")
+	runtime.queue_free()
+	await get_tree().process_frame
+
+
+func _test_splitter_upgrade_catalogue_and_pacing() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var definitions := _MechanicalSplitter.upgrade_definitions()
+	var effects: Array[UpgradeDef.Effect] = []
+	var labelled := true
+	for definition: UpgradeDef in definitions:
+		effects.append(definition.effect)
+		labelled = labelled and definition.tuning_status.begins_with("APPROVED")
+	var speed := _MechanicalSplitter.upgrade_definition(UpgradeDef.Effect.AUTOMATION_SPEED)
+	var auto_load := _MechanicalSplitter.upgrade_definition(UpgradeDef.Effect.AUTOMATION_AUTO_LOAD)
+	var logs := _MechanicalSplitter.upgrade_definition(UpgradeDef.Effect.AUTOMATION_LOGS_PER_SPLIT)
+	var xp := _MechanicalSplitter.upgrade_definition(UpgradeDef.Effect.AUTOMATION_XP_GAIN)
+	var cash := _MechanicalSplitter.upgrade_definition(UpgradeDef.Effect.AUTOMATION_CASH_GAIN)
+	var exact_tuning := speed != null and speed.base_cost == 500 \
+		and is_equal_approx(speed.cost_growth, 1.5) and speed.max_level == 5 \
+		and is_equal_approx(speed.effect_step, 0.1) \
+		and auto_load != null and auto_load.base_cost == 2500 \
+		and is_equal_approx(auto_load.cost_growth, 1.0) and auto_load.max_level == 1 \
+		and is_equal_approx(auto_load.effect_step, 1.0) \
+		and logs != null and logs.base_cost == 1000 \
+		and is_equal_approx(logs.cost_growth, 1.4) and logs.max_level == 7 \
+		and is_equal_approx(logs.effect_step, 1.0) \
+		and xp != null and xp.base_cost == 1000 \
+		and is_equal_approx(xp.cost_growth, 1.5) and xp.max_level == 4 \
+		and is_equal_approx(xp.effect_step, 0.2) \
+		and cash != null and cash.base_cost == 750 \
+		and is_equal_approx(cash.cost_growth, 1.5) and cash.max_level == 5 \
+		and is_equal_approx(cash.effect_step, 0.1)
+	_check(effects == [UpgradeDef.Effect.AUTOMATION_SPEED,
+		UpgradeDef.Effect.AUTOMATION_AUTO_LOAD,
+		UpgradeDef.Effect.AUTOMATION_LOGS_PER_SPLIT,
+		UpgradeDef.Effect.AUTOMATION_XP_GAIN,
+		UpgradeDef.Effect.AUTOMATION_CASH_GAIN] and labelled and exact_tuning,
+		"the five splitter lines preserve Sam's exact approved prices, ranks and effects")
+
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	var progression := _splitter_runtime_save_shape(profile)
+	var owned_tiers: Dictionary = progression["building_tiers"]
+	for id: StringName in [GameState.UPGRADE_BALANCED_AXE,
+		GameState.UPGRADE_REINFORCED_BLOCK, GameState.UPGRADE_SUPPLIER_LEDGER,
+		GameState.UPGRADE_HANDCART, GameState.UPGRADE_COFFEE_THERMOS]:
+		owned_tiers[String(id)] = GameState.DEFAULT_BUILDING_TIER + 1
+	GameState.apply_save_dict(progression)
+	_set_mastery_for_species(3)
+	_check(Shop.is_visible(speed.id) and Shop.is_unlocked(speed.id)
+		and not Shop.is_unlocked(auto_load.id),
+		"Speed introduces first while Auto Loading waits for one Speed rank")
+	GameState.add_cash(100000)
+	var chain_ok := Shop.buy(speed.id) == 1 and Shop.is_unlocked(auto_load.id) \
+		and Shop.buy(auto_load.id) == 1 and Shop.is_unlocked(logs.id) \
+		and Shop.buy(logs.id) == 1 and Shop.is_unlocked(xp.id) \
+		and Shop.buy(xp.id) == 1 and Shop.is_unlocked(cash.id)
+	_check(chain_ok,
+		"the paced chain reveals Auto Loading, Logs per Split, XP, then Money in order")
+
+
+func _test_splitter_upgrade_runtime() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	var data := _splitter_runtime_save_shape(profile)
+	var tiers: Dictionary = data["building_tiers"]
+	for effect: UpgradeDef.Effect in [UpgradeDef.Effect.AUTOMATION_SPEED,
+		UpgradeDef.Effect.AUTOMATION_AUTO_LOAD,
+		UpgradeDef.Effect.AUTOMATION_LOGS_PER_SPLIT,
+		UpgradeDef.Effect.AUTOMATION_XP_GAIN,
+		UpgradeDef.Effect.AUTOMATION_CASH_GAIN]:
+		var definition := _MechanicalSplitter.upgrade_definition(effect)
+		tiers[String(definition.id)] = GameState.DEFAULT_BUILDING_TIER + 1
+	GameState.apply_save_dict(data)
+	var species := SpeciesTable.by_id(profile.automation_species_id)
+	var runtime := MechanicalSplitterRuntime.new()
+	add_child(runtime)
+	await get_tree().process_frame
+	_check(runtime.auto_loading_enabled()
+		and runtime.effective_duration_seconds() < runtime.config.processing_duration_seconds
+		and runtime.effective_logs_per_split() == 6
+		and is_equal_approx(runtime.automation_xp_rate(), 0.40)
+		and is_equal_approx(runtime.automation_cash_bonus(), 0.10),
+		"one rank of each line changes speed, auto loading, batch size, XP and cash independently")
+	runtime.set_yard_active(true)
+	runtime._process(0.001)
+	_check(runtime.current_state() == MechanicalSplitterRuntime.State.PROCESSING
+		and runtime.queued_count() == 1,
+		"Auto Loading fills the same bounded slot without adding a second queue")
+	var expected_amount := runtime.effective_output_amount()
+	var expected_cash := int(round(float(Market.get_price(species.yield_item)
+		* expected_amount) * 1.10))
+	var expected_xp := int(round(float(species.xp_reward * 6) * 0.40))
+	runtime._process(runtime.effective_duration_seconds())
+	_check(runtime.last_logs_processed() == 6
+		and runtime.last_cash_earned() == expected_cash
+		and runtime.last_xp_earned() == expected_xp
+		and InventoryManager.get_count(species.yield_item) == 0,
+		"upgraded represented batch sells once with its own Money and XP multipliers")
+	runtime.queue_free()
+	await get_tree().process_frame
+
+
+func _test_splitter_runtime_presentation() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var profile := _MechanicalSplitter.profile_definitions()[0]
+	GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
+	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
+	game.debug_forced_species = 0
+	add_child(game)
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var runtime: MechanicalSplitterRuntime = game.get_node("MechanicalSplitterRuntime")
+	runtime.set_yard_active(true)
+	hud.bind_splitter_runtime(runtime)
+	var presenter: YardEquipmentPresenter = game.get_node("YardEquipment")
+	var machine := presenter.get_node_or_null("mechanical_splitter")
+	var art_label: Label3D = presenter.get_node_or_null(
+		"mechanical_splitter/MissingArtAndStateLabel")
+	var representative_log: MeshInstance3D = presenter.get_node_or_null(
+		"mechanical_splitter/RepresentativeAssignedLog")
+	_check(machine != null
+		and machine.get_meta("art_status", "") ==
+			"greybox_missing_authored_mechanical_splitter_asset"
+		and art_label != null and art_label.text.contains("AUTHORED ART MISSING")
+		and representative_log != null
+		and representative_log.get_meta("art_status", "") ==
+			"single_preauthored_log_proxy_no_runtime_slicing",
+		"the purchased machine appears as an explicitly labelled native-node greybox")
+	var state_label: Label = hud.get_node("SplitterRuntimeCard/Column/State")
+	var detail: Label = hud.get_node("SplitterRuntimeCard/Column/Detail")
+	var action: Button = hud.get_node("SplitterRuntimeCard/Column/Action")
+	_check(state_label.text == "READY" and detail.text.contains("5 log batch")
+		and not action.disabled and action.text == "Load assigned log",
+		"the always-on runtime card legibly shows the ready assigned species and action")
+	action.pressed.emit()
+	runtime._process(runtime.config.processing_duration_seconds * 0.5)
+	await get_tree().process_frame
+	_check(state_label.text == "PROCESSING"
+		and action.text.contains("Input slot full")
+		and hud.get_node("SplitterRuntimeCard/Column/Progress").value > 0.0
+		and representative_log.visible,
+		"the runtime card and one representative log show the active processing batch")
+	runtime._process(runtime.config.processing_duration_seconds)
+	await get_tree().process_frame
+	_check(state_label.text == "READY"
+		and not representative_log.visible
+		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("cash")
+		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("XP"),
+		"the watched UI returns ready and exposes the cash/XP completion receipt")
+	hud.queue_free()
+	game.queue_free()
+	await get_tree().process_frame
+
+
+func _splitter_runtime_save_shape(profile: UpgradeDef) -> Dictionary:
+	var machine := _MechanicalSplitter.machine_definition()
+	var target: int = M7CContent.mastery().by_species_id(
+		profile.automation_species_id).mastery_target
+	return {
+		"building_tiers": {
+			String(machine.id): GameState.DEFAULT_BUILDING_TIER + 1,
+			String(profile.id): GameState.DEFAULT_BUILDING_TIER + 1,
+		},
+		"species_mastery_progress": {
+			String(profile.automation_species_id): target,
+		},
+		"splitter_assigned_species": String(profile.automation_species_id),
+	}
+
+
+func _set_mastery_for_species(count: int) -> void:
+	var progress: Dictionary = {}
+	var table := M7CContent.mastery()
+	for index in range(mini(count, SpeciesTable.count())):
+		var species := SpeciesTable.at(index)
+		var definition: SpeciesMasteryDef = table.by_species_id(species.id) \
+			if table != null and species != null else null
+		if definition != null:
+			progress[String(species.id)] = definition.mastery_target
+	var current: Dictionary = GameState.to_save_dict()
+	current["species_mastery_progress"] = progress
+	GameState.apply_save_dict(current)
 
 
 func _set_every_species_mastered() -> void:
@@ -438,6 +1103,34 @@ func _text_under(root: Node) -> String:
 	for child: Node in root.get_children():
 		text += _text_under(child)
 	return text
+
+
+func _control_text_under(root: Node) -> String:
+	var out := ""
+	if root is Label:
+		out += (root as Label).text + "\n"
+	elif root is Button:
+		out += (root as Button).text + "\n"
+	for child: Node in root.get_children():
+		out += _control_text_under(child)
+	return out
+
+
+func _find_button_with_text(root: Node, wanted: String) -> Button:
+	if root is Button and (root as Button).text == wanted:
+		return root as Button
+	for child: Node in root.get_children():
+		var found := _find_button_with_text(child, wanted)
+		if found != null:
+			return found
+	return null
+
+
+func _button_count(root: Node) -> int:
+	var count := 1 if root is Button else 0
+	for child: Node in root.get_children():
+		count += _button_count(child)
+	return count
 
 
 func _first_progress_bar(root: Node) -> ProgressBar:

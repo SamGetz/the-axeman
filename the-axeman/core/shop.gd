@@ -80,12 +80,41 @@ static func is_unlocked(id: StringName) -> bool:
 		return false
 	if GameState.get_haul_aways_completed() < def.unlock_after_haul_aways:
 		return false
+	if def.required_upgrade_id != &"" and get_level(def.required_upgrade_id) <= 0:
+		return false
+	if def.required_mastery_species_id != &"" \
+			and not GameState.is_species_mastered(def.required_mastery_species_id):
+		return false
+	if GameState.get_mastered_species_count() < def.required_mastered_species_count:
+		return false
 	return true
 
 
 ## How many levels of `id` the player has bought. 0 = none.
 static func get_level(id: StringName) -> int:
 	return maxi(0, GameState.get_building_tier(id) - GameState.DEFAULT_BUILDING_TIER)
+
+
+## Completed ownership is derived from the same persisted building tier used by
+## every effect reader. There is deliberately no separate purchase-history list
+## for the Purchased tab to save, migrate or let drift out of sync.
+static func is_fully_purchased(id: StringName) -> bool:
+	var def := get_upgrade(id)
+	if def == null:
+		return false
+	var level := get_level(id)
+	return level > 0 and def.is_maxed(level)
+
+
+## Every completed row in authored catalogue order. This walks the full table,
+## not only the current reveal prefix: ownership remains visible even if a later
+## tuning pass changes a prerequisite that sits before an old paid purchase.
+static func get_purchased_upgrades() -> Array[UpgradeDef]:
+	var out: Array[UpgradeDef] = []
+	for def: UpgradeDef in get_upgrades():
+		if def != null and is_fully_purchased(def.id):
+			out.append(def)
+	return out
 
 
 ## Cash for the next level, or 0 if it is maxed or unknown (nothing to buy).

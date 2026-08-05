@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://core/tests/m8_acceptance.gd" id="1"]
 
-[node name="M8Slice1Acceptance" type="Node"]
+[node name="M8Slice4Acceptance" type="Node"]
 script = ExtResource("1")

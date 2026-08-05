@@ -5,6 +5,7 @@ extends Node
 
 const OUT := "/private/tmp/axeman_m7a_catalogue"
 const _BACKUP := "user://the_axeman_save.catalogueshotbackup"
+const _M7A_CATALOGUE_SIZE := 5
 
 
 func _ready() -> void:
@@ -21,11 +22,11 @@ func _ready() -> void:
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_1_fresh_shop")
-	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
+	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
+	hud.get_node("QuickMenu/TreesButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_1b_tree_catalogue")
-	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 0
-	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
+	hud.get_node("TreesPanel/Column/CloseButton").pressed.emit()
 
 	var first := Orders.by_id(&"campfire_warmup")
 	GameState.accept_order(first.id)
@@ -37,7 +38,9 @@ func _ready() -> void:
 	GameState.accept_order(aspen.id)
 	for _i in range(aspen.required_count):
 		GameState.record_order_piece(&"aspen_firewood")
-	for def: UpgradeDef in Shop.get_upgrades():
+	var catalogue := Shop.get_upgrades()
+	for index in range(mini(_M7A_CATALOGUE_SIZE, catalogue.size())):
+		var def: UpgradeDef = catalogue[index]
 		EventBus.building_upgraded.emit(def.id, GameState.DEFAULT_BUILDING_TIER + 1)
 	await get_tree().process_frame
 	await get_tree().process_frame

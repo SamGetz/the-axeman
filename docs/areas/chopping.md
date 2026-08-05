@@ -39,10 +39,13 @@ their focused tools. The live scenes and tests remain authoritative.
 - Smoke: `core/tools/chopping_smoke.tscn`.
 - Non-headless pile timing: `core/tools/pile_smoke.tscn`.
 - Visual tools include `shot_runner`, `axe_shot`, `proc_shot`, `grain_shot`,
-  `species_shot`, `inspect_materials`, and `inspect_fbx` under `core/tools/`.
+  `species_shot`, `m8_splitter_shot`, `inspect_materials`, and `inspect_fbx`
+  under `core/tools/`.
 - Run `axe_shot` after changing the swing animation. Run `species_shot` after a
   species mesh or bark tint change. Use `inspect_materials` for imported material
   binding; material names alone are unreliable.
+- The Mechanical Splitter uses one static representative log proxy for every
+  assigned species/batch. It is a presentation stand-in, not runtime slice input.
 
 Historical implementation and post-mortem detail is in
 `docs/history/02_m4_chopping_game.md` and the older M4 handoffs. Do not load those

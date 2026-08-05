@@ -1,9 +1,10 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scenes/2d_management/yard_hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/ui/coin.png" id="2_coin"]
 [ext_resource type="Texture2D" path="res://assets/ui/contracts_icon.svg" id="3_contracts"]
 [ext_resource type="Texture2D" path="res://assets/ui/skills_icon.svg" id="5_skills"]
+[ext_resource type="Texture2D" path="res://assets/ui/wood_icon.svg" id="6_wood"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_contract_board"]
 bg_color = Color(0.19, 0.115, 0.055, 0.97)
@@ -61,6 +62,55 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 26
 text = "0"
 
+[node name="SplitterRuntimeCard" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -332.0
+offset_top = 36.0
+offset_right = -16.0
+offset_bottom = 190.0
+grow_horizontal = 0
+
+[node name="Column" type="VBoxContainer" parent="SplitterRuntimeCard"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="SplitterRuntimeCard/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Mechanical Splitter · AUTHORED ART MISSING"
+
+[node name="State" type="Label" parent="SplitterRuntimeCard/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "LOCKED"
+
+[node name="Detail" type="Label" parent="SplitterRuntimeCard/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 12
+text = "Purchase the machine in Shop."
+
+[node name="Progress" type="ProgressBar" parent="SplitterRuntimeCard/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 1.0
+step = 0.001
+show_percentage = false
+
+[node name="Action" type="Button" parent="SplitterRuntimeCard/Column"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+disabled = true
+text = "Buy in Shop"
+
+[node name="Receipt" type="Label" parent="SplitterRuntimeCard/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Input 0 / 1 · watched yard time only"
+
 [node name="XPBar" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 10
@@ -99,7 +149,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -200.0
+offset_left = -264.0
 offset_top = -72.0
 offset_right = -16.0
 offset_bottom = -16.0
@@ -149,6 +199,33 @@ tooltip_text = "Shop"
 icon = ExtResource("2_coin")
 expand_icon = true
 icon_max_width = 38
+
+[node name="TreesButton" type="Button" parent="QuickMenu"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "Tree Catalog"
+icon = ExtResource("6_wood")
+expand_icon = true
+icon_max_width = 38
+
+[node name="Badge" type="Label" parent="QuickMenu/TreesButton"]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -16.0
+offset_top = -6.0
+offset_right = 6.0
+offset_bottom = 14.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBox_badge")
+text = "1"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="Badge" type="Label" parent="QuickMenu/ShopButton"]
 visible = false
@@ -236,31 +313,109 @@ layout_mode = 2
 autowrap_mode = 3
 text = "Nothing on the shelves yet."
 
-[node name="Trees" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs"]
+[node name="Splitter" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="WoodBlurb" type="Label" parent="ShopPanel/Column/ShopTabs/Trees"]
+[node name="Status" type="Label" parent="ShopPanel/Column/ShopTabs/Splitter"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Pick what goes on the block. Harder wood is worth more and fights back harder."
+text = "Certify woods by hand, purchase their profiles here, then assign one from the Tree Catalog."
 
-[node name="WoodScroll" type="ScrollContainer" parent="ShopPanel/Column/ShopTabs/Trees"]
+[node name="Scroll" type="ScrollContainer" parent="ShopPanel/Column/ShopTabs/Splitter"]
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="WoodList" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs/Trees/WoodScroll"]
+[node name="List" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs/Splitter/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+theme_override_constants/separation = 10
 
-[node name="NextWood" type="Label" parent="ShopPanel/Column/ShopTabs/Trees"]
+[node name="Empty" type="Label" parent="ShopPanel/Column/ShopTabs/Splitter"]
+layout_mode = 2
+autowrap_mode = 3
+text = "The Mechanical Splitter catalogue is still locked."
+
+[node name="Purchased" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Scroll" type="ScrollContainer" parent="ShopPanel/Column/ShopTabs/Purchased"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="ShopPanel/Column/ShopTabs/Purchased/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Empty" type="Label" parent="ShopPanel/Column/ShopTabs/Purchased"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Completed purchases will be kept here."
+
+[node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Back"
+
+[node name="TreesPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -330.0
+offset_top = -300.0
+offset_right = 330.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Column" type="VBoxContainer" parent="TreesPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="TreesPanel/Column"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Icon" type="TextureRect" parent="TreesPanel/Column/Header"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+size_flags_vertical = 4
+texture = ExtResource("6_wood")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Title" type="Label" parent="TreesPanel/Column/Header"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Tree Catalog"
+
+[node name="Blurb" type="Label" parent="TreesPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Check mastery, choose the next log for the block, and assign one certified profile to the Mechanical Splitter."
+
+[node name="WoodScroll" type="ScrollContainer" parent="TreesPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="WoodList" type="VBoxContainer" parent="TreesPanel/Column/WoodScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NextWood" type="Label" parent="TreesPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
 theme_override_font_sizes/font_size = 13
 
-[node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
+[node name="CloseButton" type="Button" parent="TreesPanel/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Back"

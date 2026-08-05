@@ -117,6 +117,27 @@ static func sell_everything() -> int:
 ## shape InventoryManager.remove_items already takes, so duplicate ids are summed
 ## by the aggregator there rather than double-counted here.
 static func sell_batch(lines: Array) -> int:
+	# Manual/player sales receive the player's ordinary skill/mastery reputation.
+	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.CASH_GAIN) \
+		+ SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN)
+	return _sell_batch_with_bonus(lines, bonus)
+
+
+## Mechanical Splitter receipt path. It uses the same inventory removal and
+## GameState cash owner as every sale, but only the machine's own Money Gain
+## percentage applies: manual skill/mastery modifiers and fixed orders do not.
+static func sell_automation(item_id: StringName, count: int,
+		automation_cash_bonus: float) -> int:
+	if count <= 0 or automation_cash_bonus < 0.0 \
+			or not is_finite(automation_cash_bonus):
+		return 0
+	return _sell_batch_with_bonus([{
+		"item_id": item_id,
+		"amount": count,
+	}], automation_cash_bonus)
+
+
+static func _sell_batch_with_bonus(lines: Array, bonus: float) -> int:
 	if lines.is_empty():
 		return 0
 
@@ -142,17 +163,9 @@ static func sell_batch(lines: Array) -> int:
 	if payout <= 0:
 		return 0
 
-	# THE PLAYER'S REPUTATION, priced in. Master Axeman and its kin add a fraction
-	# on top of the base prices, which is exactly the layering the price table was
-	# kept separate for: the market's base value is one thing, what THIS axeman
-	# gets for it is another. Applied to the whole basket after it is priced, so a
-	# sale is still all-or-nothing and rounding cannot make a line free.
-	# Skill and mastery percentages are same-stat contributions: add them first,
-	# then round the basket once. Fixed order premiums are paid later by
-	# GameState.record_order_piece(), so this ordinary-sale modifier cannot touch
-	# them.
-	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.CASH_GAIN) \
-		+ SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN)
+	# The caller supplies one already-composed bonus: manual sales use skill plus
+	# mastery reputation; Mechanical Splitter receipts use only Money Gain. Apply
+	# it to the whole basket once so rounding cannot make an individual line free.
 	if bonus > 0.0:
 		payout = maxi(payout, int(round(float(payout) * (1.0 + bonus))))
 

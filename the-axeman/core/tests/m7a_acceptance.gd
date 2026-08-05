@@ -431,9 +431,12 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var quick_menu: HBoxContainer = hud.get_node("QuickMenu")
 	var shop_button: Button = hud.get_node("QuickMenu/ShopButton")
 	var shop_badge: Label = hud.get_node("QuickMenu/ShopButton/Badge")
+	var trees_button: Button = hud.get_node("QuickMenu/TreesButton")
+	var trees_badge: Label = hud.get_node("QuickMenu/TreesButton/Badge")
 	var skills_badge: Label = hud.get_node("QuickMenu/SkillsButton/Badge")
 	var shop_panel: PanelContainer = hud.get_node("ShopPanel")
 	var shop_tabs: TabContainer = hud.get_node("ShopPanel/Column/ShopTabs")
+	var trees_panel: PanelContainer = hud.get_node("TreesPanel")
 	var backdrop: ColorRect = hud.get_node("ModalBackdrop")
 	var orders_button: Button = hud.get_node("QuickMenu/OrdersButton")
 	var orders_panel: PanelContainer = hud.get_node("OrdersPanel")
@@ -448,8 +451,8 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var xp_fill := xp_progress.get_theme_stylebox("fill") as StyleBoxFlat
 	_check(xp_fill != null and xp_fill.bg_color == XPOrb.COLOR,
 		"the XP fill uses the orb's exact reward colour (%s)" % XPOrb.COLOR)
-	_check(quick_menu.visible and quick_menu.get_child_count() == 3,
-		"contracts, skills and one combined shop are always available in the bottom-right dock")
+	_check(quick_menu.visible and quick_menu.get_child_count() == 4,
+		"contracts, skills, shop and Tree Catalog are always available in the bottom-right dock")
 	var square_icons := true
 	for child in quick_menu.get_children():
 		var button := child as Button
@@ -457,12 +460,12 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 			and button.custom_minimum_size.x == button.custom_minimum_size.y \
 			and button.custom_minimum_size.x > 0.0 and button.text.is_empty() \
 			and button.icon != null
-	_check(square_icons, "all three dock actions are compact square icon buttons")
-	_check(not shop_badge.visible and not skills_badge.visible,
+	_check(square_icons, "all four dock actions are compact square icon buttons")
+	_check(not shop_badge.visible and not trees_badge.visible and not skills_badge.visible,
 		"fresh icons carry no red badge when nothing can be bought or spent")
-	_check(hud.get_node_or_null("QuickMenu/WoodButton") == null
-			and hud.get_node_or_null("WoodPanel") == null,
-		"the separate wood storefront is gone")
+	_check(trees_button.icon != null and trees_panel != null
+			and hud.get_node_or_null("ShopPanel/Column/ShopTabs/Trees") == null,
+		"the Tree Catalog has its own dock icon and is no longer nested in the shop")
 
 	# Cash is the only number on screen; the pile count and the lifetime total are
 	# background stats now, still counted and still saved but never shown.
@@ -503,15 +506,19 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	_check(not shop_panel.visible and not backdrop.visible, "the shop starts closed over the live chopping view")
 	shop_button.pressed.emit()
 	_check(shop_panel.visible and backdrop.visible, "...the coin button opens it with an outside-click catcher")
-	_check(shop_tabs.get_tab_count() == 2
-			and shop_tabs.get_tab_title(0) == "Items" and shop_tabs.get_tab_title(1) == "Trees",
-		"...with Items and Trees in the same shop window")
-	shop_tabs.current_tab = 1
-	_check(hud.get_node("ShopPanel/Column/ShopTabs/Trees").visible
-			and hud.get_node("ShopPanel/Column/ShopTabs/Trees/WoodScroll/WoodList").get_child_count() > 0,
-		"...and the Trees tab contains the selectable wood catalogue")
+	_check(shop_tabs.get_tab_count() == 3
+			and shop_tabs.get_tab_title(0) == "Items"
+			and shop_tabs.get_tab_title(1) == "Mechanical Splitter"
+			and shop_tabs.get_tab_title(2) == "Purchased",
+		"...with separate Items, Mechanical Splitter and Purchased tabs")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
-	_check(not shop_panel.visible and not backdrop.visible, "...and Back returns straight to chopping")
+	trees_button.pressed.emit()
+	_check(trees_panel.visible
+			and hud.get_node("TreesPanel/Column/WoodScroll/WoodList").get_child_count() > 0,
+		"...and the standalone Tree Catalog contains the selectable wood rows")
+	hud.get_node("TreesPanel/Column/CloseButton").pressed.emit()
+	_check(not shop_panel.visible and not trees_panel.visible and not backdrop.visible,
+		"...and Back returns either window straight to chopping")
 
 	_check(not orders_panel.visible, "the contract board starts closed")
 	orders_button.pressed.emit()
@@ -573,10 +580,10 @@ func _test_14_hud_panels_dismiss_to_chopping() -> void:
 	shop.pressed.emit()
 	hud.get_node("ShopPanel/Column/ShopTabs").current_tab = 1
 	_check(shop_panel.visible and backdrop.visible,
-		"the shop icon opens the shared window directly over chopping")
+		"the shop icon opens its Mechanical Splitter tab directly over chopping")
 	hud.get_node("ShopPanel/Column/CloseShopButton").pressed.emit()
 	_check(not shop_panel.visible and not backdrop.visible,
-		"Back dismisses either shop tab straight to chopping")
+		"Back dismisses the shop straight to chopping")
 	_check(entered.is_empty() and exited[0] == 0,
 		"opening and closing management never emits a 2D/3D mode change")
 
@@ -1321,9 +1328,10 @@ func _test_28_orders_route_pay_and_persist() -> void:
 	GameState.reset_to_defaults()
 
 
-## The approved five purchases are one ordered catalogue, not five unrelated
-## buttons. This pins reveal adjacency, event gates, identity-safe effects and
-## the immediate physical greybox consequences that final art will replace.
+## The approved five M7A purchases remain one ordered catalogue prefix, not five
+## unrelated buttons. Later milestones may append rows without rewriting this
+## prefix. This pins reveal adjacency, event gates, identity-safe effects and the
+## immediate physical greybox consequences that final art will replace.
 func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -1338,7 +1346,8 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 		GameState.UPGRADE_HANDCART,
 		GameState.UPGRADE_COFFEE_THERMOS,
 	]
-	_check(ids == approved, "the shop preserves the approved five-item catalogue order")
+	_check(ids.size() >= approved.size() and ids.slice(0, approved.size()) == approved,
+		"the shop preserves the approved five-item catalogue prefix")
 	_check(defs[0].purchase_form == UpgradeDef.PurchaseForm.ONE_TIME
 			and defs[1].purchase_form == UpgradeDef.PurchaseForm.TIERED
 			and defs[1].max_level == 1,
@@ -1359,8 +1368,8 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	var base_cooldown: float = game.current_swing_cooldown()
 
 	var candidate_total := 0
-	for def: UpgradeDef in defs:
-		candidate_total += def.base_cost
+	for index in range(approved.size()):
+		candidate_total += defs[index].base_cost
 	GameState.add_cash(candidate_total)
 	_check(Shop.buy(GameState.UPGRADE_BALANCED_AXE) == 1
 			and game.debug_split_chance() > base_chance,
@@ -1442,8 +1451,11 @@ func _test_29_the_approved_catalogue_is_gated_and_physical() -> void:
 	_check(Shop.get_level(GameState.UPGRADE_COFFEE_THERMOS) == 1
 			and Shop.get_next_cost(GameState.UPGRADE_COFFEE_THERMOS) == 0,
 		"the Thermos is permanent one-time equipment, not a consumable")
-	_check(Shop.get_visible_upgrades().size() == approved.size(),
-		"all five owned catalogue rows remain visible after their gates are behind the player")
+	var visible := Shop.get_visible_upgrades()
+	_check(visible.size() == approved.size() + 1
+			and visible[approved.size()].id == defs[approved.size()].id
+			and not Shop.is_unlocked(defs[approved.size()].id),
+		"all five owned M7A rows remain visible before one adjacent later-milestone lock")
 	var missing_art_is_visible := true
 	for id: StringName in [GameState.UPGRADE_SUPPLIER_LEDGER,
 			GameState.UPGRADE_HANDCART, GameState.UPGRADE_COFFEE_THERMOS]:

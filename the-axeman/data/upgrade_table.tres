@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UpgradeTable" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="UpgradeTable" load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://data/upgrade_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/upgrade_def.gd" id="2_def"]
@@ -71,6 +71,153 @@ max_level = 1
 effect = 4
 effect_step = 0.05
 
+; M8 APPROVED SYSTEM-BUILDING TUNING. Sam signed off this certification gate,
+; the machine/profile prices and all five progression lines on 2026-08-05.
+[sub_resource type="Resource" id="Upgrade_mechanical_splitter"]
+script = ExtResource("2_def")
+id = &"mechanical_splitter"
+display_name = "Mechanical Splitter"
+description = "Authorises the yard's first splitter installation, ready for separately purchased certified-wood profiles."
+limitation = "Requires separately purchased certified profiles. Runs only while the yard is active and never grants mastery, certification or manual skill procs."
+purchase_form = 0
+required_upgrade_id = &"coffee_thermos"
+required_mastered_species_count = 3
+base_cost = 1000
+cost_growth = 1.0
+max_level = 1
+automation_role = 1
+tuning_status = "APPROVED — Sam 2026-08-05: 1,000 cash and 3 certifications"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_aspen"]
+script = ExtResource("2_def")
+id = &"splitter_profile_quaking_aspen"
+display_name = "Splitter Profile · Quaking Aspen"
+description = "Installs the certified Quaking Aspen cutting profile in the Mechanical Splitter."
+limitation = "Does not certify Aspen, run the machine, improve hand chopping, or admit any other species."
+purchase_form = 0
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"quaking_aspen"
+base_cost = 250
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"quaking_aspen"
+tuning_status = "APPROVED — Sam 2026-08-05: 250 cash per certified profile"
+
+; M8 APPROVED SPLITTER PROGRESSION. Each line reveals after the previous line
+; has at least one purchased rank.
+[sub_resource type="Resource" id="Upgrade_splitter_speed"]
+script = ExtResource("2_def")
+id = &"splitter_speed"
+display_name = "Splitter Speed"
+description = "Shortens each watched Mechanical Splitter cycle."
+limitation = "Does not speed manual swings, add logs, change XP, or increase sale value."
+purchase_form = 1
+required_upgrade_id = &"mechanical_splitter"
+base_cost = 500
+cost_growth = 1.5
+max_level = 5
+effect = 5
+effect_step = 0.1
+automation_role = 3
+tuning_status = "APPROVED — Sam 2026-08-05: 500 base, x1.5, 5 ranks, -10% per rank"
+
+[sub_resource type="Resource" id="Upgrade_splitter_auto_load"]
+script = ExtResource("2_def")
+id = &"splitter_auto_load"
+display_name = "Splitter Auto Loading"
+description = "Loads the assigned certified log whenever the one input slot is empty."
+limitation = "Watched yard time only. Does not add queue capacity, delivery simulation, or offline progress."
+purchase_form = 0
+required_upgrade_id = &"splitter_speed"
+base_cost = 2500
+cost_growth = 1.0
+max_level = 1
+effect = 6
+effect_step = 1.0
+automation_role = 3
+tuning_status = "APPROVED — Sam 2026-08-05: 2,500 one-time"
+
+[sub_resource type="Resource" id="Upgrade_splitter_logs_per_split"]
+script = ExtResource("2_def")
+id = &"splitter_logs_per_split"
+display_name = "Logs per Split"
+description = "Processes one additional assigned log in each represented splitter batch."
+limitation = "The machine still shows one representative log and keeps one bounded input slot."
+purchase_form = 1
+required_upgrade_id = &"splitter_auto_load"
+base_cost = 1000
+cost_growth = 1.4
+max_level = 7
+effect = 7
+effect_step = 1.0
+automation_role = 3
+tuning_status = "APPROVED — Sam 2026-08-05: 1,000 base, x1.4, 7 ranks, +1 from 5 to 12"
+
+[sub_resource type="Resource" id="Upgrade_splitter_xp_gain"]
+script = ExtResource("2_def")
+id = &"splitter_xp_gain"
+display_name = "Splitter Experience Gain"
+description = "Raises automation XP above its approved starting 20% species rate."
+limitation = "Does not grant mastery, certification, manual skill procs, or manual XP bonuses."
+purchase_form = 1
+required_upgrade_id = &"splitter_logs_per_split"
+base_cost = 1000
+cost_growth = 1.5
+max_level = 4
+effect = 8
+effect_step = 0.2
+automation_role = 3
+tuning_status = "APPROVED — Sam 2026-08-05: 1,000 base, x1.5, 4 ranks, +20 points"
+
+[sub_resource type="Resource" id="Upgrade_splitter_cash_gain"]
+script = ExtResource("2_def")
+id = &"splitter_cash_gain"
+display_name = "Splitter Money Gain"
+description = "Raises the basic buyer's cash receipt for Mechanical Splitter output."
+limitation = "Applies only to automation receipts, not manual sales or fixed order bonuses."
+purchase_form = 1
+required_upgrade_id = &"splitter_xp_gain"
+base_cost = 750
+cost_growth = 1.5
+max_level = 5
+effect = 9
+effect_step = 0.1
+automation_role = 3
+tuning_status = "APPROVED — Sam 2026-08-05: 750 base, x1.5, 5 ranks, +10%"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_pine"]
+script = ExtResource("2_def")
+id = &"splitter_profile_eastern_white_pine"
+display_name = "Splitter Profile · Eastern White Pine"
+description = "Installs the certified Eastern White Pine cutting profile in the Mechanical Splitter."
+limitation = "Does not certify pine, run the machine, improve hand chopping, or admit any other species."
+purchase_form = 0
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"eastern_white_pine"
+base_cost = 250
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"eastern_white_pine"
+tuning_status = "APPROVED — Sam 2026-08-05: 250 cash per certified profile"
+
+[sub_resource type="Resource" id="Upgrade_splitter_profile_spruce"]
+script = ExtResource("2_def")
+id = &"splitter_profile_norway_spruce"
+display_name = "Splitter Profile · Norway Spruce"
+description = "Installs the certified Norway Spruce cutting profile in the Mechanical Splitter."
+limitation = "Does not certify spruce, run the machine, improve hand chopping, or admit any other species."
+purchase_form = 0
+required_upgrade_id = &"mechanical_splitter"
+required_mastery_species_id = &"norway_spruce"
+base_cost = 250
+cost_growth = 1.0
+max_level = 1
+automation_role = 2
+automation_species_id = &"norway_spruce"
+tuning_status = "APPROVED — Sam 2026-08-05: 250 cash per certified profile"
+
 [resource]
 script = ExtResource("1_table")
-upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_balanced_axe"), SubResource("Upgrade_reinforced_block"), SubResource("Upgrade_supplier_ledger"), SubResource("Upgrade_handcart"), SubResource("Upgrade_coffee_thermos")])
+upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_balanced_axe"), SubResource("Upgrade_reinforced_block"), SubResource("Upgrade_supplier_ledger"), SubResource("Upgrade_handcart"), SubResource("Upgrade_coffee_thermos"), SubResource("Upgrade_mechanical_splitter"), SubResource("Upgrade_splitter_profile_aspen"), SubResource("Upgrade_splitter_profile_pine"), SubResource("Upgrade_splitter_profile_spruce"), SubResource("Upgrade_splitter_speed"), SubResource("Upgrade_splitter_auto_load"), SubResource("Upgrade_splitter_logs_per_split"), SubResource("Upgrade_splitter_xp_gain"), SubResource("Upgrade_splitter_cash_gain")])

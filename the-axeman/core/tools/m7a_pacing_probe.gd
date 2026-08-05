@@ -11,6 +11,7 @@ var _swings := 0
 var _failed_swings := 0
 var _last_minute := -1
 var _game: Node = null
+const _M7A_CATALOGUE_SIZE := 5
 
 
 func _ready() -> void:
@@ -61,11 +62,13 @@ func _on_haul_away(total: int) -> void:
 
 func _on_catalogue_changed() -> void:
 	var owned: Array[String] = []
-	for def: UpgradeDef in Shop.get_upgrades():
+	var catalogue := Shop.get_upgrades()
+	for index in range(mini(_M7A_CATALOGUE_SIZE, catalogue.size())):
+		var def: UpgradeDef = catalogue[index]
 		if Shop.get_level(def.id) > 0:
 			owned.append(String(def.id))
 	_emit_row("purchase", "+".join(owned))
-	if owned.size() == Shop.get_upgrades().size():
+	if owned.size() == _M7A_CATALOGUE_SIZE:
 		_emit_row("all_five", "first-level catalogue complete")
 
 

@@ -10,7 +10,8 @@ extends Resource
 ##
 ## Sam approved the first five rows and their order on 2026-08-04. Prices and
 ## effect steps in the resource remain candidate tuning data until the measured
-## session is signed off; the schema and purchase roles are approved.
+## session is signed off; the schema and purchase roles are approved. M8 appends
+## its own measured, approved automation rows without changing that M7A prefix.
 
 @export var upgrades: Array[UpgradeDef] = []
 

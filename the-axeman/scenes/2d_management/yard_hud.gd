@@ -5,17 +5,20 @@ extends Control
 ## UI_Overlay, never inside UI_Canvas, which is the render pipeline's own layer).
 ##
 ## ALWAYS-ON CHOPPING HUD (Creative Director call, 2026-08-03). There is no
-## separate yard screen. Contracts, skills and shop live in three square icon
-## buttons at bottom-right while the chopping game stays on screen. Trees are a
-## tab of the shop, not a second storefront.
+## separate yard screen. Contracts, skills, shop and the frequently checked Tree
+## Catalog live in four square icon buttons at bottom-right while the chopping
+## game stays on screen.
 ##   ├── ShopPanel (PanelContainer, centred — hidden until the shop is opened)
 ##   │   └── Column (VBoxContainer)
 ##   │       ├── Header (HBoxContainer) → ShopIcon (TextureRect), ShopTitle (Label)
 ##   │       ├── ShopTabs/Items              <- equipment rows at RUNTIME
-##   │       ├── ShopTabs/Trees              <- species rows at RUNTIME
+##   │       ├── ShopTabs/Splitter           <- M8 machine/profile rows at RUNTIME
+##   │       ├── ShopTabs/Purchased          <- completed rows, derived read-only
 ##   │       └── CloseShopButton (Button)
+##   ├── TreesPanel                           <- species/mastery/assignment rows
+##   ├── SplitterRuntimeCard                  <- watched one-slot cycle state
 ##   ├── ModalBackdrop (ColorRect — catches clicks outside an open panel)
-##   └── QuickMenu (HBoxContainer — three square icon buttons, bottom-right)
+##   └── QuickMenu (HBoxContainer — four square icon buttons, bottom-right)
 ##
 ## THERE IS NO SELLING TO DO HERE (Creative Director call, 2026-08-01). The yard
 ## buys every piece of firewood the moment it lands on the pile, so the player
@@ -41,7 +44,7 @@ extends Control
 ## Prices, effect magnitudes and later block ranks remain candidate tuning until
 ## the measured M7A session and Sam's sign-off.
 ##
-## THE WOODSHED, added 2026-08-02 (Creative Director call: the player PICKS the
+## THE TREE CATALOG, added 2026-08-02 (Creative Director call: the player PICKS the
 ## wood that goes on the block, rather than it being rolled). Same shape as the
 ## shop — rows built at runtime from `res://data/species_table.tres`, so Sam's 25
 ## woods needed no UI code per wood.
@@ -60,19 +63,33 @@ extends Control
 ## the 2D side is still deferred (M2 sign-off).
 
 const _COIN := preload("res://assets/ui/coin.png")
-const _ITEMS_TAB := 0
-const _TREES_TAB := 1
+const _SPLITTER_TAB := 1
+const _PURCHASED_TAB := 2
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
+@onready var _splitter_runtime_state: Label = $SplitterRuntimeCard/Column/State
+@onready var _splitter_runtime_detail: Label = $SplitterRuntimeCard/Column/Detail
+@onready var _splitter_runtime_progress: ProgressBar = $SplitterRuntimeCard/Column/Progress
+@onready var _splitter_runtime_action: Button = $SplitterRuntimeCard/Column/Action
+@onready var _splitter_runtime_receipt: Label = $SplitterRuntimeCard/Column/Receipt
 @onready var _shop_tabs: TabContainer = $ShopPanel/Column/ShopTabs
 @onready var _shop_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Items/ShopScroll/ShopList
 @onready var _shop_empty: Label = $ShopPanel/Column/ShopTabs/Items/ShopEmpty
+@onready var _splitter_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Splitter/Scroll/List
+@onready var _splitter_empty: Label = $ShopPanel/Column/ShopTabs/Splitter/Empty
+@onready var _splitter_status: Label = $ShopPanel/Column/ShopTabs/Splitter/Status
+@onready var _purchased_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Purchased/Scroll/List
+@onready var _purchased_empty: Label = $ShopPanel/Column/ShopTabs/Purchased/Empty
 @onready var _shop_panel: PanelContainer = $ShopPanel
 @onready var _shop_button: Button = $QuickMenu/ShopButton
 @onready var _shop_badge: Label = $QuickMenu/ShopButton/Badge
 @onready var _close_shop_button: Button = $ShopPanel/Column/CloseShopButton
-@onready var _wood_list: VBoxContainer = $ShopPanel/Column/ShopTabs/Trees/WoodScroll/WoodList
-@onready var _next_wood: Label = $ShopPanel/Column/ShopTabs/Trees/NextWood
+@onready var _trees_panel: PanelContainer = $TreesPanel
+@onready var _trees_button: Button = $QuickMenu/TreesButton
+@onready var _trees_badge: Label = $QuickMenu/TreesButton/Badge
+@onready var _close_trees_button: Button = $TreesPanel/Column/CloseButton
+@onready var _wood_list: VBoxContainer = $TreesPanel/Column/WoodScroll/WoodList
+@onready var _next_wood: Label = $TreesPanel/Column/NextWood
 @onready var _xp_level_label: Label = $XPBar/LevelLabel
 @onready var _xp_progress: ProgressBar = $XPBar/Progress
 @onready var _skills_button: Button = $QuickMenu/SkillsButton
@@ -96,6 +113,7 @@ const _TREES_TAB := 1
 @onready var _modal_backdrop: ColorRect = $ModalBackdrop
 
 var _selected_skill_id: StringName = &""
+var _splitter_runtime: MechanicalSplitterRuntime
 
 const _SKILL_BG := Color(0.961, 0.918, 0.847, 1.0)
 const _SKILL_SURFACE := Color(0.922, 0.867, 0.773, 1.0)
@@ -105,9 +123,14 @@ const _SKILL_MUTED := Color(0.392, 0.361, 0.314, 1.0)
 
 
 func _ready() -> void:
+	_splitter_runtime_action.pressed.connect(_on_splitter_runtime_action_pressed)
 	_shop_button.pressed.connect(_on_shop_pressed)
 	_close_shop_button.pressed.connect(_on_close_shop_pressed)
 	_shop_tabs.tab_changed.connect(_on_shop_tab_changed)
+	_shop_tabs.set_tab_title(_SPLITTER_TAB, "Mechanical Splitter")
+	_shop_tabs.set_tab_title(_PURCHASED_TAB, "Purchased")
+	_trees_button.pressed.connect(_on_trees_pressed)
+	_close_trees_button.pressed.connect(_on_close_trees_pressed)
 	_skills_button.pressed.connect(_on_skills_pressed)
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 	_skill_detail_buy.pressed.connect(_on_buy_selected_skill_pressed)
@@ -116,12 +139,13 @@ func _ready() -> void:
 	_modal_backdrop.gui_input.connect(_on_modal_backdrop_gui_input)
 
 	GameState.cash_changed.connect(_on_cash_changed)
-	# The woodshed's three live inputs, all local signals (Amendment 2's
+	# The Tree Catalog's three live inputs, all local signals (Amendment 2's
 	# precedent), so nothing here polls: what the player picked, what they have
 	# just earned, and the counter the next milestone is measured against.
 	GameState.selected_species_changed.connect(_on_selected_species_changed)
 	GameState.species_purchased.connect(_on_species_purchased)
 	GameState.species_mastery_changed.connect(_on_species_mastery_changed)
+	GameState.splitter_assignment_changed.connect(_on_splitter_assignment_changed)
 	# XP moves the level, the level opens woods AND pays for skills, so both
 	# panels and the bar ride on it.
 	GameState.xp_changed.connect(_on_xp_changed)
@@ -145,6 +169,106 @@ func _ready() -> void:
 	_rebuild_skills()
 	_rebuild_orders()
 	_refresh_badges()
+	_refresh_splitter_runtime_card()
+
+
+func bind_splitter_runtime(runtime: MechanicalSplitterRuntime) -> void:
+	if _splitter_runtime != null:
+		if _splitter_runtime.state_changed.is_connected(_on_splitter_runtime_state_changed):
+			_splitter_runtime.state_changed.disconnect(_on_splitter_runtime_state_changed)
+		if _splitter_runtime.progress_changed.is_connected(_on_splitter_runtime_progress_changed):
+			_splitter_runtime.progress_changed.disconnect(_on_splitter_runtime_progress_changed)
+		if _splitter_runtime.cycle_completed.is_connected(_on_splitter_cycle_completed):
+			_splitter_runtime.cycle_completed.disconnect(_on_splitter_cycle_completed)
+	_splitter_runtime = runtime
+	if _splitter_runtime != null:
+		_splitter_runtime.state_changed.connect(_on_splitter_runtime_state_changed)
+		_splitter_runtime.progress_changed.connect(_on_splitter_runtime_progress_changed)
+		_splitter_runtime.cycle_completed.connect(_on_splitter_cycle_completed)
+	_refresh_splitter_runtime_card()
+
+
+func _on_splitter_runtime_state_changed(_state: MechanicalSplitterRuntime.State) -> void:
+	_refresh_splitter_runtime_card()
+
+
+func _on_splitter_runtime_progress_changed(value: float) -> void:
+	_splitter_runtime_progress.value = value
+
+
+func _on_splitter_cycle_completed(_species_id: StringName, item_id: StringName,
+		amount: int, _receipt_id: StringName) -> void:
+	var item := InventoryManager.get_item_def(item_id)
+	var item_name := String(item_id) if item == null else item.display_name
+	_splitter_runtime_receipt.text = "Sold %d %s · +%d cash · +%d XP" % [
+		amount, item_name, _splitter_runtime.last_cash_earned(),
+		_splitter_runtime.last_xp_earned()]
+	_refresh_splitter_runtime_card(false)
+
+
+func _on_splitter_runtime_action_pressed() -> void:
+	var state := MechanicalSplitterRuntime.State.LOCKED if _splitter_runtime == null \
+		else _splitter_runtime.current_state()
+	match state:
+		MechanicalSplitterRuntime.State.LOCKED, \
+				MechanicalSplitterRuntime.State.MISSING_PROFILE:
+			_open_splitter_shop()
+		MechanicalSplitterRuntime.State.UNASSIGNED:
+			_on_trees_pressed()
+		MechanicalSplitterRuntime.State.OUTPUT_BLOCKED:
+			_splitter_runtime.retry_blocked_output()
+		MechanicalSplitterRuntime.State.READY:
+			_splitter_runtime.try_queue_assigned_input()
+
+
+func _refresh_splitter_runtime_card(reset_receipt := true) -> void:
+	var state := MechanicalSplitterRuntime.State.LOCKED
+	if _splitter_runtime != null:
+		state = _splitter_runtime.current_state()
+	elif MechanicalSplitter.is_installed():
+		var assigned := GameState.get_splitter_assigned_species()
+		state = MechanicalSplitterRuntime.State.UNASSIGNED if assigned == &"" \
+			else MechanicalSplitterRuntime.State.READY
+	_splitter_runtime_state.text = MechanicalSplitterRuntime.state_title(state)
+	_splitter_runtime_progress.value = 0.0 if _splitter_runtime == null \
+		else _splitter_runtime.progress()
+	if _splitter_runtime != null:
+		_splitter_runtime_detail.text = _splitter_runtime.state_detail()
+	else:
+		_splitter_runtime_detail.text = "Purchase the machine in Shop." if state == \
+			MechanicalSplitterRuntime.State.LOCKED else "Watched runtime is not bound."
+	_splitter_runtime_action.disabled = true
+	match state:
+		MechanicalSplitterRuntime.State.LOCKED:
+			_splitter_runtime_action.text = "Buy in Shop"
+			_splitter_runtime_action.disabled = false
+		MechanicalSplitterRuntime.State.UNASSIGNED:
+			_splitter_runtime_action.text = "Assign in Tree Catalog"
+			_splitter_runtime_action.disabled = false
+		MechanicalSplitterRuntime.State.MISSING_PROFILE:
+			_splitter_runtime_action.text = "Install assigned profile"
+			_splitter_runtime_action.disabled = false
+		MechanicalSplitterRuntime.State.READY:
+			if _splitter_runtime != null and _splitter_runtime.auto_loading_enabled():
+				_splitter_runtime_action.text = "Auto loading enabled"
+			else:
+				_splitter_runtime_action.text = "Load assigned log"
+				_splitter_runtime_action.disabled = _splitter_runtime == null \
+					or not _splitter_runtime.is_yard_active()
+		MechanicalSplitterRuntime.State.PROCESSING:
+			_splitter_runtime_action.text = "Input slot full · Processing"
+		MechanicalSplitterRuntime.State.OUTPUT_BLOCKED:
+			_splitter_runtime_action.text = "Retry blocked output"
+			_splitter_runtime_action.disabled = _splitter_runtime == null
+	if reset_receipt:
+		if _splitter_runtime != null and _splitter_runtime.has_completed_receipt():
+			_splitter_runtime_receipt.text = "Last cycle · %d log(s) · +%d cash · +%d XP" % [
+				_splitter_runtime.last_logs_processed(),
+				_splitter_runtime.last_cash_earned(),
+				_splitter_runtime.last_xp_earned()]
+		else:
+			var queued := 0 if _splitter_runtime == null else _splitter_runtime.queued_count()
+			_splitter_runtime_receipt.text = "Input %d / 1 · watched yard time only" % queued
 
 
 ## Slice 4 uses the approved mockup's warm organic hierarchy with native Godot
@@ -199,6 +323,7 @@ func _open_panel(panel: Control) -> void:
 
 func _close_panels() -> void:
 	_shop_panel.visible = false
+	_trees_panel.visible = false
 	_skill_panel.visible = false
 	_orders_panel.visible = false
 	_modal_backdrop.visible = false
@@ -222,22 +347,36 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_shop_pressed() -> void:
 	_open_panel(_shop_panel)
 	_rebuild_shop()   # levels and affordability may have moved while it was shut
-	_rebuild_woodshed()
+
+
+func _open_splitter_shop() -> void:
+	_open_panel(_shop_panel)
+	_shop_tabs.current_tab = _SPLITTER_TAB
+	_rebuild_shop()
 
 
 func _on_shop_tab_changed(_tab: int) -> void:
-	if _shop_tabs.current_tab == _TREES_TAB:
-		_rebuild_woodshed()
-	else:
-		_rebuild_shop()
+	_rebuild_shop()
 
 
 func _on_close_shop_pressed() -> void:
 	_close_panels()
 
 
+func _on_trees_pressed() -> void:
+	_open_panel(_trees_panel)
+	_rebuild_woodshed()
+
+
+func _on_close_trees_pressed() -> void:
+	_close_panels()
+
+
 func _on_building_upgraded(_id: StringName, _tier: int) -> void:
 	_rebuild_shop()
+	_refresh_splitter_runtime_card()
+	if _trees_panel.visible:
+		_rebuild_woodshed()
 
 
 func _on_catalogue_gate_changed() -> void:
@@ -247,19 +386,54 @@ func _on_catalogue_gate_changed() -> void:
 	_refresh_badges()
 
 
-## One row per upgrade, straight from the table: what it is, what it does, what
-## level you are on and what the next one costs.
+## One row per visible unfinished upgrade, split by role: ordinary equipment
+## stays in Items while the Mechanical Splitter machine and its profiles own
+## their dedicated tab. Completed one-time/maxed rows move to Purchased, derived
+## from the same building tiers rather than a duplicate purchase-history store.
 func _rebuild_shop() -> void:
 	for child in _shop_list.get_children():
 		_shop_list.remove_child(child)
 		child.queue_free()
+	for child in _splitter_list.get_children():
+		_splitter_list.remove_child(child)
+		child.queue_free()
+	for child in _purchased_list.get_children():
+		_purchased_list.remove_child(child)
+		child.queue_free()
 
 	var upgrades := Shop.get_visible_upgrades()
-	_shop_empty.visible = upgrades.is_empty()
+	var item_count := 0
+	var splitter_count := 0
 	for def: UpgradeDef in upgrades:
-		if def != null:
+		if def == null or Shop.is_fully_purchased(def.id):
+			continue
+		if def.automation_role == UpgradeDef.AutomationRole.NONE:
 			_shop_list.add_child(_build_shop_row(def))
+			item_count += 1
+		else:
+			_splitter_list.add_child(_build_shop_row(def))
+			splitter_count += 1
+	_shop_empty.visible = item_count == 0
+	_splitter_empty.visible = splitter_count == 0
+	var purchased := Shop.get_purchased_upgrades()
+	for def: UpgradeDef in purchased:
+		_purchased_list.add_child(_build_purchased_row(def))
+	_purchased_empty.visible = purchased.is_empty()
+	_refresh_splitter_status()
 	_refresh_badges()
+
+
+func _refresh_splitter_status() -> void:
+	if not MechanicalSplitter.is_installed():
+		_splitter_status.text = "Certify the required early woods, then purchase the machine and profiles here. Assignment lives in the Tree Catalog."
+		return
+	var assigned := GameState.get_splitter_assigned_species()
+	if assigned == &"":
+		_splitter_status.text = "Mechanical Splitter installed · No tree assigned. Choose an installed profile in the Tree Catalog."
+		return
+	var species := SpeciesTable.by_id(assigned)
+	_splitter_status.text = "Mechanical Splitter installed · Assigned to %s." % [
+		String(assigned) if species == null else species.display_name]
 
 
 func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
@@ -268,6 +442,7 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	var unlocked := Shop.is_unlocked(def.id)
 
 	var row := VBoxContainer.new()
+	row.name = String(def.id)
 	row.add_theme_constant_override("separation", 2)
 
 	var top := HBoxContainer.new()
@@ -310,12 +485,63 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	return row
 
 
+## Purchased entries intentionally contain no Button. They are a read-only
+## record derived from live ownership, while retaining the same honest effect
+## and limitation copy as the functional shelf row they came from.
+func _build_purchased_row(def: UpgradeDef) -> VBoxContainer:
+	var level := Shop.get_level(def.id)
+	var row := VBoxContainer.new()
+	row.name = String(def.id)
+	row.add_theme_constant_override("separation", 2)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 8)
+	var name_label := Label.new()
+	name_label.text = def.display_name
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(name_label)
+
+	var status := Label.new()
+	status.text = "Maxed · rank %d/%d" % [level, def.max_level] \
+		if def.purchase_form == UpgradeDef.PurchaseForm.TIERED \
+		else "Owned"
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status.modulate = Color(0.82, 0.88, 0.78, 1.0)
+	top.add_child(status)
+	row.add_child(top)
+
+	var blurb := Label.new()
+	blurb.text = def.description
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.add_theme_font_size_override("font_size", 13)
+	row.add_child(blurb)
+	if def.limitation != "":
+		var limit := Label.new()
+		limit.text = "Limit: " + def.limitation
+		limit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		limit.add_theme_font_size_override("font_size", 12)
+		limit.modulate = Color(0.78, 0.78, 0.78, 1.0)
+		row.add_child(limit)
+	return row
+
+
 func _upgrade_unlock_text(def: UpgradeDef) -> String:
 	if def.unlock_after_haul_aways > GameState.get_haul_aways_completed():
 		return "After first haul"
 	if def.unlock_order_id != &"" and not GameState.has_completed_order(def.unlock_order_id):
 		var order := Orders.by_id(def.unlock_order_id)
 		return "After %s" % (String(def.unlock_order_id) if order == null else order.title)
+	if def.required_upgrade_id != &"" and Shop.get_level(def.required_upgrade_id) <= 0:
+		var upgrade := Shop.get_upgrade(def.required_upgrade_id)
+		return "Requires %s" % (String(def.required_upgrade_id) \
+			if upgrade == null else upgrade.display_name)
+	if def.required_mastery_species_id != &"" \
+			and not GameState.is_species_mastered(def.required_mastery_species_id):
+		var species := SpeciesTable.by_id(def.required_mastery_species_id)
+		return "Master %s" % (String(def.required_mastery_species_id) \
+			if species == null else species.display_name)
+	if def.required_mastered_species_count > GameState.get_mastered_species_count():
+		return "Master %d species" % def.required_mastered_species_count
 	return "Locked"
 
 
@@ -329,21 +555,34 @@ func _on_buy_pressed(id: StringName) -> void:
 ## and the list agree however the choice moved — including a selection GameState
 ## refused, which emits nothing and correctly leaves the display alone.
 func _on_selected_species_changed(_id: StringName) -> void:
-	if _shop_panel.visible and _shop_tabs.current_tab == _TREES_TAB:
+	if _trees_panel.visible:
 		_rebuild_woodshed()
 
 
 func _on_species_purchased(_id: StringName) -> void:
-	_rebuild_woodshed()
+	if _trees_panel.visible:
+		_rebuild_woodshed()
 	_rebuild_orders()
 	_refresh_badges()
 
 
 func _on_species_mastery_changed(_id: StringName, _progress: int) -> void:
 	# The progress bar and next-reward copy advance from the same authoritative
-	# signal as the saved counter. Closed panels rebuild when next opened.
-	if _shop_panel.visible and _shop_tabs.current_tab == _TREES_TAB:
+	# signal as the saved counter. M8 Slice 3 also uses certification to reveal
+	# splitter purchases, so either open destination repaints from the same event.
+	if _trees_panel.visible:
 		_rebuild_woodshed()
+	if _shop_panel.visible:
+		_rebuild_shop()
+	_refresh_badges()
+
+
+func _on_splitter_assignment_changed(_id: StringName) -> void:
+	_refresh_splitter_runtime_card()
+	if _trees_panel.visible:
+		_rebuild_woodshed()
+	if _shop_panel.visible:
+		_refresh_splitter_status()
 
 
 ## XP moves the level, and the level is what puts a wood on sale — so the shed's
@@ -351,7 +590,7 @@ func _on_species_mastery_changed(_id: StringName, _progress: int) -> void:
 ## repaints an OPEN panel: this fires once per finished log.
 func _on_xp_changed(_total: int) -> void:
 	_refresh_xp_bar()
-	if _shop_panel.visible and _shop_tabs.current_tab == _TREES_TAB:
+	if _trees_panel.visible:
 		_rebuild_woodshed()
 	if _skill_panel.visible:
 		_rebuild_skills()
@@ -370,7 +609,7 @@ func _on_skill_level_changed(_id: StringName, _level: int) -> void:
 	_refresh_badges()
 
 
-## THE WOODSHED IS A STORE since 2026-08-02: one row per wood the player OWNS,
+## THE TREE CATALOG IS ALSO THE WOOD STORE since 2026-08-02: one row per wood the player OWNS,
 ## plus exactly one row for the next wood up the ladder — showing either its price
 ## or the level still to reach. A wall of 24 locked rows would be a list of things
 ## the player cannot do; one named next wood is a reason to keep chopping.
@@ -464,7 +703,51 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> VBoxContainer:
 		progress_fill.set_corner_radius_all(3)
 		progress.add_theme_stylebox_override("fill", progress_fill)
 		row.add_child(progress)
+		_add_splitter_assignment(row, def)
 	return row
+
+
+func _add_splitter_assignment(row: VBoxContainer, def: SpeciesDef) -> void:
+	var line := HBoxContainer.new()
+	line.name = "SplitterAssignment"
+	line.add_theme_constant_override("separation", 8)
+	row.add_child(line)
+
+	var status := Label.new()
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.add_theme_font_size_override("font_size", 12)
+	line.add_child(status)
+
+	var assign := Button.new()
+	assign.custom_minimum_size = Vector2(142, 32)
+	line.add_child(assign)
+
+	var profile := MechanicalSplitter.profile_for_species(def.id)
+	var assigned := GameState.get_splitter_assigned_species() == def.id
+	if not GameState.is_species_mastered(def.id):
+		status.text = "Splitter · Certification required"
+		assign.text = "Master this tree"
+		assign.disabled = true
+	elif profile == null:
+		status.text = "Splitter · No profile for this machine"
+		assign.text = "Unavailable"
+		assign.disabled = true
+	elif not MechanicalSplitter.is_installed():
+		status.text = "Splitter · Certified · Machine purchase required"
+		assign.text = "Open Splitter shop"
+		assign.pressed.connect(_open_splitter_shop)
+	elif not MechanicalSplitter.has_installed_profile(def.id):
+		status.text = "Splitter · Certified · Profile purchase required"
+		assign.text = "Buy profile in Shop"
+		assign.pressed.connect(_open_splitter_shop)
+	elif assigned:
+		status.text = "Splitter · Current assignment"
+		assign.text = "Assigned"
+		assign.disabled = true
+	else:
+		status.text = "Splitter · Certified profile ready"
+		assign.text = "Assign to splitter"
+		assign.pressed.connect(_on_assign_splitter_pressed.bind(def.id))
 
 
 func _mastery_row_text(def: SpeciesDef) -> String:
@@ -514,6 +797,10 @@ func _on_wood_row_pressed(id: StringName) -> void:
 	# select_species is atomic and refuses anything unowned, so there is nothing
 	# to undo here. The repaint rides in on selected_species_changed.
 	GameState.select_species(id)
+
+
+func _on_assign_splitter_pressed(id: StringName) -> void:
+	GameState.assign_splitter_species(id)
 
 
 func _on_buy_wood_pressed(id: StringName) -> void:
@@ -869,10 +1156,9 @@ func _on_cash_changed(_new_amount: int) -> void:
 	_refresh_stats()
 	_refresh_badges()
 	if _shop_panel.visible:
-		if _shop_tabs.current_tab == _ITEMS_TAB:
-			_rebuild_shop()
-		else:
-			_rebuild_woodshed()
+		_rebuild_shop()
+	if _trees_panel.visible:
+		_rebuild_woodshed()
 
 
 func _refresh_stats() -> void:
@@ -880,21 +1166,23 @@ func _refresh_stats() -> void:
 
 
 ## Red icon badges are a call to action, not a second economy display. Skills
-## shows unspent points; Shop counts only purchases the player can make NOW
-## across both Items and Trees.
+## shows unspent points; Shop counts equipment/splitter purchases the player can
+## make now, while Trees owns the next-species purchase callout.
 func _refresh_badges() -> void:
-	if _skills_badge == null or _shop_badge == null:
+	if _skills_badge == null or _shop_badge == null or _trees_badge == null:
 		return
 	_set_badge(_skills_badge, GameState.get_skill_points_available())
-	var affordable := 0
+	var affordable_upgrades := 0
 	for def: UpgradeDef in Shop.get_visible_upgrades():
 		if def != null and Shop.can_buy(def.id):
-			affordable += 1
+			affordable_upgrades += 1
+	_set_badge(_shop_badge, affordable_upgrades)
+	var affordable_trees := 0
 	var next := GameState.get_next_unowned_species()
 	if next != null and GameState.can_species_be_bought(next.id) \
 			and GameState.can_afford_cash(next.unlock_cost):
-		affordable += 1
-	_set_badge(_shop_badge, affordable)
+		affordable_trees = 1
+	_set_badge(_trees_badge, affordable_trees)
 
 
 func _set_badge(badge: Label, amount: int) -> void:

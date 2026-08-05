@@ -29,7 +29,7 @@ const SAVE_PATH := "user://the_axeman_save.cfg"
 ## incremental autosave is survivable; losing the whole yard is not.
 const _TEMP_PATH := "user://the_axeman_save.cfg.tmp"
 ## Bumped whenever the on-disk shape changes in a way _migrate has to handle.
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 
 ## Version-1's prototype ranks are an on-disk compatibility contract. These
 ## caps are intentionally pinned to that prototype rather than read from the
@@ -137,7 +137,7 @@ static func delete_save() -> bool:
 
 ## Forward migration is PURE: it works on a deep copy and never rewrites the
 ## older file. load_game() applies the copy in memory; only the next complete
-## save_game() replaces the old file atomically with a version-3 one.
+## save_game() replaces the old file atomically with a version-4 one.
 static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 	if from_version == SAVE_VERSION:
 		return progression
@@ -152,6 +152,12 @@ static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 		# the field existing without ever inventing historical progress.
 		if not (migrated.get("species_mastery_progress") is Dictionary):
 			migrated["species_mastery_progress"] = {}
+		version = 3
+	if version == 3:
+		# Slice 3 adds one optional routing choice. Older saves start deliberately
+		# idle; migration must never auto-assign a certified profile on the player's
+		# behalf.
+		migrated["splitter_assigned_species"] = ""
 	return migrated
 
 

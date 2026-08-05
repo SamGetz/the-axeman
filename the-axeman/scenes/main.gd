@@ -16,6 +16,8 @@ var _save_queued := false
 
 @onready var _action_viewport: SubViewport = $"UI_Canvas/SubViewportContainer/Action_Viewport"
 @onready var _world_root: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root"
+@onready var _splitter_runtime: MechanicalSplitterRuntime = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame/MechanicalSplitterRuntime"
+@onready var _yard_hud: Control = $UI_Overlay/YardHUD
 
 
 func _ready() -> void:
@@ -30,6 +32,7 @@ func _ready() -> void:
 		print("Main: save loaded — %d cash, %d wood chopped lifetime." % [
 			GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
 		])
+	_yard_hud.bind_splitter_runtime(_splitter_runtime)
 
 	# Autosave whenever owned stock OR progression moves. Connected AFTER the load
 	# on purpose: every serialiser emits as it restores fields, so connecting any
@@ -42,6 +45,7 @@ func _ready() -> void:
 	GameState.skill_level_changed.connect(_queue_autosave.unbind(2))
 	GameState.species_purchased.connect(_queue_autosave.unbind(1))
 	GameState.species_mastery_changed.connect(_queue_autosave.unbind(2))
+	GameState.splitter_assignment_changed.connect(_queue_autosave.unbind(1))
 	GameState.order_state_changed.connect(_queue_autosave)
 
 	# Godot tears the window down the moment it is closed unless told otherwise,
@@ -59,8 +63,9 @@ func _ready() -> void:
 ## of the frame.
 ##
 ## Inventory changes, cash, pile state, XP, skill purchases, species purchases,
-## mastery and the selected wood all share this coalescer. A transaction may
-## touch several of them in one frame; it still writes once at frame end.
+## mastery, splitter assignment and the selected wood all share this coalescer.
+## A transaction may touch several of them in one frame; it still writes once at
+## frame end.
 func _on_inventory_changed(_item_id: StringName, _new_count: int) -> void:
 	_queue_autosave()
 
@@ -108,11 +113,13 @@ func _enter_2d_mode() -> void:
 	# A10: while in 2D management mode the 3D world neither renders nor thinks.
 	_action_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_world_root.process_mode = Node.PROCESS_MODE_DISABLED
+	_splitter_runtime.set_yard_active(false)
 
 
 func _enter_3d_mode() -> void:
 	_action_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_world_root.process_mode = Node.PROCESS_MODE_INHERIT
+	_splitter_runtime.set_yard_active(true)
 
 
 # ---------------------------------------------------------------------------
