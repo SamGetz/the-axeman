@@ -1,6 +1,6 @@
 extends Node
 ## M8 acceptance: typed mastery reward contracts, bounded per-species progress,
-## save-v4 migration/persistence, the manual-root once guard, and Slice 2's
+## save migration/persistence, the manual-root once guard, and Slice 2's
 ## cumulative effect application plus Trees-tab presentation. Slice 3 adds the
 ## Mechanical Splitter purchase/assignment foundation; Slice 4 adds one bounded,
 ## visible watched production cycle with receipt-safe inventory output. Slice 5
@@ -23,7 +23,7 @@ func _ready() -> void:
 	_test_threshold_validator()
 	_test_bounded_species_progress()
 	_test_corrupt_progress_normalisation()
-	_test_v1_v2_v3_v4_migration()
+	_test_v1_v2_v3_v4_v5_migration()
 	_test_save_reload()
 	await _test_manual_root_once_guard()
 	await _test_mastery_autosave()
@@ -183,7 +183,7 @@ func _test_corrupt_progress_normalisation() -> void:
 		"a malformed mastery field costs only mastery and degrades to empty")
 
 
-func _test_v1_v2_v3_v4_migration() -> void:
+func _test_v1_v2_v3_v4_v5_migration() -> void:
 	var v2 := {"cash": 73}
 	var migrated_v2 := SaveSystem._migrate(v2, 2)
 	_check(migrated_v2.get("cash", 0) == 73
@@ -197,9 +197,14 @@ func _test_v1_v2_v3_v4_migration() -> void:
 	var migrated_v3 := SaveSystem._migrate({"species_mastery_progress": {}}, 3)
 	_check(migrated_v3.get("splitter_assigned_species", "missing") == "",
 		"version 3 migrates to an explicitly idle splitter without inventing assignment")
+	var migrated_v4 := SaveSystem._migrate({"splitter_assigned_species": ""}, 4)
+	_check(migrated_v4.get("commission_offers", null) == []
+		and migrated_v4.get("active_commission", "missing") == ""
+		and int(migrated_v4.get("completed_commissions", -1)) == 0,
+		"version 4 migrates without inventing commission offers, progress or history")
 	var current := {"species_mastery_progress": {"quaking_aspen": 3}}
 	_check(SaveSystem._migrate(current, SaveSystem.SAVE_VERSION) == current,
-		"a version 4 progression dictionary is byte-shape idempotent")
+		"a current-version progression dictionary is byte-shape idempotent")
 
 
 func _test_save_reload() -> void:
@@ -208,11 +213,11 @@ func _test_save_reload() -> void:
 	var aspen := SpeciesTable.at(0).id
 	GameState.record_species_completion(aspen)
 	GameState.record_species_completion(aspen)
-	_check(SaveSystem.save_game(), "a mastery-bearing version 4 save writes atomically")
+	_check(SaveSystem.save_game(), "a mastery-bearing current-version save writes atomically")
 	var cfg := ConfigFile.new()
 	_check(cfg.load(SaveSystem.SAVE_PATH) == OK
 		and int(cfg.get_value("meta", "version", -1)) == SaveSystem.SAVE_VERSION,
-		"the saved file is stamped version 4")
+		"the saved file is stamped with the current version")
 	GameState.reset_to_defaults()
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK
 		and GameState.get_species_mastery_progress(aspen) == 2,
@@ -531,7 +536,7 @@ func _test_later_profile_contract_mastery_gates() -> void:
 			and _MechanicalSplitter.can_accept_species(species.id)
 			and GameState.assign_splitter_species(species.id),
 		"the revealed later profile purchases atomically and admits only its own species")
-	_check(SaveSystem.save_game(), "the later profile and assignment write through save version 4")
+	_check(SaveSystem.save_game(), "the later profile and assignment write through the current save version")
 	GameState.reset_to_defaults()
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK
 			and Shop.get_level(profile.id) == 1

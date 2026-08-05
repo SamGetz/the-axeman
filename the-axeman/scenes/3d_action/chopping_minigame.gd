@@ -797,8 +797,9 @@ func _on_piece_landed(item_id: StringName) -> void:
 	GameState.add_to_yard_pile(item_id, 1)
 	if not auto_sell:
 		return
-	# Orders always pays through the unlimited Market first, then credits a
-	# matching contract. Unmatched work therefore follows the original path.
+	# Orders always pays through the unlimited Market first, then credits the one
+	# matching active manual delivery (authored contract or commission). Unmatched
+	# work therefore follows the original path, and splitter sales never enter it.
 	var cash_before := GameState.get_cash()
 	var payout := Orders.settle_piece(item_id)
 	var exact_receipt := maxi(0, GameState.get_cash() - cash_before)

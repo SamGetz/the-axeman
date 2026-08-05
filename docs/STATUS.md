@@ -1,6 +1,6 @@
 # Current project status
 
-Last updated: 2026-08-05.
+Last updated: 2026-08-06.
 
 This is the short operational status. Historical suite growth and implementation
 narrative belong in `docs/history/` or git history.
@@ -19,7 +19,7 @@ automation design. Do not begin a new module or slice without Sam's approval.
 | M2 scene shell/render pipeline | Implemented; 24/24 |
 | M3 GameFeel | Implemented; 16/16; Creative Director tuning remains separate |
 | M4 chopping game | Integrated; 55/55; core feel has been positively reviewed |
-| M7A progression/orders/shop | Implemented; 285/285 |
+| M7A progression/orders/shop | Implemented; 289/289 |
 | M7C Strength, Technique, Speed slices | Signed off 2026-08-05; 221/221 with M8 completion regression |
 | Runtime slicer | 34/34 |
 | M8 Slice 1 mastery contracts/persistence | Signed off 2026-08-05; 29/29 |
@@ -27,12 +27,13 @@ automation design. Do not begin a new module or slice without Sam's approval.
 | M8 Slice 3 certified splitter purchases/assignment | Approved by Sam 2026-08-05; covered by the verified M8 completion suite |
 | M8 Slice 4 watched Mechanical Splitter runtime/progression | Approved by Sam 2026-08-05; 93/93 |
 | M8 Slice 5 derived Purchased shop tab | Approved by Sam 2026-08-05; 104/104 with discovery regression |
-| M8 Slice 6 Certified Yard Expansion | Implemented for Sam's review 2026-08-05; M8 121/121, M7A 289/289 |
+| M8 Slice 6 Certified Yard Expansion | Approved by Sam 2026-08-05; M8 122/122, M7A 289/289 |
+| M9 Slice 1 Working Yard Commissions | Approved by Sam 2026-08-06; 27/27 |
 | M8 Mechanical Splitter measured tuning | Approved by Sam 2026-08-05; 104/104 with discovery regression |
 | Startup New Game / Load Game boundary | Approved by Sam 2026-08-05; 17/17 |
 | Hidden-lock progression discovery | Approved by Sam 2026-08-05; M7A 285/285, M8 104/104 |
 | Manual reward receipts and level-up feedback | Approved by Sam 2026-08-05; M4 55/55, M7A 285/285, M7C 221/221 |
-| M8 Slice 7 and later | Not authorized to start |
+| M9 Slice 2 and later | Not authorized to start |
 
 M7C Slice 7 made Follow-Up an automatic bonus swing after a landed root swing,
 with its own real split roll and a recursion guard. Ready Stance accelerates the
@@ -114,6 +115,26 @@ completion impulse, and the required authored-art marker is subordinate to a
 larger operational state. Queue and receipt presentation remain ephemeral;
 save version stays 4.
 
+M9 Slice 1 adds repeatable Working Yard Commissions after Pine Campsite Load.
+The earned Contract Board tab holds exactly three deterministic persisted offers:
+one mixed-firewood delivery and two deliveries for species the player owns.
+Locked offers remain absent before the reward. Players may accept multiple
+authored contracts and commissions together; each successfully sold manual piece
+advances every matching active delivery, while the Mechanical Splitter remains on
+its separate automation settlement path. Ordinary sale cash still pays, and each
+completed commission adds its snapshotted fixed premium before only that offer
+slot is replaced.
+
+Active manual work appears in a compact top-right task line beneath the XP bar.
+It expands into a scrollable task list, links back to the relevant board tab and
+moves the splitter card down while expanded. A native delivery receipt and
+completed-commission count provide completion feedback. Save version 5 persists
+the offer set, generation, multiple active identities/progress and completion
+count; version-4 saves migrate with no retroactive offers, work, premiums or
+history. Commission quantities, premium ratios, customer copy and receipt timing
+remain explicitly labelled provisional/native stand-ins pending measured tuning
+and final art.
+
 Locked progression content no longer appears as disabled shelf rows or future
 contract cards. The Shop lists unlocked/owned rows only, hides the entire
 Mechanical Splitter tab until the machine gate is earned, and hides the runtime
@@ -156,11 +177,16 @@ and feel values remain explicitly replaceable stand-ins.
   prices and splitter receipt timing remain visibly labelled placeholders.
   Level 9/49/96 structural probes pass, but a later live pacing review must
   decide whether any authored row should change.
+- M9 commission quantities, fixed premium ratios, offer selection and receipt
+  timing remain labelled placeholders. The level 3/49/96 probe is structurally
+  green, but generation-zero late-game offers are intentionally not treated as
+  final economy tuning.
 
 ## Current test baseline
 
 The authoritative tests are the live test files. The latest verified baseline
-is M1 19, M2 24, M3 16, M4 55, M7A 289, M7C 221, M8 Slice 6 121, startup 17,
-slicer 34. The Slice 6 pacing probe passes at levels 9, 49 and 96, and the
+is M1 19, M2 24, M3 16, M4 55, M7A 289, M7C 221, M8 Slice 6 122, M9 Slice 1
+27, startup 17, slicer 34. The Slice 6 pacing probe passes at levels 9, 49 and
+96; the M9 placeholder probe passes at levels 3, 49 and 96; and the
 expanded non-headless tool captures the full 1280x720 contract/profile/runtime
 matrix. See `docs/TESTING.md` for commands and non-headless requirements.

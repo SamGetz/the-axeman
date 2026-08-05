@@ -29,7 +29,7 @@ const SAVE_PATH := "user://the_axeman_save.cfg"
 ## incremental autosave is survivable; losing the whole yard is not.
 const _TEMP_PATH := "user://the_axeman_save.cfg.tmp"
 ## Bumped whenever the on-disk shape changes in a way _migrate has to handle.
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 
 ## Version-1's prototype ranks are an on-disk compatibility contract. These
 ## caps are intentionally pinned to that prototype rather than read from the
@@ -137,7 +137,7 @@ static func delete_save() -> bool:
 
 ## Forward migration is PURE: it works on a deep copy and never rewrites the
 ## older file. load_game() applies the copy in memory; only the next complete
-## save_game() replaces the old file atomically with a version-4 one.
+## save_game() replaces the old file atomically with a version-5 one.
 static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 	if from_version == SAVE_VERSION:
 		return progression
@@ -158,6 +158,19 @@ static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 		# idle; migration must never auto-assign a certified profile on the player's
 		# behalf.
 		migrated["splitter_assigned_species"] = ""
+		version = 4
+	if version == 4:
+		# M9 adds generated repeatable manual work. Older yards receive no
+		# retroactive offers, active progress, completion count or premium. Their
+		# first eligible board entry creates a fresh persisted offer set through
+		# GameState after the player has deliberately started the session.
+		migrated["commission_offers"] = []
+		migrated["commission_generation"] = 0
+		migrated["active_commission"] = ""
+		migrated["active_commission_progress"] = 0
+		migrated["active_orders"] = []
+		migrated["active_commissions"] = []
+		migrated["completed_commissions"] = 0
 	return migrated
 
 

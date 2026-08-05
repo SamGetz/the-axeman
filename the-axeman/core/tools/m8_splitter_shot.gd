@@ -49,15 +49,15 @@ func _capture_contract_chapter() -> void:
 	_save("_orders_open_mixed_requirements")
 
 	_apply_state(9, [0, 1, 2, 3], [0, 1, 2], [], _base_tiers())
-	await _open_orders(1)
+	await _open_orders(2)
 	_save("_orders_completed_early")
 
 	_apply_state(49, _indices(14), _indices(14), [], _base_tiers())
-	await _open_orders(1, true)
+	await _open_orders(2, true)
 	_save("_orders_completed_middle")
 
 	_apply_state(99, _indices(25), _indices(26), _indices(25), _base_tiers())
-	await _open_orders(1, true)
+	await _open_orders(2, true)
 	_save("_orders_completed_level99")
 	_hud._close_panels()
 

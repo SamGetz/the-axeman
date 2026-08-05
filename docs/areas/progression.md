@@ -40,10 +40,32 @@ ownership, or the yard HUD.
   forward promise before that point.
 - The skill tree is the exception: it is an authored prerequisite map, so its
   connected locked nodes remain visible to explain branch structure.
-- The contract board has Open and Completed tabs. Open lists the active contract
-  first, then every revealed incomplete contract in authored order, including
-  exact ownership requirements. Completed is compact and read-only. Neither tab
-  exposes unrevealed work; the XP strip names only the next unrevealed contract.
+- The contract board has Open, Commissions and Completed tabs. Commissions stays
+  hidden until Pine Campsite Load is complete. Open lists every revealed
+  incomplete authored contract in authored order; Completed is compact and
+  read-only. No tab exposes unrevealed work, and the XP strip names only the next
+  unrevealed authored contract.
+
+## Working Yard Commissions (M9 Slice 1)
+
+- `GameState` owns persisted offers, generation, active identities/progress and
+  completion count. `Orders` reads immutable templates, validates snapshots and
+  credits work only after a successful manual `Market.sell()`.
+- The earned board holds three stable offers: one accepting any firewood and two
+  targeting owned species. Opening UI, loading or buying a species cannot reroll
+  them. Completing a commission replaces only its slot.
+- Multiple authored contracts and commissions may be active together. One
+  successfully sold manual piece advances every matching delivery. Each
+  completion premium pays once; unmatched work still receives ordinary sale cash.
+- `Market.sell_automation()` never reaches manual delivery credit, so splitter
+  output cannot advance contracts or commissions.
+- The compact top-right task line sits beneath the XP strip, expands into a
+  scrollable list and opens the relevant board tab. Collapse state is local UI
+  presentation, not another persistence authority.
+- Save version 5 stores multiple active deliveries and their bounded progress.
+  Scalar single-active fields remain load compatibility aliases for the earlier
+  experimental v5 shape. Version-4 migration seeds no offers, active work,
+  premiums or completion history.
 
 ## Startup save boundary
 

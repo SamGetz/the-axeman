@@ -144,6 +144,55 @@ text = "Level 1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="ActiveJobChip" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -306.0
+offset_top = 32.0
+offset_right = -16.0
+offset_bottom = 70.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBox_contract_board")
+metadata/art_status = "native_ui_stand_in_pending_authored_m9_job_chip"
+
+[node name="Column" type="VBoxContainer" parent="ActiveJobChip"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="ActiveJobChip/Column"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Button" type="Button" parent="ActiveJobChip/Column/Header"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "Active deliveries"
+flat = true
+
+[node name="Toggle" type="Button" parent="ActiveJobChip/Column/Header"]
+custom_minimum_size = Vector2(30, 30)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "▾"
+tooltip_text = "Expand active deliveries"
+flat = true
+
+[node name="Scroll" type="ScrollContainer" parent="ActiveJobChip/Column"]
+visible = false
+custom_minimum_size = Vector2(0, 112)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="ActiveJobChip/Column/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+
 [node name="QuickMenu" type="HBoxContainer" parent="."]
 anchor_left = 1.0
 anchor_top = 1.0
@@ -573,13 +622,13 @@ text = "Contract Board"
 [node name="Blurb" type="Label" parent="OrdersPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Choose one patient order. Matching pieces still earn their normal price; finishing the load pays its bonus."
+text = "Choose one patient delivery. Matching pieces still earn their normal price; finishing the load pays its bonus."
 
 [node name="Active" type="Label" parent="OrdersPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
 theme_override_font_sizes/font_size = 14
-text = "No active order"
+text = "No active delivery"
 
 [node name="Tabs" type="TabContainer" parent="OrdersPanel/Column"]
 layout_mode = 2
@@ -600,9 +649,30 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="Completed" type="MarginContainer" parent="OrdersPanel/Column/Tabs"]
+[node name="Commissions" type="MarginContainer" parent="OrdersPanel/Column/Tabs"]
 layout_mode = 2
 metadata/_tab_index = 1
+
+[node name="Scroll" type="ScrollContainer" parent="OrdersPanel/Column/Tabs/Commissions"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="OrdersPanel/Column/Tabs/Commissions/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="Empty" type="Label" parent="OrdersPanel/Column/Tabs/Commissions"]
+visible = false
+layout_mode = 2
+text = "No standing commissions are available."
+horizontal_alignment = 1
+
+[node name="Completed" type="MarginContainer" parent="OrdersPanel/Column/Tabs"]
+layout_mode = 2
+metadata/_tab_index = 2
 
 [node name="Scroll" type="ScrollContainer" parent="OrdersPanel/Column/Tabs/Completed"]
 layout_mode = 2
@@ -619,3 +689,41 @@ theme_override_constants/separation = 8
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Back"
+
+[node name="DeliveryReceipt" type="PanelContainer" parent="."]
+visible = false
+z_index = 20
+layout_mode = 1
+anchor_left = 0.31
+anchor_top = 0.13
+anchor_right = 0.69
+anchor_bottom = 0.13
+offset_bottom = 142.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBox_contract_board")
+mouse_filter = 2
+metadata/art_status = "native_ui_stand_in_pending_authored_m9_delivery_receipt"
+
+[node name="Column" type="VBoxContainer" parent="DeliveryReceipt"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Stamp" type="Label" parent="DeliveryReceipt/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.88, 0.64, 1)
+theme_override_font_sizes/font_size = 24
+text = "DELIVERED"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="DeliveryReceipt/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Delivery complete"
+horizontal_alignment = 1
+
+[node name="Detail" type="Label" parent="DeliveryReceipt/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "+0 coins"
+horizontal_alignment = 1
+autowrap_mode = 3

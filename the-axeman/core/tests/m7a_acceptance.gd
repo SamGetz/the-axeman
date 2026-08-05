@@ -531,10 +531,12 @@ func _test_13_yard_hud_is_live_and_shops() -> void:
 	var order_copy := ""
 	for node: Node in orders_list.find_children("*", "Label", true, false):
 		order_copy += (node as Label).text + "\n"
-	_check(orders_tabs.get_tab_count() == 2
+	_check(orders_tabs.get_tab_count() == 3
 			and orders_tabs.get_tab_title(0) == "Open"
-			and orders_tabs.get_tab_title(1) == "Completed",
-		"...splits the expanded catalogue into Open and Completed views")
+			and orders_tabs.get_tab_title(1) == "Commissions"
+			and orders_tabs.get_tab_title(2) == "Completed"
+			and orders_tabs.is_tab_hidden(1),
+		"...keeps the earned Commissions view hidden between Open and Completed")
 	_check(orders_list.get_child_count() == 1
 			and Orders.visible().size() == 1
 			and order_copy.contains("Unlocks Supplier Ledger in Shop"),
@@ -1317,7 +1319,8 @@ func _test_28_orders_route_pay_and_persist() -> void:
 	_check(pine_order != null and not Orders.is_available(pine_order),
 		"the distant Pine order waits for later progression")
 	_check(GameState.accept_order(first_order.id), "the player can accept one available order")
-	_check(not GameState.accept_order(aspen_order.id), "a second order cannot replace the active load")
+	_check(not GameState.accept_order(aspen_order.id),
+		"an unrevealed order cannot be accepted alongside active work")
 
 	var completion_events: Array[StringName] = []
 	var on_completed := func(id: StringName, _bonus: int) -> void: completion_events.append(id)

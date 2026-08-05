@@ -148,6 +148,7 @@ func _connect_autosave() -> void:
 	GameState.species_mastery_changed.connect(_queue_autosave.unbind(2))
 	GameState.splitter_assignment_changed.connect(_queue_autosave.unbind(1))
 	GameState.order_state_changed.connect(_queue_autosave)
+	GameState.commission_state_changed.connect(_queue_autosave)
 
 
 ## ---------------------------------------------------------------- autosave

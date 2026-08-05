@@ -1,0 +1,78 @@
+[gd_resource type="Resource" script_class="CommissionTable" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://data/commission_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/commission_template_def.gd" id="2_template"]
+
+; M9 SYSTEM-BUILDING PLACEHOLDERS. Customer identities and the mixed/specific
+; offer structure are reviewable content; every quantity and premium ratio still
+; requires Sam's measured early/middle/late pacing approval.
+
+[sub_resource type="Resource" id="Commission_neighbourhood_bundle"]
+script = ExtResource("2_template")
+id = &"neighbourhood_bundle"
+customer_name = "Neighbourhood Hearth Circle"
+title_format = "Mixed Firewood Round"
+description = "A forgiving mixed load for several nearby hearths. Any split firewood counts."
+goal_kind = 0
+required_count = 12
+premium_ratio = 0.2
+tuning_status = "PLACEHOLDER — M9 measured tuning required"
+
+[sub_resource type="Resource" id="Commission_evening_fires"]
+script = ExtResource("2_template")
+id = &"evening_fires"
+customer_name = "Evening Fire Steward"
+title_format = "Mixed Evening Fires"
+description = "A flexible standing order for tonight's fires. Any split firewood counts."
+goal_kind = 0
+required_count = 18
+premium_ratio = 0.22
+tuning_status = "PLACEHOLDER — M9 measured tuning required"
+
+[sub_resource type="Resource" id="Commission_bakery_kindling"]
+script = ExtResource("2_template")
+id = &"bakery_kindling"
+customer_name = "Village Baker"
+title_format = "{species} Oven Stack"
+description = "A species-specific stack for a steady morning oven."
+goal_kind = 1
+required_count = 14
+premium_ratio = 0.25
+tuning_status = "PLACEHOLDER — M9 measured tuning required"
+
+[sub_resource type="Resource" id="Commission_smokehouse_stack"]
+script = ExtResource("2_template")
+id = &"smokehouse_stack"
+customer_name = "Smokehouse Keeper"
+title_format = "{species} Smokehouse Stack"
+description = "A patient species-specific load for the next smokehouse firing."
+goal_kind = 1
+required_count = 20
+premium_ratio = 0.25
+tuning_status = "PLACEHOLDER — M9 measured tuning required"
+
+[sub_resource type="Resource" id="Commission_workshop_drywood"]
+script = ExtResource("2_template")
+id = &"workshop_drywood"
+customer_name = "Joiner's Workshop"
+title_format = "{species} Workshop Reserve"
+description = "A measured species-specific reserve for the workshop stove."
+goal_kind = 1
+required_count = 24
+premium_ratio = 0.3
+tuning_status = "PLACEHOLDER — M9 measured tuning required"
+
+[sub_resource type="Resource" id="Commission_winter_reserve"]
+script = ExtResource("2_template")
+id = &"winter_reserve"
+customer_name = "Hill Cottage Cooperative"
+title_format = "{species} Winter Reserve"
+description = "A larger species-specific reserve shared between the hill cottages."
+goal_kind = 1
+required_count = 30
+premium_ratio = 0.3
+tuning_status = "PLACEHOLDER — M9 measured tuning required"
+
+[resource]
+script = ExtResource("1_table")
+templates = Array[ExtResource("2_template")]([SubResource("Commission_neighbourhood_bundle"), SubResource("Commission_evening_fires"), SubResource("Commission_bakery_kindling"), SubResource("Commission_smokehouse_stack"), SubResource("Commission_workshop_drywood"), SubResource("Commission_winter_reserve")])

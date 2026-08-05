@@ -14,11 +14,12 @@ Set `GODOT` to the Godot 4.7.1 executable for the current machine, then run:
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7a_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7c_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m8_acceptance.tscn
+"$GODOT" --headless --path . res://core/tests/m9_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/startup_acceptance.tscn
 "$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
 ```
 
-Latest verified baseline on 2026-08-05:
+Latest verified baseline on 2026-08-06:
 
 | Suite | Expected |
 |---|---:|
@@ -28,7 +29,8 @@ Latest verified baseline on 2026-08-05:
 | M4 | 55/55 |
 | M7A | 289/289 |
 | M7C | 221/221 |
-| M8 Slice 6 Certified Yard Expansion | 121/121 |
+| M8 Slice 6 Certified Yard Expansion | 122/122 |
+| M9 Slice 1 Working Yard Commissions | 27/27 |
 | Startup New Game / Load Game | 17/17 |
 | Slicer | 34/34 |
 
@@ -60,23 +62,35 @@ band: machine/profile gates and prices, five-second cycle, one output per
 represented log, 50% Speed floor, five Speed ranks, one-time Auto Loading,
 5-to-12 Logs per Split, 20-to-100% automation XP and five Money Gain ranks.
 
-Slice 6 expands M7A to 289 checks and M8 to 121. Loop-based checks cover all 26
+Slice 6 expands M7A to 289 checks; the current M8 suite has 122 checks after the
+version-5 migration assertion. Loop-based checks cover all 26
 contracts and 25 profiles; focused checks cover the three later-profile gates,
 atomic purchase/save/assignment, early/middle/final watched cycles, settlement
 start/cancel ordering, retry identity, separate bounded reward pools, exact
 counter reconciliation, species bark/end treatment, and reduced missing-art
 marker hierarchy.
 
+M9 Slice 1 adds 27 focused checks for the hidden Pine gate, typed placeholder
+catalogue, deterministic three-offer generation, owned-species filtering,
+simultaneous authored/commission acceptance, one-sale advancement across every
+matching active delivery, exact fixed premiums, per-slot refresh, automation
+exclusion, version-5 persistence/version-4 migration and compact task HUD state.
+
 The read-only placeholder pacing snapshot runs at the approved representative
 levels 9, 49 and 96:
 
 ```bash
 "$GODOT" --headless --path . res://core/tools/m8_slice6_pacing_probe.tscn
+"$GODOT" --headless --path . res://core/tools/m9_commission_pacing_probe.tscn
 ```
 
 It prints unlock cost, unit sale value, contract count/base/bonus, profile cost,
 mastery target and base splitter cash/XP. A passing snapshot confirms the
 authored formulae and labels, not final pacing approval.
+
+The M9 probe prints all three commission offers at levels 3, 49 and 96. It
+confirms structural validity and placeholder labels, not final quantities,
+premium ratios or late-game economic relevance.
 
 M1 deliberately exercises error paths; expected red engine messages are not
 failures. Treat lines beginning with `FAIL:` as failures.
@@ -103,6 +117,14 @@ real save:
 
 ```bash
 "$GODOT" --path . res://core/tools/startup_shot.tscn
+```
+
+M9's focused non-headless tool captures the earned offer board, compact and
+expanded active-task stack, multiple-active board, delivery refresh and repeat
+history without touching the player's real save:
+
+```bash
+"$GODOT" --path . res://core/tools/m9_commission_shot.tscn
 ```
 
 The approved reward-feedback checkpoint was also inspected in the production

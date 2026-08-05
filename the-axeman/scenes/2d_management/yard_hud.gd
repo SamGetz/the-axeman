@@ -65,6 +65,9 @@ extends Control
 const _COIN := preload("res://assets/ui/coin.png")
 const _SPLITTER_TAB := 1
 const _PURCHASED_TAB := 2
+const _OPEN_ORDERS_TAB := 0
+const _COMMISSIONS_TAB := 1
+const _COMPLETED_ORDERS_TAB := 2
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
 @onready var _splitter_runtime_state: Label = $SplitterRuntimeCard/Column/State
@@ -113,10 +116,20 @@ const _PURCHASED_TAB := 2
 @onready var _orders_panel: PanelContainer = $OrdersPanel
 @onready var _orders_tabs: TabContainer = $OrdersPanel/Column/Tabs
 @onready var _orders_list: VBoxContainer = $OrdersPanel/Column/Tabs/Open/Scroll/List
+@onready var _commissions_list: VBoxContainer = $OrdersPanel/Column/Tabs/Commissions/Scroll/List
+@onready var _commissions_empty: Label = $OrdersPanel/Column/Tabs/Commissions/Empty
 @onready var _orders_completed_list: VBoxContainer = $OrdersPanel/Column/Tabs/Completed/Scroll/List
 @onready var _orders_active: Label = $OrdersPanel/Column/Active
 @onready var _close_orders_button: Button = $OrdersPanel/Column/CloseButton
 @onready var _modal_backdrop: ColorRect = $ModalBackdrop
+@onready var _active_job_chip: PanelContainer = $ActiveJobChip
+@onready var _active_job_button: Button = $ActiveJobChip/Column/Header/Button
+@onready var _active_job_toggle: Button = $ActiveJobChip/Column/Header/Toggle
+@onready var _active_job_scroll: ScrollContainer = $ActiveJobChip/Column/Scroll
+@onready var _active_job_list: VBoxContainer = $ActiveJobChip/Column/Scroll/List
+@onready var _delivery_receipt: PanelContainer = $DeliveryReceipt
+@onready var _delivery_receipt_title: Label = $DeliveryReceipt/Column/Title
+@onready var _delivery_receipt_detail: Label = $DeliveryReceipt/Column/Detail
 
 var _selected_skill_id: StringName = &""
 var _splitter_runtime: MechanicalSplitterRuntime
@@ -125,6 +138,8 @@ var _pending_orb_xp := 0
 var _displayed_cash := 0
 var _pending_coin_count := 0
 var _cash_bounce_tween: Tween
+var _delivery_receipt_tween: Tween
+var _active_tasks_collapsed := true
 
 const _SKILL_BG := Color(0.961, 0.918, 0.847, 1.0)
 const _SKILL_SURFACE := Color(0.922, 0.867, 0.773, 1.0)
@@ -148,9 +163,12 @@ func _ready() -> void:
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 	_skill_detail_buy.pressed.connect(_on_buy_selected_skill_pressed)
 	_orders_button.pressed.connect(_on_orders_pressed)
+	_active_job_button.pressed.connect(_on_active_job_pressed)
+	_active_job_toggle.pressed.connect(_on_active_job_toggle_pressed)
 	_close_orders_button.pressed.connect(_on_close_orders_pressed)
-	_orders_tabs.set_tab_title(0, "Open")
-	_orders_tabs.set_tab_title(1, "Completed")
+	_orders_tabs.set_tab_title(_OPEN_ORDERS_TAB, "Open")
+	_orders_tabs.set_tab_title(_COMMISSIONS_TAB, "Commissions")
+	_orders_tabs.set_tab_title(_COMPLETED_ORDERS_TAB, "Completed")
 	_modal_backdrop.gui_input.connect(_on_modal_backdrop_gui_input)
 
 	GameState.cash_changed.connect(_on_cash_changed)
@@ -167,6 +185,9 @@ func _ready() -> void:
 	GameState.skill_points_changed.connect(_on_skill_points_changed)
 	GameState.skill_level_changed.connect(_on_skill_level_changed)
 	GameState.order_state_changed.connect(_on_order_state_changed)
+	GameState.order_completed.connect(_on_order_completed)
+	GameState.commission_state_changed.connect(_on_commission_state_changed)
+	GameState.commission_completed.connect(_on_commission_completed)
 	GameState.haul_aways_changed.connect(_on_catalogue_gate_changed.unbind(1))
 	GameState.level_gained.connect(_on_catalogue_gate_changed.unbind(1))
 	GameState.building_tiers_changed.connect(_on_catalogue_gate_changed)
@@ -183,6 +204,7 @@ func _ready() -> void:
 	_rebuild_woodshed()
 	_rebuild_skills()
 	_rebuild_orders()
+	_refresh_active_job_chip()
 	_refresh_badges()
 	_refresh_splitter_runtime_card()
 
@@ -364,6 +386,7 @@ func _open_panel(panel: Control) -> void:
 	_close_panels()
 	_modal_backdrop.visible = true
 	panel.visible = true
+	_refresh_active_job_chip()
 
 
 func _close_panels() -> void:
@@ -372,6 +395,7 @@ func _close_panels() -> void:
 	_skill_panel.visible = false
 	_orders_panel.visible = false
 	_modal_backdrop.visible = false
+	_refresh_active_job_chip()
 
 
 ## The backdrop consumes the outside click after closing the panel, so dismissing
@@ -911,8 +935,25 @@ func _on_skills_pressed() -> void:
 
 ## --------------------------------------------------------- contract board
 func _on_orders_pressed() -> void:
+	GameState.ensure_commission_offers()
 	_open_panel(_orders_panel)
 	_rebuild_orders()
+
+
+func _on_active_job_pressed() -> void:
+	_on_orders_pressed()
+	_orders_tabs.current_tab = _OPEN_ORDERS_TAB \
+		if not GameState.get_active_order_ids().is_empty() else _COMMISSIONS_TAB
+
+
+func _on_active_job_toggle_pressed() -> void:
+	_active_tasks_collapsed = not _active_tasks_collapsed
+	_refresh_active_job_chip()
+
+
+func _on_active_task_row_pressed(tab: int) -> void:
+	_on_orders_pressed()
+	_orders_tabs.current_tab = tab
 
 
 func _on_close_orders_pressed() -> void:
@@ -922,6 +963,13 @@ func _on_close_orders_pressed() -> void:
 func _on_order_state_changed() -> void:
 	_rebuild_orders()
 	_rebuild_shop()
+	_refresh_active_job_chip()
+	_refresh_badges()
+
+
+func _on_commission_state_changed() -> void:
+	_rebuild_orders()
+	_refresh_active_job_chip()
 	_refresh_badges()
 
 
@@ -932,20 +980,21 @@ func _rebuild_orders() -> void:
 	for child in _orders_completed_list.get_children():
 		_orders_completed_list.remove_child(child)
 		child.queue_free()
+	for child in _commissions_list.get_children():
+		_commissions_list.remove_child(child)
+		child.queue_free()
 
-	var active := GameState.get_active_order()
-	if active == null:
-		_orders_active.text = "No active order — ordinary chopping always pays."
+	var active_count := GameState.get_active_manual_job_count()
+	if active_count == 0:
+		_orders_active.text = "No active delivery — ordinary chopping always pays."
 	else:
-		_orders_active.text = "Active: %s — %d / %d" % [
-			active.title, GameState.get_active_order_progress(), active.required_count]
+		_orders_active.text = "%d active %s — one matching piece advances each." % [
+			active_count, "delivery" if active_count == 1 else "deliveries"]
 
 	# Active first, then every other revealed incomplete contract in authored
 	# order. Completed work owns a compact read-only tab instead of crowding the
 	# actionable board as the 26-contract ladder opens up.
-	if active != null:
-		_orders_list.add_child(_build_order_row(active))
-	var open_count := 1 if active != null else 0
+	var open_count := 0
 	var completed_count := 0
 	for order: OrderDef in Orders.visible():
 		if order == null:
@@ -953,7 +1002,7 @@ func _rebuild_orders() -> void:
 		if GameState.has_completed_order(order.id):
 			_orders_completed_list.add_child(_build_completed_order_row(order))
 			completed_count += 1
-		elif order.id != GameState.get_active_order_id():
+		else:
 			_orders_list.add_child(_build_order_row(order))
 			open_count += 1
 	if open_count == 0:
@@ -965,6 +1014,21 @@ func _rebuild_orders() -> void:
 		var empty := Label.new()
 		empty.text = "Completed deliveries will be recorded here."
 		_orders_completed_list.add_child(empty)
+	var commissions_unlocked := Orders.commissions_unlocked()
+	if commissions_unlocked:
+		var commission_summary := Label.new()
+		commission_summary.text = "Standing commissions fulfilled: %d" % \
+			GameState.get_completed_commission_count()
+		commission_summary.add_theme_font_size_override("font_size", 14)
+		commission_summary.modulate = Color(0.78, 0.88, 0.64, 1.0)
+		_orders_completed_list.add_child(commission_summary)
+	_orders_tabs.set_tab_hidden(_COMMISSIONS_TAB, not commissions_unlocked)
+	if _orders_tabs.is_tab_hidden(_orders_tabs.current_tab):
+		_orders_tabs.current_tab = _OPEN_ORDERS_TAB
+	var commission_offers := GameState.get_commission_offers()
+	for offer: Dictionary in commission_offers:
+		_commissions_list.add_child(_build_commission_row(offer))
+	_commissions_empty.visible = commissions_unlocked and commission_offers.is_empty()
 
 
 func _build_order_row(order: OrderDef) -> VBoxContainer:
@@ -979,6 +1043,8 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 	var detail := Label.new()
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var rewards: PackedStringArray = ["+%s coins" % _thousands(order.cash_bonus)]
+	if order.id == Orders.COMMISSION_UNLOCK_ORDER_ID:
+		rewards.append("Unlocks Yard Commissions")
 	var profile := _matching_contract_profile(order)
 	if profile != null:
 		var species := SpeciesTable.by_id(profile.required_mastery_species_id)
@@ -996,10 +1062,10 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 		order.description, order.required_count, "  ·  ".join(rewards)]
 	row.add_child(detail)
 
-	if GameState.get_active_order_id() == order.id:
+	if GameState.is_order_active(order.id):
 		var progress := ProgressBar.new()
 		progress.max_value = order.required_count
-		progress.value = GameState.get_active_order_progress()
+		progress.value = GameState.get_active_order_progress_for(order.id)
 		progress.show_percentage = false
 		row.add_child(progress)
 
@@ -1011,11 +1077,9 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 	elif GameState.has_completed_order(order.id):
 		button.text = "Completed"
 		button.disabled = true
-	elif GameState.get_active_order_id() == order.id:
-		button.text = "In progress"
-		button.disabled = true
-	elif GameState.get_active_order_id() != &"":
-		button.text = "Finish the active order first"
+	elif GameState.is_order_active(order.id):
+		button.text = "In progress · %d / %d" % [
+			GameState.get_active_order_progress_for(order.id), order.required_count]
 		button.disabled = true
 	elif not Orders.is_available(order):
 		var species := SpeciesTable.by_id(order.required_species)
@@ -1058,6 +1122,66 @@ func _build_completed_order_row(order: OrderDef) -> VBoxContainer:
 		reward.add_theme_font_size_override("font_size", 12)
 		reward.modulate = Color(0.76, 0.86, 0.63, 1.0)
 		row.add_child(reward)
+	if order.id == Orders.COMMISSION_UNLOCK_ORDER_ID:
+		var commission_reward := Label.new()
+		commission_reward.text = "Yard reward · Standing commissions unlocked"
+		commission_reward.add_theme_font_size_override("font_size", 12)
+		commission_reward.modulate = Color(0.76, 0.86, 0.63, 1.0)
+		row.add_child(commission_reward)
+	return row
+
+
+func _build_commission_row(offer: Dictionary) -> VBoxContainer:
+	var row := VBoxContainer.new()
+	row.name = String(offer.get("id", "commission"))
+	row.add_theme_constant_override("separation", 3)
+
+	var heading := Label.new()
+	heading.text = "%s — %s" % [
+		String(offer.get("customer_name", "Standing customer")),
+		String(offer.get("title", "Yard commission"))]
+	heading.add_theme_font_size_override("font_size", 17)
+	row.add_child(heading)
+
+	var required_item := StringName(offer.get("required_item", &""))
+	var target := "Any split firewood"
+	if required_item != &"":
+		var item := InventoryManager.get_item_def(required_item)
+		target = String(required_item) if item == null else item.display_name
+	var detail := Label.new()
+	detail.text = "%s\n%s · %d pieces\nNormal sale cash still pays · Completion premium: +%s coins" % [
+		String(offer.get("description", "")), target,
+		int(offer.get("required_count", 0)),
+		_thousands(int(offer.get("cash_bonus", 0)))]
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(detail)
+
+	var offer_id := StringName(offer.get("id", &""))
+	var active := GameState.is_commission_active(offer_id)
+	if active:
+		var progress := ProgressBar.new()
+		progress.max_value = maxi(1, int(offer.get("required_count", 1)))
+		progress.value = GameState.get_active_commission_progress_for(offer_id)
+		progress.show_percentage = false
+		row.add_child(progress)
+
+	var button := Button.new()
+	button.custom_minimum_size.y = 34
+	if active:
+		button.text = "In progress · %d / %d" % [
+			GameState.get_active_commission_progress_for(offer_id),
+			int(offer.get("required_count", 0))]
+		button.disabled = true
+	else:
+		button.text = "Accept commission"
+		button.pressed.connect(_on_accept_commission_pressed.bind(offer_id))
+	row.add_child(button)
+
+	var tuning := Label.new()
+	tuning.text = "Experimental pacing · measured M9 review required"
+	tuning.add_theme_font_size_override("font_size", 11)
+	tuning.modulate = Color(0.72, 0.72, 0.72, 1.0)
+	row.add_child(tuning)
 	return row
 
 
@@ -1095,6 +1219,121 @@ func _completed_profile_requirement(profile: UpgradeDef) -> String:
 
 func _on_accept_order_pressed(order_id: StringName) -> void:
 	GameState.accept_order(order_id)
+
+
+func _on_accept_commission_pressed(offer_id: StringName) -> void:
+	GameState.accept_commission(offer_id)
+
+
+func _refresh_active_job_chip() -> void:
+	if _active_job_chip == null:
+		return
+	if _modal_backdrop.visible:
+		_active_job_chip.visible = false
+		_position_top_right_panels(false)
+		return
+	for child in _active_job_list.get_children():
+		_active_job_list.remove_child(child)
+		child.queue_free()
+	var count := GameState.get_active_manual_job_count()
+	if count == 0:
+		_active_job_chip.visible = false
+		_position_top_right_panels(false)
+		return
+
+	_active_job_chip.visible = true
+	_active_job_scroll.visible = not _active_tasks_collapsed
+	_active_job_toggle.text = "▾" if _active_tasks_collapsed else "▴"
+	_active_job_toggle.tooltip_text = "%s active deliveries" % (
+		"Expand" if _active_tasks_collapsed else "Collapse")
+	_active_job_chip.offset_bottom = 70.0 if _active_tasks_collapsed else 184.0
+	_active_job_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	if _active_tasks_collapsed:
+		_active_job_button.text = _collapsed_active_task_text(count)
+	else:
+		_active_job_button.text = "Active deliveries · %d · Open board" % count
+		for order_id: StringName in GameState.get_active_order_ids():
+			var order := Orders.by_id(order_id)
+			if order != null:
+				_active_job_list.add_child(_active_task_button(
+					"Contract · %s · %d/%d" % [order.title,
+						GameState.get_active_order_progress_for(order_id), order.required_count],
+					_OPEN_ORDERS_TAB))
+		for offer: Dictionary in GameState.get_active_commissions():
+			_active_job_list.add_child(_active_task_button(
+				"Commission · %s · %d/%d" % [
+					String(offer.get("title", "Standing commission")),
+					int(offer.get("progress", 0)),
+					int(offer.get("required_count", 0))],
+				_COMMISSIONS_TAB))
+	_position_top_right_panels(true)
+
+
+func _collapsed_active_task_text(count: int) -> String:
+	var order_id := GameState.get_active_order_id()
+	var order := Orders.by_id(order_id)
+	if order != null:
+		return "Tasks %d · %s · %d/%d" % [count, order.title,
+			GameState.get_active_order_progress_for(order_id), order.required_count]
+	var commission := GameState.get_active_commission()
+	return "Tasks %d · %s · %d/%d" % [count,
+		String(commission.get("title", "Standing commission")),
+		GameState.get_active_commission_progress_for(
+			StringName(commission.get("id", &""))),
+		int(commission.get("required_count", 0))]
+
+
+func _active_task_button(text: String, tab: int) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size.y = 24
+	button.text = text
+	button.tooltip_text = text
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	button.add_theme_font_size_override("font_size", 10)
+	button.flat = true
+	button.pressed.connect(_on_active_task_row_pressed.bind(tab))
+	return button
+
+
+func _position_top_right_panels(has_tasks: bool) -> void:
+	var top := 36.0
+	if has_tasks:
+		top = 78.0 if _active_tasks_collapsed else 192.0
+	_splitter_runtime_card.offset_top = top
+	_splitter_runtime_card.offset_bottom = top + 154.0
+
+
+func _on_order_completed(order_id: StringName, cash_bonus: int) -> void:
+	var order := Orders.by_id(order_id)
+	var title := "Delivery complete" if order == null else order.title
+	var detail := "+%s coin premium" % _thousands(cash_bonus)
+	if order_id == Orders.COMMISSION_UNLOCK_ORDER_ID:
+		detail += "  ·  Yard Commissions unlocked"
+	_show_delivery_receipt(title, detail)
+
+
+func _on_commission_completed(offer: Dictionary, cash_bonus: int) -> void:
+	_show_delivery_receipt(String(offer.get("title", "Standing commission")),
+		"%s  ·  +%s coin premium  ·  New offers posted" % [
+			String(offer.get("customer_name", "Yard customer")),
+			_thousands(cash_bonus)])
+
+
+func _show_delivery_receipt(title: String, detail: String) -> void:
+	if _delivery_receipt_tween != null and _delivery_receipt_tween.is_valid():
+		_delivery_receipt_tween.kill()
+	_delivery_receipt_title.text = title
+	_delivery_receipt_detail.text = detail
+	_delivery_receipt.modulate = Color.WHITE
+	_delivery_receipt.visible = true
+	# PLACEHOLDER — native M9 delivery-card timing pending visual-feel review.
+	_delivery_receipt_tween = create_tween()
+	_delivery_receipt_tween.tween_interval(2.6)
+	_delivery_receipt_tween.tween_property(_delivery_receipt, "modulate:a", 0.0, 0.4)
+	_delivery_receipt_tween.tween_callback(func() -> void:
+		_delivery_receipt.visible = false
+		_delivery_receipt.modulate = Color.WHITE)
 
 
 func _on_close_skill_pressed() -> void:
@@ -1460,10 +1699,20 @@ func _refresh_badges() -> void:
 			or _trees_badge == null:
 		return
 	var available_orders := 0
-	if GameState.get_active_order_id() == &"":
-		for order: OrderDef in Orders.visible():
-			if Orders.is_available(order):
-				available_orders += 1
+	for order: OrderDef in Orders.visible():
+		if Orders.is_available(order) and not GameState.is_order_active(order.id):
+			available_orders += 1
+	if Orders.commissions_unlocked():
+		var offers := GameState.get_commission_offers()
+		# Before first board entry, one callout advertises the newly earned
+		# commission flow without generating progression from a badge repaint.
+		if offers.is_empty():
+			available_orders += 1
+		else:
+			for offer: Dictionary in offers:
+				if not GameState.is_commission_active(
+						StringName(offer.get("id", &""))):
+					available_orders += 1
 	_set_badge(_orders_badge, available_orders)
 	_set_badge(_skills_badge, GameState.get_skill_points_available())
 	var affordable_upgrades := 0

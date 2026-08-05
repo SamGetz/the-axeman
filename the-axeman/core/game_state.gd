@@ -56,6 +56,11 @@ signal splitter_assignment_changed(species_id: StringName)
 ## completion signal carries the celebratory facts a HUD needs.
 signal order_state_changed
 signal order_completed(order_id: StringName, cash_bonus: int)
+## Repeatable commission offers/progress are also progression-owned here. The
+## completion payload is a presentation receipt; cash is already authoritative
+## before it fires.
+signal commission_state_changed
+signal commission_completed(offer: Dictionary, cash_bonus: int)
 ## Local repaint/restore notification for physical equipment. A7's
 ## building_upgraded remains the purchase command; this signal also fires after
 ## loading tiers from disk, when no purchase event exists to replay.
@@ -144,11 +149,16 @@ const _V1_SKILL_COSTS := {
 	&"ready_stance": 2,
 	&"quick_study": 3,
 }
-## Exactly one patient order may be active in the introductory slice. Completed
-## ids are one-time history; progress is saved so leaving mid-load loses nothing.
-var _active_order: StringName = &""
-var _active_order_progress := 0
+## Multiple patient manual deliveries may be active together. Dictionary keys
+## are authored/generated ids and values are bounded progress counts.
+var _active_orders: Dictionary = {}
 var _completed_orders: Dictionary = {}
+## M9 repeatable manual work. Offers are immutable generated snapshots until one
+## is completed; the generation serial is the only replacement authority.
+var _commission_offers: Array[Dictionary] = []
+var _commission_generation := 0
+var _active_commissions: Dictionary = {}
+var _completed_commissions := 0
 
 ## ---------------------------------------------------------------- lifecycle
 func _ready() -> void:
@@ -391,15 +401,32 @@ func get_splitter_assigned_species() -> StringName:
 
 ## ------------------------------------------------------------- orders (M7A)
 func get_active_order_id() -> StringName:
-	return _active_order
+	var ids := get_active_order_ids()
+	return &"" if ids.is_empty() else ids[0]
 
 
 func get_active_order() -> OrderDef:
-	return Orders.by_id(_active_order) if _active_order != &"" else null
+	return Orders.by_id(get_active_order_id())
 
 
 func get_active_order_progress() -> int:
-	return _active_order_progress
+	return get_active_order_progress_for(get_active_order_id())
+
+
+func get_active_order_ids() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for order: OrderDef in Orders.all():
+		if order != null and _active_orders.has(order.id):
+			out.append(order.id)
+	return out
+
+
+func get_active_order_progress_for(order_id: StringName) -> int:
+	return maxi(0, int(_active_orders.get(order_id, 0)))
+
+
+func is_order_active(order_id: StringName) -> bool:
+	return _active_orders.has(order_id)
 
 
 func has_completed_order(order_id: StringName) -> bool:
@@ -412,6 +439,82 @@ func get_completed_order_ids() -> Array[StringName]:
 		if order != null and has_completed_order(order.id):
 			out.append(order.id)
 	return out
+
+
+## ------------------------------------------------ commissions (M9)
+func get_commission_offers() -> Array[Dictionary]:
+	return _commission_offers.duplicate(true)
+
+
+func get_active_commission_id() -> StringName:
+	var ids := get_active_commission_ids()
+	return &"" if ids.is_empty() else ids[0]
+
+
+func get_active_commission() -> Dictionary:
+	var active_id := get_active_commission_id()
+	for offer: Dictionary in _commission_offers:
+		if StringName(offer.get("id", &"")) == active_id:
+			return offer.duplicate(true)
+	return {}
+
+
+func get_active_commission_progress() -> int:
+	return get_active_commission_progress_for(get_active_commission_id())
+
+
+func get_active_commission_ids() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for offer: Dictionary in _commission_offers:
+		var offer_id := StringName(offer.get("id", &""))
+		if _active_commissions.has(offer_id):
+			out.append(offer_id)
+	return out
+
+
+func get_active_commissions() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for offer: Dictionary in _commission_offers:
+		var offer_id := StringName(offer.get("id", &""))
+		if not _active_commissions.has(offer_id):
+			continue
+		var active := offer.duplicate(true)
+		active["progress"] = get_active_commission_progress_for(offer_id)
+		out.append(active)
+	return out
+
+
+func get_active_commission_progress_for(offer_id: StringName) -> int:
+	return maxi(0, int(_active_commissions.get(offer_id, 0)))
+
+
+func is_commission_active(offer_id: StringName) -> bool:
+	return _active_commissions.has(offer_id)
+
+
+func get_completed_commission_count() -> int:
+	return _completed_commissions
+
+
+func has_active_manual_job() -> bool:
+	return not _active_orders.is_empty() or not _active_commissions.is_empty()
+
+
+func get_active_manual_job_count() -> int:
+	return _active_orders.size() + _active_commissions.size()
+
+
+## First entry into the earned commission flow creates the persisted standing
+## offer set. Save migration deliberately leaves it empty so loading never
+## invents completed work or pays a reward.
+func ensure_commission_offers() -> bool:
+	if not Orders.commissions_unlocked() or not _commission_offers.is_empty():
+		return false
+	_commission_offers = Orders.generate_commission_offers(_commission_generation)
+	if _commission_offers.is_empty():
+		return false
+	commission_state_changed.emit()
+	return true
 
 ## ------------------------------------------------- writes (public methods)
 ## Cash has no EventBus signal and does not get one: A7 is frozen, and a sale is
@@ -593,47 +696,119 @@ func try_buy_species(species_id: StringName) -> bool:
 	return true
 
 
-## ------------------------------------------------ introductory order writes
-## Accept one authored order. Normal contracts wait patiently and are one-time;
-## a current job must be finished before another is taken, keeping the first
-## contract board a choice rather than a checklist that advances invisibly.
+## ------------------------------------------------------ manual job writes
+## Accept one authored order. Contracts remain one-time, but the player may keep
+## several patient deliveries active and let one matching sale serve each.
 func accept_order(order_id: StringName) -> bool:
 	var order := Orders.by_id(order_id)
 	if order == null:
 		push_error("GameState: no order named '%s' — acceptance refused." % order_id)
 		return false
-	if _active_order != &"" or has_completed_order(order_id):
+	if is_order_active(order_id) or has_completed_order(order_id):
 		return false
 	if not Orders.is_available(order):
 		return false
-	_active_order = order_id
-	_active_order_progress = 0
+	_active_orders[order_id] = 0
 	order_state_changed.emit()
 	return true
 
 
-## Credit one sold piece if it matches the active order. Returns true only when
-## progress moved. The completion premium is paid once, after history is recorded
-## and the active slot is cleared, so a signal listener cannot re-enter and claim
-## the same order twice.
-func record_order_piece(item_id: StringName) -> bool:
-	var order := get_active_order()
-	if order == null or not order.matches(item_id):
+## Accept one of the three persisted standing offers. Each offer is independently
+## active, and accepting one never rerolls or displaces the others.
+func accept_commission(offer_id: StringName) -> bool:
+	if is_commission_active(offer_id) or not Orders.commissions_unlocked():
 		return false
-	_active_order_progress += 1
-	if _active_order_progress < order.required_count:
-		order_state_changed.emit()
+	if _commission_offers.is_empty():
+		ensure_commission_offers()
+	for offer: Dictionary in _commission_offers:
+		if StringName(offer.get("id", &"")) != offer_id:
+			continue
+		if Orders.normalise_commission_offer(offer).is_empty():
+			return false
+		_active_commissions[offer_id] = 0
+		commission_state_changed.emit()
 		return true
+	return false
 
-	var completed_id := order.id
-	var bonus := order.cash_bonus
-	_completed_orders[completed_id] = true
-	_active_order = &""
-	_active_order_progress = 0
-	if bonus > 0:
-		add_cash(bonus)
+
+## Credit one successfully sold MANUAL piece to every matching active delivery.
+## Orders calls this only after Market.sell succeeds. The Mechanical Splitter
+## uses its separate Market.sell_automation path and never reaches this method.
+func record_manual_delivery_piece(item_id: StringName) -> bool:
+	var order_moved := _record_active_order_piece(item_id)
+	var commission_moved := _record_active_commission_piece(item_id)
+	return order_moved or commission_moved
+
+
+## Compatibility seam for existing tests/callers; all production settlement now
+## names the shared manual-delivery contract explicitly above.
+func record_order_piece(item_id: StringName) -> bool:
+	return record_manual_delivery_piece(item_id)
+
+
+func _record_active_order_piece(item_id: StringName) -> bool:
+	var moved := false
+	var completed: Array[Dictionary] = []
+	for order: OrderDef in Orders.all():
+		if order == null or not is_order_active(order.id) or not order.matches(item_id):
+			continue
+		moved = true
+		var progress := get_active_order_progress_for(order.id) + 1
+		if progress < order.required_count:
+			_active_orders[order.id] = progress
+			continue
+		_active_orders.erase(order.id)
+		_completed_orders[order.id] = true
+		completed.append({"id": order.id, "bonus": order.cash_bonus})
+	if not moved:
+		return false
+	for receipt: Dictionary in completed:
+		var bonus := int(receipt.get("bonus", 0))
+		if bonus > 0:
+			add_cash(bonus)
 	order_state_changed.emit()
-	order_completed.emit(completed_id, bonus)
+	for receipt: Dictionary in completed:
+		order_completed.emit(StringName(receipt.get("id", &"")),
+			int(receipt.get("bonus", 0)))
+	return true
+
+
+func _record_active_commission_piece(item_id: StringName) -> bool:
+	var moved := false
+	var completed: Array[Dictionary] = []
+	for offer: Dictionary in _commission_offers.duplicate(true):
+		var offer_id := StringName(offer.get("id", &""))
+		if not is_commission_active(offer_id) \
+				or not Orders.commission_matches(offer, item_id):
+			continue
+		moved = true
+		var progress := get_active_commission_progress_for(offer_id) + 1
+		if progress < int(offer.get("required_count", 0)):
+			_active_commissions[offer_id] = progress
+			continue
+		_active_commissions.erase(offer_id)
+		completed.append(offer.duplicate(true))
+	if not moved:
+		return false
+	for completed_offer: Dictionary in completed:
+		var completed_id := StringName(completed_offer.get("id", &""))
+		var slot := -1
+		for index in range(_commission_offers.size()):
+			if StringName(_commission_offers[index].get("id", &"")) == completed_id:
+				slot = index
+				break
+		_commission_generation += 1
+		var replacements := Orders.generate_commission_offers(_commission_generation)
+		if slot >= 0 and slot < replacements.size():
+			_commission_offers[slot] = replacements[slot]
+		_completed_commissions += 1
+		var bonus := int(completed_offer.get("cash_bonus", 0))
+		if bonus > 0:
+			add_cash(bonus)
+	commission_state_changed.emit()
+	for completed_offer: Dictionary in completed:
+		commission_completed.emit(completed_offer,
+			int(completed_offer.get("cash_bonus", 0)))
 	return true
 
 
@@ -651,6 +826,37 @@ func to_save_dict() -> Dictionary:
 	var mastery_progress: Dictionary = {}
 	for id: StringName in _species_mastery_progress:
 		mastery_progress[String(id)] = int(_species_mastery_progress[id])
+	var commission_offers: Array = []
+	for offer: Dictionary in _commission_offers:
+		var normalised := Orders.normalise_commission_offer(offer)
+		if normalised.is_empty():
+			continue
+		commission_offers.append({
+			"id": String(normalised.get("id", &"")),
+			"template_id": String(normalised.get("template_id", &"")),
+			"customer_name": String(normalised.get("customer_name", "")),
+			"title": String(normalised.get("title", "")),
+			"description": String(normalised.get("description", "")),
+			"goal_kind": int(normalised.get("goal_kind", -1)),
+			"required_species": String(normalised.get("required_species", &"")),
+			"required_item": String(normalised.get("required_item", &"")),
+			"required_count": int(normalised.get("required_count", 0)),
+			"cash_bonus": int(normalised.get("cash_bonus", 0)),
+		})
+	var active_orders: Array = []
+	for order_id: StringName in get_active_order_ids():
+		active_orders.append({
+			"id": String(order_id),
+			"progress": get_active_order_progress_for(order_id),
+		})
+	var active_commissions: Array = []
+	for offer_id: StringName in get_active_commission_ids():
+		active_commissions.append({
+			"id": String(offer_id),
+			"progress": get_active_commission_progress_for(offer_id),
+		})
+	var legacy_order_id := get_active_order_id()
+	var legacy_commission_id := get_active_commission_id()
 	return {
 		"cash": _cash,
 		"lifetime_wood_chopped": _lifetime_wood_chopped,
@@ -669,9 +875,16 @@ func to_save_dict() -> Dictionary:
 		"skill_levels": _skill_levels.duplicate(),
 		"legacy_skill_ranks": _legacy_skill_ranks.duplicate(),
 		"proc_dry_streak": proc_streaks,
-		"active_order": String(_active_order),
-		"active_order_progress": _active_order_progress,
+		"active_orders": active_orders,
+		"active_order": String(legacy_order_id),
+		"active_order_progress": get_active_order_progress_for(legacy_order_id),
 		"completed_orders": _completed_orders.keys(),
+		"commission_offers": commission_offers,
+		"commission_generation": _commission_generation,
+		"active_commissions": active_commissions,
+		"active_commission": String(legacy_commission_id),
+		"active_commission_progress": get_active_commission_progress_for(legacy_commission_id),
+		"completed_commissions": _completed_commissions,
 		"tool_tiers": _tool_tiers.duplicate(),
 		"building_tiers": _building_tiers.duplicate(),
 		"unlocked_biomes": _unlocked_biomes.keys(),
@@ -781,15 +994,74 @@ func apply_save_dict(data: Dictionary) -> void:
 			if Orders.by_id(order_id) != null:
 				_completed_orders[order_id] = true
 
-	_active_order = &""
-	_active_order_progress = 0
-	var saved_order := StringName(String(data.get("active_order", "")))
-	var order := Orders.by_id(saved_order)
-	if order != null and not has_completed_order(saved_order) and Orders.is_available(order):
-		_active_order = saved_order
-		# A save at or above the requirement is normalised just below completion;
-		# payout only happens from a newly settled piece, never while loading.
-		_active_order_progress = clampi(int(data.get("active_order_progress", 0)), 0, order.required_count - 1)
+	_active_orders = {}
+	var saved_orders: Variant = data.get("active_orders")
+	if saved_orders is Array:
+		for raw_active: Variant in saved_orders as Array:
+			if not (raw_active is Dictionary):
+				continue
+			var saved_id := StringName(String((raw_active as Dictionary).get("id", "")))
+			var saved_def := Orders.by_id(saved_id)
+			if saved_def == null or has_completed_order(saved_id) \
+					or not Orders.is_available(saved_def):
+				continue
+			_active_orders[saved_id] = clampi(
+				int((raw_active as Dictionary).get("progress", 0)), 0,
+				saved_def.required_count - 1)
+	else:
+		# Experimental v5 compatibility: the first M9 checkpoint stored one active
+		# authored delivery in scalar fields.
+		var saved_order := StringName(String(data.get("active_order", "")))
+		var order := Orders.by_id(saved_order)
+		if order != null and not has_completed_order(saved_order) and Orders.is_available(order):
+			_active_orders[saved_order] = clampi(
+				int(data.get("active_order_progress", 0)), 0,
+				order.required_count - 1)
+
+	_commission_offers = []
+	_commission_generation = maxi(0, int(data.get("commission_generation", 0))) \
+		if Orders.commissions_unlocked() else 0
+	_active_commissions = {}
+	_completed_commissions = maxi(0, int(data.get("completed_commissions", 0))) \
+		if Orders.commissions_unlocked() else 0
+	var saved_commissions: Variant = data.get("commission_offers")
+	if Orders.commissions_unlocked() and saved_commissions is Array:
+		var restored_offers: Array[Dictionary] = []
+		var seen_offer_ids: Dictionary = {}
+		for raw_offer: Variant in saved_commissions as Array:
+			var offer := Orders.normalise_commission_offer(raw_offer)
+			var offer_id := StringName(offer.get("id", &""))
+			if offer.is_empty() or seen_offer_ids.has(offer_id):
+				continue
+			seen_offer_ids[offer_id] = true
+			restored_offers.append(offer)
+		# Generated sets are atomic. A partial/corrupt set becomes empty and will
+		# be replaced only when the player next enters the commission board.
+		if restored_offers.size() == Orders.COMMISSION_OFFER_COUNT:
+			_commission_offers = restored_offers
+	if not _commission_offers.is_empty():
+		var saved_active_commissions: Variant = data.get("active_commissions")
+		if saved_active_commissions is Array:
+			for raw_active: Variant in saved_active_commissions as Array:
+				if not (raw_active is Dictionary):
+					continue
+				var saved_id := StringName(String((raw_active as Dictionary).get("id", "")))
+				for offer: Dictionary in _commission_offers:
+					if StringName(offer.get("id", &"")) != saved_id:
+						continue
+					_active_commissions[saved_id] = clampi(
+						int((raw_active as Dictionary).get("progress", 0)), 0,
+						int(offer.get("required_count", 1)) - 1)
+					break
+		else:
+			var saved_commission := StringName(String(data.get("active_commission", "")))
+			for offer: Dictionary in _commission_offers:
+				if StringName(offer.get("id", &"")) != saved_commission:
+					continue
+				_active_commissions[saved_commission] = clampi(
+					int(data.get("active_commission_progress", 0)), 0,
+					int(offer.get("required_count", 1)) - 1)
+				break
 
 	var tiers: Variant = data.get("tool_tiers")
 	if tiers is Dictionary:
@@ -836,6 +1108,7 @@ func apply_save_dict(data: Dictionary) -> void:
 	xp_changed.emit(_xp)
 	skill_points_changed.emit(get_skill_points_available())
 	order_state_changed.emit()
+	commission_state_changed.emit()
 	building_tiers_changed.emit()
 
 
@@ -854,9 +1127,12 @@ func reset_to_defaults() -> void:
 	_skill_levels = {}
 	_legacy_skill_ranks = {}
 	_proc_dry_streak = {}
-	_active_order = &""
-	_active_order_progress = 0
+	_active_orders = {}
 	_completed_orders = {}
+	_commission_offers = []
+	_commission_generation = 0
+	_active_commissions = {}
+	_completed_commissions = 0
 	_tool_tiers = {
 		Enums.ToolType.AXE: DEFAULT_TOOL_TIER,
 	}
@@ -874,6 +1150,7 @@ func reset_to_defaults() -> void:
 	xp_changed.emit(0)
 	skill_points_changed.emit(0)
 	order_state_changed.emit()
+	commission_state_changed.emit()
 	building_tiers_changed.emit()
 
 ## The XP curve, loaded once. Data, so the whole 99-level shape is one file
