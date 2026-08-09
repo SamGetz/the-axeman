@@ -91,18 +91,21 @@ func _test_live_mastery_contracts() -> void:
 			and threshold.tuning_status.begins_with("PLACEHOLDER")
 	_check(reward_contracts_ok,
 		"every threshold carries labelled additive cash, XP and reliability placeholders")
-	var final_threshold: SpeciesMasteryThresholdDef = table.thresholds.back()
 	var definitions_ok := table.definitions.size() == SpeciesTable.count()
+	var distinct_targets: Dictionary = {}
 	for definition: SpeciesMasteryDef in table.definitions:
 		definitions_ok = definitions_ok and definition != null \
-			and definition.mastery_target == final_threshold.required_progress
+			and definition.mastery_target >= 5 and definition.mastery_target <= 7 \
+			and table.thresholds_for_species(definition.species_id).back().required_progress \
+				== definition.mastery_target
 		if definition != null:
+			distinct_targets[definition.mastery_target] = true
 			for requirement: CertificationRequirementDef in definition.certification_requirements:
 				definitions_ok = definitions_ok and requirement != null \
 					and requirement.kind == CertificationRequirementDef.Kind.MANUAL_LOGS \
-					and requirement.required_count == definition.mastery_target
-	_check(definitions_ok,
-		"all live woods use the final threshold as mastery and only manual evidence ships")
+					and requirement.use_mastery_target
+	_check(definitions_ok and distinct_targets.size() == 3,
+		"all live woods use per-species 5–7 log targets and only manual evidence ships")
 	_check(M7CContent.validate_all().is_empty(),
 		"all shipping typed content validates with the Slice 1 mastery contract")
 
@@ -144,14 +147,15 @@ func _test_bounded_species_progress() -> void:
 	for _i in range(4):
 		GameState.record_species_completion(aspen)
 	_check(GameState.get_species_mastery_progress(aspen) == 5
-		and GameState.get_species_mastery_threshold_count(aspen) == 2,
-		"five completed Aspen logs reach exactly two reward thresholds")
-	for _i in range(20):
-		GameState.record_species_completion(aspen)
-	_check(GameState.get_species_mastery_progress(aspen) == 10
 		and GameState.get_species_mastery_threshold_count(aspen) == 3
 		and GameState.is_species_mastered(aspen),
-		"progress clamps at the final threshold and derives certification")
+		"five completed Aspen logs reach its species-specific final reward threshold")
+	for _i in range(20):
+		GameState.record_species_completion(aspen)
+	_check(GameState.get_species_mastery_progress(aspen) == 5
+		and GameState.get_species_mastery_threshold_count(aspen) == 3
+		and GameState.is_species_mastered(aspen),
+		"progress clamps at Aspen's authored target and derives certification")
 	var receipt_count := receipts.size()
 	_check(not GameState.record_species_completion(aspen)
 		and receipts.size() == receipt_count,
@@ -171,12 +175,12 @@ func _test_corrupt_progress_normalisation() -> void:
 		String(pine): -4,
 		"invented_wood": 7,
 	}})
-	_check(GameState.get_species_mastery_progress(aspen) == 10,
+	_check(GameState.get_species_mastery_progress(aspen) == 5,
 		"oversized saved mastery clamps to the current authored target")
 	_check(GameState.get_species_mastery_progress(pine) == 0,
 		"negative saved mastery clamps to zero")
 	var saved: Dictionary = GameState.to_save_dict().get("species_mastery_progress", {})
-	_check(saved == {String(aspen): 10},
+	_check(saved == {String(aspen): 5},
 		"unknown and zero progress rows are dropped from the normalised save shape")
 	GameState.apply_save_dict({"species_mastery_progress": ["malformed"]})
 	_check(GameState.get_species_mastery_progress(aspen) == 0,
@@ -251,7 +255,7 @@ func _test_manual_root_once_guard() -> void:
 
 func _test_mastery_autosave() -> void:
 	# Main owns the production autosave connections. Boot it over the test save,
-	# then remove that file so the mastery write's deferred flush is observable.
+	# then remove that file so the mastery write's quiet-window flush is observable.
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
 	main.start_new_game()
@@ -262,9 +266,9 @@ func _test_mastery_autosave() -> void:
 	GameState.record_species_completion(aspen)
 	_check(not SaveSystem.has_save(),
 		"mastery progression queues autosave instead of writing inside GameState")
-	await get_tree().process_frame
+	await get_tree().create_timer(main.autosave_quiet_seconds() + 0.05).timeout
 	_check(SaveSystem.has_save(),
-		"the queued mastery autosave flushes one complete save at frame end")
+		"the queued mastery autosave flushes one complete save after the quiet window")
 	var cfg := ConfigFile.new()
 	var saved_progress := -1
 	if cfg.load(SaveSystem.SAVE_PATH) == OK:
@@ -287,27 +291,29 @@ func _test_cumulative_mastery_service() -> void:
 		String(pine): 1,
 	}})
 	_check(is_equal_approx(
-		SpeciesMastery.effect_for_species(aspen, GameplayModifierDef.Kind.CASH_GAIN), 0.003)
+		SpeciesMastery.effect_for_species(aspen, GameplayModifierDef.Kind.CASH_GAIN), 0.006)
 		and is_equal_approx(
 			SpeciesMastery.effect_for_species(pine, GameplayModifierDef.Kind.CASH_GAIN), 0.001),
 		"each species contributes every reward on every threshold it has reached")
 	_check(is_equal_approx(
-		SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN), 0.004)
+		SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN), 0.007)
 		and is_equal_approx(
-			SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP), 0.004)
+			SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP), 0.007)
 		and is_equal_approx(
-			SpeciesMastery.total_effect(GameplayModifierDef.Kind.SPLIT_RELIABILITY), 0.002),
+			SpeciesMastery.total_effect(GameplayModifierDef.Kind.SPLIT_RELIABILITY), 0.0035),
 		"same-stat cash, XP and reliability rewards add globally across species")
 	var next := SpeciesMastery.next_threshold(aspen)
-	_check(next != null and next.required_progress == 10,
-		"the mastery service exposes the next unreached authored reward rung")
+	_check(next == null,
+		"the mastery service reports no unreached rung after a species-specific target")
 
 
 func _test_market_mastery_and_order_exclusion() -> void:
 	GameState.apply_save_dict({"species_mastery_progress": {
-		String(SpeciesTable.at(0).id): 10,
+		String(SpeciesTable.at(0).id): 5,
 		String(SpeciesTable.at(1).id): 5,
 	}})
+	var jobs_curve := GameConfig.current().level_curve
+	GameState.add_xp(jobs_curve.total_xp_for_level(Orders.JOBS_UNLOCK_LEVEL))
 	InventoryManager.apply_save_dict({})
 	var item := SpeciesTable.at(0).yield_item
 	var count := 1000
@@ -341,8 +347,19 @@ func _test_market_mastery_and_order_exclusion() -> void:
 
 func _test_manual_xp_composition() -> void:
 	_set_every_species_mastered()
-	var curve := load("res://data/level_curve.tres") as LevelCurve
-	GameState.add_xp(curve.total_xp_for_level(4))
+	var curve := GameConfig.current().level_curve
+	# Quick Study now sits behind the complete ranked Mastery foundation. Drive
+	# that authored path with earned points instead of relying on the pre-overhaul
+	# level-4 shape that could buy the proc directly.
+	GameState.add_xp(curve.total_xp_for_level(24))
+	for id: StringName in [&"lessons_learned", &"studied_practice",
+			&"keen_appraisal", &"balanced_growth", &"broad_experience",
+			&"trusted_name"]:
+		var definition := SkillTree.get_node_def(id)
+		if definition == null:
+			continue
+		for _rank in range(definition.max_level):
+			SkillTree.buy(id)
 	_check(SkillTree.buy(&"quick_study") == 1,
 		"test setup: Quick Study is owned for mastery composition")
 	var mg: _ChoppingMinigame = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
@@ -358,7 +375,10 @@ func _test_manual_xp_composition() -> void:
 	var proc_multiplier := _manual_xp_multiplier(&"quick_study")
 	var proc_total := int(round(float(base) * proc_multiplier))
 	var mastery_xp := SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP)
-	var expected := int(round(float(proc_total) * (1.0 + mastery_xp)))
+	var global_xp := SkillTree.total_modifier(GameplayModifierDef.Kind.GLOBAL_XP_GAIN)
+	var expected_before_global := int(round(float(proc_total) * (1.0 + mastery_xp)))
+	var expected := int(round(float(expected_before_global) \
+		* GameConfig.current().xp_pacing.global_xp_multiplier * (1.0 + global_xp)))
 	var before := GameState.get_xp()
 	var awarded: int = mg.debug_award_log_xp_event(
 		&"manual", &"m8_composed_xp", true, false, base)
@@ -371,7 +391,10 @@ func _test_manual_xp_composition() -> void:
 
 	var grain_multiplier := _manual_xp_multiplier(&"grain_read")
 	var grain_proc_total := int(round(float(base) * grain_multiplier))
-	var expected_grain := int(round(float(grain_proc_total) * (1.0 + mastery_xp)))
+	var expected_grain_before_global := int(round(
+		float(grain_proc_total) * (1.0 + mastery_xp)))
+	var expected_grain := int(round(float(expected_grain_before_global) \
+		* GameConfig.current().xp_pacing.global_xp_multiplier * (1.0 + global_xp)))
 	before = GameState.get_xp()
 	mg._award_grain_bonus(Vector3.ZERO)
 	_check(mg.debug_last_grain_bonus() == expected_grain
@@ -412,25 +435,28 @@ func _test_trees_mastery_presentation() -> void:
 	var trees_button: Button = hud.get_node("QuickMenu/TreesButton")
 	var wood_list: VBoxContainer = hud.get_node(
 		"TreesPanel/Column/WoodScroll/WoodList")
+	var target := M7CContent.mastery().by_species_id(aspen).mastery_target
+	var thresholds := M7CContent.mastery().thresholds_for_species(aspen)
 	trees_button.pressed.emit()
 	var fresh_text := _text_under(wood_list)
-	_check(fresh_text.contains("Mastery 0 / 10")
+	_check(fresh_text.contains("Mastery 0 / %d" % target)
 		and fresh_text.contains("Next reward at 1")
 		and fresh_text.contains("+0.1% cash")
 		and fresh_text.contains("+0.1% manual XP")
 		and fresh_text.contains("+0.05 pts split"),
 		"each owned Tree Catalog row shows progress and the complete next-threshold reward")
 	GameState.record_species_completion(aspen)
-	_check(_text_under(wood_list).contains("Mastery 1 / 10\nNext reward at 5"),
+	_check(_text_under(wood_list).contains("Mastery 1 / %d\nNext reward at %d" % [
+		target, thresholds[1].required_progress]),
 		"the open Tree Catalog repaints live from species_mastery_changed")
-	for _i in range(9):
+	for _i in range(target - 1):
 		GameState.record_species_completion(aspen)
 	var mastered_text := _text_under(wood_list)
 	var progress := _first_progress_bar(wood_list)
-	_check(mastered_text.contains("Mastery 10 / 10  ·  Mastered")
+	_check(mastered_text.contains("Mastery %d / %d  ·  Mastered" % [target, target])
 		and progress != null
-		and is_equal_approx(progress.value, 10.0)
-		and is_equal_approx(progress.max_value, 10.0),
+		and is_equal_approx(progress.value, float(target))
+		and is_equal_approx(progress.max_value, float(target)),
 		"a completed species shows its mastered state and a full bounded progress bar")
 	hud.queue_free()
 	await get_tree().process_frame
@@ -714,7 +740,7 @@ func _test_splitter_shop_presentation() -> void:
 		GameState.record_species_completion(third)
 	tabs.current_tab = 1
 	var unlocked_text := _control_text_under(shop_list)
-	_check(unlocked_text.contains(str(_MechanicalSplitter.machine_definition().base_cost))
+	_check(unlocked_text.contains("1K")
 		and not unlocked_text.contains("Splitter Profile · Quaking Aspen")
 		and not tabs.is_tab_hidden(1),
 		"the earned splitter tab reveals the machine but keeps unearned profiles hidden")
@@ -722,7 +748,7 @@ func _test_splitter_shop_presentation() -> void:
 	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
 	unlocked_text = _control_text_under(shop_list)
 	_check(unlocked_text.contains("Splitter Profile · Quaking Aspen")
-		and unlocked_text.contains("Unlock reward · Splitter Auto Loading in Shop"),
+		and unlocked_text.contains("Splitter Speed"),
 		"buying the machine reveals certified profiles and the upgrade chain advertises its next reward")
 	var profile := _MechanicalSplitter.profile_for_species(SpeciesTable.at(0).id)
 	EventBus.building_upgraded.emit(profile.id, GameState.DEFAULT_BUILDING_TIER + 1)
@@ -840,8 +866,7 @@ func _test_purchased_shop_tab() -> void:
 func _test_splitter_runtime_contract_and_states() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	var config := load("res://data/mechanical_splitter_runtime.tres") \
-		as MechanicalSplitterRuntimeDef
+	var config := GameConfig.current().mechanical_splitter
 	_check(config != null and config.queue_capacity == 1
 		and config.base_logs_per_split == 5
 		and config.maximum_logs_per_split == 12
@@ -856,8 +881,8 @@ func _test_splitter_runtime_contract_and_states() -> void:
 	for state: MechanicalSplitterRuntime.State in MechanicalSplitterRuntime.State.values():
 		all_titles.append(MechanicalSplitterRuntime.state_title(state))
 	_check(all_titles == PackedStringArray(["LOCKED", "UNASSIGNED", "MISSING PROFILE",
-		"READY", "PROCESSING", "OUTPUT BLOCKED"]),
-		"all six watched machine states have explicit legible player-facing titles")
+		"READY", "PROCESSING", "OUTPUT BLOCKED", "EARTH EXHAUSTED"]),
+		"all seven watched machine states have explicit legible player-facing titles")
 
 	var runtime := MechanicalSplitterRuntime.new()
 	add_child(runtime)
@@ -910,6 +935,8 @@ func _test_splitter_watched_cycle() -> void:
 	InventoryManager.apply_save_dict({})
 	var profile := _MechanicalSplitter.profile_definitions()[0]
 	GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
+	var jobs_curve := GameConfig.current().level_curve
+	GameState.add_xp(jobs_curve.total_xp_for_level(Orders.JOBS_UNLOCK_LEVEL))
 	var species := SpeciesTable.by_id(profile.automation_species_id)
 	var runtime := MechanicalSplitterRuntime.new()
 	add_child(runtime)
@@ -924,7 +951,7 @@ func _test_splitter_watched_cycle() -> void:
 	var expected_amount := runtime.effective_output_amount()
 	var expected_cash := Market.get_price(species.yield_item) * expected_amount
 	var expected_xp := int(round(float(species.xp_reward * expected_logs)
-		* config.base_xp_rate))
+		* config.base_xp_rate * GameConfig.current().xp_pacing.global_xp_multiplier))
 	var order := Orders.by_id(&"campfire_warmup")
 	var order_started := order != null and GameState.accept_order(order.id)
 	var before_order_progress := GameState.get_active_order_progress()
@@ -1024,6 +1051,8 @@ func _test_splitter_species_ladder_samples() -> void:
 		var profile: UpgradeDef = profiles[index]
 		var species := SpeciesTable.by_id(profile.automation_species_id)
 		GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
+		var jobs_curve := GameConfig.current().level_curve
+		GameState.add_xp(jobs_curve.total_xp_for_level(Orders.JOBS_UNLOCK_LEVEL))
 		var unrelated := Orders.by_id(&"campfire_warmup")
 		if unrelated != null and not GameState.has_completed_order(unrelated.id):
 			GameState.accept_order(unrelated.id)
@@ -1035,7 +1064,8 @@ func _test_splitter_species_ladder_samples() -> void:
 		var expected_cash := Market.get_price(species.yield_item) \
 			* runtime.effective_output_amount()
 		var expected_xp := int(round(float(species.xp_reward \
-			* runtime.effective_logs_per_split()) * runtime.automation_xp_rate()))
+			* runtime.effective_logs_per_split()) * runtime.automation_xp_rate() \
+			* GameConfig.current().xp_pacing.global_xp_multiplier))
 		var cash_before := GameState.get_cash()
 		var xp_before := GameState.get_xp()
 		var lifetime_before := GameState.get_lifetime_wood_chopped()
@@ -1144,7 +1174,8 @@ func _test_splitter_upgrade_runtime() -> void:
 	var expected_amount := runtime.effective_output_amount()
 	var expected_cash := int(round(float(Market.get_price(species.yield_item)
 		* expected_amount) * 1.10))
-	var expected_xp := int(round(float(species.xp_reward * 6) * 0.40))
+	var expected_xp := int(round(float(species.xp_reward * 6) * 0.40 \
+		* GameConfig.current().xp_pacing.global_xp_multiplier))
 	runtime._process(runtime.effective_duration_seconds())
 	_check(runtime.last_logs_processed() == 6
 		and runtime.last_cash_earned() == expected_cash
@@ -1185,13 +1216,14 @@ func _test_splitter_runtime_presentation() -> void:
 		"mechanical_splitter/RepresentativeAssignedLog")
 	_check(machine != null
 		and machine.get_meta("art_status", "") ==
-			"greybox_missing_authored_mechanical_splitter_asset"
-		and art_label != null and art_label.text.contains("AUTHORED ART MISSING")
+			"placeholder_graphic_integrated_pending_final_3d_asset"
+		and art_label != null and art_label.text.contains("PLACEHOLDER")
+		and machine.get_node_or_null("MechanicalSplitterGraphic") != null
 		and world_state_label != null and art_label.font_size < world_state_label.font_size
 		and representative_log != null
 		and representative_log.get_meta("art_status", "") ==
 			"single_preauthored_log_proxy_no_runtime_slicing",
-		"the purchased machine appears as an explicitly labelled native-node greybox")
+		"the purchased machine pairs replaceable geometry with a readable placeholder graphic")
 	_check(manual_coin_pool != splitter_coin_pool
 			and manual_coin_pool.get_child_count() == 40
 			and splitter_coin_pool.get_child_count() == 40
@@ -1234,15 +1266,35 @@ func _test_splitter_runtime_presentation() -> void:
 				GameState.get_level_progress_for_xp(xp_before))
 			and chips_visible,
 		"successful settlement is authoritative immediately while exact cash/XP remain visually pending and chips burst")
-	await get_tree().create_timer(1.8).timeout
+	# Presentation timing is deliberately replaceable. Wait for the bounded exact
+	# receipt contract instead of pinning this legacy suite to one old duration.
+	for _frame in range(60):
+		if state_label.text == "READY" \
+				and cash_label.text == String(hud.call(
+					"_compact_number", GameState.get_cash())) \
+				and absf(xp_progress.value \
+					- GameState.get_level_progress_for_xp(GameState.get_xp())) < 0.001:
+			break
+		await get_tree().create_timer(0.05).timeout
+	# Equipment presentation is rebuilt from live ownership/state signals. Do not
+	# retain a stale node reference across that rebuild; assert against the current
+	# representative log owned by the presenter.
+	representative_log = presenter.get_node_or_null(
+		"mechanical_splitter/RepresentativeAssignedLog")
 	_check(state_label.text == "READY"
-		and not representative_log.visible
+		and representative_log != null and not representative_log.visible
 		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("cash")
 		and hud.get_node("SplitterRuntimeCard/Column/Receipt").text.contains("XP")
-		and cash_label.text == str(GameState.get_cash())
-		and is_equal_approx(xp_progress.value,
-			GameState.get_level_progress_for_xp(GameState.get_xp())),
-		"the watched UI returns ready and exact pooled receipts reconcile both counters")
+		and cash_label.text == String(hud.call("_compact_number", GameState.get_cash()))
+		and absf(xp_progress.value \
+			- GameState.get_level_progress_for_xp(GameState.get_xp())) < 0.001,
+		"the watched UI returns ready and exact pooled receipts reconcile both counters " \
+		+ "[state=%s log=%s receipt=%s cash=%s/%s xp=%.3f/%.3f]" % [
+			state_label.text,
+			"missing" if representative_log == null else str(representative_log.visible),
+			hud.get_node("SplitterRuntimeCard/Column/Receipt").text,
+			cash_label.text, String(hud.call("_compact_number", GameState.get_cash())),
+			xp_progress.value, GameState.get_level_progress_for_xp(GameState.get_xp())])
 	hud.queue_free()
 	game.queue_free()
 	await get_tree().process_frame

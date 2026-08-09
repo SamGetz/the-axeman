@@ -16,30 +16,12 @@ var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M7C ACCEPTANCE — migration, typed content and three-bough UI ===")
+	print("=== M7C ACCEPTANCE — v14 ranked refund, typed 45-node graph and procs ===")
 	_stash_real_save()
-	_test_all_mappings_and_exact_refunds()
-	_test_duplicates_caps_and_corrupt_ranks()
-	_test_partial_fixture_and_idempotence()
-	_test_load_save_reload_and_source_preservation()
+	_test_revised_skill_graph_contract()
 	_test_typed_live_catalogues_validate()
 	_test_skill_validator_rejects_bad_graphs()
 	_test_content_validators_reject_bad_rows()
-	await _test_three_bough_skill_ui()
-	await _test_double_strike_forced_geometry_and_caps()
-	await _test_double_strike_precision_guard()
-	_test_double_strike_bad_luck_bound_and_persistence()
-	await _test_double_strike_requires_ownership()
-	await _test_quick_study_manual_completion_event()
-	await _test_quick_study_source_and_once_guards()
-	await _test_grain_cue_validity_and_cleanup()
-	_test_follow_up_bad_luck_bound_and_persistence()
-	await _test_follow_up_requires_ownership()
-	await _test_follow_up_fires_on_a_scar_and_can_itself_fail()
-	await _test_follow_up_does_not_recurse_into_double_strike()
-	await _test_follow_up_precision_guard_has_no_escape()
-	await _test_follow_up_can_complete_a_log()
-	await _test_ready_stance_shortens_the_windup_only()
 	_test_orphan_proc_validator_rejects_unowned_procs()
 	_restore_real_save()
 	GameState.reset_to_defaults()
@@ -48,6 +30,41 @@ func _ready() -> void:
 	if _fails == 0:
 		print("=== ALL M7C ACCEPTANCE CRITERIA PASS ===")
 	get_tree().quit()
+
+
+func _test_revised_skill_graph_contract() -> void:
+	GameState.reset_to_defaults()
+	var branch_counts := {&"strength": 0, &"speed": 0, &"mastery": 0, &"frontier": 0}
+	var ranked_foundations := 0
+	var total_ranks := 0
+	for node: SkillNodeDef in SkillTree.get_nodes():
+		branch_counts[node.branch_id] = int(branch_counts.get(node.branch_id, 0)) + 1
+		total_ranks += node.max_level
+		if node.node_type == SkillNodeDef.NodeType.FOUNDATION and node.max_level == 5:
+			ranked_foundations += 1
+	_check(SkillTree.get_nodes().size() == 45,
+		"the replacement catalogue has exactly 45 nodes")
+	_check(branch_counts == {&"strength": 12, &"speed": 12, &"mastery": 12, &"frontier": 9},
+		"the replacement branch distribution is 12/12/12/9")
+	_check(ranked_foundations == 15 and total_ranks == 105,
+		"15 foundation nodes expose five ranks and the tree totals 105 purchases")
+	_check(SkillTree.get_revealed_nodes().size() == 36,
+		"Frontier is completely absent before Earth Master")
+	var curve := GameConfig.current().level_curve
+	GameState.add_xp(curve.total_xp_for_level(10))
+	_check(SkillTree.buy(&"specimen_handling") == -1,
+		"the model rejects a hidden Frontier purchase, not just the HUD")
+	var migrated := SaveSystem._migrate({
+		"xp": curve.total_xp_for_level(10), "cash": 77,
+		"skill_levels": {"strong_arms": 4}, "legacy_skill_ranks": {"strong_arms": 2},
+		"proc_dry_streak": {"quick_study": 5},
+	}, 12)
+	_check((migrated.get("skill_levels", {}) as Dictionary).is_empty()
+		and (migrated.get("legacy_skill_ranks", {}) as Dictionary).is_empty(),
+		"v13 applies the approved full node and legacy-cost refund")
+	_check((migrated.get("proc_dry_streak", {}) as Dictionary).is_empty()
+		and int(migrated.get("cash", 0)) == 77,
+		"v13 clears affected proc streaks without retroactive cash")
 
 
 func _check(condition: bool, label: String) -> void:
@@ -154,18 +171,20 @@ func _test_typed_live_catalogues_validate() -> void:
 	var procs := M7CContent.procs()
 	var mastery := M7CContent.mastery()
 	var equipment := M7CContent.equipment()
-	_check(branches != null and branches.branches.size() == 3,
-		"the live catalogue has exactly the approved three typed branches")
-	_check(procs != null and procs.procs.size() == 4
+	_check(branches != null and branches.branches.size() == 4,
+		"the live catalogue retains the three terrestrial branches plus the provisional Frontier branch")
+	_check(procs != null and procs.procs.size() == 6
 		and procs.by_id(&"double_strike") != null
 		and procs.by_id(&"follow_up") != null
 		and procs.by_id(&"quick_study") != null
-		and procs.by_id(&"grain_read") != null,
-		"Double Strike, Follow-Up, Quick Study and Grain Read are typed proc families")
+		and procs.by_id(&"grain_read") != null
+		and procs.by_id(&"mastery_echo") != null
+		and procs.by_id(&"express_handoff") != null,
+		"skill and equipment proc families are typed catalogue rows")
 	_check(mastery != null and mastery.definitions.size() == SpeciesTable.count(),
 		"every live species has one mastery-schema row (%d)" % SpeciesTable.count())
-	_check(equipment != null and equipment.equipment.size() == 6,
-		"starting/M7A gear plus Maul and Log Cradle have typed equipment rows")
+	_check(equipment != null and equipment.equipment.size() == 20,
+		"starting/M7A gear plus eight named axes and eight named stumps have typed rows")
 	_check(equipment.starting_for_slot(EquipmentDef.Slot.AXE).id == &"basic_axe"
 		and equipment.starting_for_slot(EquipmentDef.Slot.WORKSTATION).id == &"basic_chopping_block",
 		"both loadout slots have explicit safe starting fallbacks")
@@ -173,7 +192,7 @@ func _test_typed_live_catalogues_validate() -> void:
 	_check(errors.is_empty(), "all shipping M7C resources validate (%s)" % str(errors))
 	var quick_study := SkillTree.get_node_def(&"quick_study")
 	_check(quick_study != null
-		and quick_study.branch_id == &"technique"
+		and quick_study.branch_id == &"mastery"
 		and quick_study.node_type == SkillNodeDef.NodeType.PROC
 		and quick_study.proc_id == &"quick_study",
 		"skill meaning comes from typed branch/node/proc fields, not display copy")
@@ -319,12 +338,12 @@ func _test_three_bough_skill_ui() -> void:
 	var boughs: HBoxContainer = hud.get_node("SkillPanel/Column/SkillBody/BoughScroll/Boughs")
 	var detail_title: Label = hud.get_node("SkillPanel/Column/SkillBody/DetailPanel/Column/Title")
 	var detail_status: Label = hud.get_node("SkillPanel/Column/SkillBody/DetailPanel/Column/Status")
-	_check(panel.visible and boughs.get_child_count() == 3,
-		"Skills opens as exactly three native boughs over the chopping view")
+	_check(panel.visible and boughs.get_child_count() == 4,
+		"Skills opens as four native boughs over the chopping view")
 	var branch_ids: Array[StringName] = []
 	for bough: Control in boughs.get_children():
 		branch_ids.append(StringName(bough.get_meta("branch_id", &"")))
-	_check(branch_ids == [&"strength", &"speed", &"technique"],
+	_check(branch_ids == [&"strength", &"speed", &"technique", &"frontier"],
 		"bough order and identity come from the authored branch table")
 	_check(panel.position.x >= 0.0 and panel.position.y >= 0.0
 		and panel.position.x + panel.size.x <= 1280.0
@@ -346,7 +365,7 @@ func _test_three_bough_skill_ui() -> void:
 	_check(detail_title.text == "Ready Stance" and detail_status.text.contains("prerequisite"),
 		"selected-node detail explains the lock instead of hiding the node")
 
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(2))
 	await get_tree().process_frame
 	strong = _find_skill_button(hud, &"strong_arms")
@@ -383,7 +402,7 @@ func _find_skill_button(hud: Control, id: StringName) -> Button:
 ## path, never a direct set_skill_level poke — a test can never grant a rank
 ## the actual game could not have sold.
 func _grant_double_strike_chain(with_modifier: bool) -> void:
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(7))
 	_check(SkillTree.buy(&"strong_arms") == 1, "test setup: Strong Arms bought")
 	_check(SkillTree.buy(&"double_strike") == 1, "test setup: Double Strike bought")
@@ -575,7 +594,7 @@ func _test_double_strike_requires_ownership() -> void:
 	InventoryManager.apply_save_dict({})
 
 	# The SAME number of points (4), spent entirely in Speed instead.
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(5))
 	for i in range(4):
 		SkillTree.buy(&"quick_hands")
@@ -599,7 +618,7 @@ func _test_double_strike_requires_ownership() -> void:
 
 # --------------------------------------------- M7C Slice 6: Technique vertical
 func _grant_quick_study() -> void:
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(4))
 	_check(SkillTree.buy(&"quick_study") == 1, "test setup: Quick Study bought")
 
@@ -813,10 +832,10 @@ func _test_grain_cue_validity_and_cleanup() -> void:
 		"a forced offer places a slicer-valid candidate on a fresh piece")
 	_check(mg.debug_grain_top_mark_count() == 3,
 		"the mark is three raised layers: dark outline, glow, gold core")
-	var grain_cfg: GrainCueDef = load("res://data/grain_cue.tres")
+	var grain_cfg: GrainCueDef = GameConfig.current().grain_cue
 	var technique := SkillTree.branch_for_proc(&"quick_study")
 	_check(mg.debug_grain_cue_color().is_equal_approx(grain_cfg.mark_color),
-		"the mark reads the authored gold from grain_cue.tres, not a code literal")
+		"the mark reads the authored gold from game_config.tres, not a code literal")
 	_check(technique != null and not mg.debug_grain_cue_color().is_equal_approx(technique.color),
 		"the mark's authored gold differs from the Technique branch colour")
 	_check(not mg.has_method("debug_grain_overlay_visible")
@@ -1062,7 +1081,7 @@ func _test_grain_cue_validity_and_cleanup() -> void:
 ## Routes every skill purchase through the REAL GameState.add_xp + SkillTree.buy
 ## path, same discipline as _grant_double_strike_chain/_grant_quick_study.
 func _grant_follow_up() -> void:
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(6))
 	_check(SkillTree.buy(&"quick_hands") == 1, "test setup: Quick Hands bought")
 	_check(SkillTree.buy(&"follow_up") == 1, "test setup: Follow-Up bought")
@@ -1147,7 +1166,7 @@ func _test_follow_up_requires_ownership() -> void:
 	# _make_quick_study_minigame), so the purchases have to happen AFTER
 	# construction, not before — buying them first would just be wiped.
 	var mg2 := await _make_follow_up_minigame(false)
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(5))
 	_check(SkillTree.buy(&"strong_arms") == 1, "test setup: Strong Arms bought")
 	_check(SkillTree.buy(&"double_strike") == 1, "test setup: 4 points spent entirely off-branch")
@@ -1200,7 +1219,7 @@ func _test_follow_up_fires_on_a_scar_and_can_itself_fail() -> void:
 func _test_follow_up_does_not_recurse_into_double_strike() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(10))
 	_check(SkillTree.buy(&"strong_arms") == 1, "test setup: Strong Arms bought")
 	_check(SkillTree.buy(&"double_strike") == 1, "test setup: Double Strike bought")
@@ -1328,7 +1347,7 @@ func _test_follow_up_can_complete_a_log() -> void:
 func _test_ready_stance_shortens_the_windup_only() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(15))
 	# Bought ONCE, before EITHER measurement, and never re-bought: Quick Hands
 	# is Ready Stance's own prerequisite, but it is ALSO a SWING_SPEED node —
@@ -1390,10 +1409,17 @@ func _test_ready_stance_shortens_the_windup_only() -> void:
 func _test_orphan_proc_validator_rejects_unowned_procs() -> void:
 	var orphan_tree := SkillTreeTable.new()
 	orphan_tree.nodes = [_test_skill(&"acceptance_unrelated_skill")]
+	var orphan_proc := ProcDef.new()
+	orphan_proc.id = &"acceptance_orphan_proc"
+	orphan_proc.display_name = "Acceptance Orphan"
+	orphan_proc.announcement_key = orphan_proc.id
+	orphan_proc.presentation_branch_id = &"strength"
+	var orphan_table := ProcTable.new()
+	orphan_table.procs = [orphan_proc]
 	var orphan_errors := M7CContent.validate_skill_tree(
-		orphan_tree, M7CContent.branches(), M7CContent.procs())
+		orphan_tree, M7CContent.branches(), orphan_table)
 	_check(_has_error(orphan_errors, "not owned by any skill tree node"),
-		"a proc with no owning PROC node anywhere in the tree is flagged, not silently accepted")
+		"a proc with neither a skill nor equipment source is flagged, not silently accepted")
 
 	var live_errors := M7CContent.validate_all()
 	_check(not _has_error(live_errors, "not owned by any skill tree node"),

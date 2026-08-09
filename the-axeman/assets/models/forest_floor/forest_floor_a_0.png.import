@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://5qhy32jsqajl"
 path.s3tc="res://.godot/imported/forest_floor_a_0.png-aa0bc6f72f026fb6699d7e6e36c317ae.s3tc.ctex"
+path.etc2="res://.godot/imported/forest_floor_a_0.png-aa0bc6f72f026fb6699d7e6e36c317ae.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/forest_floor/forest_floor_a_0.png"
-dest_files=["res://.godot/imported/forest_floor_a_0.png-aa0bc6f72f026fb6699d7e6e36c317ae.s3tc.ctex"]
+dest_files=["res://.godot/imported/forest_floor_a_0.png-aa0bc6f72f026fb6699d7e6e36c317ae.s3tc.ctex", "res://.godot/imported/forest_floor_a_0.png-aa0bc6f72f026fb6699d7e6e36c317ae.etc2.ctex"]
 
 [params]
 

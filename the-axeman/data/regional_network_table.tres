@@ -1,0 +1,213 @@
+[gd_resource type="Resource" script_class="RegionalNetworkTable" load_steps=26 format=3]
+
+[ext_resource type="Script" path="res://data/regional_network_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/region_def.gd" id="2_region"]
+[ext_resource type="Script" path="res://data/route_def.gd" id="3_route"]
+[ext_resource type="Script" path="res://data/infrastructure_project_def.gd" id="4_project"]
+
+[sub_resource type="Resource" id="Region_east"]
+script = ExtResource("2_region")
+id = &"eastern_north_america"
+display_name = "Eastern North America"
+description = "Home-region hardwood and hearthwood suppliers connected to the yard's first customer network."
+species_ids = Array[StringName]([&"quaking_aspen", &"eastern_white_pine", &"paper_birch", &"black_ash", &"northern_red_oak", &"american_beech", &"white_ash", &"white_oak", &"sugar_maple"])
+customer_ids = Array[StringName]([&"hearth_circle", &"village_baker"])
+depot_standing_required = 2
+depot_cost = 25000
+
+[sub_resource type="Resource" id="Region_boreal"]
+script = ExtResource("2_region")
+id = &"boreal_north_america"
+display_name = "Boreal North America"
+description = "Long conifer corridors where dependable standing opens a cold-weather depot."
+species_ids = Array[StringName]([&"balsam_fir", &"lodgepole_pine", &"white_spruce", &"black_spruce", &"red_pine"])
+customer_ids = Array[StringName]([&"smokehouse_keeper", &"regional_wholesaler"])
+reputation_required = 4
+depot_standing_required = 3
+depot_cost = 90000
+
+[sub_resource type="Resource" id="Region_north_europe"]
+script = ExtResource("2_region")
+id = &"northern_europe"
+display_name = "Northern Europe"
+description = "Northern ports and specialist mills serving spruce, pine, birch, oak and beech."
+species_ids = Array[StringName]([&"norway_spruce", &"silver_birch", &"yellow_birch"])
+customer_ids = Array[StringName]([&"joiners_workshop", &"hill_cooperative"])
+reputation_required = 8
+depot_standing_required = 4
+depot_cost = 260000
+
+[sub_resource type="Resource" id="Route_east"]
+script = ExtResource("3_route")
+id = &"east_road_freight"
+region_id = &"eastern_north_america"
+display_name = "Eastern Road Freight"
+cost = 45000
+travel_seconds = 45
+capacity = 6
+
+[sub_resource type="Resource" id="Route_boreal"]
+script = ExtResource("3_route")
+id = &"boreal_road_freight"
+region_id = &"boreal_north_america"
+display_name = "Boreal Road Freight"
+cost = 130000
+travel_seconds = 90
+capacity = 5
+
+[sub_resource type="Resource" id="Route_europe"]
+script = ExtResource("3_route")
+id = &"north_europe_port_link"
+region_id = &"northern_europe"
+display_name = "Northern Europe Port Link"
+tier = 2
+cost = 420000
+travel_seconds = 180
+capacity = 4
+
+[sub_resource type="Resource" id="Region_pacific_northwest"]
+script = ExtResource("2_region")
+id = &"pacific_northwest"
+display_name = "Pacific Northwest"
+description = "Heavy conifer railheads serving hemlock and Douglas fir."
+species_ids = Array[StringName]([&"western_hemlock", &"douglas_fir"])
+customer_ids = Array[StringName]([&"regional_wholesaler"])
+reputation_required = 10
+depot_standing_required = 4
+depot_cost = 650000
+
+[sub_resource type="Resource" id="Region_western_europe"]
+script = ExtResource("2_region")
+id = &"western_central_europe"
+display_name = "Western & Central Europe"
+description = "Continental rail mills specializing in pine, oak and beech."
+species_ids = Array[StringName]([&"scots_pine", &"pedunculate_oak", &"european_beech"])
+customer_ids = Array[StringName]([&"joiners_workshop"])
+reputation_required = 12
+depot_standing_required = 5
+depot_cost = 1200000
+
+[sub_resource type="Resource" id="Region_australia"]
+script = ExtResource("2_region")
+id = &"australia"
+display_name = "Australia"
+description = "Long-haul port supply for River Red Gum and Tasmanian Blue Gum."
+species_ids = Array[StringName]([&"river_red_gum", &"tasmanian_blue_gum"])
+customer_ids = Array[StringName]([&"hill_cooperative"])
+reputation_required = 16
+depot_standing_required = 6
+depot_cost = 3500000
+
+[sub_resource type="Resource" id="Region_specialist"]
+script = ExtResource("2_region")
+id = &"caribbean_specialist_exchange"
+display_name = "Caribbean Specialist Exchange"
+description = "A protected specialist source for the final terrestrial showcase wood."
+species_ids = Array[StringName]([&"lignum_vitae"])
+customer_ids = Array[StringName]([&"hill_cooperative"])
+reputation_required = 22
+depot_standing_required = 8
+depot_cost = 9000000
+
+[sub_resource type="Resource" id="Route_pacific"]
+script = ExtResource("3_route")
+id = &"pacific_rail_freight"
+region_id = &"pacific_northwest"
+display_name = "Pacific Heavy Rail"
+tier = 1
+cost = 950000
+travel_seconds = 150
+capacity = 6
+
+[sub_resource type="Resource" id="Route_western_europe"]
+script = ExtResource("3_route")
+id = &"continental_rail_link"
+region_id = &"western_central_europe"
+display_name = "Continental Rail Link"
+tier = 1
+cost = 1800000
+travel_seconds = 210
+capacity = 7
+
+[sub_resource type="Resource" id="Route_australia"]
+script = ExtResource("3_route")
+id = &"australia_port_link"
+region_id = &"australia"
+display_name = "Australia Port Link"
+tier = 2
+cost = 5200000
+travel_seconds = 360
+capacity = 8
+
+[sub_resource type="Resource" id="Route_specialist"]
+script = ExtResource("3_route")
+id = &"specialist_secure_port"
+region_id = &"caribbean_specialist_exchange"
+display_name = "Specialist Secure Port"
+tier = 2
+cost = 14000000
+travel_seconds = 480
+capacity = 3
+
+[sub_resource type="Resource" id="Project_east"]
+script = ExtResource("4_project")
+id = &"eastern_depot_staging"
+region_id = &"eastern_north_america"
+display_name = "Eastern Depot Staging"
+description = "Build marked loading lanes and weatherproof contract storage."
+cash_cost = 80000
+processed_output_required = 100
+
+[sub_resource type="Resource" id="Project_rail"]
+script = ExtResource("4_project")
+id = &"heavy_rail_interchange"
+display_name = "Heavy Rail Interchange"
+description = "Unifies road and rail manifests without making older routes obsolete."
+cash_cost = 4500000
+processed_output_required = 2500
+
+[sub_resource type="Resource" id="Project_port"]
+script = ExtResource("4_project")
+id = &"deepwater_timber_terminal"
+display_name = "Deepwater Timber Terminal"
+description = "Creates a high-capacity port contract for global specialist loads."
+cash_cost = 18000000
+processed_output_required = 10000
+
+[sub_resource type="Resource" id="Project_headquarters"]
+script = ExtResource("4_project")
+id = &"headquarters_yard"
+display_name = "Headquarters Yard"
+description = "Builds the continental dispatch office and permanent company loading court."
+cash_cost = 50000000
+processed_output_required = 25000
+
+[sub_resource type="Resource" id="Project_world_archive"]
+script = ExtResource("4_project")
+id = &"world_catalogue_archive"
+display_name = "World Catalogue Archive"
+description = "Preserves a physical record for every terrestrial species and supplier."
+cash_cost = 75000000
+processed_output_required = 50000
+
+[sub_resource type="Resource" id="Project_freight_grid"]
+script = ExtResource("4_project")
+id = &"heavy_freight_grid"
+display_name = "Heavy Freight Grid"
+description = "Keeps early road routes useful inside the complete continental network."
+cash_cost = 150000000
+processed_output_required = 100000
+
+[sub_resource type="Resource" id="Project_buyer_exchange"]
+script = ExtResource("4_project")
+id = &"global_buyer_exchange"
+display_name = "Global Buyer Exchange"
+description = "Connects older customers and species to repeating global projects and bulk work."
+cash_cost = 300000000
+processed_output_required = 250000
+
+[resource]
+script = ExtResource("1_table")
+regions = Array[ExtResource("2_region")]([SubResource("Region_east"), SubResource("Region_boreal"), SubResource("Region_north_europe"), SubResource("Region_pacific_northwest"), SubResource("Region_western_europe"), SubResource("Region_australia"), SubResource("Region_specialist")])
+routes = Array[ExtResource("3_route")]([SubResource("Route_east"), SubResource("Route_boreal"), SubResource("Route_europe"), SubResource("Route_pacific"), SubResource("Route_western_europe"), SubResource("Route_australia"), SubResource("Route_specialist")])
+projects = Array[ExtResource("4_project")]([SubResource("Project_east"), SubResource("Project_rail"), SubResource("Project_port"), SubResource("Project_headquarters"), SubResource("Project_world_archive"), SubResource("Project_freight_grid"), SubResource("Project_buyer_exchange")])

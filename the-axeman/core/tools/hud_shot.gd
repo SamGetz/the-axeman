@@ -37,7 +37,8 @@ func _ready() -> void:
 	# the compact action dock visible, the XP strip half full, and a load
 	# stacked. The pile pieces go in the way the game adds them, one at a time.
 	GameState.add_cash(370)
-	GameState.add_xp(20)
+	var curve := GameConfig.current().level_curve
+	GameState.add_xp(curve.total_xp_for_level(Orders.JOBS_UNLOCK_LEVEL))
 	for i in range(26):
 		EventBus.resource_gathered.emit(&"birch_firewood", 1)
 		GameState.add_to_yard_pile(&"birch_firewood", 1)
@@ -48,14 +49,19 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_save("_1_chopping")
 
-	# Fresh discovery state: only the currently available contract is present,
-	# and its card carries the shop item it will unlock as an explicit reward.
+	# Level 3 discovery state: Jobs is present while Shop is still absent, and the
+	# first card explains the completion reward that introduces it.
 	hud.get_node("QuickMenu/OrdersButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_1b_contracts_fresh")
 	hud.get_node("OrdersPanel/Column/CloseButton").pressed.emit()
 
-	# The shop: Sam's coin on the button and on the counter.
+	# Finish the real introductory job before capturing the newly revealed Shop.
+	var opening_job := Orders.by_id(&"campfire_warmup")
+	if opening_job != null and GameState.accept_order(opening_job.id):
+		for _piece in range(opening_job.required_count):
+			GameState.record_order_piece(&"birch_firewood")
+	# The shop: Sam's coin on the newly revealed button and on the counter.
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()
 	await get_tree().process_frame
 	_save("_2_shop")
@@ -71,12 +77,25 @@ func _ready() -> void:
 	_save("_2b_woodshed")
 	hud.get_node("TreesPanel/Column/CloseButton").pressed.emit()
 
-	# Fresh three-bough state: every branch is present, and selecting Ready Stance
-	# explains its prerequisite rather than hiding it.
+	# Fresh three-tree state: every branch is present and all interaction lives on
+	# the square nodes; there is no secondary purchase panel.
 	hud.get_node("QuickMenu/SkillsButton").pressed.emit()
 	hud.debug_select_skill(&"ready_stance")
 	await get_tree().process_frame
 	_save("_2c_skills_fresh")
+	var hover_skill := _find_skill_button(hud, &"ready_stance")
+	if hover_skill != null:
+		# Native tooltip timers do not fire reliably in an automated Compatibility
+		# capture. Mount the button's exact custom tooltip for one QA frame instead.
+		var tooltip_card := hover_skill._make_custom_tooltip(
+			hover_skill.tooltip_text) as Control
+		hud.add_child(tooltip_card)
+		tooltip_card.global_position = hover_skill.get_global_rect().get_center() \
+			+ Vector2(28.0, -28.0)
+		await get_tree().process_frame
+		_save("_2c_skills_tooltip")
+		tooltip_card.queue_free()
+		await get_tree().process_frame
 	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
 
 	# Part way up: learned foundations, points in hand and a selected Technique
@@ -107,6 +126,18 @@ func _ready() -> void:
 	GameState.apply_save_dict(before_migration_shot)
 	await get_tree().process_frame
 
+	# Earth Master reveals the fourth navigation tab and its hidden model nodes.
+	var frontier_state := GameState.to_save_dict()
+	frontier_state["earth_finale_state"] = GameState.EarthFinaleState.COMPLETE
+	frontier_state["earth_finale_splits"] = 3
+	frontier_state["earth_master"] = true
+	GameState.apply_save_dict(frontier_state)
+	hud.get_node("QuickMenu/SkillsButton").pressed.emit()
+	hud.debug_select_skill(&"specimen_handling")
+	await get_tree().process_frame
+	_save("_2c_skills_frontier")
+	hud.get_node("SkillPanel/Column/CloseSkillButton").pressed.emit()
+
 	# The contract board uses temporary native geometry/materials until Sam's yard
 	# art arrives. Show both the three authored cards and live progress on one.
 	GameState.accept_order(&"aspen_hearth_load")
@@ -133,6 +164,13 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_restore_save()
 	get_tree().quit()
+
+
+func _find_skill_button(hud: Control, skill_id: StringName) -> Button:
+	for candidate: Node in hud.find_children("*", "Button", true, false):
+		if candidate.get_meta("skill_id", &"") == skill_id:
+			return candidate as Button
+	return null
 
 
 func _save(tag: String) -> void:

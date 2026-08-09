@@ -1,0 +1,213 @@
+[gd_resource type="Resource" script_class="TutorialTable" load_steps=23 format=3]
+
+[ext_resource type="Script" path="res://data/tutorial_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/tutorial_guide_def.gd" id="2_guide"]
+[ext_resource type="Script" path="res://data/tutorial_beat_def.gd" id="3_beat"]
+
+[sub_resource type="Resource" id="Guide_rowan"]
+script = ExtResource("2_guide")
+id = &"rowan"
+display_name = "Rowan Pike"
+role = "Yard Keeper"
+portrait_path = "res://assets/generated/tutorial/rowan_pike_candidate.png"
+accent = Color(0.36, 0.55, 0.31, 1)
+
+[sub_resource type="Resource" id="Guide_ada"]
+script = ExtResource("2_guide")
+id = &"ada"
+display_name = "Ada Gearhart"
+role = "Millwright"
+portrait_path = "res://assets/generated/tutorial/ada_gearhart_candidate.png"
+accent = Color(0.76, 0.31, 0.12, 1)
+
+[sub_resource type="Resource" id="Guide_nova"]
+script = ExtResource("2_guide")
+id = &"nova"
+display_name = "Nova Quill"
+role = "Route Navigator"
+portrait_path = "res://assets/generated/tutorial/nova_quill_candidate.png"
+accent = Color(0.22, 0.42, 0.52, 1)
+
+[sub_resource type="Resource" id="Beat_open_shop"]
+script = ExtResource("3_beat")
+id = &"open_shop"
+guide_id = &"ada"
+title = "Open the Shop"
+dialogue = "Finishing your first job opened the supplier counter."
+objective = "Click the highlighted bag."
+completion_kind = 2
+completion_value = &"shop_opened"
+opening_order = 2
+focus_target = &"shop_button"
+
+[sub_resource type="Resource" id="Beat_shop_reading"]
+script = ExtResource("3_beat")
+id = &"shop_reading"
+guide_id = &"ada"
+title = "Buy your first upgrade"
+dialogue = "Both choices cost 50 coins. Either one makes chopping easier."
+objective = "Click either 50-coin button."
+completion_kind = 4
+opening_order = 3
+
+[sub_resource type="Resource" id="Beat_opening_complete"]
+script = ExtResource("3_beat")
+id = &"opening_complete"
+guide_id = &"rowan"
+title = "Your upgrade is already working"
+dialogue = "You do not need to equip it."
+objective = "Press Got it, then press Back to return to the log."
+opening_order = 4
+continue_label = "Got it"
+
+[sub_resource type="Resource" id="Beat_open_catalog"]
+script = ExtResource("3_beat")
+id = &"open_catalog"
+guide_id = &"rowan"
+title = "A new wood is for sale"
+dialogue = "The round log button opens your wood list."
+objective = "Click the highlighted log button."
+completion_kind = 2
+completion_value = &"catalog_opened"
+availability_kind = 3
+focus_target = &"catalog_button"
+
+[sub_resource type="Resource" id="Beat_catalog_pick"]
+script = ExtResource("3_beat")
+id = &"catalog_pick"
+guide_id = &"rowan"
+title = "Buy the new wood"
+dialogue = "The coin button beside a wood is its price. Buying it puts that wood on the block next."
+objective = "Click the coin price beside the new wood."
+completion_kind = 7
+availability_kind = 3
+
+[sub_resource type="Resource" id="Beat_open_orders"]
+script = ExtResource("3_beat")
+id = &"open_orders"
+guide_id = &"rowan"
+title = "Pick a delivery"
+dialogue = "Level 3 opens the job board."
+objective = "Click the highlighted clipboard."
+completion_kind = 2
+completion_value = &"orders_opened"
+opening_order = 0
+focus_target = &"orders_button"
+
+[sub_resource type="Resource" id="Beat_orders_reading"]
+script = ExtResource("3_beat")
+id = &"orders_reading"
+guide_id = &"rowan"
+title = "Finish the first job"
+dialogue = "Accept the first job, then cut its pieces. Every piece still gives you coins."
+objective = "Accept the job, then deliver 10 pieces."
+completion_kind = 9
+opening_order = 1
+
+[sub_resource type="Resource" id="Beat_skills"]
+script = ExtResource("3_beat")
+id = &"skills"
+guide_id = &"ada"
+title = "You earned a skill point"
+dialogue = "The axe button glows when a point is ready."
+objective = "Click the highlighted axe."
+completion_kind = 2
+completion_value = &"skills_opened"
+availability_kind = 1
+focus_target = &"skills_button"
+
+[sub_resource type="Resource" id="Beat_skill_spend"]
+script = ExtResource("3_beat")
+id = &"skill_spend"
+guide_id = &"ada"
+title = "Choose a skill"
+dialogue = "Grey squares show the full path. Fill every prerequisite rank to unlock the next skill."
+objective = "Click any coloured square."
+completion_kind = 6
+availability_kind = 1
+
+[sub_resource type="Resource" id="Beat_orders"]
+script = ExtResource("3_beat")
+id = &"orders"
+guide_id = &"rowan"
+title = "More deliveries are ready"
+dialogue = "The board now keeps three repeat jobs ready for you."
+objective = "Click the clipboard when you want another job."
+completion_kind = 2
+completion_value = &"orders_opened"
+availability_kind = 4
+focus_target = &"orders_button"
+
+[sub_resource type="Resource" id="Beat_automation"]
+script = ExtResource("3_beat")
+id = &"automation"
+guide_id = &"ada"
+title = "Give the splitter a wood"
+dialogue = "The machine can cut logs while you keep playing. It needs a wood before it can start."
+objective = "Click Assign in Tree Catalog on the machine card."
+completion_kind = 2
+completion_value = &"catalog_opened"
+availability_kind = 5
+focus_target = &"splitter_card"
+
+[sub_resource type="Resource" id="Beat_automation_assign"]
+script = ExtResource("3_beat")
+id = &"automation_assign"
+guide_id = &"ada"
+title = "Finish the setup"
+dialogue = "Find a wood with a Splitter row. Follow its button until it says Assign to splitter."
+objective = "Click Assign to splitter."
+completion_kind = 8
+availability_kind = 5
+
+[sub_resource type="Resource" id="Beat_automation_load"]
+script = ExtResource("3_beat")
+id = &"automation_load"
+guide_id = &"ada"
+title = "Start the machine"
+dialogue = "It works one log at a time and sells the result for you."
+objective = "Click Load assigned log on the machine card."
+completion_kind = 2
+completion_value = &"splitter_loaded"
+availability_kind = 5
+focus_target = &"splitter_card"
+
+[sub_resource type="Resource" id="Beat_atlas"]
+script = ExtResource("3_beat")
+id = &"atlas"
+guide_id = &"nova"
+title = "Open the map"
+dialogue = "The map shows where your next wood comes from."
+objective = "Click the highlighted map button."
+completion_kind = 2
+completion_value = &"atlas_opened"
+availability_kind = 6
+focus_target = &"atlas_button"
+
+[sub_resource type="Resource" id="Beat_atlas_step"]
+script = ExtResource("3_beat")
+id = &"atlas_step"
+guide_id = &"nova"
+title = "Follow the yellow goal"
+dialogue = "Yellow means next. Grey means finished or not ready yet."
+objective = "Find the yellow button, then press Got it."
+availability_kind = 6
+continue_label = "Got it"
+
+[sub_resource type="Resource" id="Beat_launch"]
+script = ExtResource("3_beat")
+id = &"launch"
+guide_id = &"nova"
+title = "Earth has no trees left"
+dialogue = "You can still spend your coins and use wood you already have."
+objective = "Open the map and build the first project you can click."
+completion_kind = 2
+completion_value = &"atlas_opened"
+availability_kind = 7
+focus_target = &"atlas_button"
+
+[resource]
+script = ExtResource("1_table")
+event_delay_seconds = 2.0
+guides = Array[ExtResource("2_guide")]([SubResource("Guide_rowan"), SubResource("Guide_ada"), SubResource("Guide_nova")])
+beats = Array[ExtResource("3_beat")]([SubResource("Beat_skills"), SubResource("Beat_skill_spend"), SubResource("Beat_open_orders"), SubResource("Beat_orders_reading"), SubResource("Beat_open_shop"), SubResource("Beat_shop_reading"), SubResource("Beat_opening_complete"), SubResource("Beat_open_catalog"), SubResource("Beat_catalog_pick"), SubResource("Beat_orders"), SubResource("Beat_automation"), SubResource("Beat_automation_assign"), SubResource("Beat_automation_load"), SubResource("Beat_atlas"), SubResource("Beat_atlas_step"), SubResource("Beat_launch")])

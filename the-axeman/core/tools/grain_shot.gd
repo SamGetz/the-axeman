@@ -17,7 +17,7 @@ const _SCENE := preload("res://scenes/3d_action/chopping_minigame.tscn")
 func _ready() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(4))
 	SkillTree.buy(&"quick_study")
 
@@ -41,7 +41,7 @@ func _ready() -> void:
 
 		# The glow breathes — one shot near each end of its pulse so the tuning
 		# pass can actually see the range, not just a single frozen frame.
-		var grain_cfg: GrainCueDef = load("res://data/grain_cue.tres")
+		var grain_cfg: GrainCueDef = GameConfig.current().grain_cue
 		await _wait_ms(int(round(float(grain_cfg.glow_pulse_period_sec) * 500.0)))
 		await _save("_%d_gold_glow_pulsed" % species)
 

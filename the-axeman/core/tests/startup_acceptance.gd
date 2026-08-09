@@ -109,7 +109,7 @@ func _test_existing_save_requires_new_game_confirmation() -> void:
 	_check(main.has_started_session() and GameState.get_cash() == GameState.DEFAULT_CASH,
 		"confirming New Game starts from authored defaults")
 	GameState.add_cash(1)
-	await get_tree().process_frame
+	await get_tree().create_timer(main.autosave_quiet_seconds() + 0.05).timeout
 	GameState.reset_to_defaults()
 	_check(SaveSystem.load_game() == SaveSystem.LoadResult.OK
 			and GameState.get_cash() == GameState.DEFAULT_CASH + 1,

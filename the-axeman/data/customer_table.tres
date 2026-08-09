@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="CustomerTable" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://data/customer_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/customer_def.gd" id="2_customer"]
+
+[sub_resource type="Resource" id="Customer_hearth"]
+script = ExtResource("2_customer")
+id = &"hearth_circle"
+display_name = "Neighbourhood Hearth Circle"
+preference_copy = "Reliable mixed loads; rough pieces are always welcome."
+family = 0
+
+[sub_resource type="Resource" id="Customer_baker"]
+script = ExtResource("2_customer")
+id = &"village_baker"
+display_name = "Village Baker"
+preference_copy = "Species-matched oven wood with consistent heat."
+family = 1
+
+[sub_resource type="Resource" id="Customer_smokehouse"]
+script = ExtResource("2_customer")
+id = &"smokehouse_keeper"
+display_name = "Smokehouse Keeper"
+preference_copy = "Evenly sized pieces keep a long smoke steady."
+reputation_required = 4
+family = 2
+
+[sub_resource type="Resource" id="Customer_joiner"]
+script = ExtResource("2_customer")
+id = &"joiners_workshop"
+display_name = "Joiner's Workshop"
+preference_copy = "Clean, deliberate work earns the workshop's confidence."
+reputation_required = 8
+family = 3
+portrait_candidate_path = "res://assets/generated/portraits/instrument_maker_customer_candidate.png"
+art_status = "REPLACEABLE CANDIDATE — AI-generated instrument maker portrait"
+
+[sub_resource type="Resource" id="Customer_wholesaler"]
+script = ExtResource("2_customer")
+id = &"regional_wholesaler"
+display_name = "Regional Wood Buyer"
+preference_copy = "Certified species-matched bulk loads can arrive by hand or machine."
+reputation_required = 6
+family = 1
+
+[sub_resource type="Resource" id="Customer_cooperative"]
+script = ExtResource("2_customer")
+id = &"hill_cooperative"
+display_name = "Hill Cottage Cooperative"
+preference_copy = "Exceptional pieces from a traceable hand-split log."
+reputation_required = 14
+family = 4
+
+[resource]
+script = ExtResource("1_table")
+customers = Array[ExtResource("2_customer")]([SubResource("Customer_hearth"), SubResource("Customer_baker"), SubResource("Customer_smokehouse"), SubResource("Customer_wholesaler"), SubResource("Customer_joiner"), SubResource("Customer_cooperative")])

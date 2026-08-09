@@ -1,0 +1,55 @@
+[gd_resource type="Resource" script_class="WoodHandlingProfileTable" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://data/wood_handling_profile_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/wood_handling_profile_def.gd" id="2_profile"]
+
+[sub_resource type="Resource" id="Profile_supple"]
+script = ExtResource("2_profile")
+id = &"supple_softwood"
+display_name = "Supple Softwood"
+lesson = "Read the bounce: the first bite is friendly and smaller pieces become markedly easier."
+species_ids = Array[StringName]([&"quaking_aspen", &"eastern_white_pine", &"norway_spruce", &"balsam_fir", &"lodgepole_pine"])
+fresh_split_modifier = 0.02
+scar_bonus_multiplier = 0.85
+size_relief_multiplier = 1.25
+
+[sub_resource type="Resource" id="Profile_fibrous"]
+script = ExtResource("2_profile")
+id = &"fibrous_conifer"
+display_name = "Fibrous Conifer"
+lesson = "Establish a groove: visible scars are the reliable route through springy fibres."
+species_ids = Array[StringName]([&"white_spruce", &"black_spruce", &"scots_pine", &"western_hemlock", &"red_pine"])
+fresh_split_modifier = -0.01
+scar_bonus_multiplier = 1.3
+size_relief_multiplier = 0.9
+
+[sub_resource type="Resource" id="Profile_straight"]
+script = ExtResource("2_profile")
+id = &"straight_grain"
+display_name = "Straight Grain"
+lesson = "Choose the cross-axis cleanly: ordinary size relief and scars both remain dependable."
+species_ids = Array[StringName]([&"douglas_fir", &"black_ash", &"paper_birch", &"pedunculate_oak", &"silver_birch"])
+
+[sub_resource type="Resource" id="Profile_interlocked"]
+script = ExtResource("2_profile")
+id = &"interlocked_hardwood"
+display_name = "Interlocked Hardwood"
+lesson = "Work the same line patiently: early pieces resist, but each scar carries more information."
+species_ids = Array[StringName]([&"yellow_birch", &"northern_red_oak", &"american_beech", &"white_ash", &"white_oak"])
+fresh_split_modifier = -0.03
+scar_bonus_multiplier = 1.45
+size_relief_multiplier = 0.75
+
+[sub_resource type="Resource" id="Profile_iron"]
+script = ExtResource("2_profile")
+id = &"iron_dense"
+display_name = "Iron-Dense Timber"
+lesson = "Reduce the billet before demanding a clean finish; size relief is the decisive advantage."
+species_ids = Array[StringName]([&"sugar_maple", &"european_beech", &"river_red_gum", &"tasmanian_blue_gum", &"lignum_vitae"])
+fresh_split_modifier = -0.05
+scar_bonus_multiplier = 0.8
+size_relief_multiplier = 1.6
+
+[resource]
+script = ExtResource("1_table")
+profiles = Array[ExtResource("2_profile")]([SubResource("Profile_supple"), SubResource("Profile_fibrous"), SubResource("Profile_straight"), SubResource("Profile_interlocked"), SubResource("Profile_iron")])

@@ -16,6 +16,11 @@ extends Node
 var _save_queued := false
 var _session_started := false
 var _autosave_connected := false
+var _autosave_timer: Timer
+
+## Performance boundary, not economy tuning: progression bursts restart this
+## one-shot timer so disk serialization runs once after the burst goes quiet.
+const AUTOSAVE_QUIET_SECONDS := 0.5
 
 @onready var _action_viewport: SubViewport = $"UI_Canvas/SubViewportContainer/Action_Viewport"
 @onready var _world_root: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root"
@@ -26,6 +31,12 @@ var _autosave_connected := false
 
 
 func _ready() -> void:
+	_autosave_timer = Timer.new()
+	_autosave_timer.name = "AutosaveQuietTimer"
+	_autosave_timer.one_shot = true
+	_autosave_timer.wait_time = AUTOSAVE_QUIET_SECONDS
+	_autosave_timer.timeout.connect(_flush_autosave)
+	add_child(_autosave_timer)
 	EventBus.minigame_entered.connect(_on_minigame_entered)
 	EventBus.minigame_exited.connect(_on_minigame_exited)
 	_yard_hud.bind_splitter_runtime(_splitter_runtime)
@@ -85,7 +96,7 @@ func start_new_game() -> bool:
 		_startup_menu.show_error(
 			"The new yard could not be saved. Your existing save was left intact.")
 		return false
-	_finish_startup()
+	_finish_startup(true)
 	print("Main: new game started.")
 	return true
 
@@ -98,7 +109,7 @@ func load_saved_game() -> bool:
 	var result := SaveSystem.load_game()
 	match result:
 		SaveSystem.LoadResult.OK:
-			_finish_startup()
+			_finish_startup(false)
 			print("Main: save loaded — %d cash, %d wood chopped lifetime." % [
 				GameState.get_cash(), GameState.get_lifetime_wood_chopped(),
 			])
@@ -120,14 +131,28 @@ func has_started_session() -> bool:
 	return _session_started
 
 
-func _finish_startup() -> void:
+func _finish_startup(is_fresh_game: bool) -> void:
 	if _session_started:
 		return
 	_session_started = true
+	AudioDirector.begin_session()
 	_connect_autosave()
+	_resolve_offline_progress()
 	_startup_menu.dismiss()
 	_yard_hud.show()
 	_enter_3d_mode()
+	_yard_hud.call_deferred("begin_tutorial", is_fresh_game)
+
+
+func _resolve_offline_progress() -> void:
+	var now := int(Time.get_unix_time_from_system())
+	if CompanyLogistics.can_run_offline():
+		var receipt := CompanySimulation.simulate(
+			GameState.get_company_simulation_input(), now, true)
+		if receipt.processed_logs() > 0:
+			CompanyLogistics.apply_receipt(receipt)
+			return
+	GameState.set_company_clock_anchor(now)
 
 
 ## Autosave whenever owned stock OR progression moves. Connected only AFTER a
@@ -149,36 +174,52 @@ func _connect_autosave() -> void:
 	GameState.splitter_assignment_changed.connect(_queue_autosave.unbind(1))
 	GameState.order_state_changed.connect(_queue_autosave)
 	GameState.commission_state_changed.connect(_queue_autosave)
+	GameState.reputation_changed.connect(_queue_autosave.unbind(1))
+	GameState.craftsmanship_changed.connect(_queue_autosave.unbind(2))
+	GameState.company_logistics_changed.connect(_queue_autosave)
+	GameState.regional_network_changed.connect(_queue_autosave)
+	GameState.company_strategy_changed.connect(_queue_autosave)
+	GameState.earth_campaign_changed.connect(_queue_autosave)
+	GameState.launch_program_changed.connect(_queue_autosave)
+	GameState.expedition_changed.connect(_queue_autosave)
+	GameState.alien_campaign_changed.connect(_queue_autosave)
+	GameState.feature_introduced.connect(_queue_autosave.unbind(1))
 
 
 ## ---------------------------------------------------------------- autosave
 ## Owned stock or progression changed, so the yard is worth writing down.
 ##
-## COALESCED, and it has to be: finishing a log deposits one firewood piece at a
-## time, so a six-piece log fires this six times in a single frame. Writing the
-## file six times for one chop would be six times the I/O for one identical
-## result. The deferred flush collapses a whole batch into one write at the end
-## of the frame.
+## COALESCED, and it has to be: finishing a log deposits pieces, cash and XP over
+## several visual frames. Writing once per signal stalls those same reward
+## frames with repeated ConfigFile serialization. A short restartable quiet
+## window collapses the complete burst into one write; the close hook below
+## remains a synchronous safety save.
 ##
 ## Inventory changes, cash, pile state, XP, skill purchases, species purchases,
 ## mastery, splitter assignment and the selected wood all share this coalescer.
-## A transaction may touch several of them in one frame; it still writes once at
-## frame end.
+## A transaction may touch several of them across a reward animation; it still
+## writes once after the last mutation.
 func _on_inventory_changed(_item_id: StringName, _new_count: int) -> void:
 	_queue_autosave()
 
 
 func _queue_autosave() -> void:
-	if not _session_started or _save_queued:
+	if not _session_started:
 		return
 	_save_queued = true
-	_flush_autosave.call_deferred()
+	_autosave_timer.start()
 
 
 func _flush_autosave() -> void:
+	if not _save_queued:
+		return
 	_save_queued = false
 	if not SaveSystem.save_game():
 		push_error("Main: autosave failed — progress since the last good save is at risk.")
+
+
+func autosave_quiet_seconds() -> float:
+	return AUTOSAVE_QUIET_SECONDS
 
 
 ## Save on the way out. NOTIFICATION_WM_CLOSE_REQUEST is the only hook that fires
@@ -196,6 +237,7 @@ func _notification(what: int) -> void:
 		return
 	if _session_started and not SaveSystem.save_game():
 		push_error("Main: the save failed on quit — this session's progress is lost.")
+	AudioDirector.end_session()
 	get_tree().quit()
 
 

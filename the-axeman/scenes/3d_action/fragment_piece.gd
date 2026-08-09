@@ -65,7 +65,11 @@ const _MIN_HULL_THICKNESS := 0.09
 ## the solver found those poses, so they are real.
 const _STANDING_DEG := 40.0
 
-var def: FragmentDef
+# The active runtime-slicing path leaves this null. Keep the retired authored
+# fragment seam resource-compatible without strongly loading FragmentDef's
+# recursive script class into every runtime piece; that class-to-itself cycle
+# otherwise survives until ResourceLoader teardown in headless acceptance runs.
+var def: Resource
 
 var _settle_timeout := 2.0
 var _age := 0.0
@@ -82,13 +86,14 @@ func _ready() -> void:
 
 
 ## Must be called right after add_child (nodes are ready by then).
-func setup(fragment_def: FragmentDef, settle_timeout: float) -> void:
+func setup(fragment_def: Resource, settle_timeout: float) -> void:
 	def = fragment_def
 	_settle_timeout = settle_timeout
-	if def != null and def.mesh != null:
-		_mesh.mesh = def.mesh
+	var definition_mesh := def.get("mesh") as Mesh if def != null else null
+	if definition_mesh != null:
+		_mesh.mesh = definition_mesh
 		# Derive a box collider from the mesh AABB — cheap and predictable.
-		var aabb := def.mesh.get_aabb()
+		var aabb: AABB = definition_mesh.get_aabb()
 		var box := BoxShape3D.new()
 		box.size = aabb.size
 		_shape.shape = box

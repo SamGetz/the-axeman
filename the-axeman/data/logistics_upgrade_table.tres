@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="LogisticsUpgradeTable" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://data/logistics_upgrade_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/logistics_upgrade_def.gd" id="2_def"]
+
+[sub_resource type="Resource" id="Logistics_feeder"]
+script = ExtResource("2_def")
+id = &"log_feeder"
+display_name = "Input Line"
+description = "Bundles the feeder, staging lane and bounded supplier queue into the company's first useful input system."
+cost = 1000
+tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest required"
+
+[sub_resource type="Resource" id="Logistics_router"]
+script = ExtResource("2_def")
+id = &"order_router"
+display_name = "Routing Desk"
+description = "Bundles stacking and visible species priority into one meaningful dispatch decision."
+required_previous_id = &"log_feeder"
+cost = 5000
+tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest required"
+
+[sub_resource type="Resource" id="Logistics_dispatch"]
+script = ExtResource("2_def")
+id = &"dispatch_console"
+display_name = "Continuity Dispatch"
+description = "Adds maintained offline dispatch and one exact return ledger after watched work."
+required_previous_id = &"order_router"
+cost = 18000
+tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest required"
+
+[resource]
+script = ExtResource("1_table")
+upgrades = Array[ExtResource("2_def")]([SubResource("Logistics_feeder"), SubResource("Logistics_router"), SubResource("Logistics_dispatch")])

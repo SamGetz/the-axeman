@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/tests/m7d_acceptance.gd" id="1"]
+
+[node name="M7DVisibleYardAcceptance" type="Node"]
+script = ExtResource("1")

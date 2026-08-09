@@ -22,9 +22,8 @@ enum State {
 	READY,
 	PROCESSING,
 	OUTPUT_BLOCKED,
+	EXHAUSTED,
 }
-
-const _CONFIG_PATH := "res://data/mechanical_splitter_runtime.tres"
 
 @export var config: MechanicalSplitterRuntimeDef
 
@@ -43,9 +42,10 @@ var _last_logs_processed := 0
 
 func _ready() -> void:
 	if config == null:
-		config = load(_CONFIG_PATH) as MechanicalSplitterRuntimeDef
+		config = GameConfig.current().mechanical_splitter
 	GameState.splitter_assignment_changed.connect(_on_routing_changed)
 	GameState.building_tiers_changed.connect(_on_routing_changed)
+	GameState.earth_depleted.connect(_on_routing_changed)
 	_publish_state(true)
 	set_process(true)
 
@@ -62,6 +62,8 @@ func is_yard_active() -> bool:
 func current_state() -> State:
 	if not MechanicalSplitter.is_installed():
 		return State.LOCKED
+	if GameState.is_earth_depleted():
+		return State.EXHAUSTED
 	var assigned := GameState.get_splitter_assigned_species()
 	if assigned == &"":
 		return State.UNASSIGNED
@@ -88,6 +90,8 @@ static func state_title(state: State) -> String:
 			return "PROCESSING"
 		State.OUTPUT_BLOCKED:
 			return "OUTPUT BLOCKED"
+		State.EXHAUSTED:
+			return "EARTH EXHAUSTED"
 	return "UNKNOWN"
 
 
@@ -110,6 +114,8 @@ func state_detail() -> String:
 				species_name, effective_logs_per_split()]
 		State.OUTPUT_BLOCKED:
 			return "%s output is waiting for inventory/buyer settlement." % species_name
+		State.EXHAUSTED:
+			return "No terrestrial trees remain. The launch programme is now active."
 	return ""
 
 
@@ -257,6 +263,26 @@ func _deliver_pending_output() -> bool:
 	var inventory_deposited := bool(_pending_output.get("inventory_deposited", false))
 	if receipt_id == &"" or _completed_receipt_id == receipt_id:
 		return false
+	var accepted_logs := GameState.preview_earth_tree_felling(logs)
+	if accepted_logs <= 0:
+		_pending_output = {}
+		_queued_species = &""
+		_processing_left = 0.0
+		_processing_duration = 0.0
+		progress_changed.emit(0.0)
+		_publish_state(true)
+		return false
+	if accepted_logs < logs:
+		amount = maxi(1, int(floor(float(amount) * float(accepted_logs) \
+			/ float(logs))))
+		logs = accepted_logs
+		_pending_output["amount"] = amount
+		_pending_output["logs"] = logs
+	var production := EarthProductionDelta.new(receipt_id,
+		EarthProductionDelta.SourceKind.WATCHED_SPLITTER, {species_id: logs},
+		{item_id: amount})
+	if not GameState.can_apply_earth_production(production):
+		return false
 	# Reserve before calling the writer so a synchronous inventory listener cannot
 	# re-enter this handoff and receive the same completion twice.
 	_completed_receipt_id = receipt_id
@@ -285,10 +311,12 @@ func _deliver_pending_output() -> bool:
 		xp_earned = maxi(0, int(round(
 			float(species.xp_reward * logs) * automation_xp_rate())))
 		if xp_earned > 0:
-			GameState.add_xp(xp_earned)
+			xp_earned = GameState.award_xp(xp_earned, &"splitter")
 	_last_cash_earned = cash_earned
 	_last_xp_earned = xp_earned
 	_last_logs_processed = logs
+	if not GameState.apply_earth_production(production):
+		push_error("MechanicalSplitterRuntime: paid receipt failed Earth production commit.")
 	_pending_output = {}
 	_queued_species = &""
 	_processing_left = 0.0

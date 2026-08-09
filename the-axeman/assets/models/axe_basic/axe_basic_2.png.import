@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cqtsmtl5nkanx"
 path.s3tc="res://.godot/imported/axe_basic_2.png-e81023ddd12ed83f87bcfebe642d748a.s3tc.ctex"
+path.etc2="res://.godot/imported/axe_basic_2.png-e81023ddd12ed83f87bcfebe642d748a.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/axe_basic/axe_basic_2.png"
-dest_files=["res://.godot/imported/axe_basic_2.png-e81023ddd12ed83f87bcfebe642d748a.s3tc.ctex"]
+dest_files=["res://.godot/imported/axe_basic_2.png-e81023ddd12ed83f87bcfebe642d748a.s3tc.ctex", "res://.godot/imported/axe_basic_2.png-e81023ddd12ed83f87bcfebe642d748a.etc2.ctex"]
 
 [params]
 

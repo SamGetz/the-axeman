@@ -11,9 +11,11 @@ config_version=5
 [application]
 
 config/name="the-axeman"
+config/version="0.15.0-alpha.1"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
+config/build_date="2026-08-07"
 
 [autoload]
 
@@ -21,6 +23,7 @@ EventBus="*uid://r7cli5a7vq2p"
 InventoryManager="*uid://chwi7lvtiltlv"
 GameState="*uid://cuyewnussm5mf"
 GameFeel="*res://core/game_feel.gd"
+AudioDirector="*res://core/audio_director.gd"
 MCPScreenshot="*res://addons/godot_mcp/mcp_screenshot_service.gd"
 MCPInputService="*res://addons/godot_mcp/mcp_input_service.gd"
 MCPGameInspector="*res://addons/godot_mcp/mcp_game_inspector_service.gd"
@@ -46,5 +49,6 @@ enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 lights_and_shadows/positional_shadow/atlas_16_bits=false
 lights_and_shadows/positional_shadow/atlas_size=8192

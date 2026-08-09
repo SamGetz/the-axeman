@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://djhsawd8js8un"
 path.s3tc="res://.godot/imported/balsam_fir_bark.png-a943286f2371edb121f03c1357e95370.s3tc.ctex"
+path.etc2="res://.godot/imported/balsam_fir_bark.png-a943286f2371edb121f03c1357e95370.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/wood_balsam_fir/balsam_fir_bark.png"
-dest_files=["res://.godot/imported/balsam_fir_bark.png-a943286f2371edb121f03c1357e95370.s3tc.ctex"]
+dest_files=["res://.godot/imported/balsam_fir_bark.png-a943286f2371edb121f03c1357e95370.s3tc.ctex", "res://.godot/imported/balsam_fir_bark.png-a943286f2371edb121f03c1357e95370.etc2.ctex"]
 
 [params]
 

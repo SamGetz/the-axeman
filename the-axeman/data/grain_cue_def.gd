@@ -25,3 +25,22 @@ extends Resource
 
 @export_group("Authorship")
 @export var tuning_status: String = "PLACEHOLDER — Creative Director tuning required"
+
+
+func validate() -> PackedStringArray:
+	var errors := PackedStringArray()
+	if minimum_skill_rank < 1 or candidate_tolerance < 0.0:
+		errors.append("availability values are invalid")
+	if mark_length_fraction <= 0.0 or mark_length_fraction > 1.0:
+		errors.append("mark length fraction must be in (0, 1]")
+	if mark_core_width <= 0.0 or mark_glow_width < mark_core_width \
+			or mark_dark_width < mark_glow_width:
+		errors.append("mark widths must grow monotonically from core to backing")
+	if surface_lift < 0.0 or layer_lift < 0.0:
+		errors.append("mark lifts must be non-negative")
+	if glow_pulse_period_sec <= 0.0 or glow_pulse_min < 0.0 \
+			or glow_pulse_max < glow_pulse_min:
+		errors.append("glow pulse bounds are invalid")
+	if not tuning_status.begins_with("PLACEHOLDER"):
+		errors.append("grain cue tuning must remain explicitly provisional")
+	return errors

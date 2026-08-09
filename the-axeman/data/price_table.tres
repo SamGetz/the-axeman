@@ -32,5 +32,9 @@ base_prices = {
 &"river_red_gum_firewood": 5600,
 &"blue_gum_firewood": 7600,
 &"lignum_vitae_firewood": 10400,
-&"mahogany_firewood": 100
+&"mahogany_firewood": 100,
+; PLACEHOLDER — alien base values and premium families require final tuning.
+&"spiralwood_firewood": 16000,
+&"tideglass_firewood": 22000,
+&"cinderheart_firewood": 32000
 }

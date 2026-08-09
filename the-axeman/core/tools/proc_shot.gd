@@ -43,7 +43,7 @@ func _ready() -> void:
 	# Grant Double Strike through the REAL GameState.add_xp + SkillTree.buy path
 	# — never a direct state poke — so this shoots exactly what a player could
 	# actually earn.
-	var curve := load("res://data/level_curve.tres") as LevelCurve
+	var curve := GameConfig.current().level_curve
 	GameState.add_xp(curve.total_xp_for_level(7))
 	SkillTree.buy(&"strong_arms")
 	SkillTree.buy(&"double_strike")
@@ -97,7 +97,7 @@ func _ready() -> void:
 	_save("_4_precision_safe_with_modifier")
 
 	# --- E: Quick Study — ONE manual completed log, multiplied XP, Technique burst ---
-	var curve2 := load("res://data/level_curve.tres") as LevelCurve
+	var curve2 := GameConfig.current().level_curve
 	var quick_target := curve2.total_xp_for_level(10)
 	if GameState.get_xp() < quick_target:
 		GameState.add_xp(quick_target - GameState.get_xp())
@@ -123,7 +123,7 @@ func _ready() -> void:
 	# the seam that goes through the real roll, and Follow-Up is called from
 	# inside _resolve_strike specifically so this exact seam exercises it (see
 	# _resolve_strike's doc comment).
-	var curve3 := load("res://data/level_curve.tres") as LevelCurve
+	var curve3 := GameConfig.current().level_curve
 	var follow_target := curve3.total_xp_for_level(15)
 	if GameState.get_xp() < follow_target:
 		GameState.add_xp(follow_target - GameState.get_xp())

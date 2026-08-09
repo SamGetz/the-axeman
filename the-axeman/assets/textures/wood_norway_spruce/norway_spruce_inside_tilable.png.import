@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://nijxfkgueii8"
 path.s3tc="res://.godot/imported/norway_spruce_inside_tilable.png-33c35c29f5db20b06932651ff93bb8a6.s3tc.ctex"
+path.etc2="res://.godot/imported/norway_spruce_inside_tilable.png-33c35c29f5db20b06932651ff93bb8a6.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/wood_norway_spruce/norway_spruce_inside_tilable.png"
-dest_files=["res://.godot/imported/norway_spruce_inside_tilable.png-33c35c29f5db20b06932651ff93bb8a6.s3tc.ctex"]
+dest_files=["res://.godot/imported/norway_spruce_inside_tilable.png-33c35c29f5db20b06932651ff93bb8a6.s3tc.ctex", "res://.godot/imported/norway_spruce_inside_tilable.png-33c35c29f5db20b06932651ff93bb8a6.etc2.ctex"]
 
 [params]
 

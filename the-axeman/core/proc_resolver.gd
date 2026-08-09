@@ -40,9 +40,31 @@ static func should_proc(proc: ProcDef, forced: int = -1, owned_rank: int = 1) ->
 	return fired
 
 
+## Combined equipment-plus-skill path. The chance is supplied by the caller,
+## while the same proc id and persisted dry streak remain authoritative.
+static func should_proc_with_chance(proc: ProcDef, effective_chance: float,
+		forced: int = -1) -> bool:
+	if proc == null or effective_chance <= 0.0:
+		return false
+	var fired: bool
+	if forced == 0:
+		fired = false
+	elif forced == 1:
+		fired = true
+	else:
+		fired = _roll_chance(proc, effective_chance)
+	GameState.note_proc_result(proc.id, fired)
+	return fired
+
+
 static func _roll(proc: ProcDef, owned_rank: int) -> bool:
 	var chance := clampf(proc.base_chance
 		+ proc.chance_per_rank * float(maxi(0, owned_rank - 1)), 0.0, 1.0)
+	return _roll_chance(proc, chance)
+
+
+static func _roll_chance(proc: ProcDef, chance: float) -> bool:
+	chance = clampf(chance, 0.0, 1.0)
 	if proc.bad_luck_policy_key != _POLICY_BOUNDED_DRY_STREAK:
 		push_warning("ProcResolver: unknown bad-luck policy '%s' for proc '%s' — rolling without pity."
 			% [proc.bad_luck_policy_key, proc.id])

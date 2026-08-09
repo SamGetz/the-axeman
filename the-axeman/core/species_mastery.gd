@@ -24,7 +24,7 @@ static func effect_for_species(species_id: StringName,
 		return 0.0
 	var progress := GameState.get_species_mastery_progress(species_id)
 	var total := 0.0
-	for threshold: SpeciesMasteryThresholdDef in table.thresholds:
+	for threshold: SpeciesMasteryThresholdDef in table.thresholds_for_species(species_id):
 		if threshold == null or progress < threshold.required_progress:
 			continue
 		for reward: GameplayModifierDef in threshold.rewards:
@@ -39,7 +39,7 @@ static func next_threshold(species_id: StringName) -> SpeciesMasteryThresholdDef
 	if table == null or table.by_species_id(species_id) == null:
 		return null
 	var progress := GameState.get_species_mastery_progress(species_id)
-	for threshold: SpeciesMasteryThresholdDef in table.thresholds:
+	for threshold: SpeciesMasteryThresholdDef in table.thresholds_for_species(species_id):
 		if threshold != null and progress < threshold.required_progress:
 			return threshold
 	return null

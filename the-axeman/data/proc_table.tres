@@ -1,10 +1,10 @@
-[gd_resource type="Resource" script_class="ProcTable" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="ProcTable" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://data/proc_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/proc_def.gd" id="2_proc"]
 [ext_resource type="Script" path="res://data/gameplay_modifier_def.gd" id="3_modifier"]
 
-; ALL NUMBERS ARE SYSTEM-BUILDING PLACEHOLDERS. Sam's later tuning gate owns them.
+; FINAL SKILL PROC VALUES — approved player-facing balance pass, 2026-08-06.
 [sub_resource type="Resource" id="Proc_double_strike"]
 script = ExtResource("2_proc")
 id = &"double_strike"
@@ -12,9 +12,11 @@ display_name = "Double Strike"
 family = 0
 eligibility = 0
 announcement_key = &"double_strike"
+presentation_branch_id = &"strength"
 base_chance = 0.1
 chain_cap = 1
 bad_luck_bound = 10
+tuning_status = "FINAL — approved skill-tree balance"
 
 ; Rolled once per landed ROOT swing (Eligibility.MANUAL_SWING), split or scar —
 ; unlike Double Strike, Follow-Up does not require a successful cut to fire, so
@@ -27,10 +29,12 @@ display_name = "Follow-Up"
 family = 1
 eligibility = 0
 announcement_key = &"follow_up"
+presentation_branch_id = &"speed"
 base_chance = 0.1
-chance_per_rank = 0.03
+chance_per_rank = 0.0
 chain_cap = 1
 bad_luck_bound = 10
+tuning_status = "FINAL — approved skill-tree balance"
 
 [sub_resource type="Resource" id="Modifier_quick_study_manual_xp"]
 script = ExtResource("3_modifier")
@@ -38,7 +42,7 @@ id = &"quick_study_manual_xp_multiplier"
 kind = 3
 operation = 1
 magnitude = 2.0
-tuning_status = "PLACEHOLDER — Creative Director tuning required"
+tuning_status = "FINAL — approved skill-tree balance"
 
 ; The multiplier is authored data. Quick Study's code never owns this number.
 [sub_resource type="Resource" id="Proc_quick_study"]
@@ -48,11 +52,13 @@ display_name = "Quick Study"
 family = 2
 eligibility = 1
 announcement_key = &"quick_study"
+presentation_branch_id = &"mastery"
 base_chance = 0.1
-chance_per_rank = 0.025
+chance_per_rank = 0.0
 chain_cap = 1
 bad_luck_bound = 10
 modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_quick_study_manual_xp")])
+tuning_status = "FINAL — approved skill-tree balance"
 
 [sub_resource type="Resource" id="Modifier_grain_read_manual_xp"]
 script = ExtResource("3_modifier")
@@ -60,13 +66,13 @@ id = &"grain_read_xp_multiplier"
 kind = 3
 operation = 1
 magnitude = 12.0
-tuning_status = "PLACEHOLDER — Creative Director tuning required"
+tuning_status = "FINAL — approved skill-tree balance"
 
 ; Rolled once per fresh on-block piece (Eligibility.MANUAL_PIECE_OFFER), never per
 ; swing. base_chance is tuned so that across one whole log's worth of piece-creation
 ; events (~8: the fresh log plus roughly two per split, and the offer latches off
 ; after the first hit on a log) roughly one log in six carries a gold mark:
-; 1 - (1 - 0.022)^8 =~ 0.16. The multiplier is authored data — code never owns 3.0.
+; 1 - (1 - 0.022)^8 =~ 0.16. The multiplier is authored data — code never owns 12.0.
 [sub_resource type="Resource" id="Proc_grain_read"]
 script = ExtResource("2_proc")
 id = &"grain_read"
@@ -74,12 +80,41 @@ display_name = "Grain Read"
 family = 3
 eligibility = 2
 announcement_key = &"grain_read"
+presentation_branch_id = &"mastery"
 base_chance = 0.022
 chance_per_rank = 0.0
 chain_cap = 1
 bad_luck_bound = 60
 modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_grain_read_manual_xp")])
+tuning_status = "FINAL — approved skill-tree balance"
+
+; PLACEHOLDER EQUIPMENT PROC VALUES — pacing/feel review required.
+[sub_resource type="Resource" id="Proc_mastery_echo"]
+script = ExtResource("2_proc")
+id = &"mastery_echo"
+display_name = "Mastery Echo"
+family = 4
+eligibility = 1
+announcement_key = &"mastery_echo"
+presentation_branch_id = &"mastery"
+base_chance = 0.0
+chain_cap = 1
+bad_luck_bound = 20
+tuning_status = "PLACEHOLDER — 20-event dry-streak bound needs pacing review"
+
+[sub_resource type="Resource" id="Proc_express_handoff"]
+script = ExtResource("2_proc")
+id = &"express_handoff"
+display_name = "Express Handoff"
+family = 5
+eligibility = 1
+announcement_key = &"express_handoff"
+presentation_branch_id = &"speed"
+base_chance = 0.0
+chain_cap = 1
+bad_luck_bound = 12
+tuning_status = "PLACEHOLDER — 12-event dry-streak bound needs pacing review"
 
 [resource]
 script = ExtResource("1_table")
-procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study"), SubResource("Proc_grain_read")])
+procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study"), SubResource("Proc_grain_read"), SubResource("Proc_mastery_echo"), SubResource("Proc_express_handoff")])

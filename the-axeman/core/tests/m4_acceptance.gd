@@ -48,7 +48,15 @@ func _ready() -> void:
 	print("=== M4 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
 		print("=== ALL M4 ACCEPTANCE CRITERIA PASS ===")
-	get_tree().quit()   # deterministic headless exit once the awaits have all resolved
+	# Let the suite root and its PackedScene/script constants release before the
+	# ResourceLoader shutdown audit. Quitting synchronously from this script kept
+	# FragmentDef's self-referential schema alive until engine teardown and produced
+	# a false-positive ObjectDB/resource leak after an otherwise clean run.
+	EventBus.action_hit_registered.disconnect(_on_hit)
+	EventBus.resource_gathered.disconnect(_on_gathered)
+	var tree := get_tree()
+	tree.create_timer(0.0).timeout.connect(tree.quit, CONNECT_ONE_SHOT)
+	queue_free()
 
 
 func _check(cond: bool, label: String) -> void:

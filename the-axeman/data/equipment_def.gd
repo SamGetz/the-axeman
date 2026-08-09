@@ -13,6 +13,8 @@ enum ArtStatus { AUTHORED, EXISTING_VARIANT, GREYBOX_PLACEHOLDER }
 @export var slot: Slot = Slot.AXE
 @export var ownership_upgrade_id: StringName = &""
 @export var is_starting_fallback: bool = false
+@export_range(0, 8, 1) var progression_stage: int = 0
+@export var placeholder_tint: Color = Color.WHITE
 @export var comparison_tags: Array[StringName] = []
 @export var modifiers: Array[GameplayModifierDef] = []
 @export var presentation_scene_path: String = ""

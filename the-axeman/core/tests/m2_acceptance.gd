@@ -129,7 +129,7 @@ func _test_a10_mode_switching(main: Node) -> void:
 	# Persistence behaviour and the visible choice are covered by the focused
 	# startup suite. Activate the already-built shell without touching the save so
 	# this frozen M2 contract can keep testing only A10 mode switching.
-	main._finish_startup()
+	main._finish_startup(false)
 
 	_check(viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS,
 		"the startup decision enters chopping: viewport rendering is live")

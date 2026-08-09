@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://dbhlxlshqa3eu"
 path.s3tc="res://.godot/imported/norway_spruce_top.png-7951197545e365cb15914d687a73930b.s3tc.ctex"
+path.etc2="res://.godot/imported/norway_spruce_top.png-7951197545e365cb15914d687a73930b.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/wood_norway_spruce/norway_spruce_top.png"
-dest_files=["res://.godot/imported/norway_spruce_top.png-7951197545e365cb15914d687a73930b.s3tc.ctex"]
+dest_files=["res://.godot/imported/norway_spruce_top.png-7951197545e365cb15914d687a73930b.s3tc.ctex", "res://.godot/imported/norway_spruce_top.png-7951197545e365cb15914d687a73930b.etc2.ctex"]
 
 [params]
 

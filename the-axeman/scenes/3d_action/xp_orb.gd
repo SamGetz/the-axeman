@@ -51,20 +51,21 @@ extends MeshInstance3D
 
 enum Phase { FLIGHT, REST, DRAW }
 
-signal collected(amount: int)
+signal collected(amount: int, tier: int)
 
 ## Shared across every orb ever spawned — one sphere, one halo and one material
 ## each for the whole effect, rather than a fresh set per orb for the renderer to
 ## track.
-static var _shared_mesh: SphereMesh = null
-static var _shared_mat: StandardMaterial3D = null
+static var _tier_meshes: Array[SphereMesh] = []
+static var _tier_materials: Array[StandardMaterial3D] = []
 static var _halo_mesh: QuadMesh = null
-static var _halo_mat: StandardMaterial3D = null
+static var _halo_materials: Array[StandardMaterial3D] = []
 
 const _RADIUS := 0.018
 ## The core reward colour, shared with the full-width HUD bar. The orb owns it:
 ## changing the reward pickup must repaint its receipt on the HUD as well.
-const COLOR := Color(0.55, 1.0, 0.42, 0.78)
+const BASE_COLOR := Color(0.55, 1.0, 0.42, 0.78)
+const COLOR := BASE_COLOR # Compatibility alias for existing HUD/tools.
 
 # --- tuning (PLACEHOLDERS, Directive 3) ----------------------------------
 const _GRAVITY := 9.0           # m/s^2 — the scene is ~0.5 m tall, so this reads brisk
@@ -119,6 +120,8 @@ var _xp_amount := 0
 var _screen_target := Callable()
 var _collection_reported := false
 var _render_warmup_active := false
+var _burst_scale := 1.0
+var _tier := 0
 
 
 ## Called during the initial chopping-scene load. Keep the first reward burst's
@@ -130,14 +133,13 @@ static func prewarm() -> void:
 ## Builds this orb's complete core + halo graph once. Chopping preallocates the
 ## largest overlapping reward wave during initial load and reuses those nodes.
 func prepare_for_pool() -> void:
-	var shared := _shared()
-	mesh = shared[0]
-	material_override = shared[1]
+	_shared()
+	_apply_tier(0)
 	if get_node_or_null("Halo") == null:
 		var halo := MeshInstance3D.new()
 		halo.name = "Halo"
 		halo.mesh = _halo_mesh
-		halo.material_override = _halo_mat
+		halo.material_override = _halo_materials[0]
 		halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(halo)
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -150,14 +152,16 @@ func is_available() -> bool:
 
 
 static func _shared() -> Array:
-	if _shared_mesh == null:
-		_shared_mesh = SphereMesh.new()
-		_shared_mesh.radius = _RADIUS
-		_shared_mesh.height = _RADIUS * 2.0
-		_shared_mesh.radial_segments = 8
-		_shared_mesh.rings = 4
-
-		_shared_mat = StandardMaterial3D.new()
+	if _tier_meshes.is_empty():
+		var colors := GameConfig.current().reward_bursts.xp_tier_colors
+		for tier in range(4):
+			var tier_mesh := SphereMesh.new()
+			tier_mesh.radius = _RADIUS
+			tier_mesh.height = _RADIUS * 2.0
+			# Later rewards gain an increasingly crystalline silhouette.
+			tier_mesh.radial_segments = [8, 10, 6, 12][tier]
+			tier_mesh.rings = [4, 5, 3, 6][tier]
+			var tier_material := StandardMaterial3D.new()
 		# UNSHADED, and that is load-bearing: an orb is a light source in the
 		# fiction, and a lit one would go dim in the stump's shadow exactly where
 		# most of them are born. Same reasoning as the failure scar.
@@ -166,36 +170,44 @@ static func _shared() -> Array:
 		# its albedo and nothing else. The glow is the halo below, which is a real
 		# object rather than a post-process, because screen-space glow is not
 		# something to rely on under gl_compatibility.
-		_shared_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			tier_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		# A LITTLE TRANSPARENT (Creative Director call, 2026-08-02), so the orb reads
 		# as light rather than as a painted bead.
-		_shared_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_shared_mat.albedo_color = COLOR
+			tier_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			tier_material.albedo_color = colors[tier]
+			_tier_meshes.append(tier_mesh)
+			_tier_materials.append(tier_material)
 
 		_halo_mesh = QuadMesh.new()
 		_halo_mesh.size = Vector2(_RADIUS * 7.0, _RADIUS * 7.0)
 
-		_halo_mat = StandardMaterial3D.new()
-		_halo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_halo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		for tier in range(4):
+			var halo_material := StandardMaterial3D.new()
+			halo_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			halo_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		# ADDITIVE is what makes it a glow and not a green sticker: it only ever
 		# brightens what is behind it, so it bleeds into the dirt around the orb.
-		_halo_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		_halo_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			halo_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			halo_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 		# Face the player from wherever the camera has orbited to. `keep_scale`
 		# matters: billboarding rebuilds the basis, and without it the shrink the
 		# draw phase applies would be thrown away and the halo would arrive at the
 		# camera full size.
-		_halo_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		_halo_mat.billboard_keep_scale = true
-		_halo_mat.albedo_texture = _halo_texture()
+			halo_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+			halo_material.billboard_keep_scale = true
+			halo_material.albedo_texture = _halo_texture(colors[tier])
 		# TINY, per the brief — the falloff does the work, the strength stays low.
-		_halo_mat.albedo_color = Color(0.5, 1.0, 0.4, 0.5)
-		_shared_mesh.get_rid()
-		_shared_mat.get_rid()
+			var c: Color = colors[tier]
+			halo_material.albedo_color = Color(c.r, c.g, c.b, 0.42 + tier * 0.08)
+			_halo_materials.append(halo_material)
+		for tier_mesh in _tier_meshes:
+			tier_mesh.get_rid()
+		for tier_material in _tier_materials:
+			tier_material.get_rid()
 		_halo_mesh.get_rid()
-		_halo_mat.get_rid()
-	return [_shared_mesh, _shared_mat]
+		for halo_material in _halo_materials:
+			halo_material.get_rid()
+	return [_tier_meshes[0], _tier_materials[0]]
 
 
 ## A soft round falloff, built in code rather than authored — it is 64 px of green
@@ -210,12 +222,12 @@ static func _shared() -> Array:
 ## Diagnosed with core/tools/orb_probe.tscn, which parks halos at known distances:
 ## the texture dumped correct (centre alpha 0.53, corner 0.0) while the quads on
 ## screen were flat cards, which is what pinned it on the blend rather than the art.
-static func _halo_texture() -> GradientTexture2D:
+static func _halo_texture(color: Color = BASE_COLOR) -> GradientTexture2D:
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
 	grad.colors = PackedColorArray([
-		Color(0.62, 1.0, 0.52, 1.0),
-		Color(0.16, 0.34, 0.13, 0.35),
+		Color(color.r, color.g, color.b, 1.0),
+		Color(color.r * 0.28, color.g * 0.34, color.b * 0.28, 0.35),
 		Color(0.0, 0.0, 0.0, 0.0),
 	])
 	var tex := GradientTexture2D.new()
@@ -240,8 +252,11 @@ static func _halo_texture() -> GradientTexture2D:
 ## top of each orb's own landing time and dribbled them home one at a time.
 func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
 		ground_y := 0.0, clear_radius := 0.0, collect_at := 0.9,
-		xp_amount := 0, screen_target := Callable()) -> void:
+		xp_amount := 0, screen_target := Callable(), visual_scale := 1.0,
+		halo_scale := 1.0, tier := 0) -> void:
 	prepare_for_pool()
+	_tier = clampi(tier, 0, 3)
+	_apply_tier(_tier)
 
 	_target = target
 	_xp_amount = xp_amount
@@ -252,7 +267,12 @@ func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
 	_phase_age = 0.0
 	_collection_reported = false
 	rotation = Vector3.ZERO
-	scale = Vector3.ONE
+	var tier_scale := GameConfig.current().reward_bursts.tier_scales[_tier]
+	_burst_scale = maxf(1.0, visual_scale) * tier_scale
+	scale = Vector3.ONE * _burst_scale
+	var halo := get_node_or_null("Halo") as MeshInstance3D
+	if halo != null:
+		halo.scale = Vector3.ONE * maxf(1.0, halo_scale)
 	position = from
 	# Hidden until its turn: a burst of twelve orbs all leaving on the same frame
 	# reads as one object, and the stagger is what makes it read as a handful.
@@ -272,7 +292,7 @@ func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
 	_absorb_off = Vector2(cos(off_angle), sin(off_angle)) * off_reach
 	_spin = randf_range(-6.0, 6.0)
 
-	var up := randf_range(_POP_SPEED_MIN, _POP_SPEED_MAX)
+	var up := randf_range(_POP_SPEED_MIN, _POP_SPEED_MAX) * (1.0 + 0.09 * _tier)
 	# Solve the orb's OWN time to the floor, then pick the horizontal speed that
 	# puts its first touchdown in the ring we want. Aiming the landing this way
 	# survives any change to gravity or to the pop — the ring stays the ring.
@@ -280,7 +300,8 @@ func setup(from: Vector3, target: Node3D, delay: float, scatter_radius: float,
 	var fall := (up + sqrt(up * up + 2.0 * _GRAVITY * drop)) / _GRAVITY
 	# The jitter multiplies whichever floor wins, so the ring keeps its spread even
 	# when the stump is wide enough to dictate the minimum throw.
-	var reach := maxf(clear_radius * 1.15, scatter_radius) * randf_range(1.0, 1.5)
+	var reach := maxf(clear_radius * 1.15, scatter_radius) * randf_range(1.0, 1.5) \
+		* (1.0 + 0.08 * _tier)
 	var angle := randf() * TAU
 	_vel = Vector3(cos(angle) * reach / fall, up, sin(angle) * reach / fall)
 	set_process(true)
@@ -327,7 +348,7 @@ func _process(delta: float) -> void:
 			# being absorbed into the log. The shrink that is left only keeps the
 			# last few frames from becoming a wall of green.
 			var s := maxf(0.05, 1.0 - eased * _DRAW_SHRINK)
-			scale = Vector3(s, s, s)
+			scale = Vector3(s, s, s) * _burst_scale
 			if k >= 1.0:
 				_finish_collection()
 				return
@@ -358,12 +379,30 @@ func _absorb_point() -> Vector3:
 func _finish_collection() -> void:
 	if not _collection_reported:
 		_collection_reported = true
-		collected.emit(_xp_amount)
+		if AudioDirector != null:
+			AudioDirector.play_reward(&"xp", _tier, &"collect")
+		collected.emit(_xp_amount, _tier)
 	visible = false
 	set_process(false)
 	_target = null
 	_screen_target = Callable()
 	_xp_amount = 0
+	_burst_scale = 1.0
+	_tier = 0
+	_apply_tier(0)
+	var halo := get_node_or_null("Halo") as MeshInstance3D
+	if halo != null:
+		halo.scale = Vector3.ONE
+
+
+func _apply_tier(tier: int) -> void:
+	_shared()
+	var safe_tier := clampi(tier, 0, 3)
+	mesh = _tier_meshes[safe_tier]
+	material_override = _tier_materials[safe_tier]
+	var halo := get_node_or_null("Halo") as MeshInstance3D
+	if halo != null:
+		halo.material_override = _halo_materials[safe_tier]
 
 
 func show_for_render_warmup(world_position: Vector3) -> void:

@@ -1,141 +1,650 @@
-[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=13 format=3]
+[gd_resource type="Resource" script_class="SkillTreeTable" load_steps=70 format=3]
 
 [ext_resource type="Script" path="res://data/skill_tree_table.gd" id="1_tree"]
 [ext_resource type="Script" path="res://data/skill_node_def.gd" id="2_node"]
-[ext_resource type="Script" path="res://data/gameplay_modifier_def.gd" id="3_modifier"]
+[ext_resource type="Script" path="res://data/gameplay_modifier_def.gd" id="3_mod"]
 
-[sub_resource type="Resource" id="Resource_strong_arms"]
-resource_name = "strong_arms"
-script = ExtResource("2_node")
-id = &"strong_arms"
-display_name = "Strong Arms"
-description = "Heavier shoulders behind every blow. 5% more likely to split a log clean through."
-branch_id = &"strength"
-node_type = 0
-presentation_position = Vector2i(0, 0)
-requires = []
-max_level = 10
-cost = 1
-effect = 2
-effect_step = 0.05
+; FINAL SKILL VALUES — approved player-facing balance pass, 2026-08-06.
+[sub_resource type="Resource" id="Mod_split"]
+script = ExtResource("3_mod")
+id = &"skill_split_step"
+kind = 0
+magnitude = 0.02
+tuning_status = "FINAL — approved skill-tree balance"
 
-[sub_resource type="Resource" id="Resource_quick_hands"]
-resource_name = "quick_hands"
-script = ExtResource("2_node")
-id = &"quick_hands"
-display_name = "Quick Hands"
-description = "You get the axe back up 5% sooner between swings."
-branch_id = &"speed"
-node_type = 0
-presentation_position = Vector2i(0, 0)
-requires = []
-max_level = 10
-cost = 1
-effect = 1
-effect_step = 0.05
+[sub_resource type="Resource" id="Mod_scar"]
+script = ExtResource("3_mod")
+id = &"skill_scar_step"
+kind = 13
+magnitude = 0.02
+tuning_status = "FINAL — approved skill-tree balance"
 
-[sub_resource type="Resource" id="Resource_ready_stance"]
-resource_name = "ready_stance"
-script = ExtResource("2_node")
-id = &"ready_stance"
-display_name = "Ready Stance"
-description = "A shorter wind-up. The blade is in the wood before the log knows it."
-branch_id = &"speed"
-node_type = 0
-presentation_position = Vector2i(1, 0)
-requires = [&"quick_hands"]
-max_level = 5
-cost = 2
-effect = 3
-effect_step = 0.05
+[sub_resource type="Resource" id="Mod_recovery"]
+script = ExtResource("3_mod")
+id = &"skill_recovery_step"
+kind = 1
+magnitude = 0.02
+tuning_status = "FINAL — approved skill-tree balance"
 
-; M7C Slice 7 (2026-08-05): Speed's own signature proc. Follow-Up is a bonus
-; SWING, not a bonus cut — it re-enters _resolve_strike and can leave a scar
-; like any other swing, which is what keeps it mechanically distinct from
-; Strength's Double Strike (see chopping_minigame._attempt_follow_up()).
-[sub_resource type="Resource" id="Resource_follow_up"]
-resource_name = "follow_up"
-script = ExtResource("2_node")
-id = &"follow_up"
-display_name = "Follow-Up"
-description = "Your hands are already moving. Sometimes the axe doesn't stop after one swing — a second real swing on whatever's in front of you, split or not."
-branch_id = &"speed"
-node_type = 1
-presentation_position = Vector2i(0, 1)
-proc_id = &"follow_up"
-requires = [&"quick_hands"]
-max_level = 3
-cost = 3
-effect = 0
-effect_step = 0.0
+[sub_resource type="Resource" id="Mod_windup"]
+script = ExtResource("3_mod")
+id = &"skill_windup_step"
+kind = 2
+magnitude = 0.02
+tuning_status = "FINAL — approved skill-tree balance"
 
-[sub_resource type="Resource" id="Modifier_quick_study_grain_cue"]
-script = ExtResource("3_modifier")
-id = &"quick_study_grain_cue"
+[sub_resource type="Resource" id="Mod_orbit"]
+script = ExtResource("3_mod")
+id = &"skill_orbit_step"
+kind = 14
+magnitude = 0.03
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_turnaround"]
+script = ExtResource("3_mod")
+id = &"skill_turnaround_step"
+kind = 11
+magnitude = 0.02
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_multi"]
+script = ExtResource("3_mod")
+id = &"skill_multi_chop_depth"
+kind = 12
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_hold"]
+script = ExtResource("3_mod")
+id = &"skill_hold_to_chop"
+kind = 10
+operation = 2
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_follow_depth"]
+script = ExtResource("3_mod")
+id = &"skill_follow_up_depth"
+kind = 15
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_precision"]
+script = ExtResource("3_mod")
+id = &"skill_precision_chain_safety"
+kind = 16
+operation = 2
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_earthshaker"]
+script = ExtResource("3_mod")
+id = &"skill_earthshaker"
+kind = 17
+operation = 2
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_handoff"]
+script = ExtResource("3_mod")
+id = &"skill_continuous_handoff"
+kind = 18
+operation = 2
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_xp"]
+script = ExtResource("3_mod")
+id = &"skill_global_xp_step"
+kind = 9
+magnitude = 0.01
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_cash"]
+script = ExtResource("3_mod")
+id = &"skill_global_cash_step"
+kind = 8
+magnitude = 0.01
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_grain"]
+script = ExtResource("3_mod")
+id = &"skill_grain_cue"
 kind = 7
 operation = 2
 magnitude = 1.0
-tuning_status = "PLACEHOLDER — Creative Director tuning required"
+tuning_status = "FINAL — approved skill-tree balance"
 
-[sub_resource type="Resource" id="Resource_quick_study"]
-resource_name = "quick_study"
-script = ExtResource("2_node")
-id = &"quick_study"
-display_name = "Quick Study"
-description = "Spot the rare piece with a gold grain — cut along it for a big burst of XP — and sometimes one manually finished log teaches you much more."
-branch_id = &"technique"
-node_type = 1
-presentation_position = Vector2i(0, 0)
-proc_id = &"quick_study"
-modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_quick_study_grain_cue")])
-requires = []
-max_level = 5
-cost = 3
-effect = 0
-effect_step = 0.0
-
-[sub_resource type="Resource" id="Resource_double_strike"]
-resource_name = "double_strike"
-script = ExtResource("2_node")
-id = &"double_strike"
-display_name = "Double Strike"
-description = "One good swing, and sometimes the axe doesn't stop moving — a second real cut on whatever's left standing."
-branch_id = &"strength"
-node_type = 1
-presentation_position = Vector2i(0, 1)
-proc_id = &"double_strike"
-requires = [&"strong_arms"]
-max_level = 3
-cost = 3
-effect = 0
-effect_step = 0.05
-
-; PLACEHOLDER — Creative Director tuning required. Kind PRECISION_SAFETY /
-; Operation ENABLE is the resolver's exact hook for "an owned modifier
-; explicitly makes [bonus cuts] safe" during precision work (M7C brief).
-[sub_resource type="Resource" id="Modifier_double_strike_precision_safety"]
-script = ExtResource("3_modifier")
-id = &"double_strike_precision_safety"
-kind = 5
+[sub_resource type="Resource" id="Mod_eureka"]
+script = ExtResource("3_mod")
+id = &"skill_grain_guarantee"
+kind = 19
 operation = 2
 magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
 
-[sub_resource type="Resource" id="Resource_steady_continuation"]
-resource_name = "steady_continuation"
+[sub_resource type="Resource" id="Mod_masterwork"]
+script = ExtResource("3_mod")
+id = &"skill_masterwork"
+kind = 20
+operation = 2
+magnitude = 1.0
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_alien"]
+script = ExtResource("3_mod")
+id = &"skill_alien_handling_step"
+kind = 21
+magnitude = 0.02
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_contribution"]
+script = ExtResource("3_mod")
+id = &"skill_contribution_step"
+kind = 22
+magnitude = 0.03
+tuning_status = "FINAL — approved skill-tree balance"
+
+[sub_resource type="Resource" id="Mod_logistics"]
+script = ExtResource("3_mod")
+id = &"skill_frontier_logistics_step"
+kind = 23
+magnitude = 0.10
+tuning_status = "FINAL — approved skill-tree balance"
+
+; Strength -----------------------------------------------------------------
+[sub_resource type="Resource" id="S01"]
+script = ExtResource("2_node")
+id = &"strong_arms"
+display_name = "Strong Arms"
+description = "Each rank adds 2 percentage points to your chance of splitting any wood. At 5/5, that is +10 points."
+branch_id = &"strength"
+presentation_position = Vector2i(2, 0)
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_split")])
+max_level = 5
+
+[sub_resource type="Resource" id="S02"]
+script = ExtResource("2_node")
+id = &"deep_bite"
+display_name = "Deep Bite"
+description = "Each rank makes every scar add 2 more percentage points to the next split chance. At 5/5, each scar adds 10 extra points."
+branch_id = &"strength"
+presentation_position = Vector2i(1, 1)
+requires = [&"strong_arms"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_scar")])
+max_level = 5
+
+[sub_resource type="Resource" id="S03"]
+script = ExtResource("2_node")
+id = &"wedge_sense"
+display_name = "Wedge Sense"
+description = "Each rank adds 2 percentage points to your chance of splitting any wood. At 5/5, that is +10 points."
+branch_id = &"strength"
+presentation_position = Vector2i(3, 1)
+requires = [&"strong_arms"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_split")])
+max_level = 5
+
+[sub_resource type="Resource" id="S04"]
+script = ExtResource("2_node")
+id = &"hardwood_training"
+display_name = "Hardwood Training"
+description = "Each rank adds 2 percentage points to your chance of splitting any wood. At 5/5, that is +10 points."
+branch_id = &"strength"
+presentation_position = Vector2i(2, 2)
+requires = [&"deep_bite", &"wedge_sense"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_split")])
+max_level = 5
+
+[sub_resource type="Resource" id="S05"]
+script = ExtResource("2_node")
+id = &"driving_force"
+display_name = "Driving Force"
+description = "Adds 2 percentage points to your chance of splitting any wood."
+branch_id = &"strength"
+node_type = 2
+presentation_position = Vector2i(1, 3)
+requires = [&"hardwood_training"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_split")])
+
+[sub_resource type="Resource" id="S06"]
+script = ExtResource("2_node")
+id = &"no_wasted_blow"
+display_name = "No Wasted Blow"
+description = "Every scar adds 2 more percentage points to the next split chance."
+branch_id = &"strength"
+node_type = 2
+presentation_position = Vector2i(3, 3)
+requires = [&"hardwood_training"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_scar")])
+
+[sub_resource type="Resource" id="S07"]
+script = ExtResource("2_node")
+id = &"double_strike"
+display_name = "Double Chop"
+description = "Each successful first cut has a 10% chance to make 1 automatic bonus cut. After 9 misses, the next eligible cut is guaranteed."
+branch_id = &"strength"
+node_type = 1
+presentation_position = Vector2i(2, 4)
+proc_id = &"double_strike"
+requires = [&"driving_force", &"no_wasted_blow"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_multi")])
+
+[sub_resource type="Resource" id="S08"]
 script = ExtResource("2_node")
 id = &"steady_continuation"
 display_name = "Steady Continuation"
-description = "Learned control keeps a Double Strike safe even while you're working carefully — it no longer holds back during precision swings."
+description = "Double, Triple, and Quad Chop can continue during precision cuts without ruining the protected piece."
 branch_id = &"strength"
 node_type = 2
-presentation_position = Vector2i(0, 2)
+presentation_position = Vector2i(1, 5)
 requires = [&"double_strike"]
-max_level = 1
-cost = 2
-effect = 0
-effect_step = 0.05
-modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_double_strike_precision_safety")])
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_precision")])
+
+[sub_resource type="Resource" id="S09"]
+script = ExtResource("2_node")
+id = &"cleaving_judgment"
+display_name = "Cleaving Judgment"
+description = "Adds 2 percentage points to the split chance of every cut, including automatic bonus cuts."
+branch_id = &"strength"
+node_type = 2
+presentation_position = Vector2i(3, 5)
+requires = [&"double_strike"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_split")])
+
+[sub_resource type="Resource" id="S10"]
+script = ExtResource("2_node")
+id = &"triple_chop"
+display_name = "Triple Chop"
+description = "When Double Chop triggers, it can make a second automatic bonus cut: up to 3 cuts from one click."
+branch_id = &"strength"
+node_type = 2
+presentation_position = Vector2i(2, 6)
+requires = [&"steady_continuation", &"cleaving_judgment"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_multi")])
+
+[sub_resource type="Resource" id="S11"]
+script = ExtResource("2_node")
+id = &"earthshaker"
+display_name = "Earthshaker"
+description = "After a multi-chop chain finishes, every usable piece left on the block receives 1 visible scar."
+branch_id = &"strength"
+node_type = 3
+presentation_position = Vector2i(2, 7)
+requires = [&"triple_chop"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_earthshaker")])
+
+[sub_resource type="Resource" id="S12"]
+script = ExtResource("2_node")
+id = &"quad_chop"
+display_name = "Quad Chop"
+description = "When Double Chop triggers, it can make a third automatic bonus cut: up to 4 cuts from one click."
+branch_id = &"strength"
+node_type = 3
+presentation_position = Vector2i(2, 8)
+requires = [&"earthshaker"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_multi")])
+
+; Speed --------------------------------------------------------------------
+[sub_resource type="Resource" id="Q01"]
+script = ExtResource("2_node")
+id = &"quick_hands"
+display_name = "Quick Hands"
+description = "Each rank cuts 2% from the wait after every swing. At 5/5, the wait is 10% shorter."
+branch_id = &"speed"
+presentation_position = Vector2i(2, 0)
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_recovery")])
+max_level = 5
+
+[sub_resource type="Resource" id="Q02"]
+script = ExtResource("2_node")
+id = &"ready_stance"
+display_name = "Ready Stance"
+description = "Each rank cuts 2% from the axe wind-up before it hits. At 5/5, the wind-up is 10% shorter."
+branch_id = &"speed"
+presentation_position = Vector2i(1, 1)
+requires = [&"quick_hands"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_windup")])
+max_level = 5
+
+[sub_resource type="Resource" id="Q03"]
+script = ExtResource("2_node")
+id = &"fleet_footing"
+display_name = "Fleet Footing"
+description = "Each rank makes manual and automatic camera turns 3% faster. At 5/5, turns are 15% faster."
+branch_id = &"speed"
+presentation_position = Vector2i(3, 1)
+requires = [&"quick_hands"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_orbit")])
+max_level = 5
+
+[sub_resource type="Resource" id="Q04"]
+script = ExtResource("2_node")
+id = &"efficient_motion"
+display_name = "Efficient Motion"
+description = "Each rank cuts 2% from the wait for pieces to settle and the next log to arrive. At 5/5, that wait is 10% shorter."
+branch_id = &"speed"
+presentation_position = Vector2i(2, 2)
+requires = [&"ready_stance", &"fleet_footing"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_turnaround")])
+max_level = 5
+
+[sub_resource type="Resource" id="Q05"]
+script = ExtResource("2_node")
+id = &"fast_reset"
+display_name = "Fast Reset"
+description = "Cuts another 2% from the wait after every swing."
+branch_id = &"speed"
+node_type = 2
+presentation_position = Vector2i(1, 3)
+requires = [&"efficient_motion"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_recovery")])
+
+[sub_resource type="Resource" id="Q06"]
+script = ExtResource("2_node")
+id = &"fast_delivery"
+display_name = "Fast Delivery"
+description = "Cuts another 2% from the wait for pieces to settle and the next log to arrive."
+branch_id = &"speed"
+node_type = 2
+presentation_position = Vector2i(3, 3)
+requires = [&"efficient_motion"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_turnaround")])
+
+[sub_resource type="Resource" id="Q07"]
+script = ExtResource("2_node")
+id = &"work_rhythm"
+display_name = "Work Rhythm"
+description = "You can hold the chop button instead of clicking for every swing. The axe swings again as soon as it is ready."
+branch_id = &"speed"
+node_type = 2
+presentation_position = Vector2i(2, 4)
+requires = [&"fast_reset", &"fast_delivery"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_hold")])
+
+[sub_resource type="Resource" id="Q08"]
+script = ExtResource("2_node")
+id = &"follow_up"
+display_name = "Follow-Up"
+description = "Every landed manual swing has a 10% chance to swing again automatically. After 9 misses, the next swing is guaranteed."
+branch_id = &"speed"
+node_type = 1
+presentation_position = Vector2i(1, 5)
+proc_id = &"follow_up"
+requires = [&"work_rhythm"]
+
+[sub_resource type="Resource" id="Q09"]
+script = ExtResource("2_node")
+id = &"steady_rhythm"
+display_name = "Steady Rhythm"
+description = "Held chopping continues through automatic camera turns, and those turns become 3% faster."
+branch_id = &"speed"
+node_type = 2
+presentation_position = Vector2i(3, 5)
+requires = [&"work_rhythm"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_orbit")])
+
+[sub_resource type="Resource" id="Q10"]
+script = ExtResource("2_node")
+id = &"fast_handoff"
+display_name = "Fast Handoff"
+description = "Keep holding the chop button and chopping resumes automatically when the next log is ready."
+branch_id = &"speed"
+node_type = 2
+presentation_position = Vector2i(2, 6)
+requires = [&"follow_up", &"steady_rhythm"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_handoff")])
+
+[sub_resource type="Resource" id="Q11"]
+script = ExtResource("2_node")
+id = &"flurry"
+display_name = "Flurry"
+description = "Whenever Follow-Up triggers, it makes 1 extra automatic swing for a total of 3 swings."
+branch_id = &"speed"
+node_type = 3
+presentation_position = Vector2i(2, 7)
+requires = [&"fast_handoff"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_follow_depth")])
+
+[sub_resource type="Resource" id="Q12"]
+script = ExtResource("2_node")
+id = &"unbroken_rhythm"
+display_name = "Unbroken Rhythm"
+description = "Continuous chopping keeps running between logs and cuts another 2% from the between-log wait."
+branch_id = &"speed"
+node_type = 3
+presentation_position = Vector2i(2, 8)
+requires = [&"flurry"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_turnaround"), SubResource("Mod_handoff")])
+
+; Mastery ------------------------------------------------------------------
+[sub_resource type="Resource" id="M01"]
+script = ExtResource("2_node")
+id = &"lessons_learned"
+display_name = "Lessons Learned"
+description = "Each rank gives 1% more XP whenever you earn XP. At 5/5, you earn 5% more XP."
+branch_id = &"mastery"
+presentation_position = Vector2i(2, 0)
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp")])
+max_level = 5
+
+[sub_resource type="Resource" id="M02"]
+script = ExtResource("2_node")
+id = &"studied_practice"
+display_name = "Studied Practice"
+description = "Each rank gives 1% more XP whenever you earn XP. At 5/5, you earn 5% more XP."
+branch_id = &"mastery"
+presentation_position = Vector2i(1, 1)
+requires = [&"lessons_learned"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp")])
+max_level = 5
+
+[sub_resource type="Resource" id="M03"]
+script = ExtResource("2_node")
+id = &"keen_appraisal"
+display_name = "Keen Appraisal"
+description = "Each rank gives 1% more cash whenever you are paid. At 5/5, you earn 5% more cash."
+branch_id = &"mastery"
+presentation_position = Vector2i(3, 1)
+requires = [&"lessons_learned"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_cash")])
+max_level = 5
+
+[sub_resource type="Resource" id="M04"]
+script = ExtResource("2_node")
+id = &"balanced_growth"
+display_name = "Balanced Growth"
+description = "Each rank gives 1% more XP and 1% more cash. At 5/5, both bonuses are +5%."
+branch_id = &"mastery"
+presentation_position = Vector2i(2, 2)
+requires = [&"studied_practice", &"keen_appraisal"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp"), SubResource("Mod_cash")])
+max_level = 5
+
+[sub_resource type="Resource" id="M05"]
+script = ExtResource("2_node")
+id = &"broad_experience"
+display_name = "Broad Experience"
+description = "Earn 1% more XP whenever you earn XP."
+branch_id = &"mastery"
+node_type = 2
+presentation_position = Vector2i(1, 3)
+requires = [&"balanced_growth"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp")])
+
+[sub_resource type="Resource" id="M06"]
+script = ExtResource("2_node")
+id = &"trusted_name"
+display_name = "Trusted Name"
+description = "Earn 1% more cash whenever you are paid."
+branch_id = &"mastery"
+node_type = 2
+presentation_position = Vector2i(3, 3)
+requires = [&"balanced_growth"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_cash")])
+
+[sub_resource type="Resource" id="M07"]
+script = ExtResource("2_node")
+id = &"quick_study"
+display_name = "Quick Study"
+description = "Each manually completed log has a 10% chance to pay double XP. After 9 misses, the next completed log is guaranteed to double."
+branch_id = &"mastery"
+node_type = 1
+presentation_position = Vector2i(2, 4)
+proc_id = &"quick_study"
+requires = [&"broad_experience", &"trusted_name"]
+
+[sub_resource type="Resource" id="M08"]
+script = ExtResource("2_node")
+id = &"grain_reader"
+display_name = "Grain Reader"
+description = "Each new piece has a 2.2% chance to reveal gold grain. Cutting the mark pays bonus XP worth 12 normal logs; after 59 misses, the next piece is guaranteed."
+branch_id = &"mastery"
+node_type = 2
+presentation_position = Vector2i(1, 5)
+requires = [&"quick_study"]
+modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_grain")])
+
+[sub_resource type="Resource" id="M09"]
+script = ExtResource("2_node")
+id = &"company_insight"
+display_name = "Company Insight"
+description = "Earn 1% more XP whenever you gain XP and 1% more cash whenever you are paid."
+branch_id = &"mastery"
+node_type = 2
+presentation_position = Vector2i(3, 5)
+requires = [&"quick_study"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp"), SubResource("Mod_cash")])
+
+[sub_resource type="Resource" id="M10"]
+script = ExtResource("2_node")
+id = &"perfect_lesson"
+display_name = "Perfect Lesson"
+description = "Earn 1% more XP from everything, including gold-grain jackpots."
+branch_id = &"mastery"
+node_type = 2
+presentation_position = Vector2i(2, 6)
+requires = [&"grain_reader", &"company_insight"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp")])
+
+[sub_resource type="Resource" id="M11"]
+script = ExtResource("2_node")
+id = &"eureka"
+display_name = "Eureka"
+description = "Whenever Quick Study doubles a log's XP, a future usable piece is guaranteed to show gold grain."
+branch_id = &"mastery"
+node_type = 3
+presentation_position = Vector2i(2, 7)
+requires = [&"perfect_lesson"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_eureka")])
+
+[sub_resource type="Resource" id="M12"]
+script = ExtResource("2_node")
+id = &"master_axeman"
+display_name = "Master Axeman"
+description = "Earn 1% more XP and cash. After every level-up, your next manual log also gives 50% more XP and bonus cash worth 2 pieces of that wood."
+branch_id = &"mastery"
+node_type = 3
+presentation_position = Vector2i(2, 8)
+requires = [&"eureka"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_masterwork"), SubResource("Mod_xp"), SubResource("Mod_cash")])
+
+; Frontier -----------------------------------------------------------------
+[sub_resource type="Resource" id="F01"]
+script = ExtResource("2_node")
+id = &"specimen_handling"
+display_name = "Specimen Handling"
+description = "Adds 2 percentage points to your chance of splitting alien wood."
+branch_id = &"frontier"
+presentation_position = Vector2i(2, 0)
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
+
+[sub_resource type="Resource" id="F02"]
+script = ExtResource("2_node")
+id = &"field_conditioning"
+display_name = "Field Conditioning"
+description = "Adds 2 percentage points to your chance of splitting alien wood."
+branch_id = &"frontier"
+presentation_position = Vector2i(1, 1)
+requires = [&"specimen_handling"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
+
+[sub_resource type="Resource" id="F03"]
+script = ExtResource("2_node")
+id = &"expedition_preparation"
+display_name = "Expedition Preparation"
+description = "Timber contributions count for 3% more launch progress."
+branch_id = &"frontier"
+presentation_position = Vector2i(3, 1)
+requires = [&"specimen_handling"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_contribution")])
+
+[sub_resource type="Resource" id="F04"]
+script = ExtResource("2_node")
+id = &"alien_reliability"
+display_name = "Alien Reliability"
+description = "Adds 2 percentage points to your chance of splitting alien wood."
+branch_id = &"frontier"
+node_type = 2
+presentation_position = Vector2i(1, 2)
+requires = [&"field_conditioning"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
+
+[sub_resource type="Resource" id="F05"]
+script = ExtResource("2_node")
+id = &"efficient_manifest"
+display_name = "Efficient Manifest"
+description = "Timber contributions count for 3% more launch progress."
+branch_id = &"frontier"
+node_type = 2
+presentation_position = Vector2i(3, 2)
+requires = [&"expedition_preparation"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_contribution")])
+
+[sub_resource type="Resource" id="F06"]
+script = ExtResource("2_node")
+id = &"alien_adaptation"
+display_name = "Alien Adaptation"
+description = "Adds 2 percentage points to your chance of splitting alien wood."
+branch_id = &"frontier"
+node_type = 2
+presentation_position = Vector2i(2, 3)
+requires = [&"alien_reliability", &"efficient_manifest"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
+
+[sub_resource type="Resource" id="F07"]
+script = ExtResource("2_node")
+id = &"frontier_logistics"
+display_name = "Frontier Logistics"
+description = "Cargo fleets and alien orbital cutting lines cost 10% less cash."
+branch_id = &"frontier"
+node_type = 2
+presentation_position = Vector2i(2, 4)
+requires = [&"alien_adaptation"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_logistics")])
+
+[sub_resource type="Resource" id="F08"]
+script = ExtResource("2_node")
+id = &"first_contact_expert"
+display_name = "First-Contact Expert"
+description = "Adds 2 percentage points to your chance of splitting alien wood."
+branch_id = &"frontier"
+node_type = 3
+presentation_position = Vector2i(2, 5)
+requires = [&"frontier_logistics"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
+
+[sub_resource type="Resource" id="F09"]
+script = ExtResource("2_node")
+id = &"frontier_master"
+display_name = "Frontier Master"
+description = "Adds 2 percentage points to alien-wood split chance, plus 1% more XP whenever you gain XP and 1% more cash whenever you are paid."
+branch_id = &"frontier"
+node_type = 3
+presentation_position = Vector2i(2, 6)
+requires = [&"first_contact_expert"]
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien"), SubResource("Mod_xp"), SubResource("Mod_cash")])
 
 [resource]
 script = ExtResource("1_tree")
-nodes = Array[ExtResource("2_node")]([SubResource("Resource_strong_arms"), SubResource("Resource_quick_hands"), SubResource("Resource_ready_stance"), SubResource("Resource_follow_up"), SubResource("Resource_quick_study"), SubResource("Resource_double_strike"), SubResource("Resource_steady_continuation")])
+nodes = Array[ExtResource("2_node")]([SubResource("S01"), SubResource("S02"), SubResource("S03"), SubResource("S04"), SubResource("S05"), SubResource("S06"), SubResource("S07"), SubResource("S08"), SubResource("S09"), SubResource("S10"), SubResource("S11"), SubResource("S12"), SubResource("Q01"), SubResource("Q02"), SubResource("Q03"), SubResource("Q04"), SubResource("Q05"), SubResource("Q06"), SubResource("Q07"), SubResource("Q08"), SubResource("Q09"), SubResource("Q10"), SubResource("Q11"), SubResource("Q12"), SubResource("M01"), SubResource("M02"), SubResource("M03"), SubResource("M04"), SubResource("M05"), SubResource("M06"), SubResource("M07"), SubResource("M08"), SubResource("M09"), SubResource("M10"), SubResource("M11"), SubResource("M12"), SubResource("F01"), SubResource("F02"), SubResource("F03"), SubResource("F04"), SubResource("F05"), SubResource("F06"), SubResource("F07"), SubResource("F08"), SubResource("F09")])

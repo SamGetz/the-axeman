@@ -26,6 +26,7 @@ static func upgrade_definitions() -> Array[UpgradeDef]:
 	var out: Array[UpgradeDef] = []
 	for definition: UpgradeDef in Shop.get_upgrades():
 		if definition != null \
+				and not definition is ProductionUpgradeDef \
 				and definition.automation_role == UpgradeDef.AutomationRole.SPLITTER_UPGRADE:
 			out.append(definition)
 	return out
@@ -90,6 +91,8 @@ static func validate_catalogue(upgrades: Array[UpgradeDef]) -> PackedStringArray
 			ids[definition.id] = definition
 			indices[definition.id] = index
 
+		if definition is ProductionUpgradeDef:
+			continue
 		match definition.automation_role:
 			UpgradeDef.AutomationRole.MECHANICAL_SPLITTER:
 				if machine != null:
@@ -133,6 +136,10 @@ static func validate_catalogue(upgrades: Array[UpgradeDef]) -> PackedStringArray
 		if definition.required_mastered_species_count < 0 \
 				or definition.required_mastered_species_count > SpeciesTable.count():
 			errors.append("upgrade %s has invalid mastered-species count" % definition.id)
+		if definition is ProductionUpgradeDef:
+			if not (definition as ProductionUpgradeDef).validate_production().is_empty():
+				errors.append("production upgrade %s is invalid" % definition.id)
+			continue
 
 		if definition.automation_role == UpgradeDef.AutomationRole.NONE:
 			if definition.automation_species_id != &"":

@@ -136,7 +136,15 @@ func _apply_extra_reach() -> void:
 ## overrides are duplicated per instance, so the imported FBX and its shared
 ## materials remain untouched and can still be replaced by final authored art.
 func set_balanced_upgrade(enabled: bool) -> void:
-	_balanced_enabled = enabled
+	set_equipment_upgrade(&"balanced_axe" if enabled else &"", 0,
+		_BALANCED_AXE_TINT if enabled else Color.WHITE)
+
+
+## Placeholder visual swap seam. Today every stage reuses the stable axe asset
+## and gets a distinct per-instance tint; final models can replace each
+## EquipmentDef presentation path without touching ownership or proc behavior.
+func set_equipment_upgrade(equipment_id: StringName, stage: int, tint: Color) -> void:
+	_balanced_enabled = equipment_id != &""
 	if _axe_model == null:
 		return
 	var parts: Array[MeshInstance3D] = []
@@ -147,16 +155,18 @@ func set_balanced_upgrade(enabled: bool) -> void:
 			continue
 		for surface in range(part.mesh.get_surface_count()):
 			part.set_surface_override_material(surface, null)
-	if not enabled:
+	if equipment_id == &"":
 		_axe_model.remove_meta("art_status")
+		_axe_model.remove_meta("equipment_id")
 		return
-	_axe_model.set_meta("art_status", "temporary_colour_variant_existing_axe")
+	_axe_model.set_meta("art_status", "temporary_colour_variant_existing_axe_stage_%d" % stage)
+	_axe_model.set_meta("equipment_id", equipment_id)
 	for part: MeshInstance3D in parts:
 		if part.mesh == null:
 			continue
 		for surface in range(part.mesh.get_surface_count()):
 			part.set_surface_override_material(surface,
-				_tinted_material(part.get_active_material(surface), _BALANCED_AXE_TINT))
+				_tinted_material(part.get_active_material(surface), tint))
 
 
 func has_balanced_color_variant() -> bool:

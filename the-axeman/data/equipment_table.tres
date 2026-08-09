@@ -1,76 +1,214 @@
-[gd_resource type="Resource" script_class="EquipmentTable" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="EquipmentTable" load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://data/equipment_table.gd" id="1_table"]
 [ext_resource type="Script" path="res://data/equipment_def.gd" id="2_equipment"]
 
-[sub_resource type="Resource" id="Equipment_basic_axe"]
+[sub_resource type="Resource" id="A0"]
 script = ExtResource("2_equipment")
 id = &"basic_axe"
 display_name = "Woodcutter's Axe"
 description = "The dependable starting axe."
-limitation = "No equipment-specific proc affinity or resistant-wood weighting."
+limitation = "No equipment proc profile."
 slot = 0
 is_starting_fallback = true
-comparison_tags = Array[StringName]([&"balanced", &"baseline"])
+comparison_tags = Array[StringName]([&"baseline"])
 presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
 art_status = 0
-
-[sub_resource type="Resource" id="Equipment_balanced_axe"]
+[sub_resource type="Resource" id="AB"]
 script = ExtResource("2_equipment")
 id = &"balanced_axe"
 display_name = "Balanced Axe"
-description = "The M7A generalist reliability tool."
-limitation = "Never grants an unlearned skill proc."
+description = "The original reliability upgrade."
+limitation = "No equipment proc profile."
 slot = 0
 ownership_upgrade_id = &"balanced_axe"
-comparison_tags = Array[StringName]([&"generalist", &"split_reliability"])
+comparison_tags = Array[StringName]([&"split_reliability"])
 presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
 art_status = 1
 
-[sub_resource type="Resource" id="Equipment_splitting_maul"]
+[sub_resource type="Resource" id="A1"]
 script = ExtResource("2_equipment")
-id = &"splitting_maul"
-display_name = "Splitting Maul"
-description = "A slower sidegrade intended for resistant wood."
-limitation = "Does not discover skills or make an ordinary split certain."
+id = &"tempered_woodsmans_axe"
+display_name = "Tempered Woodsman’s Axe"
 slot = 0
-comparison_tags = Array[StringName]([&"slow", &"resistant_wood"])
+ownership_upgrade_id = &"tempered_woodsmans_axe"
+progression_stage = 1
+placeholder_tint = Color(0.77, 0.55, 0.29, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A2"]
+script = ExtResource("2_equipment")
+id = &"forged_splitting_maul"
+display_name = "Forged Splitting Maul"
+slot = 0
+ownership_upgrade_id = &"forged_splitting_maul"
+progression_stage = 2
+placeholder_tint = Color(0.48, 0.62, 0.72, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A3"]
+script = ExtResource("2_equipment")
+id = &"steel_cheek_axe"
+display_name = "Steel-Cheek Axe"
+slot = 0
+ownership_upgrade_id = &"steel_cheek_axe"
+progression_stage = 3
+placeholder_tint = Color(0.62, 0.68, 0.76, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A4"]
+script = ExtResource("2_equipment")
+id = &"journeymans_bearded_axe"
+display_name = "Journeyman’s Bearded Axe"
+slot = 0
+ownership_upgrade_id = &"journeymans_bearded_axe"
+progression_stage = 4
+placeholder_tint = Color(0.38, 0.66, 0.48, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A5"]
+script = ExtResource("2_equipment")
+id = &"hardwood_pattern_axe"
+display_name = "Hardwood Pattern Axe"
+slot = 0
+ownership_upgrade_id = &"hardwood_pattern_axe"
+progression_stage = 5
+placeholder_tint = Color(0.70, 0.34, 0.24, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A6"]
+script = ExtResource("2_equipment")
+id = &"continental_mill_axe"
+display_name = "Continental Mill Axe"
+slot = 0
+ownership_upgrade_id = &"continental_mill_axe"
+progression_stage = 6
+placeholder_tint = Color(0.24, 0.42, 0.68, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A7"]
+script = ExtResource("2_equipment")
+id = &"earthmaster_axe"
+display_name = "Earthmaster Axe"
+slot = 0
+ownership_upgrade_id = &"earthmaster_axe"
+progression_stage = 7
+placeholder_tint = Color(0.46, 0.25, 0.58, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
+art_status = 2
+[sub_resource type="Resource" id="A8"]
+script = ExtResource("2_equipment")
+id = &"starforged_xenowood_axe"
+display_name = "Starforged Xenowood Axe"
+slot = 0
+ownership_upgrade_id = &"starforged_xenowood_axe"
+progression_stage = 8
+placeholder_tint = Color(0.20, 0.88, 0.92, 1)
+presentation_scene_path = "res://assets/models/axe_basic/axe_basic.fbx"
 art_status = 2
 
-[sub_resource type="Resource" id="Equipment_basic_block"]
+[sub_resource type="Resource" id="S0"]
 script = ExtResource("2_equipment")
 id = &"basic_chopping_block"
 display_name = "Chopping Block"
 description = "The starting manual workstation."
-limitation = "No cradle support or precision assistance."
+limitation = "No equipment proc profile."
 slot = 1
 is_starting_fallback = true
-comparison_tags = Array[StringName]([&"baseline", &"manual"])
+comparison_tags = Array[StringName]([&"baseline"])
 presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
 art_status = 0
-
-[sub_resource type="Resource" id="Equipment_reinforced_block"]
+[sub_resource type="Resource" id="SB"]
 script = ExtResource("2_equipment")
 id = &"reinforced_chopping_block"
 display_name = "Reinforced Chopping Block"
-description = "The broader M7A rank-one work surface."
-limitation = "Does not change the slice result or grant a proc."
 slot = 1
 ownership_upgrade_id = &"reinforced_chopping_block"
-comparison_tags = Array[StringName]([&"wide", &"steady"])
+comparison_tags = Array[StringName]([&"work_radius"])
 presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
 art_status = 1
 
-[sub_resource type="Resource" id="Equipment_log_cradle"]
+[sub_resource type="Resource" id="S1"]
+script = ExtResource("2_equipment")
+id = &"iron_block_dogs"
+display_name = "Iron Block Dogs"
+slot = 1
+ownership_upgrade_id = &"iron_block_dogs"
+progression_stage = 1
+placeholder_tint = Color(0.58, 0.45, 0.32, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S2"]
 script = ExtResource("2_equipment")
 id = &"log_cradle"
 display_name = "Log Cradle"
-description = "Reinforced Block rank 2, approved for deliberate orientation and steadying."
-limitation = "Does not alter slicer output or bypass precision suppression."
 slot = 1
-comparison_tags = Array[StringName]([&"orientation", &"precision_support"])
+ownership_upgrade_id = &"log_cradle"
+progression_stage = 2
+placeholder_tint = Color(0.68, 0.53, 0.32, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S3"]
+script = ExtResource("2_equipment")
+id = &"raised_split_stand"
+display_name = "Raised Split Stand"
+slot = 1
+ownership_upgrade_id = &"raised_split_stand"
+progression_stage = 3
+placeholder_tint = Color(0.48, 0.62, 0.38, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S4"]
+script = ExtResource("2_equipment")
+id = &"braced_yard_block"
+display_name = "Braced Yard Block"
+slot = 1
+ownership_upgrade_id = &"braced_yard_block"
+progression_stage = 4
+placeholder_tint = Color(0.35, 0.55, 0.62, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S5"]
+script = ExtResource("2_equipment")
+id = &"millhouse_chopping_block"
+display_name = "Millhouse Chopping Block"
+slot = 1
+ownership_upgrade_id = &"millhouse_chopping_block"
+progression_stage = 5
+placeholder_tint = Color(0.63, 0.34, 0.28, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S6"]
+script = ExtResource("2_equipment")
+id = &"continental_split_deck"
+display_name = "Continental Split Deck"
+slot = 1
+ownership_upgrade_id = &"continental_split_deck"
+progression_stage = 6
+placeholder_tint = Color(0.30, 0.39, 0.65, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S7"]
+script = ExtResource("2_equipment")
+id = &"earthmaster_ironwood_block"
+display_name = "Earthmaster Ironwood Block"
+slot = 1
+ownership_upgrade_id = &"earthmaster_ironwood_block"
+progression_stage = 7
+placeholder_tint = Color(0.39, 0.25, 0.52, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
+art_status = 2
+[sub_resource type="Resource" id="S8"]
+script = ExtResource("2_equipment")
+id = &"orbital_specimen_stand"
+display_name = "Orbital Specimen Stand"
+slot = 1
+ownership_upgrade_id = &"orbital_specimen_stand"
+progression_stage = 8
+placeholder_tint = Color(0.22, 0.74, 0.82, 1)
+presentation_scene_path = "res://assets/models/chopping_stump_a/chopping_stump_a.fbx"
 art_status = 2
 
 [resource]
 script = ExtResource("1_table")
-equipment = Array[ExtResource("2_equipment")]([SubResource("Equipment_basic_axe"), SubResource("Equipment_balanced_axe"), SubResource("Equipment_splitting_maul"), SubResource("Equipment_basic_block"), SubResource("Equipment_reinforced_block"), SubResource("Equipment_log_cradle")])
+equipment = Array[ExtResource("2_equipment")]([SubResource("A0"), SubResource("AB"), SubResource("A1"), SubResource("A2"), SubResource("A3"), SubResource("A4"), SubResource("A5"), SubResource("A6"), SubResource("A7"), SubResource("A8"), SubResource("S0"), SubResource("SB"), SubResource("S1"), SubResource("S2"), SubResource("S3"), SubResource("S4"), SubResource("S5"), SubResource("S6"), SubResource("S7"), SubResource("S8")])

@@ -4,7 +4,7 @@ extends Node
 ## Run that scene (F6). Not shipped in builds.
 ##
 ## Verifies M3 GameFeel:
-##   - config loaded from game_feel_config.tres
+##   - all global tuning loaded and validated through game_config.tres
 ##   - A11 hit-pause sets/restores Engine.time_scale
 ##   - the A11 overlap guard: time_scale never sticks low, always ends at 1.0
 ##   - trauma add/clamp, strength clamp
@@ -47,7 +47,15 @@ func _wait(seconds: float) -> void:
 
 
 func _test_1_config_loaded() -> void:
+	var global_config := GameConfig.current()
+	_check(global_config != null and global_config.validate().is_empty(),
+		"the consolidated global config loads with every domain valid")
 	_check(GameFeel.config is GameFeelConfig, "GameFeel.config is a GameFeelConfig")
+	_check(GameFeel.config == global_config.game_feel
+		and CompanySimulation.config() == global_config.company_simulation
+		and Craftsmanship.config() == global_config.craftsmanship
+		and AlienCompanySimulation.config() == global_config.alien_company,
+		"runtime modules share the one embedded global tuning graph")
 	_check(is_equal_approx(GameFeel.config.hit_pause_duration, 0.06),
 		"config.hit_pause_duration matches the .tres (0.06)")
 	# nothing awaited, but keep the async signature uniform

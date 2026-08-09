@@ -1,92 +1,96 @@
 class_name LevelCurve
 extends Resource
-## FILE: res://data/level_curve.gd
-## ATTACHES TO: nothing. The single instance is res://data/level_curve.tres,
-## read through GameState (which owns XP) and the HUD's XP bar.
-##
-## HOW MUCH CHOPPING A LEVEL COSTS. Sam's rules, 2026-08-02: the player levels to
-## a **max of 99**, and **higher levels require more XP**.
-##
-## THE LEVEL IS DERIVED FROM TOTAL XP, never stored — the same principle the wood
-## ladder used before it became a shop: XP is monotonic (nothing takes it away),
-## so a level computed from it cannot disagree with it, there is no second field
-## to drift, and **retuning this curve re-levels an existing save** instead of
-## leaving it on thresholds that no longer exist.
-##
-## `MAX_LEVEL = 99` IS SAM'S. Everything else here is a PLACEHOLDER per Directive
-## 3: the shape is a defensible curve, not a signed-off one, and it wants tuning
-## against real play once the orbs are landing.
+## Uncapped, authored XP curve. Levels rise smoothly until the configured
+## endgame level, then use a repeatable plateau span forever.
 
-## Sam's number. Level 1 is where every player starts, so there are 98 levels to
-## earn and 98 skill points to spend if a level grants one.
-const MAX_LEVEL := 99
+## Every value in this resource remains a tuning placeholder until the pacing
+## probe and representative Compatibility play session are approved.
+@export_group("Opening cadence — PLACEHOLDER")
+@export_range(1, 20, 1) var opening_levels: int = 6
+@export_range(0.1, 1.0, 0.01) var opening_scale: float = 0.55
 
-## XP to get from level 1 to level 2. PLACEHOLDER.
-@export var base_xp: int = 40
-## How steeply the cost climbs. `xp_to_next(L) = base_xp * L^curve_power`, so a
-## power of 1 is linear and anything above it makes late levels bite. PLACEHOLDER.
-@export var curve_power: float = 1.8
+@export_group("Terrestrial ramp — PLACEHOLDER")
+@export_range(1, 100000, 1) var base_xp: int = 32
+@export_range(1.0, 3.0, 0.01) var curve_power: float = 1.55
 
-## Cumulative XP needed to REACH each level, index 0 = level 1 = 0 XP. Built once
-## on first use rather than authored: 99 hand-written thresholds would be 99
-## chances to fat-finger a number, and the shape is the thing being tuned, not the
-## individual rungs.
+@export_group("Infinite endgame — PLACEHOLDER")
+@export_range(10, 500, 1) var endgame_plateau_level: int = 80
+
 var _thresholds: PackedInt64Array = PackedInt64Array()
 
 
-## XP to climb from `level` to `level + 1`. 0 at the cap — there is nowhere to go.
+func validate() -> PackedStringArray:
+	var errors := PackedStringArray()
+	if opening_levels < 1 or opening_levels > endgame_plateau_level:
+		errors.append("opening levels must fit inside the authored curve")
+	if opening_scale <= 0.0 or opening_scale > 1.0:
+		errors.append("opening scale must be in (0, 1]")
+	if base_xp <= 0 or curve_power < 1.0:
+		errors.append("terrestrial curve inputs are invalid")
+	if endgame_plateau_level < 2:
+		errors.append("endgame plateau must begin at level two or later")
+	return errors
+
+
 func xp_to_next(level: int) -> int:
-	if level < 1 or level >= MAX_LEVEL:
+	if level < 1:
 		return 0
-	return int(round(float(base_xp) * pow(float(level), curve_power)))
+	var authored_level := mini(level, maxi(2, endgame_plateau_level))
+	var span := float(base_xp) * pow(float(authored_level), curve_power)
+	if authored_level <= opening_levels:
+		var opening_t := float(authored_level - 1) / float(maxi(1, opening_levels - 1))
+		span *= lerpf(opening_scale, 1.0, opening_t)
+	return maxi(1, int(round(span)))
 
 
-## Total XP at which `level` is reached. Level 1 is 0.
 func total_xp_for_level(level: int) -> int:
+	var wanted := maxi(1, level)
 	_ensure_thresholds()
-	var i := clampi(level, 1, MAX_LEVEL) - 1
-	return int(_thresholds[i])
+	var plateau := maxi(2, endgame_plateau_level)
+	if wanted <= plateau:
+		return int(_thresholds[wanted - 1])
+	var plateau_total := int(_thresholds[plateau - 1])
+	return plateau_total + (wanted - plateau) * xp_to_next(plateau)
 
 
-## The level `total_xp` buys, clamped to [1, MAX_LEVEL].
 func level_for_xp(total_xp: int) -> int:
+	var safe_xp := maxi(0, total_xp)
 	_ensure_thresholds()
-	# Walk from the top: the common case late on is a high level, and the array is
-	# 99 entries, so a scan is cheaper than it looks and needs no bookkeeping.
-	for i in range(_thresholds.size() - 1, -1, -1):
-		if total_xp >= int(_thresholds[i]):
-			return i + 1
-	return 1
+	var plateau := maxi(2, endgame_plateau_level)
+	var plateau_total := int(_thresholds[plateau - 1])
+	if safe_xp >= plateau_total:
+		return plateau + int((safe_xp - plateau_total) / xp_to_next(plateau))
+	var low := 0
+	var high := _thresholds.size() - 1
+	while low <= high:
+		var mid: int = (low + high) >> 1
+		if int(_thresholds[mid]) <= safe_xp:
+			low = mid + 1
+		else:
+			high = mid - 1
+	return high + 1
 
 
-## Progress through the CURRENT level as 0..1. Returns 1.0 at the cap, so a bar
-## bound to it reads full rather than empty when there is nothing left to earn.
 func progress_through_level(total_xp: int) -> float:
 	var level := level_for_xp(total_xp)
-	if level >= MAX_LEVEL:
-		return 1.0
 	var floor_xp := total_xp_for_level(level)
-	var span := total_xp_for_level(level + 1) - floor_xp
-	if span <= 0:
-		return 1.0
-	return clampf(float(total_xp - floor_xp) / float(span), 0.0, 1.0)
+	var span := xp_to_next(level)
+	return clampf(float(maxi(0, total_xp) - floor_xp) / float(maxi(1, span)), 0.0, 1.0)
 
 
-## XP still to earn before the next level. 0 at the cap.
 func xp_remaining(total_xp: int) -> int:
 	var level := level_for_xp(total_xp)
-	if level >= MAX_LEVEL:
-		return 0
-	return maxi(0, total_xp_for_level(level + 1) - total_xp)
+	return maxi(0, total_xp_for_level(level + 1) - maxi(0, total_xp))
 
 
 func _ensure_thresholds() -> void:
-	if _thresholds.size() == MAX_LEVEL:
+	var plateau := maxi(2, endgame_plateau_level)
+	if _thresholds.size() == plateau:
 		return
 	_thresholds = PackedInt64Array()
-	_thresholds.resize(MAX_LEVEL)
-	var running := 0
+	_thresholds.resize(plateau)
+	var running: int = 0
 	_thresholds[0] = 0
-	for level in range(1, MAX_LEVEL):
+	for level in range(1, plateau):
 		running += xp_to_next(level)
 		_thresholds[level] = running

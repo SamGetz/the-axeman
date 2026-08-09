@@ -34,6 +34,10 @@ enum Effect {
 	XP_GAIN,
 	## Fraction added to what the yard pays for a piece.
 	CASH_GAIN,
+	## Provisional M12 handling margin for quarantined first-contact specimens.
+	SPECIMEN_HANDLING,
+	## Provisional M12 expedition preparation contribution efficiency.
+	EXPEDITION_PREPARATION,
 }
 
 ## M7C's semantic role. UI position and display copy are presentation only;
@@ -54,11 +58,15 @@ enum NodeType { FOUNDATION, PROC, MODIFIER, CAPSTONE }
 ## Required only for PROC nodes; points at ProcTable by stable id.
 @export var proc_id: StringName = &""
 @export var modifiers: Array[GameplayModifierDef] = []
+## The overhaul's ordinary skill effects. `modifiers` remains the proc/capability
+## metadata field used by older content; callers aggregate both arrays so old
+## hand-authored resources and the new 45-node graph share one typed vocabulary.
+@export var effects: Array[GameplayModifierDef] = []
 
 @export_group("The tree")
-## Node ids that must be owned (level >= 1) before this one can be bought. Empty
-## means a ROOT — available from level 1. Cycles are refused at load; see
-## SkillTree._validate().
+## Alternative parent branch ids. Fully ranking any one named parent unlocks
+## this node. Empty means a ROOT — available from level 1. Cycles are refused at
+## load; see SkillTree._validate().
 @export var requires: Array[StringName] = []
 ## How many times this node can be bought. Each level applies `effect_step` again.
 @export var max_level: int = 1

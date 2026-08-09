@@ -118,8 +118,7 @@ static func sell_everything() -> int:
 ## by the aggregator there rather than double-counted here.
 static func sell_batch(lines: Array) -> int:
 	# Manual/player sales receive the player's ordinary skill/mastery reputation.
-	var bonus := SkillTree.total_effect(SkillNodeDef.Effect.CASH_GAIN) \
-		+ SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN)
+	var bonus := SpeciesMastery.total_effect(GameplayModifierDef.Kind.CASH_GAIN)
 	return _sell_batch_with_bonus(lines, bonus)
 
 
@@ -135,6 +134,12 @@ static func sell_automation(item_id: StringName, count: int,
 		"item_id": item_id,
 		"amount": count,
 	}], automation_cash_bonus)
+
+
+static func sell_automation_batch(lines: Array, automation_cash_bonus: float) -> int:
+	if automation_cash_bonus < 0.0 or not is_finite(automation_cash_bonus):
+		return 0
+	return _sell_batch_with_bonus(lines, automation_cash_bonus)
 
 
 static func _sell_batch_with_bonus(lines: Array, bonus: float) -> int:
@@ -158,7 +163,14 @@ static func _sell_batch_with_bonus(lines: Array, bonus: float) -> int:
 		if unit <= 0:
 			push_error("Market: the basic buyer does not buy '%s' — sale refused." % item_id)
 			return 0
-		payout += unit * amount
+		if amount > GameState.MAX_SAFE_ECONOMY_VALUE / unit:
+			push_error("Market: sale line exceeds the safe campaign economy envelope.")
+			return 0
+		var line_payout := unit * amount
+		if payout > GameState.MAX_SAFE_ECONOMY_VALUE - line_payout:
+			push_error("Market: sale basket exceeds the safe campaign economy envelope.")
+			return 0
+		payout += line_payout
 
 	if payout <= 0:
 		return 0
@@ -167,15 +179,18 @@ static func _sell_batch_with_bonus(lines: Array, bonus: float) -> int:
 	# mastery reputation; Mechanical Splitter receipts use only Money Gain. Apply
 	# it to the whole basket once so rounding cannot make an individual line free.
 	if bonus > 0.0:
-		payout = maxi(payout, int(round(float(payout) * (1.0 + bonus))))
+		var multiplied := float(payout) * (1.0 + bonus)
+		if not is_finite(multiplied) or multiplied > GameState.MAX_SAFE_ECONOMY_VALUE:
+			push_error("Market: sale bonus exceeds the safe campaign economy envelope.")
+			return 0
+		payout = maxi(payout, int(round(multiplied)))
 
 	# Stock first: if the player cannot cover the basket, remove_items changes
 	# nothing and we are done before any money exists.
 	if not InventoryManager.remove_items(lines):
 		return 0
 
-	GameState.add_cash(payout)
-	return payout
+	return GameState.award_cash(payout, &"market")
 
 
 ## ---------------------------------------------------------------- internals

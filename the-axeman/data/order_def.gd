@@ -19,6 +19,8 @@ extends Resource
 @export_range(1, 1000000, 1) var required_count := 1
 ## Completion premium paid on top of the unlimited buyer's per-piece payment.
 @export_range(1, 1000000000, 1) var cash_bonus := 1
+## Monotonic, non-spendable customer standing awarded once on completion.
+@export_range(0, 1000000, 1) var reputation_reward := 1
 ## Review state for authored quantity/bonus values. The first three approved
 ## contracts predate this field and intentionally leave it empty; post-M8 rows
 ## carry an explicit placeholder label until Sam signs off measured pacing.

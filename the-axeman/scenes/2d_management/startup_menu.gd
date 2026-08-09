@@ -15,10 +15,15 @@ var _has_save := false
 @onready var _new_game_button: Button = %NewGameButton
 @onready var _load_game_button: Button = %LoadGameButton
 @onready var _status_label: Label = %StatusLabel
+@onready var _footer: Label = %Footer
 @onready var _new_game_confirmation: ConfirmationDialog = %NewGameConfirmation
 
 
 func _ready() -> void:
+	_footer.text = "Progress saves automatically. · Alpha %s · %s" % [
+		ProjectSettings.get_setting("application/config/version", "unversioned"),
+		ProjectSettings.get_setting("application/config/build_date", "undated"),
+	]
 	_new_game_button.pressed.connect(_on_new_game_pressed)
 	_load_game_button.pressed.connect(load_game_requested.emit)
 	_new_game_confirmation.confirmed.connect(new_game_requested.emit)

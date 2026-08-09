@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="ExpeditionTable" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://data/expedition_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/expedition_def.gd" id="2_def"]
+
+[sub_resource type="Resource" id="Expedition_kepler"]
+script = ExtResource("2_def")
+id = &"kepler_grove"
+display_name = "Kepler Grove"
+description = "A resonant forest signature suitable for the first specimen expedition."
+alien_species_id = &"resonant_spiralwood"
+range_required = 2
+shielding_required = 2
+flight_seconds = 120
+
+[sub_resource type="Resource" id="Expedition_tidal"]
+script = ExtResource("2_def")
+id = &"tidal_moon"
+display_name = "Tidal Moon"
+description = "A low-gravity moon with glassy timber growth along its tidal margins."
+alien_species_id = &"tideglass_timber"
+range_required = 4
+shielding_required = 3
+flight_seconds = 240
+
+[sub_resource type="Resource" id="Expedition_ember"]
+script = ExtResource("2_def")
+id = &"ember_world"
+display_name = "Ember World"
+description = "A heat-scoured world whose living timber stores force in visible scars."
+alien_species_id = &"cinderheart_timber"
+range_required = 5
+shielding_required = 5
+flight_seconds = 360
+
+[resource]
+script = ExtResource("1_table")
+expeditions = Array[ExtResource("2_def")]([SubResource("Expedition_kepler"), SubResource("Expedition_tidal"), SubResource("Expedition_ember")])

@@ -10,6 +10,8 @@ extends Resource
 ## tiered chopping-block line.
 
 enum PurchaseForm { ONE_TIME, TIERED }
+enum EquipmentSlot { NONE, AXE, WORKSTATION }
+enum CampaignGate { NONE, LOG_FEEDER, HEADQUARTERS_YARD, EARTH_MASTER, FIRST_ALIEN_SPECIMEN }
 enum AutomationRole {
 	NONE,
 	MECHANICAL_SPLITTER,
@@ -27,6 +29,10 @@ enum Effect {
 	AUTOMATION_LOGS_PER_SPLIT,
 	AUTOMATION_XP_GAIN,
 	AUTOMATION_CASH_GAIN,
+	CRAFT_TOLERANCE,
+	COMMISSION_REPUTATION,
+	SUPPLIER_QUEUE_CAPACITY,
+	ALIEN_HANDLING,
 }
 
 @export var id: StringName
@@ -48,6 +54,7 @@ enum Effect {
 @export var required_upgrade_id: StringName = &""
 @export var required_mastery_species_id: StringName = &""
 @export var required_mastered_species_count: int = 0
+@export var campaign_gate: CampaignGate = CampaignGate.NONE
 
 @export_group("Price")
 ## Cash for the FIRST level. Each further level multiplies by `cost_growth`.
@@ -61,6 +68,13 @@ enum Effect {
 ## Per purchased level. Every live value is a measured-tuning placeholder until
 ## Sam signs off the relevant band; approved values still live only here.
 @export var effect_step: float = 0.0
+
+@export_group("Equipment and procs")
+## Axe/stump identities are one-time rows. The highest owned row in a slot is
+## active; passive `effect_step` values still accumulate through total_effect().
+@export var equipment_slot: EquipmentSlot = EquipmentSlot.NONE
+@export var equipment_stage: int = 0
+@export var proc_contributions: Array[UpgradeProcContributionDef] = []
 
 @export_group("M8 Automation")
 ## Typed catalogue metadata for the machine, species profiles and its five
@@ -77,7 +91,11 @@ enum Effect {
 func cost_for_level(level: int) -> int:
 	if level < 0:
 		return 0
-	return int(round(float(base_cost) * pow(cost_growth, float(level))))
+	var candidate := float(base_cost) * pow(cost_growth, float(level))
+	if not is_finite(candidate) or candidate <= 0.0 \
+			or candidate > GameState.MAX_SAFE_ECONOMY_VALUE:
+		return 0
+	return int(round(candidate))
 
 
 func is_maxed(level: int) -> bool:

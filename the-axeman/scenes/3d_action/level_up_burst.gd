@@ -1,25 +1,21 @@
 class_name LevelUpBurst
 extends Node3D
-## Procedural stand-in for the level-up celebration: concentric gold rings sweep
-## out around the log while tall light streaks and sparks rise from the block.
+## Procedural stand-in for the level-up celebration: tall light streaks and
+## sparks rise from the block without a ground-level halo or ring.
 ## Pure presentation; GameState.level_gained remains the authoritative event.
 ## All timing, counts and dimensions are PLACEHOLDERS pending the VFX art pass.
 
-static var _ring_mesh: TorusMesh
 static var _ray_mesh: QuadMesh
 static var _spark_mesh: QuadMesh
-static var _ring_material: StandardMaterial3D
 static var _ray_material: StandardMaterial3D
 static var _spark_material: StandardMaterial3D
 
 const _DURATION := 1.45
-const _RING_COUNT := 3
 const _RAY_COUNT := 10
 const _SPARK_COUNT := 18
 
 var _radius := 0.4
 var _age := 0.0
-var _rings: Array[MeshInstance3D] = []
 var _rays: Array[MeshInstance3D] = []
 var _ray_angles := PackedFloat32Array()
 var _sparks: Array[MeshInstance3D] = []
@@ -46,22 +42,13 @@ static func create_prewarmed(parent: Node, radius: float) -> LevelUpBurst:
 
 
 static func _ensure_shared() -> void:
-	if _ring_mesh != null:
+	if _ray_mesh != null:
 		return
-
-	_ring_mesh = TorusMesh.new()
-	_ring_mesh.inner_radius = 0.92
-	_ring_mesh.outer_radius = 1.0
-	_ring_mesh.rings = 32
-	_ring_mesh.ring_segments = 6
 
 	_ray_mesh = QuadMesh.new()
 	_ray_mesh.size = Vector2(0.08, 1.0)
 	_spark_mesh = QuadMesh.new()
 	_spark_mesh.size = Vector2(0.045, 0.045)
-
-	_ring_material = _additive_material(Color(1.0, 0.66, 0.12, 0.9))
-	_ring_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	_ray_material = _additive_material(Color.WHITE)
 	_ray_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
@@ -73,10 +60,8 @@ static func _ensure_shared() -> void:
 	_spark_material.billboard_keep_scale = true
 	_spark_material.albedo_texture = _spark_texture()
 
-	_ring_mesh.get_rid()
 	_ray_mesh.get_rid()
 	_spark_mesh.get_rid()
-	_ring_material.get_rid()
 	_ray_material.get_rid()
 	_spark_material.get_rid()
 
@@ -129,15 +114,6 @@ static func _spark_texture() -> GradientTexture2D:
 
 func _build(radius: float) -> void:
 	_radius = radius
-	for i in range(_RING_COUNT):
-		var ring := MeshInstance3D.new()
-		ring.name = "LevelRing%d" % i
-		ring.mesh = _ring_mesh
-		ring.material_override = _ring_material
-		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(ring)
-		_rings.append(ring)
-
 	for i in range(_RAY_COUNT):
 		var angle := TAU * float(i) / float(_RAY_COUNT)
 		var ray := MeshInstance3D.new()
@@ -206,14 +182,6 @@ func _process(delta: float) -> void:
 func _update_visuals(k: float) -> void:
 	var flash := sin(PI * clampf(k / 0.52, 0.0, 1.0)) * (1.0 - k)
 	_light.light_energy = flash * 2.4
-
-	for i in range(_rings.size()):
-		var delay := float(i) * 0.1
-		var rk := clampf((k - delay) / maxf(0.01, 0.58 - delay), 0.0, 1.0)
-		var ring_scale := _radius * lerpf(0.42, 1.55, rk)
-		_rings[i].scale = Vector3.ONE * ring_scale
-		_rings[i].position.y = 0.025 + float(i) * 0.018
-		_rings[i].transparency = smoothstep(0.34, 0.92, rk)
 
 	for i in range(_rays.size()):
 		var angle: float = _ray_angles[i]

@@ -86,7 +86,7 @@ func _ready() -> void:
 		game._spawn_fresh_log()
 		for i in range(20):
 			await get_tree().process_frame
-		var curve := load("res://data/level_curve.tres") as LevelCurve
+		var curve := GameConfig.current().level_curve
 		GameState.add_xp(curve.total_xp_for_level(20))
 		SkillTree.buy(&"quick_hands")
 		for i in range(5):

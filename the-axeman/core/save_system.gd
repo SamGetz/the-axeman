@@ -29,7 +29,7 @@ const SAVE_PATH := "user://the_axeman_save.cfg"
 ## incremental autosave is survivable; losing the whole yard is not.
 const _TEMP_PATH := "user://the_axeman_save.cfg.tmp"
 ## Bumped whenever the on-disk shape changes in a way _migrate has to handle.
-const SAVE_VERSION := 5
+const SAVE_VERSION := 17
 
 ## Version-1's prototype ranks are an on-disk compatibility contract. These
 ## caps are intentionally pinned to that prototype rather than read from the
@@ -137,7 +137,7 @@ static func delete_save() -> bool:
 
 ## Forward migration is PURE: it works on a deep copy and never rewrites the
 ## older file. load_game() applies the copy in memory; only the next complete
-## save_game() replaces the old file atomically with a version-5 one.
+## save_game() replaces the old file atomically with a current-version one.
 static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 	if from_version == SAVE_VERSION:
 		return progression
@@ -171,7 +171,209 @@ static func _migrate(progression: Dictionary, from_version: int) -> Dictionary:
 		migrated["active_orders"] = []
 		migrated["active_commissions"] = []
 		migrated["completed_commissions"] = 0
+		version = 5
+	if version == 5:
+		# V6 gives each of the three stable slots a semantic role. Accepted v5
+		# snapshots keep their exact work and premium; GameState uses this marker
+		# to rebuild inactive slots only after active identities are restored.
+		var offers: Variant = migrated.get("commission_offers", [])
+		if offers is Array:
+			var role_offers: Array = []
+			for index in range((offers as Array).size()):
+				var raw_offer: Variant = (offers as Array)[index]
+				if not raw_offer is Dictionary:
+					continue
+				var offer := (raw_offer as Dictionary).duplicate(true)
+				offer["offer_role"] = clampi(index, 0, Orders.COMMISSION_OFFER_COUNT - 1)
+				role_offers.append(offer)
+			migrated["commission_offers"] = role_offers
+		migrated["refresh_inactive_commission_slots_v6"] = true
+		version = 6
+	if version == 6:
+		migrated["reputation"] = 0
+		migrated["craft_grade_counts"] = {}
+		migrated["customer_completion_history"] = []
+		# Existing accepted commissions remain ordinary quantity/species work.
+		# New craft-family rules must never be retroactively attached to active
+		# snapshots during an additive migration.
+		var offers: Variant = migrated.get("commission_offers", [])
+		if offers is Array:
+			for raw_offer: Variant in offers as Array:
+				if raw_offer is Dictionary:
+					(raw_offer as Dictionary)["craft_family"] = CraftRequirementDef.Family.QUANTITY
+					(raw_offer as Dictionary)["min_normalized_size"] = 0.0
+					(raw_offer as Dictionary)["max_normalized_size"] = 1.0
+					(raw_offer as Dictionary)["minimum_grade"] = Craftsmanship.Grade.ROUGH
+					(raw_offer as Dictionary)["require_source_identity"] = false
+					(raw_offer as Dictionary)["automation_eligible"] = false
+		version = 7
+	if version == 7:
+		migrated["supplier_input_queues"] = {}
+		migrated["route_priorities"] = []
+		migrated["company_last_timestamp"] = 0
+		migrated["automated_log_equivalents"] = 0
+		migrated["company_return_ledger"] = []
+		migrated["applied_company_receipts"] = []
+		version = 8
+	if version == 8:
+		migrated["discovered_regions"] = []
+		migrated["regional_standing"] = {}
+		migrated["regional_depots"] = []
+		migrated["regional_routes"] = {}
+		migrated["signature_log_records"] = {}
+		migrated["signature_log_sources"] = {}
+		version = 9
+	if version == 9:
+		migrated["company_doctrine"] = ""
+		migrated["infrastructure_projects"] = []
+		migrated["manual_log_equivalents"] = 0
+		migrated["manual_log_sources"] = []
+		version = 10
+	if version == 10:
+		migrated["earth_finale_state"] = GameState.EarthFinaleState.LOCKED
+		migrated["earth_finale_splits"] = 0
+		migrated["earth_master"] = false
+		migrated["launch_projects"] = []
+		migrated["launch_contributions"] = {}
+		migrated["spacecraft_loadout"] = {}
+		migrated["active_expedition"] = {}
+		migrated["arrived_destinations"] = []
+		migrated["applied_expedition_receipts"] = []
+		version = 11
+	if version == 11:
+		migrated["alien_destination_states"] = {}
+		migrated["alien_manual_mastery"] = {}
+		migrated["alien_manual_sources"] = {}
+		migrated["cargo_fleets"] = {}
+		migrated["orbital_lines"] = []
+		migrated["expedition_charter"] = ""
+		migrated["applied_alien_automation_receipts"] = []
+		version = 12
+	if version == 12:
+		# V13 is the approved full skill refund. XP and its uncapped derived level
+		# survive; old nodes, prototype price bases and affected fairness streaks do
+		# not. Historical levels seed point entitlement but never retroactive cash.
+		var curve := GameConfig.current().level_curve
+		if curve == null:
+			curve = LevelCurve.new()
+		var derived_level := curve.level_for_xp(maxi(0, int(migrated.get("xp", 0))))
+		migrated["skill_levels"] = {}
+		migrated["legacy_skill_ranks"] = {}
+		migrated["proc_dry_streak"] = {}
+		migrated["skill_points_earned_total"] = maxi(0, derived_level - 1)
+		migrated["last_rewarded_level"] = derived_level
+		migrated["masterwork_pending"] = 0
+		version = 13
+	if version == 13:
+		# V14 introduces fully-ranked prerequisites. A v13 player may legitimately
+		# own a child above what is now a partial 1/5 parent, so retaining that shape
+		# would create an impossible tree. Preserve earned entitlement and every
+		# unrelated field, but refund the node choices and their proc carry-over.
+		migrated["skill_levels"] = {}
+		migrated["legacy_skill_ranks"] = {}
+		migrated["proc_dry_streak"] = {}
+		migrated["masterwork_pending"] = 0
+		version = 14
+	if version == 14:
+		# V15 replaces the manual three-split launch authority with the approved
+		# 3.04-trillion Earth depletion counter and adds gross earned cash for
+		# fixed earning-band reveals. Compatible Earth Master saves retain launch;
+		# other saves receive their conservative persisted tree-equivalent work.
+		var legacy_master := bool(migrated.get("earth_master", false)) \
+			and int(migrated.get("earth_finale_state",
+				GameState.EarthFinaleState.LOCKED)) == GameState.EarthFinaleState.COMPLETE \
+			and int(migrated.get("earth_finale_splits", 0)) == 3
+		var historical_trees := floori(float(maxi(0,
+			int(migrated.get("manual_log_equivalents", 0)))) \
+			/ GameState.MANUAL_LOGS_PER_EARTH_TREE) + maxi(0,
+			int(migrated.get("automated_log_equivalents", 0)))
+		migrated["earth_trees_felled"] = GameState.TOTAL_EARTH_TREES \
+			if legacy_master else mini(GameState.TOTAL_EARTH_TREES, historical_trees)
+		migrated["applied_earth_production_receipts"] = []
+		migrated["lifetime_cash_earned"] = _migrated_lifetime_cash_floor(migrated)
+		# Existing saves have already seen everything their current progression
+		# exposes. Later reveal-policy slices will seed concrete ids from live state.
+		migrated["introduced_feature_ids"] = []
+		version = 15
+	if version == 15:
+		# V16 defines four completed manual logs as one Earth tree. V15 saves have
+		# already committed their historical authoritative tree total, so only the
+		# new partial-log accumulator starts empty; no old work is counted twice.
+		migrated["manual_logs_toward_next_tree"] = 0
+		version = 16
+	if version == 16:
+		# V17 replaces three repeatable active commission slots with one long-term
+		# standing slot. Already accepted work is explicitly tagged as legacy so
+		# every old promise remains finishable; it never consumes one of the five
+		# new campaign offer moments or silently pays during migration.
+		var legacy_ids: Array = []
+		var active: Variant = migrated.get("active_commissions", [])
+		if active is Array:
+			for raw_active: Variant in active as Array:
+				if raw_active is Dictionary:
+					var active_id := String((raw_active as Dictionary).get("id", ""))
+					if not active_id.is_empty() and not legacy_ids.has(active_id):
+						legacy_ids.append(active_id)
+		migrated["legacy_commission_ids"] = legacy_ids
+		migrated["standing_commission_cycles_completed"] = 0
+		var reward_sources: Array = []
+		var alien_states: Variant = migrated.get("alien_destination_states", {})
+		if alien_states is Dictionary:
+			for raw_destination: Variant in alien_states as Dictionary:
+				if int((alien_states as Dictionary)[raw_destination]) \
+						!= GameState.AlienDestinationState.MASTERED:
+					continue
+				var wood_trait := AlienCampaign.trait_for_destination(StringName(raw_destination))
+				if wood_trait != null:
+					reward_sources.append("alien_mastery:%s" % wood_trait.id)
+		migrated["skill_points_earned_total"] = mini(SkillTree.core_purchase_count(),
+			maxi(0, int(migrated.get("skill_points_earned_total", 0)))) \
+			+ reward_sources.size() * 3
+		migrated["applied_progression_reward_sources"] = reward_sources
+		migrated["combined_orbital_receipt_received"] = false
+		migrated["campaign_completion_recorded"] = false
+		version = 17
 	return migrated
+
+
+static func _migrated_lifetime_cash_floor(data: Dictionary) -> int:
+	var floor_value := clampi(int(data.get("cash", 0)), 0,
+		GameState.MAX_SAFE_ECONOMY_VALUE)
+	var buildings: Variant = data.get("building_tiers", {})
+	if buildings is Dictionary:
+		for upgrade: UpgradeDef in Shop.get_upgrades():
+			if not upgrade is ProductionUpgradeDef:
+				continue
+			var tier := int((buildings as Dictionary).get(upgrade.id,
+				(buildings as Dictionary).get(String(upgrade.id), 1)))
+			if tier > GameState.DEFAULT_BUILDING_TIER:
+				floor_value = maxi(floor_value,
+					(upgrade as ProductionUpgradeDef).required_lifetime_cash)
+		if int((buildings as Dictionary).get("dispatch_console", 1)) > 1:
+			floor_value = maxi(floor_value,
+				ProductionEconomy.minimum_lifetime_for_milestone(
+					ProductionUpgradeDef.Milestone.TIMBER_DEPOT))
+	var routes: Variant = data.get("regional_routes", {})
+	if routes is Dictionary and not (routes as Dictionary).is_empty():
+		floor_value = maxi(floor_value,
+			ProductionEconomy.minimum_lifetime_for_milestone(
+				ProductionUpgradeDef.Milestone.CONTINENTAL_COMPANY))
+	var projects: Variant = data.get("infrastructure_projects", [])
+	if projects is Array and not (projects as Array).is_empty():
+		floor_value = maxi(floor_value,
+			ProductionEconomy.minimum_lifetime_for_milestone(
+				ProductionUpgradeDef.Milestone.PLANETARY_INDUSTRY))
+	var lines: Variant = data.get("orbital_lines", [])
+	var line_count := (lines as Array).size() if lines is Array else 0
+	if line_count > 0:
+		var milestone := ProductionUpgradeDef.Milestone.FIRST_ALIEN_LINE
+		if line_count >= 3:
+			milestone = ProductionUpgradeDef.Milestone.THREE_ALIEN_LINES
+		elif line_count >= 2:
+			milestone = ProductionUpgradeDef.Milestone.SECOND_ALIEN_LINE
+		floor_value = maxi(floor_value,
+			ProductionEconomy.minimum_lifetime_for_milestone(milestone))
+	return mini(floor_value, GameState.MAX_SAFE_ECONOMY_VALUE)
 
 
 static func _migrate_v1_to_v2(progression: Dictionary) -> Dictionary:

@@ -42,6 +42,86 @@ static func children_of(id: StringName) -> Array[SkillNodeDef]:
 	return [] if t == null else t.children_of(id)
 
 
+static func is_branch_revealed(branch_id: StringName) -> bool:
+	var table := M7CContent.branches()
+	var branch := table.by_id(branch_id) if table != null else null
+	if branch == null:
+		return false
+	match branch.reveal_gate:
+		SkillBranchDef.RevealGate.ALWAYS:
+			return true
+		SkillBranchDef.RevealGate.EARTH_MASTER:
+			return GameState.is_earth_master()
+	return false
+
+
+static func get_revealed_nodes() -> Array[SkillNodeDef]:
+	var out: Array[SkillNodeDef] = []
+	for node: SkillNodeDef in get_nodes():
+		if node != null and is_branch_revealed(node.branch_id):
+			out.append(node)
+	return out
+
+
+static func is_branch_presented(branch_id: StringName) -> bool:
+	if not is_branch_revealed(branch_id):
+		return false
+	match branch_id:
+		&"strength":
+			return true
+		&"speed":
+			return GameState.get_campaign_phase() \
+				>= GameState.CampaignPhase.WORKING_YARD
+		&"mastery":
+			return GameState.get_campaign_phase() \
+				>= GameState.CampaignPhase.REGIONAL_COMPANY
+		&"frontier":
+			return GameState.get_campaign_phase() \
+				>= GameState.CampaignPhase.COSMIC_FINALE
+	return false
+
+
+## Presentation is phased independently of purchase authority. The player sees
+## one relevant branch tab at a time instead of 36 mostly-grey nodes at level 2.
+static func get_presented_nodes() -> Array[SkillNodeDef]:
+	var out: Array[SkillNodeDef] = []
+	for node: SkillNodeDef in get_revealed_nodes():
+		if node != null and is_branch_presented(node.branch_id):
+			out.append(node)
+	return out
+
+
+static func has_unfilled_revealed_nodes() -> bool:
+	for node: SkillNodeDef in get_revealed_nodes():
+		if not node.is_maxed(get_level(node.id)):
+			return true
+	return false
+
+
+static func frontier_purchase_count() -> int:
+	var total := 0
+	for node: SkillNodeDef in get_nodes():
+		if node != null and node.branch_id == &"frontier":
+			total += node.max_level
+	return total
+
+
+static func core_purchase_count() -> int:
+	var total := 0
+	for node: SkillNodeDef in get_nodes():
+		if node != null and node.branch_id != &"frontier":
+			total += node.max_level
+	return total
+
+
+static func frontier_purchases_owned() -> int:
+	var total := 0
+	for node: SkillNodeDef in get_nodes():
+		if node != null and node.branch_id == &"frontier":
+			total += get_level(node.id)
+	return total
+
+
 ## Levels bought of `id`. 0 = not taken. Unlike the cash shop, this is NOT stored
 ## as a building tier: a building tier is A7's frozen vocabulary for a thing in
 ## the yard going up a level, and a skill is a property of the PLAYER. GameState
@@ -51,26 +131,31 @@ static func get_level(id: StringName) -> int:
 
 
 ## --------------------------------------------------------------- eligibility
-## Are every one of `id`'s prerequisites owned? A node with none is a root and is
-## always unlocked, which is what makes the tree enterable at level 1.
+## Is at least one of `id`'s prerequisite branches fully ranked? A node with no
+## prerequisites is a root and is always unlocked. A single-parent node still
+## requires that parent; a merge node opens from either completed branch.
 static func prerequisites_met(id: StringName) -> bool:
 	var def := get_node_def(id)
-	if def == null:
+	if def == null or not is_branch_revealed(def.branch_id):
 		return false
+	if def.requires.is_empty():
+		return true
 	for req: StringName in def.requires:
-		if get_level(req) <= 0:
-			return false
-	return true
+		var required := get_node_def(req)
+		if required != null and required.is_maxed(get_level(req)):
+			return true
+	return false
 
 
 ## Prerequisite ids not yet owned — what a UI prints under a locked node.
 static func missing_prerequisites(id: StringName) -> Array[StringName]:
 	var out: Array[StringName] = []
 	var def := get_node_def(id)
-	if def == null:
+	if def == null or prerequisites_met(id):
 		return out
 	for req: StringName in def.requires:
-		if get_level(req) <= 0:
+		var required := get_node_def(req)
+		if required == null or not required.is_maxed(get_level(req)):
 			out.append(req)
 	return out
 
@@ -85,7 +170,8 @@ static func get_next_cost(id: StringName) -> int:
 
 static func can_buy(id: StringName) -> bool:
 	var def := get_node_def(id)
-	if def == null or def.is_maxed(get_level(id)):
+	if def == null or not is_branch_revealed(def.branch_id) \
+			or def.is_maxed(get_level(id)):
 		return false
 	if not prerequisites_met(id):
 		return false
@@ -115,6 +201,26 @@ static func total_levels(kind: SkillNodeDef.Effect) -> int:
 	return total
 
 
+## Summed typed contribution across every owned rank. ENABLE effects return a
+## positive value when present; duration/probability composition stays with the
+## gameplay caller, matching the existing `total_effect()` contract.
+static func total_modifier(kind: GameplayModifierDef.Kind) -> float:
+	var total := 0.0
+	for node: SkillNodeDef in get_nodes():
+		if node == null:
+			continue
+		var level := get_level(node.id)
+		if level <= 0:
+			continue
+		for modifier: GameplayModifierDef in node.effects:
+			if modifier != null and modifier.kind == kind:
+				total += float(level) * modifier.magnitude
+		for modifier: GameplayModifierDef in node.modifiers:
+			if modifier != null and modifier.kind == kind:
+				total += float(level) * modifier.magnitude
+	return total
+
+
 ## Which branch a proc's home skill node belongs to — a node names its proc,
 ## not the other way round, so this walks the live tree once rather than
 ## authoring a second id->branch mapping. Used to derive a fired proc's color
@@ -134,6 +240,9 @@ static func owns_modifier(kind: GameplayModifierDef.Kind,
 	for n: SkillNodeDef in get_nodes():
 		if n == null or get_level(n.id) <= 0:
 			continue
+		for modifier: GameplayModifierDef in n.effects:
+			if modifier != null and modifier.kind == kind and modifier.operation == operation:
+				return true
 		for modifier: GameplayModifierDef in n.modifiers:
 			if modifier != null and modifier.kind == kind and modifier.operation == operation:
 				return true
@@ -147,6 +256,8 @@ static func buy(id: StringName) -> int:
 	var def := get_node_def(id)
 	if def == null:
 		push_error("SkillTree: no skill named '%s' — purchase refused." % id)
+		return -1
+	if not is_branch_revealed(def.branch_id):
 		return -1
 	var level := get_level(id)
 	if def.is_maxed(level):

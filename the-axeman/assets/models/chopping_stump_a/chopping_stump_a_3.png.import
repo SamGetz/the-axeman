@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cc2i0k08kwjo1"
 path.s3tc="res://.godot/imported/chopping_stump_a_3.png-eadbe5791a3cd24df2e47252f0072b84.s3tc.ctex"
+path.etc2="res://.godot/imported/chopping_stump_a_3.png-eadbe5791a3cd24df2e47252f0072b84.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/chopping_stump_a/chopping_stump_a_3.png"
-dest_files=["res://.godot/imported/chopping_stump_a_3.png-eadbe5791a3cd24df2e47252f0072b84.s3tc.ctex"]
+dest_files=["res://.godot/imported/chopping_stump_a_3.png-eadbe5791a3cd24df2e47252f0072b84.s3tc.ctex", "res://.godot/imported/chopping_stump_a_3.png-eadbe5791a3cd24df2e47252f0072b84.etc2.ctex"]
 
 [params]
 

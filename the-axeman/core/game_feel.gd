@@ -5,12 +5,11 @@ extends Node
 ## shake. M4–M6 feed it hits via EventBus.action_hit_registered (already
 ## wired below); they never call Engine.time_scale themselves.
 ##
-## Nothing here is a final tuning value: pause/shake numbers come from
-## res://data/game_feel_config.tres and are tuned live by the Creative
-## Director. The 0.05 pause scale and the impact strength are the only
+## Nothing here is a final tuning value: pause/shake numbers come from the
+## GameFeelConfig embedded in res://data/game_config.tres and are tuned by the
+## Creative Director. The 0.05 pause scale and the impact strength are the only
 ## literals, and they are flagged.
 
-const _CONFIG_PATH := "res://data/game_feel_config.tres"
 const _HIT_PAUSE_SCALE := 0.05   # A11 verbatim — NOT a tunable.
 ## Placeholder: how much trauma one registered hit adds (0..1). Whether this
 ## should scale with tool tier / piece size is an M4 tuning question for Sam.
@@ -27,12 +26,7 @@ var _noise_t := 0.0
 
 
 func _ready() -> void:
-	var loaded: Resource = load(_CONFIG_PATH)
-	if loaded is GameFeelConfig:
-		config = loaded
-	else:
-		push_error("GameFeel: could not load '%s' as GameFeelConfig — using code defaults." % _CONFIG_PATH)
-		config = GameFeelConfig.new()
+	config = GameConfig.current().game_feel
 
 	_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_noise.frequency = 0.5

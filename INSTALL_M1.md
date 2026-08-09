@@ -22,7 +22,7 @@ res://data/building_def.gd
 res://data/villager_def.gd
 res://data/game_feel_config.gd
 res://data/item_registry.tres
-res://data/game_feel_config.tres
+res://data/game_config.tres
 ```
 
 ## 2. Register autoloads (Project → Project Settings → Globals → Autoload)

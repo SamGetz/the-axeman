@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="YardStageTable" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://data/yard_stage_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/yard_stage_def.gd" id="2_stage"]
+
+[sub_resource type="Resource" id="Stage_stump"]
+script = ExtResource("2_stage")
+id = &"stump"
+display_name = "Stump Clearing"
+recognition_copy = "Open clearing, chopping block and a hand-painted starting sign."
+accent = Color(0.55, 0.35, 0.16, 1)
+
+[sub_resource type="Resource" id="Stage_shed"]
+script = ExtResource("2_stage")
+id = &"shed"
+display_name = "Supplier Shed"
+recognition_copy = "A roofed ledger shed and sheltered first supply stack."
+accent = Color(0.36, 0.5, 0.28, 1)
+
+[sub_resource type="Resource" id="Stage_working"]
+script = ExtResource("2_stage")
+id = &"working_yard"
+display_name = "Working Yard"
+recognition_copy = "Contract crates, delivery staging, trophies and an active handcart lane."
+accent = Color(0.72, 0.48, 0.18, 1)
+
+[sub_resource type="Resource" id="Stage_depot"]
+script = ExtResource("2_stage")
+id = &"depot"
+display_name = "Timber Depot"
+recognition_copy = "A marked loading canopy, machine bay and scheduled yard vehicle."
+accent = Color(0.24, 0.5, 0.62, 1)
+
+[sub_resource type="Resource" id="Stage_headquarters"]
+script = ExtResource("2_stage")
+id = &"headquarters"
+display_name = "Continental Headquarters"
+recognition_copy = "A dispatch office, doctrine boards and expanded hydraulic loading court."
+accent = Color(0.54, 0.3, 0.66, 1)
+
+[resource]
+script = ExtResource("1_table")
+stages = Array[ExtResource("2_stage")]([SubResource("Stage_stump"), SubResource("Stage_shed"), SubResource("Stage_working"), SubResource("Stage_depot"), SubResource("Stage_headquarters")])

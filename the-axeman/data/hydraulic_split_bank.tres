@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CompanyMachineDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/company_machine_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"hydraulic_split_banks"
+display_name = "Hydraulic Split Banks"
+description = "Adds parallel certified capacity around the proven Mechanical Splitter contract."
+cost = 12000000
+added_dispatch_capacity = 2

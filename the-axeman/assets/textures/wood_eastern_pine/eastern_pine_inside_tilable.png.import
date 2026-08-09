@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cw876houmys43"
 path.s3tc="res://.godot/imported/eastern_pine_inside_tilable.png-7bf186d8ad808951b4069bf55dce7b18.s3tc.ctex"
+path.etc2="res://.godot/imported/eastern_pine_inside_tilable.png-7bf186d8ad808951b4069bf55dce7b18.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/wood_eastern_pine/eastern_pine_inside_tilable.png"
-dest_files=["res://.godot/imported/eastern_pine_inside_tilable.png-7bf186d8ad808951b4069bf55dce7b18.s3tc.ctex"]
+dest_files=["res://.godot/imported/eastern_pine_inside_tilable.png-7bf186d8ad808951b4069bf55dce7b18.s3tc.ctex", "res://.godot/imported/eastern_pine_inside_tilable.png-7bf186d8ad808951b4069bf55dce7b18.etc2.ctex"]
 
 [params]
 

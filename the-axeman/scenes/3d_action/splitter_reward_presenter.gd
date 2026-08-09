@@ -6,9 +6,9 @@ extends Node3D
 ## manual chopping's pools.
 
 signal xp_orb_batch_started(amount: int)
-signal xp_orb_collected(amount: int)
+signal xp_orb_collected(amount: int, tier: int)
 signal coin_batch_started(count: int)
-signal coin_collected(amount: int)
+signal coin_collected(amount: int, tier: int)
 signal coins_cancelled(count: int)
 signal coin_batch_finished
 
@@ -159,16 +159,19 @@ func _burst_xp(amount: int, origin: Vector3) -> void:
 	if count <= 0:
 		return
 	xp_orb_batch_started.emit(amount)
-	var share := floori(float(amount) / float(count))
-	var remainder := amount % count
+	var reward_config := GameConfig.current().reward_bursts
+	var tokens := reward_config.plan_tokens(RewardBurstConfig.Kind.XP, amount, count)
+	AudioDirector.play_reward(&"xp", reward_config.tier_for_amount(
+		RewardBurstConfig.Kind.XP, amount), &"launch")
 	for i in range(count):
+		var token: Dictionary = tokens[i]
 		available[i].setup(origin, _camera, float(i) * _ORB_STAGGER,
 			_SCATTER_RADIUS, _GROUND_Y, _SCATTER_RADIUS, _COLLECT_AT,
-			share + (1 if i < remainder else 0), _xp_screen_target)
+			int(token.amount), _xp_screen_target, 1.0, 1.0, int(token.tier))
 
 
-func _on_orb_collected(amount: int) -> void:
-	xp_orb_collected.emit(amount)
+func _on_orb_collected(amount: int, tier: int) -> void:
+	xp_orb_collected.emit(amount, tier)
 
 
 func _burst_chips(origin: Vector3) -> void:

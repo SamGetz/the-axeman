@@ -93,131 +93,157 @@ tuning_status = "PLACEHOLDER — M8 measured tuning required"
 script = ExtResource("3_requirement")
 kind = 0
 required_count = 10
+use_mastery_target = true
 label = "Complete the authored number of logs manually"
 
 [sub_resource type="Resource" id="Mastery_quaking_aspen"]
 script = ExtResource("2_mastery")
 species_id = &"quaking_aspen"
+mastery_target = 5
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_eastern_white_pine"]
 script = ExtResource("2_mastery")
 species_id = &"eastern_white_pine"
+mastery_target = 5
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_norway_spruce"]
 script = ExtResource("2_mastery")
 species_id = &"norway_spruce"
+mastery_target = 5
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_balsam_fir"]
 script = ExtResource("2_mastery")
 species_id = &"balsam_fir"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_lodgepole_pine"]
 script = ExtResource("2_mastery")
 species_id = &"lodgepole_pine"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_white_spruce"]
 script = ExtResource("2_mastery")
 species_id = &"white_spruce"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_black_spruce"]
 script = ExtResource("2_mastery")
 species_id = &"black_spruce"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_scots_pine"]
 script = ExtResource("2_mastery")
 species_id = &"scots_pine"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_western_hemlock"]
 script = ExtResource("2_mastery")
 species_id = &"western_hemlock"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_red_pine"]
 script = ExtResource("2_mastery")
 species_id = &"red_pine"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_douglas_fir"]
 script = ExtResource("2_mastery")
 species_id = &"douglas_fir"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_black_ash"]
 script = ExtResource("2_mastery")
 species_id = &"black_ash"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_paper_birch"]
 script = ExtResource("2_mastery")
 species_id = &"paper_birch"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_pedunculate_oak"]
 script = ExtResource("2_mastery")
 species_id = &"pedunculate_oak"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_silver_birch"]
 script = ExtResource("2_mastery")
 species_id = &"silver_birch"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_yellow_birch"]
 script = ExtResource("2_mastery")
 species_id = &"yellow_birch"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_northern_red_oak"]
 script = ExtResource("2_mastery")
 species_id = &"northern_red_oak"
+mastery_target = 6
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_american_beech"]
 script = ExtResource("2_mastery")
 species_id = &"american_beech"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_white_ash"]
 script = ExtResource("2_mastery")
 species_id = &"white_ash"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_white_oak"]
 script = ExtResource("2_mastery")
 species_id = &"white_oak"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_sugar_maple"]
 script = ExtResource("2_mastery")
 species_id = &"sugar_maple"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_european_beech"]
 script = ExtResource("2_mastery")
 species_id = &"european_beech"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_river_red_gum"]
 script = ExtResource("2_mastery")
 species_id = &"river_red_gum"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_tasmanian_blue_gum"]
 script = ExtResource("2_mastery")
 species_id = &"tasmanian_blue_gum"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [sub_resource type="Resource" id="Mastery_lignum_vitae"]
 script = ExtResource("2_mastery")
 species_id = &"lignum_vitae"
+mastery_target = 7
 certification_requirements = Array[ExtResource("3_requirement")]([SubResource("Requirement_manual")])
 
 [resource]

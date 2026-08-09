@@ -114,8 +114,8 @@ func _seed_double_strike() -> void:
 	# total by the time this ran — SkillTree.buy() returned -1 for an
 	# unaffordable purchase, easy to misread as "already owned". 11 comfortably
 	# covers the 6-point chain (1+3+2) regardless of prior spend.
-	var curve := load("res://data/level_curve.tres") as LevelCurve
-	var target_level := mini(LevelCurve.MAX_LEVEL, GameState.get_level() + 11)
+	var curve := GameConfig.current().level_curve
+	var target_level := GameState.get_level() + 11
 	var target_xp := curve.total_xp_for_level(target_level)
 	if target_xp > GameState.get_xp():
 		GameState.add_xp(target_xp - GameState.get_xp())
@@ -144,8 +144,8 @@ func _seed_speed() -> void:
 	# 20 MORE points from wherever the player already is. 14 are needed
 	# (1 + 3 + 5x2); 20 leaves comfortable headroom the way Double Strike's own
 	# 11-for-6 buffer does.
-	var curve := load("res://data/level_curve.tres") as LevelCurve
-	var target_level := mini(LevelCurve.MAX_LEVEL, GameState.get_level() + 20)
+	var curve := GameConfig.current().level_curve
+	var target_level := GameState.get_level() + 20
 	var target_xp := curve.total_xp_for_level(target_level)
 	if target_xp > GameState.get_xp():
 		GameState.add_xp(target_xp - GameState.get_xp())

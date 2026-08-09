@@ -1,10 +1,17 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scenes/2d_management/yard_hud.gd" id="1_hud"]
 [ext_resource type="Texture2D" path="res://assets/ui/coin.png" id="2_coin"]
 [ext_resource type="Texture2D" path="res://assets/ui/contracts_icon.svg" id="3_contracts"]
 [ext_resource type="Texture2D" path="res://assets/ui/skills_icon.svg" id="5_skills"]
 [ext_resource type="Texture2D" path="res://assets/ui/wood_icon.svg" id="6_wood"]
+[ext_resource type="Texture2D" path="res://assets/generated/ui/supplier_atlas_background_candidate.png" id="7_atlas_bg"]
+[ext_resource type="Texture2D" path="res://assets/generated/ui/earth_master_headline_candidate.png" id="8_earth_headline"]
+[ext_resource type="Texture2D" path="res://assets/ui/supplier_atlas_icon.svg" id="9_atlas_icon"]
+[ext_resource type="PackedScene" path="res://scenes/2d_management/tutorial_overlay.tscn" id="10_tutorial"]
+[ext_resource type="Texture2D" path="res://assets/ui/placeholders/active_delivery.svg" id="11_active_delivery"]
+[ext_resource type="Texture2D" path="res://assets/ui/placeholders/delivery_stamp.svg" id="12_delivery_stamp"]
+[ext_resource type="Texture2D" path="res://assets/ui/placeholders/craft_grade.svg" id="13_craft_grade"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_contract_board"]
 bg_color = Color(0.19, 0.115, 0.055, 0.97)
@@ -17,6 +24,42 @@ corner_radius_top_left = 5
 corner_radius_top_right = 5
 corner_radius_bottom_right = 5
 corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_modal"]
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 16.0
+content_margin_bottom = 14.0
+bg_color = Color(0.075, 0.085, 0.08, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.36, 0.31, 0.22, 1)
+corner_radius_top_left = 9
+corner_radius_top_right = 9
+corner_radius_bottom_right = 9
+corner_radius_bottom_left = 9
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_contract_modal"]
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 16.0
+content_margin_bottom = 14.0
+bg_color = Color(0.19, 0.115, 0.055, 0.97)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.48, 0.29, 0.12, 1)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 12
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_badge"]
 content_margin_left = 4.0
@@ -36,7 +79,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_hud")
 
-[node name="TopBar" type="PanelContainer" parent="."]
+[node name="TopBar" type="MarginContainer" parent="."]
 offset_left = 16.0
 offset_top = 36.0
 offset_right = 180.0
@@ -59,8 +102,119 @@ stretch_mode = 5
 
 [node name="CashLabel" type="Label" parent="TopBar/CashRow"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.58, 1)
+theme_override_colors/font_outline_color = Color(0.18, 0.105, 0.045, 0.9)
+theme_override_colors/font_shadow_color = Color(0.1, 0.055, 0.02, 0.72)
+theme_override_constants/outline_size = 3
+theme_override_constants/shadow_outline_size = 1
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 26
 text = "0"
+
+[node name="CraftFeedback" type="Label" parent="."]
+visible = false
+offset_left = 48.0
+offset_top = 89.0
+offset_right = 300.0
+offset_bottom = 117.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.78, 0.96, 0.62, 1)
+theme_override_font_sizes/font_size = 16
+text = "Clean piece · +0 craft"
+metadata/art_status = "placeholder_graphic_integrated_pending_final_ui"
+
+[node name="GradeGraphic" type="TextureRect" parent="CraftFeedback"]
+layout_mode = 1
+offset_left = -32.0
+offset_top = 1.0
+offset_right = -8.0
+offset_bottom = 25.0
+mouse_filter = 2
+texture = ExtResource("13_craft_grade")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="EarthTreesRemaining" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -42.0
+offset_right = 292.0
+offset_bottom = -16.0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.72, 0.72, 0.68, 0.82)
+theme_override_font_sizes/font_size = 13
+text = "Trees remaining · 3,040,000,000,000"
+metadata/pacing_role = "always_visible_earth_depletion_counter"
+
+[node name="CampaignGoal" type="PanelContainer" parent="."]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 36.0
+offset_right = 430.0
+offset_bottom = 168.0
+theme_override_styles/panel = SubResource("StyleBox_contract_board")
+mouse_filter = 2
+metadata/pacing_role = "persistent_campaign_objective"
+
+[node name="Column" type="VBoxContainer" parent="CampaignGoal"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Phase" type="Label" parent="CampaignGoal/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.88, 0.64, 1)
+theme_override_font_sizes/font_size = 11
+text = "COZY CLEARING"
+
+[node name="Title" type="Label" parent="CampaignGoal/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Learn the yard"
+
+[node name="Detail" type="Label" parent="CampaignGoal/Column"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 11
+text = "Chop, process, sell, and improve the block."
+
+[node name="Progress" type="ProgressBar" parent="CampaignGoal/Column"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+max_value = 1.0
+show_percentage = false
+
+[node name="ProgressText" type="Label" parent="CampaignGoal/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.78, 0.72, 0.9)
+theme_override_font_sizes/font_size = 10
+text = "0 / 1"
+horizontal_alignment = 2
+
+[node name="FeatureIntroduction" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -70.0
+offset_right = 420.0
+offset_bottom = -46.0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.72, 0.88, 0.76, 0.9)
+theme_override_font_sizes/font_size = 13
+text = "New production item"
+metadata/pacing_role = "persisted_exact_once_feature_introduction"
+
+[node name="FeatureIntroductionTimer" type="Timer" parent="."]
+wait_time = 4.0
+one_shot = true
 
 [node name="SplitterRuntimeCard" type="PanelContainer" parent="."]
 layout_mode = 1
@@ -80,7 +234,7 @@ theme_override_constants/separation = 5
 [node name="Title" type="Label" parent="SplitterRuntimeCard/Column"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "Mechanical Splitter · AUTHORED ART MISSING"
+text = "Mechanical Splitter"
 
 [node name="State" type="Label" parent="SplitterRuntimeCard/Column"]
 layout_mode = 2
@@ -150,13 +304,13 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -306.0
+offset_left = -386.0
 offset_top = 32.0
 offset_right = -16.0
 offset_bottom = 70.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("StyleBox_contract_board")
-metadata/art_status = "native_ui_stand_in_pending_authored_m9_job_chip"
+metadata/art_status = "placeholder_graphic_integrated_pending_final_ui"
 
 [node name="Column" type="VBoxContainer" parent="ActiveJobChip"]
 layout_mode = 2
@@ -167,15 +321,18 @@ layout_mode = 2
 theme_override_constants/separation = 2
 
 [node name="Button" type="Button" parent="ActiveJobChip/Column/Header"]
-custom_minimum_size = Vector2(0, 30)
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "Active deliveries"
+icon = ExtResource("11_active_delivery")
+expand_icon = true
+icon_max_width = 22
 flat = true
 
 [node name="Toggle" type="Button" parent="ActiveJobChip/Column/Header"]
-custom_minimum_size = Vector2(30, 30)
+custom_minimum_size = Vector2(34, 34)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "▾"
@@ -184,7 +341,7 @@ flat = true
 
 [node name="Scroll" type="ScrollContainer" parent="ActiveJobChip/Column"]
 visible = false
-custom_minimum_size = Vector2(0, 112)
+custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
 horizontal_scroll_mode = 0
 
@@ -198,7 +355,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -264.0
+offset_left = -328.0
 offset_top = -72.0
 offset_right = -16.0
 offset_bottom = -16.0
@@ -276,6 +433,14 @@ icon = ExtResource("6_wood")
 expand_icon = true
 icon_max_width = 38
 
+[node name="AtlasButton" type="Button" parent="QuickMenu"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "Supplier Atlas"
+icon = ExtResource("9_atlas_icon")
+expand_icon = true
+icon_max_width = 38
+
 [node name="Badge" type="Label" parent="QuickMenu/TreesButton"]
 visible = false
 layout_mode = 1
@@ -330,12 +495,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -240.0
-offset_top = -290.0
-offset_right = 240.0
-offset_bottom = 290.0
+offset_left = -290.0
+offset_top = -310.0
+offset_right = 290.0
+offset_bottom = 310.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_modal")
 
 [node name="Column" type="VBoxContainer" parent="ShopPanel"]
 layout_mode = 2
@@ -430,7 +596,7 @@ autowrap_mode = 3
 text = "Completed purchases will be kept here."
 
 [node name="CloseShopButton" type="Button" parent="ShopPanel/Column"]
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "Back"
 
@@ -440,12 +606,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -330.0
-offset_top = -300.0
-offset_right = 330.0
-offset_bottom = 300.0
+offset_left = -380.0
+offset_top = -310.0
+offset_right = 380.0
+offset_bottom = 310.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_modal")
 
 [node name="Column" type="VBoxContainer" parent="TreesPanel"]
 layout_mode = 2
@@ -466,7 +633,7 @@ stretch_mode = 5
 [node name="Title" type="Label" parent="TreesPanel/Column/Header"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "Tree Catalog"
+text = "World Wood Catalogue"
 
 [node name="Blurb" type="Label" parent="TreesPanel/Column"]
 layout_mode = 2
@@ -489,7 +656,7 @@ autowrap_mode = 3
 theme_override_font_sizes/font_size = 13
 
 [node name="CloseButton" type="Button" parent="TreesPanel/Column"]
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "Back"
 
@@ -499,12 +666,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -540.0
-offset_top = -310.0
-offset_right = 540.0
-offset_bottom = 310.0
+offset_left = -560.0
+offset_top = -320.0
+offset_right = 560.0
+offset_bottom = 320.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_modal")
 
 [node name="Column" type="VBoxContainer" parent="SkillPanel"]
 layout_mode = 2
@@ -531,68 +699,47 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Shape your work at the block. Skill points come from Axeman levels; yard equipment remains separate."
 
+[node name="BranchTabs" type="TabBar" parent="SkillPanel/Column"]
+layout_mode = 2
+tab_alignment = 1
+
 [node name="SkillBody" type="HBoxContainer" parent="SkillPanel/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 12
 
 [node name="BoughScroll" type="ScrollContainer" parent="SkillPanel/Column/SkillBody"]
-custom_minimum_size = Vector2(720, 0)
+custom_minimum_size = Vector2(1020, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 horizontal_scroll_mode = 0
+vertical_scroll_mode = 0
 
 [node name="Boughs" type="HBoxContainer" parent="SkillPanel/Column/SkillBody/BoughScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="SkillFooter" type="HBoxContainer" parent="SkillPanel/Column"]
+layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="DetailPanel" type="PanelContainer" parent="SkillPanel/Column/SkillBody"]
-custom_minimum_size = Vector2(300, 0)
+[node name="Hint" type="Label" parent="SkillPanel/Column/SkillFooter"]
 layout_mode = 2
-
-[node name="Column" type="VBoxContainer" parent="SkillPanel/Column/SkillBody/DetailPanel"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Title" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Select a skill"
-
-[node name="Meta" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-
-[node name="Description" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
-layout_mode = 2
-size_flags_vertical = 3
-autowrap_mode = 3
-
-[node name="Requirements" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
-layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 12
-
-[node name="Status" type="Label" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
-layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 13
-
-[node name="BuyButton" type="Button" parent="SkillPanel/Column/SkillBody/DetailPanel/Column"]
-custom_minimum_size = Vector2(0, 42)
-layout_mode = 2
-text = "Select a skill"
-disabled = true
-
-[node name="RespecNotice" type="Label" parent="SkillPanel/Column"]
-layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 11
-text = "Free yard respec  ·  confirmation copy pending approval"
-horizontal_alignment = 1
+text = "Click a square to learn it  ·  hover for details  ·  every node costs 1 point"
+vertical_alignment = 1
+
+[node name="RespecButton" type="Button" parent="SkillPanel/Column/SkillFooter"]
+custom_minimum_size = Vector2(230, 38)
+layout_mode = 2
+text = "Respec · 20% of cash"
+tooltip_text = "Refund every learned skill point. Costs 20% of your current cash."
 
 [node name="CloseSkillButton" type="Button" parent="SkillPanel/Column"]
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "Back"
 
@@ -602,13 +749,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -300.0
-offset_right = 300.0
-offset_bottom = 300.0
+offset_left = -340.0
+offset_top = -310.0
+offset_right = 340.0
+offset_bottom = 310.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBox_contract_board")
+theme_override_styles/panel = SubResource("StyleBox_contract_modal")
 
 [node name="Column" type="VBoxContainer" parent="OrdersPanel"]
 layout_mode = 2
@@ -622,7 +769,7 @@ text = "Contract Board"
 [node name="Blurb" type="Label" parent="OrdersPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Choose one patient delivery. Matching pieces still earn their normal price; finishing the load pays its bonus."
+text = "Authored deliveries teach and advance the yard. Long-term standing commissions live in the compact objective chip and pay automatically."
 
 [node name="Active" type="Label" parent="OrdersPanel/Column"]
 layout_mode = 2
@@ -686,9 +833,95 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="CloseButton" type="Button" parent="OrdersPanel/Column"]
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "Back"
+
+[node name="AtlasPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -380.0
+offset_top = -310.0
+offset_right = 380.0
+offset_bottom = 310.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_contract_modal")
+metadata/art_status = "replaceable_ai_generated_candidate"
+
+[node name="GeneratedMapBackground" type="TextureRect" parent="AtlasPanel"]
+layout_mode = 2
+mouse_filter = 2
+modulate = Color(1, 1, 1, 0.28)
+texture = ExtResource("7_atlas_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Column" type="VBoxContainer" parent="AtlasPanel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="AtlasPanel/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Supplier Atlas"
+
+[node name="Blurb" type="Label" parent="AtlasPanel/Column"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Discover a region, earn standing, build its depot, then establish freight. Every delay names the next fix."
+
+[node name="Scroll" type="ScrollContainer" parent="AtlasPanel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="AtlasPanel/Column/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="CloseButton" type="Button" parent="AtlasPanel/Column"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Back"
+
+[node name="EarthMasterHeadline" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Backdrop" type="TextureRect" parent="EarthMasterHeadline"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("8_earth_headline")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Headline" type="Label" parent="EarthMasterHeadline"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 46.0
+offset_bottom = 148.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.16, 0.25, 0.16, 1)
+theme_override_font_sizes/font_size = 38
+text = "EARTH MASTER · 25 WOODS CATALOGUED"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="DeliveryReceipt" type="PanelContainer" parent="."]
 visible = false
@@ -702,7 +935,7 @@ offset_bottom = 142.0
 grow_horizontal = 2
 theme_override_styles/panel = SubResource("StyleBox_contract_board")
 mouse_filter = 2
-metadata/art_status = "native_ui_stand_in_pending_authored_m9_delivery_receipt"
+metadata/art_status = "placeholder_graphic_integrated_pending_final_ui"
 
 [node name="Column" type="VBoxContainer" parent="DeliveryReceipt"]
 layout_mode = 2
@@ -714,6 +947,21 @@ theme_override_colors/font_color = Color(0.78, 0.88, 0.64, 1)
 theme_override_font_sizes/font_size = 24
 text = "DELIVERED"
 horizontal_alignment = 1
+
+[node name="StampGraphic" type="TextureRect" parent="DeliveryReceipt/Column/Stamp"]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -4.0
+offset_top = -15.0
+offset_right = 26.0
+offset_bottom = 15.0
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("12_delivery_stamp")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="Title" type="Label" parent="DeliveryReceipt/Column"]
 layout_mode = 2
@@ -727,3 +975,55 @@ theme_override_font_sizes/font_size = 13
 text = "+0 coins"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="CreditsPanel" type="ColorRect" parent="."]
+visible = false
+z_index = 100
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.025, 0.03, 0.045, 0.98)
+
+[node name="CreditsColumn" type="VBoxContainer" parent="CreditsPanel"]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 96.0
+offset_right = 960.0
+offset_bottom = 650.0
+theme_override_constants/separation = 22
+
+[node name="Title" type="Label" parent="CreditsPanel/CreditsColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.76, 0.4, 1)
+theme_override_font_sizes/font_size = 46
+text = "THE AXEMAN"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CreditsPanel/CreditsColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "A quiet little lumber business"
+horizontal_alignment = 1
+
+[node name="Stats" type="Label" parent="CreditsPanel/CreditsColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "25 Earth woods mastered\n3,040,000,000,000 trees removed\n3 alien woods mastered\n3 orbital lines running\nFrontier Master"
+horizontal_alignment = 1
+
+[node name="Credit" type="Label" parent="CreditsPanel/CreditsColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.8, 0.86, 1)
+theme_override_font_sizes/font_size = 16
+text = "Built by Sam\n\nThe neighbourhood hearth circle has filed a minor concern.\nThere is no longer a neighbourhood."
+horizontal_alignment = 1
+
+[node name="ContinueButton" type="Button" parent="CreditsPanel/CreditsColumn"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+text = "Return to the quiet yard"
+
+[node name="TutorialOverlay" parent="." instance=ExtResource("10_tutorial")]

@@ -1,6 +1,6 @@
 class_name CommissionTemplateDef
 extends Resource
-## Authored identity and provisional pacing for one repeatable yard commission.
+## Authored identity and provisional pacing for one long-term yard commission.
 ## GameState persists generated offer snapshots; this resource remains immutable
 ## catalogue data read through the stateless Orders service.
 
@@ -9,16 +9,30 @@ enum GoalKind {
 	SPECIFIC_SPECIES,
 }
 
+enum EffortBand {
+	STANDING,
+	MAJOR,
+	PROJECT,
+}
+
 @export var id: StringName = &""
+@export var customer_id: StringName = &""
 @export var customer_name := ""
 ## `{species}` is replaced with the generated species name. Any-firewood
 ## templates receive "Mixed Firewood".
 @export var title_format := "{species} Commission"
 @export_multiline var description := ""
 @export var goal_kind: GoalKind = GoalKind.SPECIFIC_SPECIES
+## Player-effort identity. Raw piece counts remain resource-authored so the
+## measured review can tune these bands without changing generation code.
+@export var effort_band: EffortBand = EffortBand.MAJOR
 @export_range(1, 1000000, 1) var required_count := 1
 ## Fixed completion premium is snapshotted as
 ## `unit value * required_count * premium_ratio`. It never modifies ordinary
 ## per-piece Market receipts and never applies to splitter output.
 @export_range(0.01, 10.0, 0.01) var premium_ratio := 0.1
+@export_range(0, 1000000, 1) var reputation_reward := 1
+@export_range(0, 1000000, 1) var reputation_required := 0
+@export var craft_requirement: CraftRequirementDef
+@export var automation_eligible_bulk := false
 @export var tuning_status := "PLACEHOLDER — M9 measured tuning required"

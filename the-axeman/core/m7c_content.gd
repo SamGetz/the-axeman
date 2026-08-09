@@ -141,6 +141,7 @@ static func validate_skill_tree(table: SkillTreeTable, branch_table: SkillBranch
 				# the one documented exception to "a node names its proc".
 				owned_procs[&"grain_read"] = true
 		errors.append_array(_validate_modifiers(node.modifiers, "skill %s" % node.id))
+		errors.append_array(_validate_modifiers(node.effects, "skill effects %s" % node.id))
 
 	for node: SkillNodeDef in table.nodes:
 		if node == null:
@@ -162,7 +163,8 @@ static func validate_skill_tree(table: SkillTreeTable, branch_table: SkillBranch
 	# its own terms regardless of whether any skill points at it.
 	if proc_table != null:
 		for proc: ProcDef in proc_table.procs:
-			if proc != null and proc.id != &"" and not owned_procs.has(proc.id):
+			if proc != null and proc.id != &"" and not owned_procs.has(proc.id) \
+					and not _shop_owns_proc(proc.id):
 				errors.append("proc %s is not owned by any skill tree node" % proc.id)
 	return errors
 
@@ -182,7 +184,7 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 		elif seen.has(proc.id):
 			errors.append("duplicate proc id:%s" % proc.id)
 		seen[proc.id] = true
-		if proc.family < ProcDef.Family.DOUBLE_STRIKE or proc.family > ProcDef.Family.GRAIN_READ:
+		if proc.family < ProcDef.Family.DOUBLE_STRIKE or proc.family > ProcDef.Family.EXPRESS_HANDOFF:
 			errors.append("proc %s has illegal family" % proc.id)
 		if proc.eligibility < ProcDef.Eligibility.MANUAL_SWING or proc.eligibility > ProcDef.Eligibility.MANUAL_PIECE_OFFER:
 			errors.append("proc %s has illegal eligibility" % proc.id)
@@ -197,6 +199,9 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 			errors.append("proc %s has invalid bad-luck policy" % proc.id)
 		if proc.announcement_key == &"":
 			errors.append("proc %s has no announcement key" % proc.id)
+		if proc.presentation_branch_id == &"" or branches() == null \
+				or branches().by_id(proc.presentation_branch_id) == null:
+			errors.append("proc %s has no valid presentation branch" % proc.id)
 		if proc.tuning_status.is_empty():
 			errors.append("proc %s is missing tuning status" % proc.id)
 		errors.append_array(_validate_modifiers(proc.modifiers, "proc %s" % proc.id))
@@ -204,6 +209,16 @@ static func validate_procs(table: ProcTable) -> PackedStringArray:
 				and not _has_manual_xp_multiplier(proc):
 			errors.append("proc %s has no valid manual XP multiplier" % proc.id)
 	return errors
+
+
+static func _shop_owns_proc(proc_id: StringName) -> bool:
+	for upgrade: UpgradeDef in Shop.get_upgrades():
+		if upgrade == null:
+			continue
+		for contribution: UpgradeProcContributionDef in upgrade.proc_contributions:
+			if contribution != null and contribution.proc_id == proc_id:
+				return true
+	return false
 
 
 static func _has_manual_xp_multiplier(proc: ProcDef) -> bool:
@@ -269,11 +284,11 @@ static func validate_mastery(table: SpeciesMasteryTable) -> PackedStringArray:
 			errors.append("mastery references unknown species:%s" % definition.species_id)
 		if definition.mastery_target <= 0 or definition.manual_completion_award <= 0:
 			errors.append("mastery %s has invalid target/award" % definition.species_id)
-		if not table.thresholds.is_empty():
-			var final_threshold: SpeciesMasteryThresholdDef = table.thresholds.back()
-			if final_threshold != null and final_threshold.required_progress != definition.mastery_target:
-				errors.append("mastery %s target does not match final threshold:%d" % [
-					definition.species_id, final_threshold.required_progress])
+		var scaled_thresholds := table.thresholds_for_species(definition.species_id)
+		if scaled_thresholds.size() != table.thresholds.size() \
+				or scaled_thresholds.is_empty() \
+				or scaled_thresholds.back().required_progress != definition.mastery_target:
+			errors.append("mastery %s lacks a scaled final threshold" % definition.species_id)
 		for requirement: CertificationRequirementDef in definition.certification_requirements:
 			if requirement == null:
 				errors.append("mastery %s has null certification requirement" % definition.species_id)
@@ -283,6 +298,7 @@ static func validate_mastery(table: SpeciesMasteryTable) -> PackedStringArray:
 			if requirement.required_count <= 0:
 				errors.append("mastery %s has invalid certification count" % definition.species_id)
 			elif requirement.kind == CertificationRequirementDef.Kind.MANUAL_LOGS \
+					and not requirement.use_mastery_target \
 					and requirement.required_count != definition.mastery_target:
 				errors.append("mastery %s manual certification count does not match target" \
 					% definition.species_id)
@@ -316,7 +332,7 @@ static func validate_equipment(table: EquipmentTable) -> PackedStringArray:
 			fallbacks[definition.slot] = int(fallbacks[definition.slot]) + 1
 		if definition.ownership_upgrade_id != &"" and Shop.get_upgrade(definition.ownership_upgrade_id) == null:
 			errors.append("equipment %s has unknown ownership upgrade:%s" % [definition.id, definition.ownership_upgrade_id])
-		if definition.comparison_tags.is_empty():
+		if definition.comparison_tags.is_empty() and definition.progression_stage <= 0:
 			errors.append("equipment %s has no comparison tags" % definition.id)
 		if definition.tuning_status.is_empty():
 			errors.append("equipment %s is missing tuning status" % definition.id)
@@ -339,7 +355,8 @@ static func _validate_modifiers(modifiers: Array[GameplayModifierDef], owner: St
 		elif seen.has(modifier.id):
 			errors.append("%s has duplicate modifier:%s" % [owner, modifier.id])
 		seen[modifier.id] = true
-		if modifier.kind < GameplayModifierDef.Kind.SPLIT_RELIABILITY or modifier.kind > GameplayModifierDef.Kind.CASH_GAIN:
+		if modifier.kind < GameplayModifierDef.Kind.SPLIT_RELIABILITY \
+				or modifier.kind > GameplayModifierDef.Kind.FRONTIER_LOGISTICS:
 			errors.append("%s has modifier with illegal kind" % owner)
 		if modifier.operation < GameplayModifierDef.Operation.ADD or modifier.operation > GameplayModifierDef.Operation.ENABLE:
 			errors.append("%s has modifier with illegal operation" % owner)
