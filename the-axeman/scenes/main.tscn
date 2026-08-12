@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://cxmnchopmg0a1" path="res://scenes/3d_action/chopping_minigame.tscn" id="2_cblock"]
 [ext_resource type="PackedScene" path="res://scenes/2d_management/yard_hud.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/2d_management/startup_menu.tscn" id="4_startup"]
-[ext_resource type="Material" path="res://assets/shaders/pixel_color_grade_placeholder.tres" id="5_pixel_grade"]
+[ext_resource type="Material" path="res://assets/shaders/painterly_color_grade_placeholder.tres" id="5_painterly_grade"]
 
 [node name="Main" type="Node" unique_id=38020318]
 script = ExtResource("1_main")
@@ -13,7 +13,7 @@ script = ExtResource("1_main")
 layer = 0
 
 [node name="SubViewportContainer" type="SubViewportContainer" parent="UI_Canvas" unique_id=1908606154]
-texture_filter = 1
+texture_filter = 2
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -32,11 +32,11 @@ render_target_update_mode = 4
 
 [node name="Chopping_Minigame" parent="UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root" unique_id=1942177179 instance=ExtResource("2_cblock")]
 
-[node name="PixelColorGrade" type="CanvasLayer" parent="UI_Canvas/SubViewportContainer/Action_Viewport"]
+[node name="PainterlyColorGrade" type="CanvasLayer" parent="UI_Canvas/SubViewportContainer/Action_Viewport"]
 layer = 100
 
-[node name="ColorClampAndDither" type="ColorRect" parent="UI_Canvas/SubViewportContainer/Action_Viewport/PixelColorGrade"]
-material = ExtResource("5_pixel_grade")
+[node name="PainterlyWash" type="ColorRect" parent="UI_Canvas/SubViewportContainer/Action_Viewport/PainterlyColorGrade"]
+material = ExtResource("5_painterly_grade")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0

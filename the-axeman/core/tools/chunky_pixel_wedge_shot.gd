@@ -27,7 +27,8 @@ func _ready() -> void:
 	).process_mode = Node.PROCESS_MODE_DISABLED
 
 	var effect: ColorRect = main.get_node(
-		"UI_Canvas/SubViewportContainer/Action_Viewport/PixelColorGrade/ColorClampAndDither")
+		"UI_Canvas/SubViewportContainer/Action_Viewport/"
+		+ "PainterlyColorGrade/PainterlyWash")
 	var material: ShaderMaterial = load(
 		"res://assets/shaders/visual_style_lab_placeholder.tres").duplicate()
 	effect.material = material

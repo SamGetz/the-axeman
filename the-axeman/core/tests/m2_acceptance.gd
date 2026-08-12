@@ -4,16 +4,14 @@ extends Node
 ## Run that scene (F6 / Run Current Scene). Not shipped in builds.
 ##
 ## Verifies the M2 contracts:
-##   A1  — pipeline settings (1280×720 Action_Viewport, NEAREST container,
-##         canvas_items/keep project stretch; Amendment 8 dropped the 960×540
-##         pixel-art look for a full-resolution render. Filter is NEAREST, not
-##         LINEAR — at this 1:1 resolution there's no scale mismatch to blur,
-##         and LINEAR read as a soft "bloom" next to bright highlights, so Sam
-##         had it reverted. Jagged geometry edges (still visible at full-res
-##         with AA off) are handled by a per-viewport `msaa_3d` override on
-##         Action_Viewport (4x) instead of the project-wide MSAA setting, since
-##         FSR/FSR2 `scaling_3d_mode` isn't supported under the Compatibility
-##         renderer — left at default Bilinear).
+##   A1  — pipeline settings (1280×720 Action_Viewport, LINEAR container,
+##         canvas_items/keep project stretch). The smooth painterly direction
+##         deliberately filters resized viewport output and uses a full-screen
+##         edge-aware wash without UV snapping, colour quantization, or dither.
+##         Jagged geometry edges are handled by a per-viewport `msaa_3d`
+##         override on Action_Viewport (4x) instead of the project-wide MSAA
+##         setting, since FSR/FSR2 `scaling_3d_mode` isn't supported under the
+##         Compatibility renderer — left at default Bilinear.
 ##   A9  — exact root hierarchy (names, types, canvas layers).
 ##   A10 — after the startup decision the production game enters its chopping
 ##         view; an explicit 2D mode still disables viewport rendering + 3D
@@ -25,7 +23,7 @@ var _fails := 0
 
 
 func _ready() -> void:
-	print("=== M2 ACCEPTANCE — main scene shell + pixel pipeline ===")
+	print("=== M2 ACCEPTANCE — main scene shell + painterly pipeline ===")
 	var main_scene: PackedScene = load("res://scenes/main.tscn")
 	_check(main_scene != null, "res://scenes/main.tscn loads")
 	if main_scene == null:
@@ -87,11 +85,23 @@ func _test_a1_pipeline(main: Node) -> void:
 		"UI_Canvas/SubViewportContainer")
 	var viewport: SubViewport = main.get_node(
 		"UI_Canvas/SubViewportContainer/Action_Viewport")
+	var grade: ColorRect = main.get_node(
+		"UI_Canvas/SubViewportContainer/Action_Viewport/"
+		+ "PainterlyColorGrade/PainterlyWash")
+	var distance_grade: MeshInstance3D = main.get_node(
+		"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/"
+		+ "Chopping_Minigame/CameraPivot/Camera3D/DistancePixelGrade")
 
 	_check(viewport.size == Vector2i(1280, 720), "Action_Viewport is 1280x720 (A1, Amendment 8)")
 	_check(container.stretch, "SubViewportContainer.stretch is true")
-	_check(container.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST,
-		"SubViewportContainer filter is NEAREST (A1, Amendment 8 — no scale mismatch at 1:1, so NEAREST stays crisp without blur)")
+	_check(container.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR,
+		"SubViewportContainer filter is LINEAR for smooth resized output")
+	_check(grade.material is ShaderMaterial
+		and (grade.material as ShaderMaterial).shader.resource_path
+		== "res://assets/shaders/painterly_color_grade.gdshader",
+		"the 3D view uses the smooth painterly grade")
+	_check(not distance_grade.visible,
+		"the retired camera-distance pixel pass is disabled")
 
 	_check(str(ProjectSettings.get_setting("display/window/stretch/mode"))
 		== "canvas_items", "project stretch mode is canvas_items")

@@ -11,7 +11,7 @@ extends Resource
 @export var proc_light_range := 1.25
 @export var proc_log_base_clearance := 0.025
 @export var proc_log_base_viewer_offset := 0.045
-@export_range(0.0, 1.0, 0.01) var particle_dither_strength := 0.42
+@export_range(0.0, 1.0, 0.01) var particle_dither_strength := 0.0
 @export_range(0.5, 5.0, 0.05) var particle_dither_pixel_size := 1.1
 @export_range(0.02, 0.98, 0.01) var smooth_glow_softness := 0.82
 @export_range(0.0, 1.0, 0.01) var smooth_glow_alpha := 0.20

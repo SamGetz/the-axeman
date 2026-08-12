@@ -37,6 +37,7 @@ transform = Transform3D(1, 0, 0, 0, 0.84165555, 0.5400148, 0, -0.5400148, 0.8416
 current = true
 
 [node name="DistancePixelGrade" type="MeshInstance3D" parent="CameraPivot/Camera3D"]
+visible = false
 extra_cull_margin = 16384.0
 mesh = SubResource("Quad_distance_pixels")
 

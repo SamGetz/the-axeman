@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://assets/shaders/painterly_color_grade.gdshader" id="1_shader"]
+
+[resource]
+resource_name = "PLACEHOLDER - smooth painterly storybook grade"
+shader = ExtResource("1_shader")
+shader_parameter/wash_strength = 0.34
+shader_parameter/wash_radius = 1.10
+shader_parameter/edge_preservation = 0.14
+shader_parameter/saturation = 0.94
+shader_parameter/warmth = 0.26
+shader_parameter/vignette_strength = 0.10
