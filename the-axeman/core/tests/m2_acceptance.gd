@@ -7,7 +7,8 @@ extends Node
 ##   A1  — pipeline settings (1280×720 Action_Viewport, LINEAR container,
 ##         canvas_items/keep project stretch). The smooth painterly direction
 ##         deliberately filters resized viewport output and uses a full-screen
-##         edge-aware wash without UV snapping, colour quantization, or dither.
+##         edge-aware wash without UV snapping or colour quantization, followed
+##         by the selected broad, broken, material-relative brush edging.
 ##         Jagged geometry edges are handled by a per-viewport `msaa_3d`
 ##         override on Action_Viewport (4x) instead of the project-wide MSAA
 ##         setting, since FSR/FSR2 `scaling_3d_mode` isn't supported under the
@@ -99,7 +100,23 @@ func _test_a1_pipeline(main: Node) -> void:
 	_check(grade.material is ShaderMaterial
 		and (grade.material as ShaderMaterial).shader.resource_path
 		== "res://assets/shaders/painterly_color_grade.gdshader",
-		"the 3D view uses the smooth painterly grade")
+		"the 3D view uses the painterly grade and brush-edge shader")
+	var grade_material := grade.material as ShaderMaterial
+	_check(is_equal_approx(float(grade_material.get_shader_parameter(
+		"brush_sample_radius")), 2.1)
+		and is_equal_approx(float(grade_material.get_shader_parameter(
+			"brush_edge_threshold")), 0.115)
+		and is_equal_approx(float(grade_material.get_shader_parameter(
+			"brush_edge_softness")), 0.052)
+		and is_equal_approx(float(grade_material.get_shader_parameter(
+			"brush_coverage")), 0.46)
+		and is_equal_approx(float(grade_material.get_shader_parameter(
+			"brush_darkening")), 0.68)
+		and is_equal_approx(float(grade_material.get_shader_parameter(
+			"brush_strength")), 0.88)
+		and is_equal_approx(float(grade_material.get_shader_parameter(
+			"brush_dash_length")), 28.0),
+		"the selected broad brush-edge treatment is authored on the production material")
 	_check(not distance_grade.visible,
 		"the retired camera-distance pixel pass is disabled")
 
