@@ -79,6 +79,14 @@ void fragment() {
 		color *= mix(1.0, tone, dither_strength * 0.34);
 	}
 
-	ALBEDO = color * COLOR.rgb;
-	ALPHA = alpha * mix(edge_color.a, core_color.a, centre) * COLOR.a;
+	float coverage = alpha * mix(edge_color.a, core_color.a, centre) * COLOR.a;
+
+	// ADDITIVE BLEND CONTRACT: fade RGB to black with the sprite coverage, not
+	// only ALPHA. Additive surfaces contribute their colour to the framebuffer;
+	// leaving RGB populated in nominally transparent corners exposes the QuadMesh
+	// as a faint rectangular card. XPOrb's halo and the grain-cue glow follow the
+	// same rule. Carrying the falloff in both channels keeps these particles round
+	// through the painterly post-process and on Compatibility renderers.
+	ALBEDO = color * COLOR.rgb * coverage;
+	ALPHA = coverage;
 }

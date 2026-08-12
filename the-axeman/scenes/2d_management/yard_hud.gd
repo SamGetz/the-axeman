@@ -392,7 +392,7 @@ func _refresh_splitter_runtime_card(reset_receipt := true) -> void:
 			_splitter_runtime_action.text = "Assign in Tree Catalog"
 			_splitter_runtime_action.disabled = false
 		MechanicalSplitterRuntime.State.MISSING_PROFILE:
-			_splitter_runtime_action.text = "Install assigned profile"
+			_splitter_runtime_action.text = "Buy this wood's setup"
 			_splitter_runtime_action.disabled = false
 		MechanicalSplitterRuntime.State.READY:
 			if _splitter_runtime != null and _splitter_runtime.auto_loading_enabled():
@@ -402,23 +402,22 @@ func _refresh_splitter_runtime_card(reset_receipt := true) -> void:
 				_splitter_runtime_action.disabled = _splitter_runtime == null \
 					or not _splitter_runtime.is_yard_active()
 		MechanicalSplitterRuntime.State.PROCESSING:
-			_splitter_runtime_action.text = "Input slot full · Processing"
+			_splitter_runtime_action.text = "Cutting logs"
 		MechanicalSplitterRuntime.State.OUTPUT_BLOCKED:
-			_splitter_runtime_action.text = "Retry blocked output"
+			_splitter_runtime_action.text = "Retry sale"
 			_splitter_runtime_action.disabled = _splitter_runtime == null
 		MechanicalSplitterRuntime.State.EXHAUSTED:
-			_splitter_runtime_action.text = "Earth exhausted"
+			_splitter_runtime_action.text = "No Earth trees"
 	if reset_receipt:
 		if state == MechanicalSplitterRuntime.State.EXHAUSTED:
-			_splitter_runtime_receipt.text = "Terrestrial production ended · stock remains sellable"
+			_splitter_runtime_receipt.text = "Earth's trees are gone · stock remains sellable"
 		elif _splitter_runtime != null and _splitter_runtime.has_completed_receipt():
-			_splitter_runtime_receipt.text = "Last cycle · %d log(s) · +%d cash · +%d XP" % [
+			_splitter_runtime_receipt.text = "Last run · %d log(s) · +%d cash · +%d XP" % [
 				_splitter_runtime.last_logs_processed(),
 				_splitter_runtime.last_cash_earned(),
 				_splitter_runtime.last_xp_earned()]
 		else:
-			var queued := 0 if _splitter_runtime == null else _splitter_runtime.queued_count()
-			_splitter_runtime_receipt.text = "Input %d / 1 · watched yard time only" % queued
+			_splitter_runtime_receipt.text = "Runs while the yard is open"
 
 
 ## Slice 4 uses the approved mockup's warm organic hierarchy with native Godot
@@ -719,7 +718,7 @@ func _build_company_strategy_card() -> VBoxContainer:
 	var card := VBoxContainer.new()
 	card.name = "CompanyStrategy"
 	var title := Label.new()
-	title.text = "Continental company · %s manual + %s automated = %s log-equivalents" % [
+	title.text = "Company logs · %s hand-cut + %s automatic = %s total" % [
 		_compact_number(GameState.get_manual_log_equivalents()),
 		_compact_number(GameState.get_automated_log_equivalents()),
 		_compact_number(GameState.get_combined_company_log_total())]
@@ -757,7 +756,7 @@ func _build_company_strategy_card() -> VBoxContainer:
 		var project_button := Button.new()
 		project_button.text = "%s · %s" % [project.display_name,
 			"Complete" if GameState.has_infrastructure_project(project.id) \
-			else "%s coins · %d output" % [_thousands(project.cash_cost),
+			else "%s coins · %d total logs" % [_thousands(project.cash_cost),
 				project.processed_output_required]]
 		project_button.tooltip_text = project.description
 		project_button.disabled = GameState.has_infrastructure_project(project.id) \
@@ -783,7 +782,7 @@ func _build_company_strategy_card() -> VBoxContainer:
 				finale.text = "Lignum Vitae showcase unlocked · acquire it in the catalogue"
 				finale.disabled = true
 		GameState.EarthFinaleState.IN_PROGRESS:
-			finale.text = "Earth finale · %d / 3 manual splits" % GameState.get_earth_finale_splits()
+			finale.text = "Earth finale · %d / 3 hand-cut logs" % GameState.get_earth_finale_splits()
 			finale.disabled = true
 		GameState.EarthFinaleState.COMPLETE:
 			finale.text = "EARTH DEPLETED · Launch programme is next" \
@@ -798,7 +797,7 @@ func _build_launch_program_card() -> VBoxContainer:
 	var card := VBoxContainer.new()
 	card.name = "LaunchProgramme"
 	var title := Label.new()
-	title.text = "LAUNCH PROGRAMME · existing cash, output, mastery and timber contributions"
+	title.text = "LAUNCH PROGRAMME · use cash, timber, completed logs, and mastered woods"
 	title.add_theme_font_size_override("font_size", 18)
 	card.add_child(title)
 	for project: LaunchProjectDef in LaunchProgram.projects():
@@ -818,7 +817,7 @@ func _build_launch_program_card() -> VBoxContainer:
 			button.pressed.connect(_on_launch_contribution_pressed.bind(project.id,
 				mini(remaining, InventoryManager.get_count(project.contribution_item_id))))
 		elif ProductionEconomy.has_continuity_reserve():
-			button.text = "%s · build from Continuity Reserve · %d log-eq · %d masteries" % [
+			button.text = "%s · Continuity Reserve · %d total logs · %d mastered woods" % [
 				project.display_name, project.processed_output_required,
 				project.mastery_required]
 			button.disabled = GameState.get_combined_company_log_total() \
@@ -826,7 +825,7 @@ func _build_launch_program_card() -> VBoxContainer:
 				or GameState.get_mastered_species_count() < project.mastery_required
 			button.pressed.connect(_on_complete_launch_project_pressed.bind(project.id))
 		else:
-			button.text = "%s · build for %s coins · %d log-eq · %d masteries" % [
+			button.text = "%s · %s coins · %d total logs · %d mastered woods" % [
 				project.display_name, _thousands(project.cash_cost),
 				project.processed_output_required, project.mastery_required]
 			button.disabled = not GameState.can_afford_cash(project.cash_cost) \
@@ -846,9 +845,11 @@ func _build_launch_program_card() -> VBoxContainer:
 		var loadout := GameState.get_spacecraft_loadout()
 		for component: SpacecraftComponentDef in LaunchProgram.components():
 			var component_button := Button.new()
-			component_button.text = "%s · capability %d%s" % [component.display_name,
+			component_button.text = "%s · %s %d%s" % [component.display_name,
+				_spacecraft_slot_name(component.slot),
 				component.capability, " · FITTED" if StringName(loadout.get(
 					component.slot, &"")) == component.id else ""]
+			component_button.tooltip_text = component.description
 			component_button.disabled = not GameState.get_active_expedition().is_empty() \
 				or StringName(loadout.get(component.slot, &"")) == component.id
 			component_button.pressed.connect(_on_spacecraft_component_pressed.bind(
@@ -883,7 +884,7 @@ func _build_expedition_controls(card: VBoxContainer) -> void:
 		action.name = String(destination.id)
 		match state:
 			GameState.AlienDestinationState.UNSURVEYED:
-				action.text = "Survey and retrieve first specimen · %ds fixed flight" % \
+				action.text = "Survey and retrieve first specimen · %ds flight" % \
 					destination.flight_seconds
 				action.disabled = GameState.get_spacecraft_capability(
 					SpacecraftComponentDef.Slot.RANGE) < destination.range_required \
@@ -906,14 +907,14 @@ func _build_expedition_controls(card: VBoxContainer) -> void:
 				action.pressed.connect(_on_alien_protocol_pressed.bind(destination.id,
 					&"retrieve_specimen"))
 			GameState.AlienDestinationState.SPECIMEN_READY:
-				action.text = "Chop first specimen manually · certification required"
+				action.text = "Chop the first specimen by hand"
 				action.pressed.connect(_on_select_alien_species_pressed.bind(wood_trait.id))
 			GameState.AlienDestinationState.CERTIFIED:
 				action.text = "Unlock repeat cargo · %s" % wood_trait.premium_order_name
 				action.pressed.connect(_on_alien_protocol_pressed.bind(destination.id,
 					&"repeat_cargo"))
 			GameState.AlienDestinationState.REPEAT_CARGO:
-				action.text = "Continue manual mastery · %d/%d logs" % [
+				action.text = "Keep chopping by hand · %d/%d logs" % [
 					GameState.get_alien_manual_mastery(wood_trait.id), wood_trait.manual_mastery_target]
 				action.pressed.connect(_on_select_alien_species_pressed.bind(wood_trait.id))
 			GameState.AlienDestinationState.MASTERED:
@@ -922,7 +923,7 @@ func _build_expedition_controls(card: VBoxContainer) -> void:
 		card.add_child(action)
 		if state >= GameState.AlienDestinationState.CERTIFIED:
 			var premium := Label.new()
-			premium.text = "Premium family: %s · ×%.2f provisional" % [
+			premium.text = "%s · sells for ×%.2f" % [
 				wood_trait.premium_order_name, wood_trait.premium_multiplier]
 			card.add_child(premium)
 		if state >= GameState.AlienDestinationState.REPEAT_CARGO:
@@ -957,7 +958,16 @@ func _build_expedition_controls(card: VBoxContainer) -> void:
 
 func _alien_state_title(state: int) -> String:
 	return ["Unsurveyed", "Surveyed", "Quarantined", "Identified", "Specimen ready",
-		"Manually certified", "Repeat cargo", "Mastered"][clampi(state, 0, 7)]
+		"First specimen cut", "Repeat cargo", "Mastered"][clampi(state, 0, 7)]
+
+
+func _spacecraft_slot_name(slot: SpacecraftComponentDef.Slot) -> String:
+	match slot:
+		SpacecraftComponentDef.Slot.RANGE:
+			return "Range"
+		SpacecraftComponentDef.Slot.CARGO:
+			return "Cargo"
+	return "Shielding"
 
 
 func _build_region_card(region: RegionDef) -> VBoxContainer:
@@ -989,7 +999,7 @@ func _build_region_card(region: RegionDef) -> VBoxContainer:
 		state.text = "Depot built · Next: %s · %s coins" % [route.display_name,
 			_thousands(route.cost)]
 	else:
-		state.text = "%s ACTIVE · capacity %d · %ds provisional travel" % [
+		state.text = "%s ACTIVE · up to %d logs every %ds" % [
 			route.display_name, route.capacity, route.travel_seconds]
 	state.modulate = Color(0.78, 0.88, 0.64, 1.0)
 	card.add_child(state)
@@ -1179,7 +1189,7 @@ func _refresh_splitter_status() -> void:
 		return
 	var assigned := GameState.get_splitter_assigned_species()
 	if assigned == &"":
-		_splitter_status.text = "Mechanical Splitter installed · No tree assigned. Choose an installed profile in the Tree Catalog."
+		_splitter_status.text = "Mechanical Splitter installed · No wood assigned. Choose a prepared wood in the Tree Catalog."
 		return
 	var species := SpeciesTable.by_id(assigned)
 	_splitter_status.text = "Mechanical Splitter installed · Assigned to %s." % [
@@ -1219,35 +1229,11 @@ func _build_shop_row(def: UpgradeDef) -> VBoxContainer:
 	row.add_child(top)
 
 	var blurb := Label.new()
-	blurb.text = def.description
+	blurb.text = _upgrade_description(def)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.add_theme_font_size_override("font_size", 13)
 	row.add_child(blurb)
-	if def.limitation != "":
-		var limit := Label.new()
-		limit.text = "Limit: " + def.limitation
-		limit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		limit.add_theme_font_size_override("font_size", 12)
-		limit.modulate = Color(0.78, 0.78, 0.78, 1.0)
-		row.add_child(limit)
 	_add_equipment_proc_copy(row, def)
-	if def is ProductionUpgradeDef:
-		var production := def as ProductionUpgradeDef
-		var effect_label := Label.new()
-		effect_label.text = "Production · %s → %s\nEstimated change · %s" % [
-			production.current_effect_text(level),
-			production.next_effect_text(level),
-			production.estimated_production_change(level)]
-		effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		effect_label.add_theme_font_size_override("font_size", 12)
-		effect_label.modulate = Color(0.72, 0.88, 0.76, 1.0)
-		row.add_child(effect_label)
-		var tuning := Label.new()
-		tuning.text = production.tuning_status
-		tuning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tuning.add_theme_font_size_override("font_size", 10)
-		tuning.modulate = Color(0.72, 0.72, 0.68, 0.72)
-		row.add_child(tuning)
 	_add_upgrade_reward(row, def)
 	return row
 
@@ -1259,19 +1245,8 @@ func _add_equipment_proc_copy(row: VBoxContainer, def: UpgradeDef) -> void:
 	for contribution: UpgradeProcContributionDef in def.proc_contributions:
 		if contribution == null:
 			continue
-		var proc := ProgressionProcs.proc_def(contribution.proc_id)
-		var proc_name := String(contribution.proc_id) if proc == null else proc.display_name
-		var independent := contribution.chance_per_level
-		var combined := ProgressionProcs.effective_chance(contribution.proc_id)
-		var depth := ""
-		if contribution.proc_id == &"double_strike":
-			depth = " · up to %d bonus cut%s" % [contribution.chain_cap,
-				"" if contribution.chain_cap == 1 else "s"]
-		lines.append("%s · independent %s%%%s · current gear + skill %s%%" % [
-			proc_name, _percent_text(independent), depth, _percent_text(combined)])
-		if proc != null:
-			lines.append("Dry-streak protection · guaranteed by eligible event %d" \
-				% proc.bad_luck_bound)
+		if not contribution.player_copy.strip_edges().is_empty():
+			lines.append(contribution.player_copy)
 	var copy := Label.new()
 	copy.text = "\n".join(lines)
 	copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1288,7 +1263,7 @@ func _introduce_revealed_production(upgrades: Array[UpgradeDef]) -> void:
 		if GameState.has_introduced_feature(feature_id):
 			continue
 		if GameState.mark_feature_introduced(feature_id):
-			_feature_introduction.text = "New production item · %s" % \
+			_feature_introduction.text = "New company upgrade · %s" % \
 				upgrade.display_name
 			_feature_introduction.visible = true
 			_feature_introduction_timer.start()
@@ -1299,7 +1274,7 @@ func _introduce_revealed_production(upgrades: Array[UpgradeDef]) -> void:
 
 ## Purchased entries intentionally contain no Button. They are a read-only
 ## record derived from live ownership, while retaining the same honest effect
-## and limitation copy as the functional shelf row they came from.
+## copy as the functional shelf row they came from.
 func _build_purchased_row(def: UpgradeDef) -> VBoxContainer:
 	var level := Shop.get_level(def.id)
 	var row := VBoxContainer.new()
@@ -1323,20 +1298,22 @@ func _build_purchased_row(def: UpgradeDef) -> VBoxContainer:
 	row.add_child(top)
 
 	var blurb := Label.new()
-	blurb.text = def.description
+	blurb.text = _upgrade_description(def)
 	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.add_theme_font_size_override("font_size", 13)
 	row.add_child(blurb)
-	if def.limitation != "":
-		var limit := Label.new()
-		limit.text = "Limit: " + def.limitation
-		limit.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		limit.add_theme_font_size_override("font_size", 12)
-		limit.modulate = Color(0.78, 0.78, 0.78, 1.0)
-		row.add_child(limit)
 	_add_equipment_proc_copy(row, def)
 	_add_upgrade_reward(row, def)
 	return row
+
+
+func _upgrade_description(def: UpgradeDef) -> String:
+	if def.automation_role == UpgradeDef.AutomationRole.CUTTING_PROFILE:
+		var species := SpeciesTable.by_id(def.automation_species_id)
+		var species_name := String(def.automation_species_id) if species == null \
+			else species.display_name
+		return "Lets the Mechanical Splitter cut %s." % species_name
+	return def.description
 
 
 func _build_logistics_shop_row(def: LogisticsUpgradeDef) -> VBoxContainer:
@@ -1355,7 +1332,7 @@ func _build_logistics_shop_row(def: LogisticsUpgradeDef) -> VBoxContainer:
 	top.add_child(buy)
 	row.add_child(top)
 	var detail := Label.new()
-	detail.text = def.description + "\nProvisional direct-purchase sequence · no manual craft credit."
+	detail.text = def.description
 	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	detail.add_theme_font_size_override("font_size", 12)
 	row.add_child(detail)
@@ -1400,11 +1377,11 @@ func _add_upgrade_reward(row: VBoxContainer, def: UpgradeDef) -> void:
 			continue
 		var reward := "%s in Shop" % candidate.display_name
 		if candidate.required_mastered_species_count > 0:
-			reward += " after %d species certifications" % \
+			reward += " after mastering %d woods" % \
 				candidate.required_mastered_species_count
 		rewards.append(reward)
 	if has_profile_reward:
-		rewards.append("certified tree profiles in Shop")
+		rewards.append("splitter setups for mastered woods")
 	for species: SpeciesDef in SpeciesTable.all():
 		if species != null and species.supplier_upgrade_id == def.id \
 				and (GameState.owns_species(species.id) \
@@ -1517,9 +1494,9 @@ func _rebuild_woodshed() -> void:
 	for child in _wood_list.get_children():
 		_wood_list.remove_child(child)
 		child.queue_free()
-	_trees_blurb.text = "WORLD WOOD CATALOGUE · Ownership · manual mastery · supplier · contract · automation."
+	_trees_blurb.text = "Compare woods, mastery rewards, suppliers, jobs, and splitter setups."
 	if MechanicalSplitter.is_installed():
-		_trees_blurb.text += " Assign one installed certified profile to the Mechanical Splitter."
+		_trees_blurb.text += " Choose which prepared wood the Mechanical Splitter should cut."
 
 	var chosen := GameState.get_selected_species()
 	var next := GameState.get_next_unowned_species()
@@ -1558,11 +1535,10 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> VBoxContainer:
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heading.add_child(name_label)
 
-	# What the player is actually choosing between: what it pays, and how hard it
-	# fights. Janka is the honest one-number answer to "how hard" and it is the
-	# number the whole ladder was derived from, so it is the one shown.
+	# Show the decision the number drives, not the physical source measurement.
 	var stat := Label.new()
-	stat.text = "%s per piece   ·   %d lbf" % [_thousands(Market.get_price(def.yield_item)), def.janka]
+	stat.text = "%s per piece   ·   %.0f%% base split chance" % [
+		_thousands(Market.get_price(def.yield_item)), def.split_chance * 100.0]
 	stat.add_theme_font_size_override("font_size", 13)
 	heading.add_child(stat)
 
@@ -1612,10 +1588,10 @@ func _build_wood_row(def: SpeciesDef, is_chosen: bool) -> VBoxContainer:
 	var contract_done := contract != null and GameState.has_completed_order(contract.id)
 	var automation := MechanicalSplitter.profile_for_species(def.id) != null \
 		and MechanicalSplitter.has_installed_profile(def.id)
-	catalogue.text = "Supplier: %s · Contract: %s · Automation: %s" % [
+	catalogue.text = "Source: %s · Job: %s · Splitter: %s" % [
 		"Unassigned" if region == null else region.display_name,
 		"complete" if contract_done else "open",
-		"installed" if automation else "manual-only"]
+		"ready" if automation else "not set up"]
 	catalogue.add_theme_font_size_override("font_size", 11)
 	catalogue.modulate = Color(0.67, 0.74, 0.76, 1.0)
 	row.add_child(catalogue)
@@ -1643,15 +1619,15 @@ func _add_splitter_assignment(row: VBoxContainer, def: SpeciesDef) -> void:
 
 	var assigned := GameState.get_splitter_assigned_species() == def.id
 	if not MechanicalSplitter.has_installed_profile(def.id):
-		status.text = "Splitter · Certified · Profile purchase required"
-		assign.text = "Buy profile in Shop"
+		status.text = "Splitter · Setup required"
+		assign.text = "Buy setup in Shop"
 		assign.pressed.connect(_open_splitter_shop)
 	elif assigned:
 		status.text = "Splitter · Current assignment"
 		assign.text = "Assigned"
 		assign.disabled = true
 	else:
-		status.text = "Splitter · Certified profile ready"
+		status.text = "Splitter · Ready to assign"
 		assign.text = "Assign to splitter"
 		assign.pressed.connect(_on_assign_splitter_pressed.bind(def.id))
 
@@ -1659,22 +1635,20 @@ func _add_splitter_assignment(row: VBoxContainer, def: SpeciesDef) -> void:
 func _mastery_row_text(def: SpeciesDef) -> String:
 	var current := GameState.get_species_mastery_progress(def.id)
 	var target := _mastery_target(def.id)
-	var handling := WoodHandlingProfiles.profile_for_species(def.id)
-	var family := "" if handling == null else "%s · " % handling.display_name
 	if GameState.is_species_mastered(def.id):
 		var machine := MechanicalSplitter.machine_definition()
 		var required := 0 if machine == null else machine.required_mastered_species_count
 		var certified := mini(GameState.get_mastered_species_count(), required)
 		var certification := ""
 		if required > 0:
-			certification = "  ·  Splitter certifications %d / %d" % [certified, required]
-		return "%sMastery %d / %d  ·  Mastered%s  ·  All global rewards active" % [
-			family, current, target, certification]
+			certification = "  ·  %d / %d mastered woods toward the Mechanical Splitter" % [certified, required]
+		return "Mastery %d / %d  ·  Mastered%s  ·  All mastery bonuses earned" % [
+			current, target, certification]
 	var next := SpeciesMastery.next_threshold(def.id)
 	if next == null:
-		return "%sMastery %d / %d" % [family, current, target]
-	return "%sMastery %d / %d\nNext reward at %d: %s" % [
-		family, current, target, next.required_progress, _mastery_reward_text(next, target)]
+		return "Mastery %d / %d" % [current, target]
+	return "Mastery %d / %d\nNext reward at %d: %s" % [
+		current, target, next.required_progress, _mastery_reward_text(next, target)]
 
 
 func _mastery_target(species_id: StringName) -> int:
@@ -1691,16 +1665,16 @@ func _mastery_reward_text(threshold: SpeciesMasteryThresholdDef, mastery_target:
 		var amount := _percent_text(reward.magnitude)
 		match reward.kind:
 			GameplayModifierDef.Kind.CASH_GAIN:
-				parts.append("+%s%% cash" % amount)
+				parts.append("+%s%% cash from every sale" % amount)
 			GameplayModifierDef.Kind.MANUAL_XP:
-				parts.append("+%s%% manual XP" % amount)
+				parts.append("+%s%% XP from hand-cut logs" % amount)
 			GameplayModifierDef.Kind.SPLIT_RELIABILITY:
-				parts.append("+%s pts split" % amount)
+				parts.append("+%s%% split chance" % amount)
 	if threshold.required_progress >= mastery_target:
 		var machine := MechanicalSplitter.machine_definition()
 		var required := 0 if machine == null else machine.required_mastered_species_count
 		if required > 0:
-			parts.append("+1 splitter certification (%d unlock the machine in Shop)" % required)
+			parts.append("counts toward the Mechanical Splitter (%d mastered woods unlock it)" % required)
 	return "  ·  ".join(parts)
 
 
@@ -1888,7 +1862,7 @@ func _build_order_row(order: OrderDef) -> VBoxContainer:
 		rewards.append("Unlocks occasional standing-commission choices")
 	var profile := _matching_contract_profile(order)
 	if profile != null:
-		rewards.append("Expands production options after certification")
+		rewards.append("Unlocks its splitter setup after mastery")
 	else:
 		for def: UpgradeDef in Shop.get_upgrades():
 			if def != null and def.unlock_order_id == order.id:
@@ -1953,7 +1927,7 @@ func _build_completed_order_row(order: OrderDef) -> VBoxContainer:
 	var profile := _matching_contract_profile(order)
 	if profile != null:
 		var reward := Label.new()
-		reward.text = "Profile reward · %s · %s" % [
+		reward.text = "Splitter reward · %s · %s" % [
 			profile.display_name, _completed_profile_requirement(profile)]
 		reward.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		reward.add_theme_font_size_override("font_size", 12)
@@ -2017,11 +1991,6 @@ func _build_commission_row(offer: Dictionary) -> VBoxContainer:
 		button.pressed.connect(_on_accept_commission_pressed.bind(offer_id))
 	row.add_child(button)
 
-	var tuning := Label.new()
-	tuning.text = "Experimental pacing · measured M9 review required"
-	tuning.add_theme_font_size_override("font_size", 11)
-	tuning.modulate = Color(0.72, 0.72, 0.72, 1.0)
-	row.add_child(tuning)
 	return row
 
 
@@ -2044,7 +2013,7 @@ func _build_customer_summary() -> VBoxContainer:
 			portrait.texture = load(customer.portrait_candidate_path) as Texture2D
 			portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-			portrait.tooltip_text = customer.art_status
+			portrait.tooltip_text = customer.preference_copy
 			customer_row.add_child(portrait)
 		var line := Label.new()
 		line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2064,14 +2033,14 @@ func _build_customer_summary() -> VBoxContainer:
 func _craft_family_label(family: int) -> String:
 	match family:
 		CraftRequirementDef.Family.SPECIES:
-			return "Species order"
+			return "Specific wood"
 		CraftRequirementDef.Family.SIZE_BAND:
-			return "Size-band order"
+			return "Sized pieces"
 		CraftRequirementDef.Family.QUALITY:
-			return "Clean-grade order"
+			return "Clean pieces"
 		CraftRequirementDef.Family.SIGNATURE:
-			return "Signature order"
-	return "Quantity order"
+			return "Hand-split showcase"
+	return "Any firewood"
 
 
 func _commission_role_label(role: int) -> String:
@@ -2118,7 +2087,7 @@ func _completed_profile_requirement(profile: UpgradeDef) -> String:
 	if profile.required_mastery_species_id != &"" \
 			and not GameState.is_species_mastered(profile.required_mastery_species_id):
 		var species := SpeciesTable.by_id(profile.required_mastery_species_id)
-		requirements.append("%s certification" % (
+		requirements.append("mastery of %s" % (
 			String(profile.required_mastery_species_id) if species == null else species.display_name))
 	if profile.required_upgrade_id != &"" and Shop.get_level(profile.required_upgrade_id) <= 0:
 		requirements.append("Mechanical Splitter installation")

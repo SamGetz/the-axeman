@@ -41,12 +41,12 @@ static func goal_snapshot() -> CampaignGoalSnapshot:
 			return _earth_growth_goal(current_phase)
 		GameState.CampaignPhase.PLANETARY_MACHINE:
 			return CampaignGoalSnapshot.new(current_phase, "Finish Earth",
-				"Scale the company until every one of Earth's 3.04 trillion trees is accounted for.",
+				"Scale the company until all 3.04 trillion trees have been processed.",
 				GameState.get_earth_trees_felled(), GameState.TOTAL_EARTH_TREES,
 				&"company")
 		GameState.CampaignPhase.COSMIC_FINALE:
 			return _frontier_goal(current_phase)
-	return CampaignGoalSnapshot.new(current_phase, "The ledger is closed",
+	return CampaignGoalSnapshot.new(current_phase, "The company is complete",
 		"Earth is empty. Three alien lines are running. Somehow, this counts as growth.",
 		1, 1, &"credits")
 
@@ -83,12 +83,12 @@ static func _opening_goal(current_phase: GameState.CampaignPhase) -> CampaignGoa
 static func _working_yard_goal(current_phase: GameState.CampaignPhase) -> CampaignGoalSnapshot:
 	if not MechanicalSplitter.is_installed():
 		return CampaignGoalSnapshot.new(current_phase, "Build the Mechanical Splitter",
-			"Turn mastered wood into watched production without giving up the block.",
+			"Let a machine cut mastered wood while you keep working at the block.",
 			0, 0, &"shop")
 	var next := GameState.get_next_unowned_species()
 	if next != null:
 		return CampaignGoalSnapshot.new(current_phase, "Expand the wood catalogue",
-			"Acquire and manually master %s." % next.display_name,
+			"Buy %s and master it by hand." % next.display_name,
 			GameState.get_mastered_species_count(), SpeciesTable.count(), &"trees")
 	return CampaignGoalSnapshot.new(current_phase, "Establish a regional route",
 		"Connect the yard to its first dependable supplier network.",
@@ -115,7 +115,7 @@ static func _frontier_goal(current_phase: GameState.CampaignPhase) -> CampaignGo
 			mastered += 1
 	if mastered < AlienCampaign.traits().size():
 		return CampaignGoalSnapshot.new(current_phase, "Master alien timber",
-			"Complete first contact and manual mastery at all three destinations.",
+			"Complete first contact and master each alien wood by hand.",
 			mastered, AlienCampaign.traits().size(), &"expedition")
 	if GameState.get_orbital_line_count() < AlienCampaign.traits().size():
 		return CampaignGoalSnapshot.new(current_phase, "Build three orbital lines",
@@ -125,6 +125,6 @@ static func _frontier_goal(current_phase: GameState.CampaignPhase) -> CampaignGo
 		return CampaignGoalSnapshot.new(current_phase, "Become Frontier Master",
 			"Spend the nine points earned from alien mastery to finish the Frontier tree.",
 			SkillTree.frontier_purchases_owned(), SkillTree.frontier_purchase_count(), &"skills")
-	return CampaignGoalSnapshot.new(current_phase, "Close the first orbital ledger",
-		"Run one receipt containing output from all three orbital lines.",
+	return CampaignGoalSnapshot.new(current_phase, "Complete a combined orbital shipment",
+		"Run all three orbital cutting lines together once.",
 		1 if GameState.has_combined_orbital_receipt() else 0, 1, &"alien_company")

@@ -7,7 +7,7 @@
 script = ExtResource("2_branch")
 id = &"strength"
 display_name = "Strength"
-description = "Reliability first, then bounded multi-chop chains and heavy capstones."
+description = "Split wood more reliably, then unlock powerful automatic multi-chops."
 color = Color(0.82, 0.29, 0.2, 1)
 layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), Vector2i(2, 2), Vector2i(1, 3), Vector2i(3, 3), Vector2i(2, 4), Vector2i(1, 5), Vector2i(3, 5), Vector2i(2, 6), Vector2i(2, 7), Vector2i(2, 8)])
 
@@ -15,7 +15,7 @@ layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), 
 script = ExtResource("2_branch")
 id = &"speed"
 display_name = "Speed"
-description = "Recovery first, then held chopping, automatic swings and uninterrupted flow."
+description = "Swing sooner, hold to chop, and keep working smoothly between logs."
 color = Color(0.21, 0.56, 0.86, 1)
 layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), Vector2i(2, 2), Vector2i(1, 3), Vector2i(3, 3), Vector2i(2, 4), Vector2i(1, 5), Vector2i(3, 5), Vector2i(2, 6), Vector2i(2, 7), Vector2i(2, 8)])
 
@@ -23,7 +23,7 @@ layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), 
 script = ExtResource("2_branch")
 id = &"mastery"
 display_name = "Mastery"
-description = "Experience and income foundations that grow into visible learning events."
+description = "Earn more XP and cash, then discover valuable opportunities in the grain."
 color = Color(0.28, 0.68, 0.4, 1)
 layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), Vector2i(2, 2), Vector2i(1, 3), Vector2i(3, 3), Vector2i(2, 4), Vector2i(1, 5), Vector2i(3, 5), Vector2i(2, 6), Vector2i(2, 7), Vector2i(2, 8)])
 
@@ -31,7 +31,7 @@ layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), 
 script = ExtResource("2_branch")
 id = &"frontier"
 display_name = "Frontier"
-description = "Alien specimen handling and late-company preparation, revealed at Earth Master."
+description = "Split alien wood more easily and strengthen expeditions and orbital work."
 color = Color(0.55, 0.38, 0.82, 1)
 layout_slots = Array[Vector2i]([Vector2i(2, 0), Vector2i(1, 1), Vector2i(3, 1), Vector2i(1, 2), Vector2i(3, 2), Vector2i(2, 3), Vector2i(2, 4), Vector2i(2, 5), Vector2i(2, 6)])
 reveal_gate = 1

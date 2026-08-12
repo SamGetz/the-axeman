@@ -36,7 +36,7 @@ static func next_anti_stall_goal() -> Dictionary:
 				"text": "Acquire %s" % species.display_name}
 		if not GameState.is_species_mastered(species.id):
 			return {"kind": "master", "species_id": species.id,
-				"text": "Manually master %s" % species.display_name}
+				"text": "Master %s by hand" % species.display_name}
 	for project_id: StringName in GLOBAL_PROJECT_IDS:
 		if not GameState.has_infrastructure_project(project_id):
 			var project := RegionalNetwork.project_by_id(project_id)

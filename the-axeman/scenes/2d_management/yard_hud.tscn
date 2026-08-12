@@ -121,7 +121,7 @@ offset_bottom = 117.0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.78, 0.96, 0.62, 1)
 theme_override_font_sizes/font_size = 16
-text = "Clean piece · +0 craft"
+text = "Clean piece · +0 bonus coins"
 metadata/art_status = "placeholder_graphic_integrated_pending_final_ui"
 
 [node name="GradeGraphic" type="TextureRect" parent="CraftFeedback"]
@@ -165,7 +165,7 @@ grow_vertical = 0
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.72, 0.88, 0.76, 0.9)
 theme_override_font_sizes/font_size = 13
-text = "New production item"
+text = "New company upgrade"
 metadata/pacing_role = "persisted_exact_once_feature_introduction"
 
 [node name="FeatureIntroductionTimer" type="Timer" parent="."]
@@ -219,7 +219,7 @@ text = "Buy in Shop"
 [node name="Receipt" type="Label" parent="SplitterRuntimeCard/Column"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
-text = "Input 0 / 1 · watched yard time only"
+text = "Runs while the yard is open"
 
 [node name="XPBar" type="Control" parent="."]
 layout_mode = 1
@@ -515,7 +515,7 @@ theme_override_constants/separation = 8
 [node name="Status" type="Label" parent="ShopPanel/Column/ShopTabs/Splitter"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Certify woods by hand, purchase their profiles here, then assign one from the Tree Catalog."
+text = "Master woods by hand, buy their splitter setups here, then choose one in the Tree Catalog."
 
 [node name="Scroll" type="ScrollContainer" parent="ShopPanel/Column/ShopTabs/Splitter"]
 layout_mode = 2
@@ -594,7 +594,7 @@ text = "World Wood Catalogue"
 [node name="Blurb" type="Label" parent="TreesPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Check mastery and choose the next log for the block."
+text = "Compare woods, earn mastery rewards, and choose the next log."
 
 [node name="WoodScroll" type="ScrollContainer" parent="TreesPanel/Column"]
 layout_mode = 2
@@ -653,7 +653,7 @@ vertical_alignment = 1
 [node name="Subtitle" type="Label" parent="SkillPanel/Column"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Shape your work at the block. Skill points come from Axeman levels; yard equipment remains separate."
+text = "Shape how you chop, earn, and grow. Axeman levels grant skill points."
 
 [node name="SkillBody" type="HBoxContainer" parent="SkillPanel/Column"]
 layout_mode = 2
@@ -721,7 +721,7 @@ text = "Contract Board"
 [node name="Blurb" type="Label" parent="OrdersPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Authored deliveries teach and advance the yard. Long-term standing commissions live in the compact objective chip and pay automatically."
+text = "Complete deliveries to grow the yard. Long-term commissions track themselves and pay automatically."
 
 [node name="Active" type="Label" parent="OrdersPanel/Column"]
 layout_mode = 2
@@ -824,7 +824,7 @@ text = "Supplier Atlas"
 [node name="Blurb" type="Label" parent="AtlasPanel/Column"]
 layout_mode = 2
 autowrap_mode = 3
-text = "Discover a region, earn standing, build its depot, then establish freight. Every delay names the next fix."
+text = "Open new regions, build depots and freight routes, then send more logs to the yard."
 
 [node name="Scroll" type="ScrollContainer" parent="AtlasPanel/Column"]
 layout_mode = 2

@@ -446,8 +446,8 @@ func _test_trees_mastery_presentation() -> void:
 	_check(fresh_text.contains("Mastery 0 / %d" % target)
 		and fresh_text.contains("Next reward at 1")
 		and fresh_text.contains("+0.1% cash")
-		and fresh_text.contains("+0.1% manual XP")
-		and fresh_text.contains("+0.05 pts split"),
+		and fresh_text.contains("+0.1% XP from hand-cut logs")
+		and fresh_text.contains("+0.05% split chance"),
 		"each owned Tree Catalog row shows progress and the complete next-threshold reward")
 	var recorded_first := GameState.record_species_completion(aspen)
 	var live_text := _text_under(wood_list)
@@ -497,7 +497,7 @@ func _test_splitter_catalogue_contracts() -> void:
 			int(ceil(float(species.unlock_cost) * 0.20 / 50.0)) * 50)
 		later_profiles_ok = later_profiles_ok \
 			and profile.id == StringName("splitter_profile_%s" % species.id) \
-			and profile.display_name == "Splitter Profile · %s" % species.display_name \
+			and profile.display_name == "Splitter Setup · %s" % species.display_name \
 			and profile.automation_species_id == species.id \
 			and profile.required_mastery_species_id == species.id \
 			and profile.required_upgrade_id == machine.id \
@@ -695,7 +695,8 @@ func _test_mastery_splitter_navigation() -> void:
 	trees_button.pressed.emit()
 	var machine_route := _find_button_with_text(wood_list, "Open Splitter shop")
 	var mastery_copy := _control_text_under(wood_list)
-	_check(machine_route == null and mastery_copy.contains("Splitter certifications 3 / 3"),
+	_check(machine_route == null
+		and mastery_copy.contains("3 / 3 mastered woods toward the Mechanical Splitter"),
 		"mastery advertises its machine reward without exposing locked splitter controls")
 	hud.get_node("QuickMenu/ShopButton").pressed.emit()
 	_check(shop_panel.visible and not tabs.is_tab_hidden(1),
@@ -705,7 +706,7 @@ func _test_mastery_splitter_navigation() -> void:
 	var machine := _MechanicalSplitter.machine_definition()
 	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
 	trees_button.pressed.emit()
-	var profile_route := _find_button_with_text(wood_list, "Buy profile in Shop")
+	var profile_route := _find_button_with_text(wood_list, "Buy setup in Shop")
 	if profile_route != null:
 		profile_route.pressed.emit()
 	_check(profile_route != null and not profile_route.disabled
@@ -746,13 +747,13 @@ func _test_splitter_shop_presentation() -> void:
 	tabs.current_tab = 1
 	var unlocked_text := _control_text_under(shop_list)
 	_check(unlocked_text.contains("1K")
-		and not unlocked_text.contains("Splitter Profile · Quaking Aspen")
+		and not unlocked_text.contains("Splitter Setup · Quaking Aspen")
 		and not tabs.is_tab_hidden(1),
 		"the earned splitter tab reveals the machine but keeps unearned profiles hidden")
 	var machine := _MechanicalSplitter.machine_definition()
 	EventBus.building_upgraded.emit(machine.id, GameState.DEFAULT_BUILDING_TIER + 1)
 	unlocked_text = _control_text_under(shop_list)
-	_check(unlocked_text.contains("Splitter Profile · Quaking Aspen")
+	_check(unlocked_text.contains("Splitter Setup · Quaking Aspen")
 		and unlocked_text.contains("Splitter Speed"),
 		"buying the machine reveals certified profiles and the upgrade chain advertises its next reward")
 	var profile := _MechanicalSplitter.profile_for_species(SpeciesTable.at(0).id)
@@ -823,7 +824,7 @@ func _test_purchased_shop_tab() -> void:
 	var purchased_text := _control_text_under(purchased)
 	_check(splitter.get_node_or_null(String(machine.id)) == null
 		and splitter.get_node_or_null(String(profile.id)) == null
-		and splitter_text.contains("Splitter Profile · Eastern White Pine")
+		and splitter_text.contains("Splitter Setup · Eastern White Pine")
 		and purchased.get_node_or_null(String(machine.id)) != null
 		and purchased.get_node_or_null(String(profile.id)) != null
 		and _button_count(purchased) == 0,
@@ -885,8 +886,8 @@ func _test_splitter_runtime_contract_and_states() -> void:
 	var all_titles := PackedStringArray()
 	for state: MechanicalSplitterRuntime.State in MechanicalSplitterRuntime.State.values():
 		all_titles.append(MechanicalSplitterRuntime.state_title(state))
-	_check(all_titles == PackedStringArray(["LOCKED", "UNASSIGNED", "MISSING PROFILE",
-		"READY", "PROCESSING", "OUTPUT BLOCKED", "EARTH EXHAUSTED"]),
+	_check(all_titles == PackedStringArray(["NOT OWNED", "CHOOSE WOOD", "SETUP NEEDED",
+		"READY", "CUTTING", "SALE PAUSED", "EARTH COMPLETE"]),
 		"all seven watched machine states have explicit legible player-facing titles")
 
 	var runtime := MechanicalSplitterRuntime.new()
@@ -1220,7 +1221,7 @@ func _test_splitter_runtime_presentation() -> void:
 	_check(machine != null
 		and machine.get_meta("art_status", "") ==
 			"placeholder_graphic_integrated_pending_final_3d_asset"
-		and art_label != null and art_label.text.contains("PLACEHOLDER")
+		and art_label != null and art_label.text == "MECHANICAL SPLITTER"
 		and machine.get_node_or_null("MechanicalSplitterGraphic") != null
 		and world_state_label != null and art_label.font_size < world_state_label.font_size
 		and representative_log != null
@@ -1248,14 +1249,14 @@ func _test_splitter_runtime_presentation() -> void:
 	var xp_progress: ProgressBar = hud.get_node("XPBar/Progress")
 	var cash_before := GameState.get_cash()
 	var xp_before := GameState.get_xp()
-	_check(state_label.text == "READY" and detail.text.contains("5 log batch")
+	_check(state_label.text == "READY" and detail.text.contains("cuts 5 logs every")
 		and not action.disabled and action.text == "Load assigned log",
 		"the always-on runtime card legibly shows the ready assigned species and action")
 	action.pressed.emit()
 	runtime._process(runtime.config.processing_duration_seconds * 0.5)
 	await get_tree().process_frame
-	_check(state_label.text == "PROCESSING"
-		and action.text.contains("Input slot full")
+	_check(state_label.text == "CUTTING"
+		and action.text.contains("Cutting logs")
 		and hud.get_node("SplitterRuntimeCard/Column/Progress").value > 0.0
 		and representative_log.visible,
 		"the runtime card and one representative log show the active processing batch")

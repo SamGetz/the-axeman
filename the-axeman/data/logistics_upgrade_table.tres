@@ -7,7 +7,7 @@
 script = ExtResource("2_def")
 id = &"log_feeder"
 display_name = "Input Line"
-description = "Bundles the feeder, staging lane and bounded supplier queue into the company's first useful input system."
+description = "Opens supplier deliveries and stores incoming logs for automatic cutting."
 cost = 1000
 tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest required"
 
@@ -15,7 +15,7 @@ tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest requir
 script = ExtResource("2_def")
 id = &"order_router"
 display_name = "Routing Desk"
-description = "Bundles stacking and visible species priority into one meaningful dispatch decision."
+description = "Lets you choose which supplied woods the company cuts first."
 required_previous_id = &"log_feeder"
 cost = 5000
 tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest required"
@@ -24,7 +24,7 @@ tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest requir
 script = ExtResource("2_def")
 id = &"dispatch_console"
 display_name = "Continuity Dispatch"
-description = "Adds maintained offline dispatch and one exact return ledger after watched work."
+description = "Keeps supplier deliveries and company cutting running while you are away."
 required_previous_id = &"order_router"
 cost = 18000
 tuning_status = "PLACEHOLDER — four-hour three-stage logistics playtest required"

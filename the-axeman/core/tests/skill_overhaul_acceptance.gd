@@ -110,6 +110,7 @@ func _test_square_graph_layout_and_hover_copy() -> void:
 	var square_and_described := buttons.size() == 12
 	var readable_tooltips := buttons.size() == 12
 	var calculated_rank_bonus := false
+	var hides_system_terms := true
 	var inside := true
 	for raw: Node in buttons:
 		var button := raw as Button
@@ -125,8 +126,12 @@ func _test_square_graph_layout_and_hover_copy() -> void:
 			tooltip.free()
 		if button.get_meta("skill_id", &"") == &"strong_arms":
 			calculated_rank_bonus = String(button.get("tooltip_body")).contains(
-				"YOUR BONUS AT 0/5") and String(button.get("tooltip_body")).contains(
-				"+10 at 5/5")
+				"CURRENT BONUS · RANK 0/5") and String(button.get("tooltip_body")).contains(
+				"+10% at rank 5")
+		var body := String(button.get("tooltip_body")).to_lower()
+		for hidden_term: String in ["proc", "dry-streak", "eligible event",
+				"chain cap", "current gear + skill", "recursive"]:
+			hides_system_terms = hides_system_terms and not body.contains(hidden_term)
 		inside = inside and button.position.y + button.size.y <= graph.custom_minimum_size.y
 	_check(square_and_described,
 		"every tree node is a square icon with its description/cost in hover copy")
@@ -135,6 +140,8 @@ func _test_square_graph_layout_and_hover_copy() -> void:
 		"hover details use a wide, high-contrast three-part tooltip card")
 	_check(calculated_rank_bonus,
 		"ranked hover copy calculates the current and 5/5 bonus in plain language")
+	_check(hides_system_terms,
+		"skill hover copy explains gameplay benefits without exposing resolver rules")
 	_check(4.0 * 170.0 + 3.0 * 6.0 <= 1020.0,
 		"the revealed fourth tree compresses all four columns inside the graph window")
 	graph.free()

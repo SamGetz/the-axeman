@@ -63,7 +63,7 @@ static func route_for_region(region_id: StringName) -> RouteDef:
 static func supply_status(species_id: StringName) -> Dictionary:
 	var region := region_for_species(species_id)
 	if region == null:
-		return _status(DelayReason.UNASSIGNED, "Source region not yet authored.", "View World Catalogue")
+		return _status(DelayReason.UNASSIGNED, "No supplier has been found yet.", "View World Catalogue")
 	if not GameState.is_region_discovered(region.id):
 		return _status(DelayReason.STANDING,
 			"Build reputation %d to discover %s." % [region.reputation_required,
@@ -86,13 +86,13 @@ static func supply_status(species_id: StringName) -> Dictionary:
 	if cfg != null and GameState.get_supplier_input_queues().size() >= cfg.dispatch_capacity \
 			and not GameState.get_supplier_input_queues().has(species_id):
 		return _status(DelayReason.DISPATCH,
-			"Dispatch capacity is assigned to other suppliers.", "Open route priorities")
+			"All delivery lanes are serving other suppliers.", "Change supplier priorities")
 	if cfg != null and int(GameState.get_supplier_input_queues().get(species_id, 0)) \
 			>= CompanyLogistics.supplier_queue_capacity():
 		return _status(DelayReason.YARD_QUEUE,
-			"The yard input queue is full.", "Clear or reprioritize yard queue")
+			"The supplier racks are full.", "Wait for space or change priorities")
 	return _status(DelayReason.READY,
-		"%s is connected and ready to dispatch." % region.display_name, "Queue supplier log")
+		"%s is connected and ready to send logs." % region.display_name, "Send logs to the yard")
 
 
 static func validate_catalogue() -> PackedStringArray:

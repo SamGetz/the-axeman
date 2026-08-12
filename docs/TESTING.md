@@ -47,17 +47,17 @@ Latest verified four-hour-loop baseline on 2026-08-09:
 | M2 | 24/24 |
 | M3 + consolidated global config | 18/18 |
 | M4 | 55/55 |
-| M7A | 294/294 |
+| M7A | 296/296 |
 | M7B craftsmanship/customers/reputation | 16/16 |
 | M7C revised graph/content | 27/27 |
-| Skill overhaul | 280/280 |
+| Skill overhaul | 281/281 |
 | XP pacing balance | 13/13 |
 | XP full-bar delivery and ring-free level effect | 9/9 |
 | M7D visible yard progression | 12/12 |
 | M8 Slice 6 Certified Yard Expansion | 122/122 |
 | M8 logistics/offline | 19/19 |
 | M9 standing campaign commissions | 32/32 |
-| M9 regional network | 15/15 |
+| M9 regional network | 16/16 |
 | M10 continental company | 14/14 |
 | M11 World Wood Catalogue | 9/9 |
 | M11B Earth finale | 11/11 |
@@ -65,7 +65,7 @@ Latest verified four-hour-loop baseline on 2026-08-09:
 | M13 first alien expedition | 13/13 |
 | M14 interplanetary company | 10/10 |
 | Fresh campaign through credits | 10/10 |
-| Four-hour campaign experience | 12/12 |
+| Four-hour campaign experience | 13/13 |
 | M15 depletion/reinvestment foundation | 29/29 |
 | Disabled tutorial presentation and placeholder art | 8/8 |
 | Proc-driven equipment progression | 99/99 |

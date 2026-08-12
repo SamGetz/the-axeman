@@ -162,8 +162,7 @@ func _make_node_button(node: SkillNodeDef) -> Button:
 		node.display_name, node.description, level, node.max_level,
 		"\nRequires: %s" % _prerequisite_names(node) if not node.requires.is_empty() else ""]
 	button.tooltip_title = node.display_name
-	button.tooltip_body = node.description + _proc_source_summary(node) \
-		+ _rank_bonus_summary(node, level)
+	button.tooltip_body = node.description + _rank_bonus_summary(node, level)
 	var action_copy := "Need 1 available skill point"
 	if learned:
 		action_copy = "Fully ranked · %d/%d" % [level, node.max_level]
@@ -224,27 +223,6 @@ func _icon_letters(label: String) -> String:
 	return label.left(2).to_upper()
 
 
-func _proc_source_summary(node: SkillNodeDef) -> String:
-	var proc_id := node.proc_id
-	if proc_id == &"":
-		for modifier: GameplayModifierDef in node.modifiers:
-			if modifier != null and modifier.kind == GameplayModifierDef.Kind.GRAIN_CUE:
-				proc_id = &"grain_read"
-				break
-	if proc_id == &"":
-		return ""
-	var proc := ProgressionProcs.proc_def(proc_id)
-	if proc == null:
-		return ""
-	var depth := ""
-	if proc_id == &"double_strike" or proc_id == &"follow_up":
-		depth = " · current max bonus depth %d" % ProgressionProcs.effective_chain_cap(proc_id)
-	return "\n\nEQUIPMENT INTERACTION\nGear %s · current gear + skill %s%s\nDry-streak guarantee: eligible event %d. Bonus actions and proc rewards cannot start another proc." % [
-		_percent_text(ProgressionProcs.equipment_chance(proc_id)),
-		_percent_text(ProgressionProcs.effective_chance(proc_id)), depth,
-		proc.bad_luck_bound]
-
-
 func _prerequisite_names(node: SkillNodeDef) -> String:
 	var names: Array[String] = []
 	for id: StringName in node.requires:
@@ -267,7 +245,7 @@ func _rank_bonus_summary(node: SkillNodeDef, level: int) -> String:
 		var line := _rank_bonus_line(modifier, level, node.max_level)
 		if not line.is_empty():
 			lines.append("• " + line)
-	return "" if lines.is_empty() else "\n\nYOUR BONUS AT %d/%d\n%s" % [
+	return "" if lines.is_empty() else "\n\nCURRENT BONUS · RANK %d/%d\n%s" % [
 		level, node.max_level, "\n".join(lines)]
 
 
@@ -283,25 +261,25 @@ func _rank_bonus_line(modifier: GameplayModifierDef, level: int,
 	var max_points := _number_text(maximum * 100.0)
 	match modifier.kind:
 		GameplayModifierDef.Kind.SPLIT_RELIABILITY:
-			return "Split chance: +%s points now · +%s at 5/5" % [now_points, max_points]
+			return "Split chance: +%s%% now · +%s%% at rank 5" % [now_points, max_points]
 		GameplayModifierDef.Kind.SCAR_RELIABILITY:
-			return "Each scar: +%s split points now · +%s at 5/5" % [now_points, max_points]
+			return "Split chance from each scar: +%s%% now · +%s%% at rank 5" % [now_points, max_points]
 		GameplayModifierDef.Kind.SWING_RECOVERY:
-			return "Wait after a swing: %s shorter now · %s at 5/5" % [now, maxed]
+			return "Wait after a swing: %s shorter now · %s at rank 5" % [now, maxed]
 		GameplayModifierDef.Kind.WINDUP_TIME:
-			return "Axe wind-up: %s shorter now · %s at 5/5" % [now, maxed]
+			return "Axe wind-up: %s shorter now · %s at rank 5" % [now, maxed]
 		GameplayModifierDef.Kind.ORBIT_SPEED:
-			return "Camera turns: %s faster now · %s at 5/5" % [now, maxed]
+			return "Camera turns: %s faster now · %s at rank 5" % [now, maxed]
 		GameplayModifierDef.Kind.LOG_TURNAROUND:
-			return "Wait between logs: %s shorter now · %s at 5/5" % [now, maxed]
+			return "Wait between logs: %s shorter now · %s at rank 5" % [now, maxed]
 		GameplayModifierDef.Kind.GLOBAL_XP_GAIN:
-			return "XP earned: +%s now · +%s at 5/5" % [now, maxed]
+			return "XP earned: +%s now · +%s at rank 5" % [now, maxed]
 		GameplayModifierDef.Kind.CASH_GAIN:
-			return "Cash earned: +%s now · +%s at 5/5" % [now, maxed]
+			return "Cash earned: +%s now · +%s at rank 5" % [now, maxed]
 		GameplayModifierDef.Kind.ALIEN_HANDLING:
-			return "Alien split chance: +%s points now · +%s at 5/5" % [now_points, max_points]
+			return "Alien-wood split chance: +%s%% now · +%s%% at rank 5" % [now_points, max_points]
 		GameplayModifierDef.Kind.CONTRIBUTION_EFFICIENCY:
-			return "Launch progress from timber: +%s now · +%s at 5/5" % [now, maxed]
+			return "Launch progress from timber: +%s now · +%s at rank 5" % [now, maxed]
 	return ""
 
 

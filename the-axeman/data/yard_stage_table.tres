@@ -14,7 +14,7 @@ accent = Color(0.55, 0.35, 0.16, 1)
 script = ExtResource("2_stage")
 id = &"shed"
 display_name = "Supplier Shed"
-recognition_copy = "A roofed ledger shed and sheltered first supply stack."
+recognition_copy = "A roofed office and sheltered first supply stack."
 accent = Color(0.36, 0.5, 0.28, 1)
 
 [sub_resource type="Resource" id="Stage_working"]
@@ -35,7 +35,7 @@ accent = Color(0.24, 0.5, 0.62, 1)
 script = ExtResource("2_stage")
 id = &"headquarters"
 display_name = "Continental Headquarters"
-recognition_copy = "A dispatch office, doctrine boards and expanded hydraulic loading court."
+recognition_copy = "A company office, strategy boards and expanded hydraulic loading court."
 accent = Color(0.54, 0.3, 0.66, 1)
 
 [resource]

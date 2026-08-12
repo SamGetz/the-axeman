@@ -54,7 +54,7 @@ func estimated_production_change(level: int) -> String:
 	var current_rank := maxi(0, level)
 	match production_effect:
 		ProductionEffect.SPECIES_PER_RECEIPT:
-			return "+%d routed species capacity" % int(round(production_step))
+			return "+%d wood type per shipment" % int(round(production_step))
 		ProductionEffect.DISPATCH_CAPACITY, ProductionEffect.PARALLEL_LINES, \
 				ProductionEffect.ALIEN_CARGO_CAPACITY:
 			var current := 1.0 + production_step * float(current_rank)
@@ -65,7 +65,7 @@ func estimated_production_change(level: int) -> String:
 			return "~+%d%% output" % int(round(production_step / current * 100.0))
 		ProductionEffect.AUTOMATION_SALE_VALUE, ProductionEffect.ALIEN_SALE_VALUE:
 			var current := 1.0 + production_step * float(current_rank)
-			return "~+%d%% receipt value" % int(round(production_step / current * 100.0))
+			return "~+%d%% automatic sale value" % int(round(production_step / current * 100.0))
 		ProductionEffect.INTERVAL_REDUCTION, \
 				ProductionEffect.ALIEN_INTERVAL_REDUCTION:
 			var current := maxf(interval_floor,
@@ -75,7 +75,7 @@ func estimated_production_change(level: int) -> String:
 			return "~+%d%% cycle throughput" % int(round(
 				(current / next - 1.0) * 100.0))
 		ProductionEffect.CONTINUITY_RESERVE:
-			return "prepaid launch softlock protection"
+			return "secures the launch budget"
 	return "production effect"
 
 

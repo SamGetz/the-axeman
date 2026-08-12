@@ -7,7 +7,7 @@
 script = ExtResource("2_def")
 id = &"craft_house"
 display_name = "Craft House"
-description = "Prioritizes clean and exceptional manual value without changing eligibility."
+description = "Clean and exceptional hand-cut pieces sell for 10% more."
 effect = 0
 magnitude = 0.1
 
@@ -15,7 +15,7 @@ magnitude = 0.1
 script = ExtResource("2_def")
 id = &"logistics_company"
 display_name = "Logistics Company"
-description = "Adds one provisional dispatch lane without cancelling existing routes."
+description = "Processes one more supplier at a time."
 effect = 1
 magnitude = 1.0
 
@@ -23,7 +23,7 @@ magnitude = 1.0
 script = ExtResource("2_def")
 id = &"global_specialist"
 display_name = "Global Specialist"
-description = "Adds one provisional standing point to completed regional customer work."
+description = "Regional customer jobs give +1 standing."
 effect = 2
 magnitude = 1.0
 

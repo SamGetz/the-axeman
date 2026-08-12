@@ -102,7 +102,7 @@ depot_cost = 3500000
 script = ExtResource("2_region")
 id = &"caribbean_specialist_exchange"
 display_name = "Caribbean Specialist Exchange"
-description = "A protected specialist source for the final terrestrial showcase wood."
+description = "A protected specialist source for the final Earth showcase wood."
 species_ids = Array[StringName]([&"lignum_vitae"])
 customer_ids = Array[StringName]([&"hill_cooperative"])
 reputation_required = 22
@@ -170,7 +170,7 @@ processed_output_required = 2500
 script = ExtResource("4_project")
 id = &"deepwater_timber_terminal"
 display_name = "Deepwater Timber Terminal"
-description = "Creates a high-capacity port contract for global specialist loads."
+description = "Opens the port to large specialist shipments from around the world."
 cash_cost = 18000000
 processed_output_required = 10000
 
@@ -178,7 +178,7 @@ processed_output_required = 10000
 script = ExtResource("4_project")
 id = &"headquarters_yard"
 display_name = "Headquarters Yard"
-description = "Builds the continental dispatch office and permanent company loading court."
+description = "Builds the company office and a permanent loading court."
 cash_cost = 50000000
 processed_output_required = 25000
 
@@ -186,7 +186,7 @@ processed_output_required = 25000
 script = ExtResource("4_project")
 id = &"world_catalogue_archive"
 display_name = "World Catalogue Archive"
-description = "Preserves a physical record for every terrestrial species and supplier."
+description = "Preserves a physical record of every Earth wood and supplier."
 cash_cost = 75000000
 processed_output_required = 50000
 

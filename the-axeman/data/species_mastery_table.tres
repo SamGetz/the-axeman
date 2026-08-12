@@ -94,7 +94,7 @@ script = ExtResource("3_requirement")
 kind = 0
 required_count = 10
 use_mastery_target = true
-label = "Complete the authored number of logs manually"
+label = "Master this wood by hand"
 
 [sub_resource type="Resource" id="Mastery_quaking_aspen"]
 script = ExtResource("2_mastery")

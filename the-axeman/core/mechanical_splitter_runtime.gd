@@ -82,19 +82,19 @@ func current_state() -> State:
 static func state_title(state: State) -> String:
 	match state:
 		State.LOCKED:
-			return "LOCKED"
+			return "NOT OWNED"
 		State.UNASSIGNED:
-			return "UNASSIGNED"
+			return "CHOOSE WOOD"
 		State.MISSING_PROFILE:
-			return "MISSING PROFILE"
+			return "SETUP NEEDED"
 		State.READY:
 			return "READY"
 		State.PROCESSING:
-			return "PROCESSING"
+			return "CUTTING"
 		State.OUTPUT_BLOCKED:
-			return "OUTPUT BLOCKED"
+			return "SALE PAUSED"
 		State.EXHAUSTED:
-			return "EARTH EXHAUSTED"
+			return "EARTH COMPLETE"
 	return "UNKNOWN"
 
 
@@ -106,19 +106,21 @@ func state_detail() -> String:
 		State.LOCKED:
 			return "Purchase the machine in Shop."
 		State.UNASSIGNED:
-			return "Choose one installed profile in Tree Catalog."
+			return "Choose a prepared wood in the Tree Catalog."
 		State.MISSING_PROFILE:
-			return "%s needs its certified installed profile." % species_name
+			return "Buy the %s splitter setup in the Shop." % species_name
 		State.READY:
-			return "%s · %d log batch · %.1fs watched cycle." % [
-				species_name, effective_logs_per_split(), effective_duration_seconds()]
+			return "%s · cuts %d log%s every %.1f seconds while the yard is open." % [
+				species_name, effective_logs_per_split(),
+				"" if effective_logs_per_split() == 1 else "s",
+				effective_duration_seconds()]
 		State.PROCESSING:
-			return "%s · %d represented log(s) · watched yard time only." % [
-				species_name, effective_logs_per_split()]
+			return "Cutting %d %s log%s." % [effective_logs_per_split(), species_name,
+				"" if effective_logs_per_split() == 1 else "s"]
 		State.OUTPUT_BLOCKED:
-			return "%s output is waiting for inventory/buyer settlement." % species_name
+			return "%s is cut, but the sale could not finish." % species_name
 		State.EXHAUSTED:
-			return "No terrestrial trees remain. The launch programme is now active."
+			return "No Earth trees remain. The launch programme is now active."
 	return ""
 
 

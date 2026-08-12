@@ -32,7 +32,7 @@ contribution_amount = 350
 script = ExtResource("2_project")
 id = &"orbital_test"
 display_name = "Orbital Test"
-description = "Prove the cargo cradle, shielding seals and return-ledger telemetry."
+description = "Prove the cargo cradle, shielding seals, and return tracking."
 stage = 2
 cash_cost = 900000000
 processed_output_required = 275000
@@ -64,7 +64,7 @@ capability = 2
 script = ExtResource("3_component")
 id = &"frontier_drive"
 display_name = "Frontier Drive"
-description = "An extended-range drive for the outer authored destinations."
+description = "An extended-range drive for more distant destinations."
 slot = 0
 capability = 5
 
@@ -80,7 +80,7 @@ capability = 2
 script = ExtResource("3_component")
 id = &"timber_hold"
 display_name = "Timber Hold"
-description = "Carries repeat commercial timber cargo after certification."
+description = "Carries repeat timber cargo after the first specimen has been cut."
 slot = 1
 capability = 5
 
@@ -96,7 +96,7 @@ capability = 2
 script = ExtResource("3_component")
 id = &"deep_space_shield"
 display_name = "Deep-Space Shield"
-description = "Protects cargo through the harsher outer destination profiles."
+description = "Protects cargo on harsher journeys into deep space."
 slot = 2
 capability = 5
 
@@ -104,7 +104,7 @@ capability = 5
 script = ExtResource("3_component")
 id = &"resonance_dampener"
 display_name = "Resonance Dampener"
-description = "A Spiralwood-certified shielding insert for stable specimen return cargo."
+description = "A Spiralwood-tested shielding insert for stable specimen return cargo."
 slot = 2
 capability = 3
 

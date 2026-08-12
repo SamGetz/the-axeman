@@ -1438,9 +1438,9 @@ func _test_28_orders_route_pay_and_persist() -> void:
 	var completed_copy := ""
 	for label: Node in completed_row.find_children("*", "Label", true, false):
 		completed_copy += (label as Label).text + "\n"
-	_check(completed_copy.contains("Splitter Profile · Balsam Fir")
-			and completed_copy.contains("available after Balsam Fir certification"),
-		"completion before mastery names the profile and its remaining certification gate")
+	_check(completed_copy.contains("Splitter Setup · Balsam Fir")
+			and completed_copy.contains("available after mastery of Balsam Fir"),
+		"completion before mastery names the splitter setup and its remaining mastery gate")
 	completed_row.queue_free()
 	hud.queue_free()
 

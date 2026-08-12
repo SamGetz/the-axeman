@@ -531,7 +531,7 @@ func _process(delta: float) -> void:
 func _refresh_splitter_runtime() -> void:
 	if _splitter_runtime == null or _splitter_label == null:
 		return
-	_splitter_label.text = "MECHANICAL SPLITTER · PLACEHOLDER"
+	_splitter_label.text = "MECHANICAL SPLITTER"
 	if _splitter_state_label != null:
 		_splitter_state_label.text = MechanicalSplitterRuntime.state_title(
 			_splitter_runtime.current_state())

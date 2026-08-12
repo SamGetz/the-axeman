@@ -12,6 +12,7 @@ func _ready() -> void:
 	_test_handling_profiles_and_mastery_shape()
 	_test_campaign_phase_spine()
 	_test_standing_commission_loop()
+	_test_player_copy_uses_gameplay_language()
 	await _test_hud_focus_and_credits()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -20,6 +21,115 @@ func _ready() -> void:
 	if _fails == 0:
 		print("=== FOUR-HOUR EXPERIENCE CONTRACT PASS ===")
 	get_tree().quit(1 if _fails > 0 else 0)
+
+
+func _test_player_copy_uses_gameplay_language() -> void:
+	var samples: Array[Dictionary] = []
+	var skill_table := load("res://data/skill_tree.tres") as SkillTreeTable
+	for node: SkillNodeDef in skill_table.nodes:
+		_add_copy_sample(samples, "skill:%s" % node.id, node.description)
+	for branch: SkillBranchDef in M7CContent.branches().branches:
+		_add_copy_sample(samples, "skill branch:%s" % branch.id, branch.description)
+	for definition: UpgradeDef in Shop.get_upgrades():
+		_add_copy_sample(samples, "shop:%s" % definition.id,
+			"%s\n%s\n%s" % [definition.display_name, definition.description,
+				definition.limitation])
+		for contribution: UpgradeProcContributionDef in definition.proc_contributions:
+			_add_copy_sample(samples, "shop effect:%s" % definition.id,
+				contribution.player_copy)
+	for definition: LogisticsUpgradeDef in CompanyLogistics.upgrades():
+		_add_copy_sample(samples, "logistics:%s" % definition.id,
+			"%s\n%s" % [definition.display_name, definition.description])
+	for definition: EquipmentDef in M7CContent.equipment().equipment:
+		_add_copy_sample(samples, "equipment:%s" % definition.id,
+			"%s\n%s\n%s" % [definition.display_name, definition.description,
+				definition.limitation])
+	for doctrine: CompanyDoctrineDef in CompanyStrategy.doctrines():
+		_add_copy_sample(samples, "doctrine:%s" % doctrine.id,
+			"%s\n%s" % [doctrine.display_name, doctrine.description])
+	for region: RegionDef in RegionalNetwork.regions():
+		_add_copy_sample(samples, "region:%s" % region.id,
+			"%s\n%s" % [region.display_name, region.description])
+	for project: InfrastructureProjectDef in RegionalNetwork.projects():
+		_add_copy_sample(samples, "infrastructure:%s" % project.id,
+			"%s\n%s" % [project.display_name, project.description])
+	for project: LaunchProjectDef in LaunchProgram.projects():
+		_add_copy_sample(samples, "launch:%s" % project.id,
+			"%s\n%s" % [project.display_name, project.description])
+	for component: SpacecraftComponentDef in LaunchProgram.components():
+		_add_copy_sample(samples, "spacecraft:%s" % component.id,
+			"%s\n%s" % [component.display_name, component.description])
+	for expedition: ExpeditionDef in LaunchProgram.expedition_table().expeditions:
+		_add_copy_sample(samples, "expedition:%s" % expedition.id,
+			"%s\n%s" % [expedition.display_name, expedition.description])
+	for wood_trait: AlienWoodTraitDef in AlienCampaign.traits():
+		_add_copy_sample(samples, "alien wood:%s" % wood_trait.id,
+			"%s\n%s" % [wood_trait.display_name, wood_trait.description])
+	for template: CommissionTemplateDef in Orders.commission_templates():
+		_add_copy_sample(samples, "commission:%s" % template.id, template.description)
+	for customer: CustomerDef in Orders.customers():
+		_add_copy_sample(samples, "customer:%s" % customer.id, customer.preference_copy)
+	for mastery: SpeciesMasteryDef in M7CContent.mastery().definitions:
+		for requirement: CertificationRequirementDef in mastery.certification_requirements:
+			_add_copy_sample(samples, "mastery requirement:%s" % mastery.species_id,
+				requirement.label)
+
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	_add_copy_sample(samples, "yard HUD defaults", _control_copy(hud))
+	for definition: UpgradeDef in Shop.get_upgrades():
+		var row: Control = hud._build_shop_row(definition)
+		_add_copy_sample(samples, "rendered shop:%s" % definition.id, _control_copy(row))
+		row.free()
+	for definition: LogisticsUpgradeDef in CompanyLogistics.upgrades():
+		var row: Control = hud._build_logistics_shop_row(definition)
+		_add_copy_sample(samples, "rendered logistics:%s" % definition.id,
+			_control_copy(row))
+		row.free()
+	hud.free()
+
+	var forbidden_phrases: PackedStringArray = [
+		"dry-streak", "eligible event", "current gear + skill", "chain cap",
+		"log-equivalent", "log-eq", "receipt", "provisional", "placeholder",
+		"tuning", "bounded", "non-recursive", "authored", "represented log",
+		"percentage point", "certification", "certify", "capability protocol",
+		"resolver", "implementation", "softlock", "idempotent", "immutable",
+		"accounting", "art status", "current max bonus depth", "fairness",
+	]
+	var whole_word_pattern := RegEx.new()
+	whole_word_pattern.compile("(^|[^a-z])(proc|runtime|manual)([^a-z]|$)")
+	var leaks := PackedStringArray()
+	for sample: Dictionary in samples:
+		var copy := String(sample.copy).to_lower()
+		var leaked_term := ""
+		for phrase: String in forbidden_phrases:
+			if copy.contains(phrase):
+				leaked_term = phrase
+				break
+		if leaked_term.is_empty() and whole_word_pattern.search(copy) != null:
+			leaked_term = whole_word_pattern.search(copy).get_string(2)
+		if not leaked_term.is_empty():
+			leaks.append("%s [%s]" % [sample.source, leaked_term])
+	_check(leaks.is_empty(),
+		"player copy describes gameplay outcomes without exposing system contracts%s" % (
+			"" if leaks.is_empty() else ": " + ", ".join(leaks)))
+
+
+func _add_copy_sample(samples: Array[Dictionary], source: String, copy: String) -> void:
+	if not copy.strip_edges().is_empty():
+		samples.append({"source": source, "copy": copy})
+
+
+func _control_copy(root: Node) -> String:
+	var lines := PackedStringArray()
+	if root is Label:
+		lines.append((root as Label).text)
+	if root is BaseButton:
+		var button := root as BaseButton
+		lines.append(button.text)
+		lines.append(button.tooltip_text)
+	for child: Node in root.get_children():
+		lines.append(_control_copy(child))
+	return "\n".join(lines)
 
 
 func _test_handling_profiles_and_mastery_shape() -> void:
