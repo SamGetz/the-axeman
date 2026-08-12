@@ -19,6 +19,8 @@ retired unless Sam explicitly restores them.
   Ignore `.godot`, `*.import`, binary art, Maya sources, and
   `addons/godot_mcp` unless relevant.
 - Run Godot commands from the inner `the-axeman/` directory.
+- On Sam's Mac, use the Godot executable at
+  `/Users/sgetz/Downloads/Godot.app/Contents/MacOS/Godot`.
 - Test logic changes and render/inspect visual or geometry changes.
 
 Do not preload the handoff pack or roadmaps. Read only the relevant route:

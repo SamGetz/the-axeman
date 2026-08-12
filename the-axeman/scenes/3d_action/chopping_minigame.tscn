@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://cxmnchopmg0a1"]
+[gd_scene load_steps=11 format=3 uid="uid://cxmnchopmg0a1"]
 
 [ext_resource type="Script" uid="uid://d2xfogqelkaw3" path="res://scenes/3d_action/chopping_minigame.gd" id="1_mg"]
 [ext_resource type="PackedScene" uid="uid://bkjcipib43xh8" path="res://assets/models/forest_floor/forest_floor_a.fbx" id="2_30w1t"]
@@ -8,6 +8,8 @@
 [ext_resource type="AnimationLibrary" uid="uid://pyg4245tqpsu" path="res://data/axe_swing_lib.tres" id="6_axelib"]
 [ext_resource type="Script" path="res://scenes/3d_action/yard_equipment_presenter.gd" id="7_equipment"]
 [ext_resource type="Script" path="res://core/mechanical_splitter_runtime.gd" id="8_splitter_runtime"]
+[ext_resource type="Script" path="res://scenes/3d_action/background_tree_line.gd" id="9_tree_line"]
+[ext_resource type="Material" path="res://assets/shaders/distance_pixel_grade_placeholder.tres" id="10_distance_pixels"]
 
 [sub_resource type="Environment" id="Environment_mg"]
 background_mode = 1
@@ -19,6 +21,11 @@ ambient_light_energy = 0.6
 [sub_resource type="BoxShape3D" id="Shape_floor"]
 size = Vector3(60, 2, 60)
 
+[sub_resource type="QuadMesh" id="Quad_distance_pixels"]
+material = ExtResource("10_distance_pixels")
+flip_faces = true
+size = Vector2(2, 2)
+
 [node name="Chopping_Minigame" type="Node3D" unique_id=1574814684]
 script = ExtResource("1_mg")
 
@@ -28,6 +35,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
 [node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=1381852308]
 transform = Transform3D(1, 0, 0, 0, 0.84165555, 0.5400148, 0, -0.5400148, 0.84165555, 0, 0.76330715, 1.0039457)
 current = true
+
+[node name="DistancePixelGrade" type="MeshInstance3D" parent="CameraPivot/Camera3D"]
+extra_cull_margin = 16384.0
+mesh = SubResource("Quad_distance_pixels")
 
 [node name="AxeViewmodelAnchor" type="Node3D" parent="CameraPivot/Camera3D" unique_id=2102622142]
 script = ExtResource("4_axevm")
@@ -65,6 +76,9 @@ script = ExtResource("7_equipment")
 
 [node name="forest_floor_a" parent="." unique_id=15056532 instance=ExtResource("2_30w1t")]
 transform = Transform3D(0.4, 0, 0, 0, 0.4, 0, 0, 0, 0.4, 0, 0.005, 0)
+
+[node name="BackgroundTreeLine" type="Node3D" parent="."]
+script = ExtResource("9_tree_line")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=430022757]
 transform = Transform3D(1, 0, 0, 0, -0.74026555, 0.6723146, 0, -0.6723146, -0.74026555, 0, 1.0136948, 0)

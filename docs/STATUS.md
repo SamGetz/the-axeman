@@ -112,7 +112,8 @@ loads the one input slot from the sole persisted Tree Catalog assignment; only
 active yard time advances the watched cycle. One completed receipt deposits the
 assigned `SpeciesDef.yield_item` through `InventoryManager`, sells it through an
 automation-specific `Market` path, pays cash through `GameState`, and awards 20%
-of the assigned species' XP through `GameState`. It does not advance orders,
+of equivalent manual XP per active second through `GameState`. Cycle speed and
+represented log count do not multiply that XP rate. It does not advance orders,
 lifetime chopped, mastery or certification and cannot trigger manual skill
 procs. One static representative log appears on the bed during processing; it
 disappears on completion without runtime slicing or multiple species geometry.
@@ -182,14 +183,25 @@ Mechanical Splitter tab until the machine gate is earned, and hides the runtime
 card and Tree Catalog assignment controls until their underlying machine/profile
 routes exist. Contracts, purchases, the first-haul milestone, level-ups and the
 final mastery threshold now name the content they unlock as an explicit reward.
-The skill window presents one readable branch at a time. Strength is available
-at the first point, Speed at Working Yard, Mastery at Regional Company and
-Frontier only in the Cosmic Finale. Locked paths stay readable inside the active
-branch. The 36 core nodes cost exactly 84 points; terrestrial level rewards stop
-at that entitlement and switch to cash. Three alien masteries grant exactly nine
-additional points for the nine one-rank Frontier nodes, so the complete tree costs
-93 without an early cap-out or postgame grind. A full respec refunds the existing
-point entitlement and charges 20% of current cash.
+The tab-free skill window presents Strength, Speed and Mastery together from the
+first skill point; Frontier remains absent until Earth Master adds it as a fourth
+column at endgame. Locked paths stay readable inside each branch. The 36 core
+nodes cost exactly 84 points; terrestrial level rewards stop at that entitlement
+and switch to cash. Three alien masteries grant exactly nine additional points
+for the nine one-rank Frontier nodes, so the complete tree costs 93 without an
+early cap-out or postgame grind. A full respec refunds the existing point
+entitlement and charges 20% of current cash.
+The level curve now continues rising past the level-85 core entitlement and only
+enters its repeatable span at level 112. The provisional no-bonus manual model
+reaches point 84 in about 104.6 minutes, inside its 90–120 minute review band;
+even an impossible max-rate splitter running from minute zero leaves a 52.3-minute
+lower bound, beyond the reported 30-minute cap-out.
+Watched splitter XP is budgeted from equivalent manual active time, so Speed and
+Logs per Split improve production without multiplying levels per minute.
+Fractional final XP carries across cycles after global/skill multipliers. Master
+Axeman is a binary next-log reward
+prepared only by an ordinary manual level-up, preventing automation, jackpots
+and its own payout from recursively stockpiling more rewards.
 Skill values are final: ranked cards calculate the current and 5/5 bonus from
 live data, while chance-based skills state their chance, guaranteed-proc limit
 and reward in player-facing language.
@@ -206,10 +218,11 @@ Manual completion feedback now keeps progression authoritative while presenting
 it one receipt at a time. XP is banked immediately, then pooled green orbs fly to
 the live fill edge and advance the displayed XP strip by their exact shares.
 When a share crosses a level boundary, the prior level visibly reaches 100%
-before the label, skill point, tutorial state and pooled celebration advance.
+before the label, skill point and pooled celebration advance.
 The celebration retains vertical rays, sparks and light without the former
-ground halo rings. Tutorial cards then wait five seconds after their triggering
-event so these rewards and unlocks can read before guidance enters.
+ground halo rings. Tutorial presentation is disabled: its overlay, focus ring
+and replay help remain hidden and legacy tutorial flags no longer stage HUD
+reveals.
 Each sold firewood payout is attached to one pooled coin only after Market and
 Orders settle it; the coin waits beside the log until that receipt exists, then
 flies to the cash counter, increments it and contributes one capped bounce-grow
@@ -324,7 +337,8 @@ verified baseline is M1 19, M2 24, M3 18, M4 55, M7A 294, M7B 16, M7C 27,
 M7D 12, M8 122,
 M8 logistics 19, M9 32, M9 regional 15, M10 14, M11 9, M11B 11, M12 12,
 M13 13, M14 10, full campaign 10, campaign experience 12, M15 29, tutorial 31,
-equipment 99 and startup 17. Skill overhaul is 280/280 and XP delivery is 9/9. The standalone slicer
+equipment 99 and startup 17. Skill overhaul is 280/280, XP pacing balance is
+13/13 and XP delivery is 9/9. The standalone slicer
 baseline remains 34/34. The campaign visual tool captures atlas, catalogue,
 the persistent goal, standing commission choice, phased skills, Earth finale,
 launch, every alien fresh/scarred/cut treatment, orbital company and credits at

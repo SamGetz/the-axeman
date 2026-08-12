@@ -101,9 +101,8 @@ extends Resource
 ## Albedo multiplier over that inside texture. PLACEHOLDER wherever it is not
 ## WHITE: it stands in for a species' real tileable inside texture.
 @export var inside_tint: Color = Color.WHITE
-## Albedo multiplier over the log's OWN BARK material, for a species wearing
-## another wood's art. WHITE means "this species has its own art, leave it alone",
-## and is the value every species should end up at once Sam has authored it.
+## Legacy fallback multiplier over an imported exterior. WHITE means the species
+## has a texture path (bespoke or placeholder) and is the intended steady state.
 @export var bark_tint: Color = Color.WHITE
 
 ## ---------------------------------------------------------- authored skins
@@ -123,26 +122,20 @@ extends Resource
 ##             exactly one of it. -> the `oak_top` slot.
 @export var bark_tex: String = ""
 @export var top_tex: String = ""
-## Optional normal maps for the two skins above. LEAVING THESE EMPTY IS
-## MEANINGFUL, not merely unset: a species that brings its own albedo but no
-## normal has the imported wood's normal map CLEARED rather than inherited,
-## because Sam's log textures are hand-painted with their light and shadow
-## already in them and oak's normal map would emboss oak's crack pattern
-## straight through another wood's painted cracks.
+## True when either exterior path is generated stand-in art. Keeping this in the
+## data schema makes placeholder debt visible to tools without parsing filenames.
+@export var exterior_textures_placeholder: bool = false
+## Optional normal-map source paths retained for future art passes. The approved
+## initial procedural exterior is deliberately albedo-only, matching the lab;
+## runtime fresh-inside normals remain independent and unchanged.
 @export var bark_normal: String = ""
 @export var top_normal: String = ""
-## How many times `bark_tex` repeats around the log. PLACEHOLDER per Directive 3.
-##
-## This exists because the two bark textures in the project are painted at very
-## different scales: oak's is roughly 20 plates across its square, Sam's Eastern
-## White Pine roughly 8. Both are tiling squares and the log's UVs are identical,
-## so at 1.0 the pine shows about four enormous plates on the visible face and
-## reads as dark blobs rather than as bark. Scaling the UV is the non-destructive
-## fix — the alternative is repainting the art finer, which is Sam's call.
-##
-## Only affects the bark slot. The END is a single painted disc that the FBX's UVs
-## are laid out to fit exactly once, so scaling it would tile a grid of discs.
-@export var bark_uv_scale: float = 1.0
+## Object-space repeats per metre for the triplanar bark shader. PLACEHOLDER per
+## Directive 3. The 1.8 default is the lower-frequency pass Sam approved in the
+## material lab; conifer and birch exceptions remain labelled placeholders too.
+## Only affects bark. Authored end grain is mapped once and runtime fresh-cut
+## inside grain keeps its existing independent metres-based UV strategy.
+@export_range(0.25, 24.0, 0.05) var bark_projection_scale: float = 1.8
 
 
 ## Is this the wood a fresh save starts on — free and available at level 1?

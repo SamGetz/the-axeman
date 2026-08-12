@@ -821,12 +821,22 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 		"...the log is still one piece (%d)" % mg.piece_count())
 	_check(mg.debug_scar_count() == 1, "...and it wears exactly one scar")
 
-	# The scar is a real mesh on the real piece, not just a counter.
+	# The scar is a real top-face projection on the real piece, not just a counter
+	# or the old unshaded black line.
 	var marks := 0
+	var scar_material: ShaderMaterial = null
 	for c in mg.get_node("OnBlock").get_child(0).get_children():
-		if c is MeshInstance3D and c.name != "Mesh":
+		if c is MeshInstance3D and c.name.begins_with("ScarProjection"):
 			marks += 1
-	_check(marks == 1, "...which is an actual gouge mesh on the log (%d)" % marks)
+			var projection_mesh: Mesh = c.mesh
+			if projection_mesh != null and projection_mesh.get_surface_count() > 0:
+				scar_material = projection_mesh.surface_get_material(0) as ShaderMaterial
+	_check(marks == 1, "...which is one top-face projection on the struck log (%d)" % marks)
+	var scar_normal: Texture2D = null
+	if scar_material != null:
+		scar_normal = scar_material.get_shader_parameter("scar_normal") as Texture2D
+	_check(scar_normal != null and scar_normal.resource_path.ends_with("axe_scar_normal.png"),
+		"...and the projection shades with the generated axe-scar normal map")
 
 	var chance_after: float = mg.debug_split_chance()
 	var handling: WoodHandlingProfileDef = WoodHandlingProfiles.profile_for_species(
@@ -861,12 +871,22 @@ func _test_17_a_swing_can_fail_and_scars_the_log() -> void:
 	_check(absf(mg.debug_split_chance() - mg.max_split_chance) < 0.001,
 		"...while its reliability weighting still respects the split ceiling")
 
-	# A swing that lands takes the scars with it: the cleave went through them.
+	# Cut BESIDE the failed-hit line. The original geometry is replaced by two new
+	# meshes here, which used to queue-free every child scar. Physical scar records
+	# now reproject onto whichever descendant top still overlaps them; only one
+	# descendant keeps each pity contribution, so persistence cannot duplicate the
+	# mechanical bonus.
 	mg.debug_split_roll = 1
-	_check(mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0)), "a successful swing splits the log")
+	_check(mg.debug_swing_world(Plane(Vector3.RIGHT, 0.12)),
+		"a successful adjacent swing splits the scarred log")
 	_check(mg.piece_count() > pieces_before,
 		"...into more pieces than it was (%d)" % mg.piece_count())
-	_check(mg.debug_scar_count() == 0, "...and the fresh piece on the block is unscarred")
+	_check(mg.debug_total_scar_projection_count() >= 21,
+		"...and all 21 physical scar projections survive on the descendant top geometry (%d)"
+			% mg.debug_total_scar_projection_count())
+	_check(mg.debug_total_scar_pity_count() == 21,
+		"...without duplicating their 21 pity contributions across adjacent pieces (%d)"
+			% mg.debug_total_scar_pity_count())
 
 	mg.queue_free()
 	await get_tree().process_frame

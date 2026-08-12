@@ -66,6 +66,20 @@ func _test_audio_catalogue() -> void:
 	_check(missing.is_empty(), "every generated cue variation exists")
 	_check(AudioDirector.debug_preloaded_stream_count() == variation_count,
 		"every authored stream is resident before the first gameplay event")
+	var split_cue: Dictionary = cues.get("wood_split", {})
+	var land_cue: Dictionary = cues.get("piece_land", {})
+	var thud_cue: Dictionary = cues.get("wood_thud", {})
+	var split_pitch: Array = split_cue.get("pitch", [])
+	var land_pitch: Array = land_cue.get("pitch", [])
+	_check(not split_cue.is_empty() and land_cue.get("variations", []) == split_cue.get("variations", []),
+		"firewood ground impacts reuse the chopping variations")
+	_check(split_pitch.size() == 2 and land_pitch.size() == 2
+			and float(land_pitch[1]) < float(split_pitch[0]),
+		"firewood ground impacts pitch the chopping sound down")
+	_check(not bool(land_cue.get("spatial", true)),
+		"firewood ground impacts remain listener-independent and audible like the chop")
+	_check(not bool(thud_cue.get("spatial", true)),
+		"failed-strike thuds remain listener-independent and audible like the chop")
 	for bus_name in [&"SFX", &"SFX/World", &"SFX/Rewards", &"SFX/UI",
 			&"SFX/Machinery", &"Ambience"]:
 		_check(AudioServer.get_bus_index(bus_name) >= 0, "%s mixer bus exists" % bus_name)
@@ -89,12 +103,14 @@ func _test_audio_world_registration() -> void:
 	_check(split_started
 		and AudioDirector.debug_started_event_count(&"wood_split") == split_before + 1,
 		"successful splits use a listener-independent impact cue")
+	AudioDirector.end_session()
+	AudioDirector.begin_session()
 	var before := AudioDirector.debug_started_event_count(&"wood_thud")
 	var all_started := true
 	for _event in range(5):
 		all_started = AudioDirector.play_world(&"wood_thud", Vector3.ZERO) and all_started
-	_check(AudioDirector.debug_playing_3d_voice_count() == 4,
-		"rapid failed-chop cues stay inside their authored positional polyphony")
+	_check(AudioDirector.debug_playing_voice_count() == 4,
+		"rapid failed-chop cues stay inside their authored polyphony")
 	_check(all_started
 		and AudioDirector.debug_started_event_count(&"wood_thud") == before + 5,
 		"rapid authored events retrigger the oldest voice instead of silently dropping SFX")

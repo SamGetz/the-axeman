@@ -46,8 +46,8 @@ func _test_revised_skill_graph_contract() -> void:
 		"the replacement catalogue has exactly 45 nodes")
 	_check(branch_counts == {&"strength": 12, &"speed": 12, &"mastery": 12, &"frontier": 9},
 		"the replacement branch distribution is 12/12/12/9")
-	_check(ranked_foundations == 15 and total_ranks == 105,
-		"15 foundation nodes expose five ranks and the tree totals 105 purchases")
+	_check(ranked_foundations == 12 and total_ranks == 93,
+		"12 foundation nodes preserve the 84-rank core plus nine Frontier purchases")
 	_check(SkillTree.get_revealed_nodes().size() == 36,
 		"Frontier is completely absent before Earth Master")
 	var curve := GameConfig.current().level_curve

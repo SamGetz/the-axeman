@@ -15,6 +15,7 @@ Set `GODOT` to the Godot 4.7.1 executable for the current machine, then run:
 "$GODOT" --headless --path . res://core/tests/m7b_acceptance.tscn
 "$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7c_acceptance.tscn
 "$GODOT" --headless --path . res://core/tests/skill_overhaul_acceptance.tscn
+"$GODOT" --headless --path . res://core/tests/xp_pacing_balance_acceptance.tscn
 "$GODOT" --headless --path . res://core/tests/xp_delivery_acceptance.tscn
 "$GODOT" --headless --path . res://core/tests/reward_audio_acceptance.tscn
 "$GODOT" --headless --path . res://core/tests/m7d_acceptance.tscn
@@ -50,6 +51,7 @@ Latest verified four-hour-loop baseline on 2026-08-09:
 | M7B craftsmanship/customers/reputation | 16/16 |
 | M7C revised graph/content | 27/27 |
 | Skill overhaul | 280/280 |
+| XP pacing balance | 13/13 |
 | XP full-bar delivery and ring-free level effect | 9/9 |
 | M7D visible yard progression | 12/12 |
 | M8 Slice 6 Certified Yard Expansion | 122/122 |
@@ -65,7 +67,7 @@ Latest verified four-hour-loop baseline on 2026-08-09:
 | Fresh campaign through credits | 10/10 |
 | Four-hour campaign experience | 12/12 |
 | M15 depletion/reinvestment foundation | 29/29 |
-| First-time tutorial and placeholder art | 31/31 |
+| Disabled tutorial presentation and placeholder art | 8/8 |
 | Proc-driven equipment progression | 99/99 |
 | Startup New Game / Load Game | 17/17 |
 | Slicer | 34/34 |
@@ -77,26 +79,15 @@ save confirmation and non-destructive corrupt-save failure. Like M7A, M7C and
 M8, it moves any existing player save aside for the run and restores it before
 quitting.
 
-`tutorial_acceptance.tscn` validates all three mentor definitions, sixteen
-short gameplay-first beats, project-local portrait loads, audited vector
-placeholders, the final two-second post-event delay, the level-2 Skills lesson,
-closable tutorial cards, the paced
-level-3 Jobs → completed job → Shop opening, gated Tree Catalog HUD
-action, zero-grant behavior, save restoration and persistent skipping. The
-non-headless review tool captures every current
-tutorial beat against its live yard or panel state:
-
-```bash
-"$GODOT" --path . res://core/tools/tutorial_visual_shot.tscn
-```
-
-It writes `/private/tmp/axeman_tutorial_*.png`; every current capture reports
-1280×720 and must be inspected for portrait readability, button access, focus
-outline placement and overlap with the bottom-left Earth counter.
+`tutorial_acceptance.tscn` keeps the authored mentor/content and placeholder-art
+validation, then verifies that the tutorial director presents no card, focus or
+replay help, writes no completion/skip state, and cannot let old staged-tutorial
+flags hide an otherwise actionable Catalog. The retained non-headless tutorial
+capture tool is intentionally inert while `TutorialDirector.ENABLED` is false.
 
 `m8_acceptance.tscn` includes the approved 68-check Slice 3 foundation and 25
 focused Slice 4 checks for typed cycle data, all seven runtime states, one-slot
-admission, active-yard timing, exact-once cash/20%-XP settlement, restore safety,
+admission, active-yard timing, exact-once cash/time-budgeted XP settlement, restore safety,
 the representative log, five upgrade identities/effects, paced introduction,
 greybox presence and HUD presentation.
 
@@ -113,7 +104,8 @@ actionable.
 The verified 104-check completion run also pins Sam's complete measured splitter
 band: machine/profile gates and prices, five-second cycle, one output per
 represented log, 50% Speed floor, five Speed ranks, one-time Auto Loading,
-5-to-12 Logs per Split, 20-to-100% automation XP and five Money Gain ranks.
+5-to-12 Logs per Split, 20-to-100% equivalent-manual-time automation XP and five
+Money Gain ranks. Speed and represented output do not multiply XP per minute.
 
 Slice 6 expands M7A to 289 checks; the current M8 suite has 122 checks after the
 version-5 migration assertion. Loop-based checks cover all 26
@@ -187,6 +179,16 @@ representative anchor and prints the final Frontier active-time projection:
 It prints unlock cost, unit sale value, contract count/base/bonus, profile cost,
 mastery target and base splitter cash/XP. A passing snapshot confirms the
 authored formulae and labels, not final pacing approval.
+
+`xp_pacing_balance_acceptance.tscn` additionally pins one point per level through
+the 84-point terrestrial tree, the provisional 90–120 minute manual completion
+band, splitter XP-per-minute invariance and fractional carry, and a binary,
+source-aware Masterwork reward. Fractional carry is applied after global/skill
+multipliers to prevent rounding inflation. The current no-bonus projection
+reaches point 84 at about 104.6 minutes. Even the deliberately impossible upper
+bound of a max-rate splitter running beside every manual swing from minute zero
+remains about 52.3 minutes, safely beyond the reported 30-minute cap-out. Both remain modelled
+values requiring a real fresh-save feel pass.
 
 The M9 probe prints three generations at levels 3, 49 and 96. It confirms slot
 roles, effort bands, rotation coverage and the labelled 5% mixed/frontier cash

@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://assets/shaders/visual_style_lab.gdshader" id="1_shader"]
+
+[resource]
+resource_name = "PROTOTYPE ONLY - visual style screenshot candidates, no final tuning"
+shader = ExtResource("1_shader")
+shader_parameter/style_mode = 1
+shader_parameter/chunky_block_size = 5.0
+shader_parameter/chunky_color_levels = 10.0

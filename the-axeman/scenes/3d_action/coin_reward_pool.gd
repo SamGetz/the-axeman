@@ -1,8 +1,8 @@
 class_name CoinRewardPool
 extends Node3D
 ## A fully prebuilt manual-sale receipt pool. Coins burst from the final cut,
-## bounce beside the stump, then fly to the HUD on the same collection beat as
-## XP. GameState/Market still own every cent; this only presents it.
+## bounce across the stump and yard, then fly to the HUD on the same collection
+## beat as XP. GameState/Market still own every cent; this only presents it.
 ## Counts, timing and motion are PLACEHOLDERS pending the VFX feel pass.
 
 enum Phase { INACTIVE, FLIGHT, REST, DRAW }
@@ -13,7 +13,6 @@ signal coins_cancelled(count: int)
 signal batch_finished
 
 const CAPACITY := 40
-const _RADIUS := 0.042
 const _GRAVITY := 9.0
 const _BOUNCE := 0.46
 const _GROUND_DRAG := 0.62
@@ -33,7 +32,8 @@ var _screen_target := Callable()
 var _coins: Array[MeshInstance3D] = []
 var _phases := PackedInt32Array()
 var _velocities: Array[Vector3] = []
-var _floor_y := PackedFloat32Array()
+var _ground_y := PackedFloat32Array()
+var _support_y := PackedFloat32Array()
 var _ages := PackedFloat32Array()
 var _lifetimes := PackedFloat32Array()
 var _collect_times := PackedFloat32Array()
@@ -44,6 +44,16 @@ var _draw_from: Array[Vector3] = []
 var _batch_remaining := 0
 var _render_warmup_active := false
 var _tier_scales := PackedFloat32Array()
+var _stump_collider: CollisionShape3D
+var _stump_geometry_radius := -1.0
+
+# Reused collision result. The reward pool exists to avoid impact-time
+# allocations, so the swept stump test writes into these fields instead of
+# constructing a Dictionary for every active token on every frame.
+var _hit_found := false
+var _hit_fraction := 1.0
+var _hit_position := Vector3.ZERO
+var _hit_normal := Vector3.UP
 
 
 func initialize(camera: Camera3D) -> void:
@@ -97,7 +107,8 @@ func _build() -> void:
 		_coins.append(coin)
 		_phases.append(Phase.INACTIVE)
 		_velocities.append(Vector3.ZERO)
-		_floor_y.append(0.0)
+		_ground_y.append(0.0)
+		_support_y.append(0.0)
 		_ages.append(0.0)
 		_lifetimes.append(0.0)
 		_collect_times.append(0.0)
@@ -110,6 +121,16 @@ func _build() -> void:
 
 func set_screen_target(provider: Callable) -> void:
 	_screen_target = provider
+
+
+## Manual rewards share the stump's cylinder proxy. `geometry_radius` is the
+## measured mesh footprint; the gameplay work-radius upgrade can widen this same
+## CollisionShape3D beyond the visible wood and must not make tokens bounce off
+## empty air. Splitter rewards leave this unset and retain their floor bounce.
+func set_stump_collider(collider: CollisionShape3D,
+		geometry_radius := -1.0) -> void:
+	_stump_collider = collider
+	_stump_geometry_radius = geometry_radius
 
 
 ## Pop one visible coin per eventual piece payout. They share XPOrb's collection
@@ -129,7 +150,7 @@ func begin_burst(from: Vector3, count: int, ground_y: float, clear_radius: float
 		# Same full ballistic solve as XPOrb. The previous same-height shortcut
 		# ignored the half-metre drop from log to yard, so horizontal velocity was
 		# almost doubled and coins overshot their intended landing ring.
-		var floor := ground_y + _RADIUS
+		var floor := ground_y + _collision_radius(i)
 		var drop := maxf(from.y - floor, 0.01)
 		var flight_time := (up + sqrt(up * up + 2.0 * _GRAVITY * drop)) / _GRAVITY
 		_coins[i].global_position = from
@@ -139,7 +160,8 @@ func begin_burst(from: Vector3, count: int, ground_y: float, clear_radius: float
 		_phases[i] = Phase.FLIGHT
 		_velocities[i] = Vector3(cos(angle) * reach / flight_time, up,
 			sin(angle) * reach / flight_time)
-		_floor_y[i] = floor
+		_ground_y[i] = ground_y
+		_support_y[i] = ground_y
 		_ages[i] = 0.0
 		_lifetimes[i] = 0.0
 		_collect_times[i] = maxf(0.0, collect_at) + float(i) * maxf(0.0, stagger)
@@ -196,7 +218,8 @@ func _clone_anchor(anchor: int, index: int, offset: int) -> void:
 	_coins[index].visible = true
 	_velocities[index] = _velocities[anchor] + Vector3(
 		randf_range(-0.16, 0.16), randf_range(0.10, 0.28), randf_range(-0.16, 0.16))
-	_floor_y[index] = _floor_y[anchor]
+	_ground_y[index] = _ground_y[anchor]
+	_support_y[index] = _support_y[anchor]
 	_ages[index] = _ages[anchor]
 	_lifetimes[index] = _lifetimes[anchor]
 	_collect_times[index] = _collect_times[anchor] + float(offset) * 0.025
@@ -236,7 +259,10 @@ func _process(delta: float) -> void:
 			Phase.REST:
 				any_active = true
 				_ages[i] += delta
-				_coins[i].position.y = _floor_y[i] + sin(_ages[i] * 6.0 + float(i)) * 0.006
+				var rest_position := _coins[i].global_position
+				rest_position.y = _support_y[i] + _collision_radius(i) \
+					+ sin(_ages[i] * 6.0 + float(i)) * 0.006
+				_coins[i].global_position = rest_position
 			Phase.DRAW:
 				any_active = true
 				if not destination_ready:
@@ -249,18 +275,113 @@ func _process(delta: float) -> void:
 func _step_flight(i: int, delta: float) -> void:
 	_ages[i] += delta
 	_velocities[i].y -= _GRAVITY * delta
-	_coins[i].position += _velocities[i] * delta
+	var from := _coins[i].global_position
+	var to := from + _velocities[i] * delta
+	_find_first_surface_hit(i, from, to)
+	if _hit_found:
+		_coins[i].global_position = _hit_position + _hit_normal * 0.0005
+		var inward_speed := _velocities[i].dot(_hit_normal)
+		if inward_speed < 0.0:
+			var tangent := _velocities[i] - _hit_normal * inward_speed
+			_velocities[i] = tangent * _GROUND_DRAG \
+				- _hit_normal * inward_speed * _BOUNCE
+		if _hit_normal.y > 0.7 and -inward_speed < _SETTLE_SPEED:
+			_phases[i] = Phase.REST
+			_ages[i] = 0.0
+			_support_y[i] = _hit_position.y - _collision_radius(i)
+	else:
+		_coins[i].global_position = to
 	_apply_spin(i)
-	if _coins[i].position.y > _floor_y[i] or _velocities[i].y >= 0.0:
+
+
+## Sweep the token centre from `from` to `to`. A point test lets a fast token
+## tunnel through the half-metre block between frames; expanding the floor and
+## cylinder by the token's current visual radius gives the billboard a stable
+## physical footprint without adding forty RigidBody3Ds to the physics budget.
+func _find_first_surface_hit(i: int, from: Vector3, to: Vector3) -> void:
+	_hit_found = false
+	_hit_fraction = 1.0
+	var radius := _collision_radius(i)
+	var floor := _ground_y[i] + radius
+	var motion := to - from
+	if motion.y < 0.0 and from.y >= floor and to.y <= floor:
+		var floor_fraction := (floor - from.y) / motion.y
+		_record_surface_hit(floor_fraction,
+			from.lerp(to, floor_fraction), Vector3.UP)
+	_find_stump_hit(from, to, radius)
+
+
+## The authored stump currently exposes a CylinderShape3D collision proxy. Work
+## in that shape's local space so the reward follows its live height and transform.
+## Its radius comes from the measured mesh footprint when supplied, because the
+## same gameplay proxy can be wider than the rendered stump after an upgrade.
+func _find_stump_hit(from: Vector3, to: Vector3, radius: float) -> void:
+	if _stump_collider == null or not is_instance_valid(_stump_collider) \
+			or _stump_collider.disabled \
+			or not (_stump_collider.shape is CylinderShape3D):
 		return
-	_coins[i].position.y = _floor_y[i]
-	if -_velocities[i].y < _SETTLE_SPEED:
-		_phases[i] = Phase.REST
-		_ages[i] = 0.0
+	var cylinder := _stump_collider.shape as CylinderShape3D
+	var shape_transform := _stump_collider.global_transform
+	var inverse := shape_transform.affine_inverse()
+	var local_from := inverse * from
+	var local_to := inverse * to
+	var local_motion := local_to - local_from
+	var stump_radius := _stump_geometry_radius \
+		if _stump_geometry_radius >= 0.0 else cylinder.radius
+	var expanded_radius := stump_radius + radius
+	var top := cylinder.height * 0.5 + radius
+
+	# Flat top. The small radius overhang approximates the rounded edge of a
+	# swept disc and prevents a coin grazing the rim from clipping through it.
+	if local_motion.y < 0.0 and local_from.y >= top and local_to.y <= top:
+		var top_fraction := (top - local_from.y) / local_motion.y
+		var top_point := local_from.lerp(local_to, top_fraction)
+		if Vector2(top_point.x, top_point.z).length_squared() \
+				<= expanded_radius * expanded_radius:
+			_record_surface_hit(top_fraction, shape_transform * top_point,
+				(shape_transform.basis * Vector3.UP).normalized())
+
+	# Curved wall. Only an outside-to-inside crossing is a hit; a token leaving
+	# the top must be allowed to travel out over the rim and fall to the yard.
+	var a := local_motion.x * local_motion.x + local_motion.z * local_motion.z
+	if a <= 0.0000001:
 		return
-	_velocities[i].y = -_velocities[i].y * _BOUNCE
-	_velocities[i].x *= _GROUND_DRAG
-	_velocities[i].z *= _GROUND_DRAG
+	var b := 2.0 * (local_from.x * local_motion.x + local_from.z * local_motion.z)
+	var c := local_from.x * local_from.x + local_from.z * local_from.z \
+		- expanded_radius * expanded_radius
+	var discriminant := b * b - 4.0 * a * c
+	if discriminant < 0.0:
+		return
+	var root := sqrt(discriminant)
+	for root_index in range(2):
+		var signed_root := -root if root_index == 0 else root
+		var side_fraction := (-b + signed_root) / (2.0 * a)
+		if side_fraction < 0.0 or side_fraction > _hit_fraction:
+			continue
+		var side_point := local_from.lerp(local_to, side_fraction)
+		if side_point.y < -cylinder.height * 0.5 - radius \
+				or side_point.y > cylinder.height * 0.5 + radius:
+			continue
+		var local_normal := Vector3(side_point.x, 0.0, side_point.z).normalized()
+		if local_motion.dot(local_normal) >= 0.0:
+			continue
+		_record_surface_hit(side_fraction, shape_transform * side_point,
+			(shape_transform.basis * local_normal).normalized())
+
+
+func _record_surface_hit(fraction: float, position: Vector3, normal: Vector3) -> void:
+	if fraction < 0.0 or fraction > _hit_fraction:
+		return
+	_hit_found = true
+	_hit_fraction = fraction
+	_hit_position = position
+	_hit_normal = normal
+
+
+func _collision_radius(i: int) -> float:
+	var tier := clampi(_tiers[i], 0, _meshes.size() - 1)
+	var tier_scale := _tier_scales[clampi(tier, 0, _tier_scales.size() - 1)]
+	return maxf(_meshes[tier].size.x, _meshes[tier].size.y) * 0.5 * tier_scale
 
 
 func _begin_draw(i: int) -> void:

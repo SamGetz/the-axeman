@@ -6,15 +6,15 @@ extends Resource
 ## Every value in this resource remains a tuning placeholder until the pacing
 ## probe and representative Compatibility play session are approved.
 @export_group("Opening cadence — PLACEHOLDER")
-@export_range(1, 20, 1) var opening_levels: int = 6
-@export_range(0.1, 1.0, 0.01) var opening_scale: float = 0.55
+@export_range(1, 20, 1) var opening_levels: int = 9
+@export_range(0.1, 1.0, 0.01) var opening_scale: float = 0.42
 
 @export_group("Terrestrial ramp — PLACEHOLDER")
-@export_range(1, 100000, 1) var base_xp: int = 32
-@export_range(1.0, 3.0, 0.01) var curve_power: float = 1.55
+@export_range(1, 100000, 1) var base_xp: int = 26
+@export_range(1.0, 3.0, 0.01) var curve_power: float = 1.30
 
 @export_group("Infinite endgame — PLACEHOLDER")
-@export_range(10, 500, 1) var endgame_plateau_level: int = 80
+@export_range(10, 500, 1) var endgame_plateau_level: int = 112
 
 var _thresholds: PackedInt64Array = PackedInt64Array()
 

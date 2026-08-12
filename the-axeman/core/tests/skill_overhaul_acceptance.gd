@@ -51,8 +51,8 @@ func _test_exact_graph_and_reveal_gate() -> void:
 	_check(ranked_foundations == 12 and total_ranks == 93,
 		"the 84-rank core is preserved while Frontier is nine one-rank purchases")
 	_check(SkillTree.get_revealed_nodes().size() == 36 \
-		and SkillTree.get_presented_nodes().size() == 12,
-		"only the Strength tab is presented in the opening while later branches remain uncluttered")
+		and SkillTree.get_presented_nodes().size() == 36,
+		"all three terrestrial trees are presented immediately while Frontier remains hidden")
 	# Only procs granted by the finalized skill graph belong to this contract.
 	# Equipment-only Mastery Echo and Express Handoff deliberately retain their
 	# measured-pacing placeholder labels and are covered by their focused suite.

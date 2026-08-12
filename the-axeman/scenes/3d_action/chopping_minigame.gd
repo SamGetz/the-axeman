@@ -249,10 +249,14 @@ signal coin_batch_finished
 ## Shake for a swing that bit but did not split — smaller than a real hit, and
 ## with NO hit-pause, so a successful split keeps the time-stop to itself.
 @export var fail_impact := 0.25
-@export var scar_width := 0.014         # thickness of the line a failed swing leaves (m)
-@export_range(0.0, 1.0) var scar_length_frac := 0.8   # how far the line runs across the piece's top
-@export var scar_lift := 0.004          # how far above the top face the line is laid, so it never z-fights (m)
-@export var scar_colour := Color(0.20, 0.13, 0.09, 0.55)   # a soft mark, not a black bar
+@export var scar_width := 0.025         # PLACEHOLDER selected single-hit axe-bite width (m)
+@export_range(0.0, 1.0) var scar_length_frac := 0.8   # visible gouge length across the piece's top
+@export var scar_lift := 0.004          # receiver lift above the copied top face, avoiding z-fight (m)
+@export var scar_colour := Color(0.72, 0.42, 0.12, 1.0)   # PLACEHOLDER fresh torn-fibre midtone
+@export var scar_shadow_colour := Color(0.30, 0.12, 0.035, 1.0) # PLACEHOLDER warm recessed wood, not black
+@export var scar_highlight_colour := Color(1.0, 0.78, 0.32, 1.0) # PLACEHOLDER lifted fibre edge
+@export_range(0.0, 1.0) var scar_opacity := 0.82      # PLACEHOLDER pending single-hit feel test
+@export_range(0.0, 4.0) var scar_normal_strength := 3.5 # PLACEHOLDER pending single-hit feel test
 @export var debug_split_roll := -1      # -1 = roll for real; 0 = always fail; 1 = always split (tests only)
 
 # --- procs (M7C: named chance-driven events off a successful split) --------
@@ -294,7 +298,18 @@ signal coin_batch_finished
 
 const _TEX_INSIDE := preload("res://assets/textures/wood_oak/wood_oak_inside_tilable_diffColor.jpg")
 const _TEX_INSIDE_N := preload("res://assets/textures/wood_oak/wood_oak_inside_tilable_normals.jpg")
+const _LOG_BARK_SHADER := preload("res://assets/shaders/log_bark_triplanar.gdshader")
+const _LOG_END_SHADER := preload("res://assets/shaders/log_end_cap.gdshader")
+const _SCAR_NORMAL := preload("res://assets/generated/chopping/axe_scar_normal.png")
+const _SCAR_SHADER := preload("res://assets/shaders/axe_scar_projection.gdshader")
 const _STUMP_FBX := preload("res://assets/models/chopping_stump_a/chopping_stump_a.fbx")
+
+## The generated map keeps neutral-normal padding around its damage. These are
+## asset-layout facts, not feel tuning: the exports above still describe the
+## visible scar, while its receiver expands enough to hold that padding.
+const _SCAR_VISIBLE_WIDTH_FRAC := 0.14 # measured relief span in the generated map
+const _SCAR_VISIBLE_LENGTH_FRAC := 0.72
+const _SCAR_TOP_NORMAL_MIN_DOT := 0.55
 
 const _PICK_LAYER := 1 << 1              # on-block pieces sit on this layer for ray-picking only
 
@@ -324,6 +339,10 @@ var _precision_guard := false
 var _last_double_strike_cuts := -1        # debug seam: cuts by the most recent continuation attempt
 var _last_follow_up_swings := -1          # debug seam: swings by the most recent Follow-Up attempt
 var _last_proc_burst_color := Color.TRANSPARENT   # debug seam: color of the most recent ProcBurst
+## `get_instance_id()` is unique only inside one Godot process. Manual receipt
+## ids are persisted, so a relaunched scene needs a process-external nonce or its
+## first logs can collide with saved ids and be mistaken for duplicate rewards.
+var _manual_log_session_nonce := int(Time.get_unix_time_from_system() * 1_000_000.0)
 var _manual_log_serial := 0
 var _current_manual_log_root_id: StringName = &""
 var _pending_manual_piece_receipts: Array[ManualPieceReceipt] = []
@@ -369,9 +388,10 @@ var _axe: AxeViewmodel                    # the camera-mounted rig; null only in
 var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
-var _bark_mats: Dictionary = {}           # "species index|source material id" -> re-skinned duplicate (see _apply_species_look)
+var _bark_mats: Dictionary = {}           # "species index|source material id" -> procedural exterior material
 var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
-var _scar_meshes: Dictionary = {}         # species index -> ArrayMesh: the gouge a failed swing leaves
+var _alien_band_mesh: ArrayMesh = null     # unit quad used only by the luminous alien weak-band cue
+var _scar_projection_mat: ShaderMaterial  # generated normal-map material shared by persistent scars
 var _smoke_root: Node3D                    # landing puff pool; built before play to keep allocations off impact
 var _smoke_puffs: Array[MeshInstance3D] = []
 var _smoke_age := PackedFloat32Array()
@@ -488,6 +508,9 @@ func _prewarm_vfx_geometry() -> void:
 	_coin_reward_pool.name = "CoinRewardPool"
 	add_child(_coin_reward_pool)
 	_coin_reward_pool.initialize(_camera)
+	_coin_reward_pool.set_stump_collider(
+		get_node_or_null("StumpBody/StumpCollision") as CollisionShape3D,
+		_stump_radius)
 	_coin_reward_pool.batch_started.connect(coin_batch_started.emit)
 	_coin_reward_pool.coin_collected.connect(coin_collected.emit)
 	_coin_reward_pool.coins_cancelled.connect(coins_cancelled.emit)
@@ -513,7 +536,9 @@ func _prewarm_vfx_geometry() -> void:
 	_grain_unit_line_mesh().get_rid()
 	for material: Material in _grain_mark_materials():
 		material.get_rid()
-	_scar_mesh().get_rid()
+	_SCAR_NORMAL.get_rid()
+	_scar_projection_material().get_rid()
+	_unit_alien_band_mesh().get_rid()
 
 
 ## Called by Main only while the opaque startup screen is still on top. These
@@ -539,7 +564,8 @@ func begin_initial_vfx_render_warmup() -> void:
 			if branch == null:
 				continue
 			var node := ProcBurst.spawn(self,
-				warm_position + Vector3(float(color_index) * 0.03, 0.0, 0.0), branch.color)
+				warm_position + Vector3(float(color_index) * 0.03, 0.0, 0.0),
+				branch.color, branch.id)
 			_render_warmup_nodes.append(node)
 			color_index += 1
 
@@ -695,6 +721,7 @@ func _rebuild_pile_from_yard() -> void:
 			continue
 		var node := MeshInstance3D.new()
 		node.mesh = meshes[randi() % meshes.size()]
+		_set_log_projection_offset(node, Vector3.ZERO)
 		_pile_root.add_child(node)
 		_pile.place_settled(node)
 
@@ -888,9 +915,14 @@ func _begin_stacking() -> void:
 			continue
 		var proxy := MeshInstance3D.new()
 		proxy.mesh = src.mesh
+		_set_log_projection_offset(
+			proxy, body.get_meta("projection_offset", Vector3.ZERO))
 		_pile_root.add_child(proxy)
 		proxy.global_transform = body.global_transform
-		AudioDirector.play_world(&"piece_land", body.global_position)
+		# A piece can finish resting on another billet without ever touching Floor.
+		# Give that settled piece its one landing cue before physics hands it to the
+		# pile; the latch keeps real floor contacts from playing twice.
+		_play_firewood_impact_sfx(body)
 		proxies.append(proxy)
 		body.queue_free()
 	_firewood.clear()
@@ -951,7 +983,8 @@ func _award_log_xp() -> void:
 	if not auto_sell or _current_species == null:
 		return
 	_manual_log_serial += 1
-	var root_id := StringName("manual_log_%d_%d" % [get_instance_id(), _manual_log_serial])
+	var root_id := StringName("manual_log_%d_%d_%d" % [
+		_manual_log_session_nonce, get_instance_id(), _manual_log_serial])
 	_current_manual_log_root_id = root_id
 	# Alien specimens belong to their destination campaign. Terrestrial logs
 	# must reserve one of Earth's remaining trees before XP/mastery can settle.
@@ -1036,7 +1069,12 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 		AudioDirector.play_world(&"masterwork", Vector3(0.0, _stump_top_y + 0.18, 0.0))
 
 	_last_quick_study_root_id = outcome.root_event_id
-	awarded = GameState.award_xp(awarded, &"manual")
+	var xp_origin := GameState.XP_ORIGIN_MANUAL
+	if masterwork_fired:
+		xp_origin = GameState.XP_ORIGIN_MASTERWORK
+	elif fired_proc != &"":
+		xp_origin = GameState.XP_ORIGIN_MANUAL_PROC
+	awarded = GameState.award_xp(awarded, xp_origin)
 	# A completed log keeps its final wood-impact cue silent and does not layer
 	# the generic XP-launch cue over it. Other reward sources still use that cue.
 	_burst_xp_orbs(awarded, Vector3(0.0, _stump_top_y + 0.12, 0.0), false)
@@ -1052,8 +1090,14 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 	for announced_proc: StringName in completion_procs:
 		var branch := ProgressionProcs.branch_for_proc(announced_proc)
 		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
-		# In open air above the block, never depth-occluded inside the finished log.
-		ProcBurst.spawn(self, Vector3(0.0, _stump_top_y + 0.18, 0.0), _last_proc_burst_color)
+		var branch_id: StringName = branch.id if branch != null else &""
+		var proc_point := Vector3(0.0, _stump_top_y + 0.18, 0.0)
+		if branch_id == &"strength" or branch_id == &"speed":
+			ProcBurst.spawn_from_log_base(self, proc_point, _stump_top_y,
+				_last_proc_burst_color, branch_id, _camera.global_transform.basis.z)
+		else:
+			# Rising Mastery announcements remain in open air above the block.
+			ProcBurst.spawn(self, proc_point, _last_proc_burst_color, branch_id)
 		_play_proc_audio(announced_proc, Vector3(0.0, _stump_top_y + 0.18, 0.0))
 		bonus_proc_announced.emit(announced_proc, 1)
 	return awarded
@@ -1275,7 +1319,6 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 		or (alien_trait.behavior == AlienWoodTraitDef.Behavior.SCAR_PRIMING \
 			and _scars_on(piece) >= alien_trait.scars_to_prime))
 	if alien_assisted or _roll_splits(piece):
-		piece.set_meta("scars", 0)
 		if piece == _alien_assist_target:
 			_alien_assist_target = null
 		split = _perform_split(piece, world_point, normal, dir_enum, local_override)
@@ -1355,12 +1398,9 @@ func _attempt_double_strike(normal: Vector3, dir_enum: int) -> bool:
 		var point: Vector3 = target.global_position
 		if not _bonus_cut_preflight(target, point, normal):
 			break   # this target cannot take the cut either — stop, do not roll
-		# Measured BEFORE the cut, from the target while it is still valid —
-		# _perform_split frees it. Spawn point is raised above the piece's
-		# TOP surface, in open air: `point` itself is the piece's volumetric
-		# centre, and a burst starting there is inside solid wood and
-		# depth-occluded — exactly the failure-scar bug ("drawn outward, not
-		# carved in") in a new coat of paint. Caught by actually rendering it.
+		# Measured BEFORE the cut, while the target still exists. The horizontal
+		# split position feeds the VFX's log-base source; the raised point remains
+		# the spatial-audio source so the cue is not buried inside solid wood.
 		var burst_mesh: Mesh = target.get_meta("mesh_ref")
 		var burst_height: float = burst_mesh.get_aabb().size.y if burst_mesh != null else 0.2
 		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
@@ -1369,7 +1409,9 @@ func _attempt_double_strike(normal: Vector3, dir_enum: int) -> bool:
 		cuts += 1
 		var branch := ProgressionProcs.branch_for_proc(proc_def.id)
 		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
-		ProcBurst.spawn(self, burst_point, _last_proc_burst_color)
+		ProcBurst.spawn_from_log_base(self, burst_point, _stump_top_y,
+			_last_proc_burst_color, branch.id if branch != null else &"",
+			_camera.global_transform.basis.z)
 		_play_proc_audio(proc_def.id, burst_point)
 	_last_double_strike_cuts = cuts
 	if cuts > 0:
@@ -1431,9 +1473,9 @@ func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> void:
 		var point: Vector3 = target.global_position
 		if not _bonus_cut_preflight(target, point, normal):
 			break   # this target cannot take the cut either — stop, do not roll
-		# Measured BEFORE the swing resolves, from the target while it is still
-		# valid — a split frees it. Raised above the TOP surface for the same
-		# reason as Double Strike's own burst point (see its comment above).
+		# Measured BEFORE the swing resolves, while the target still exists. Its
+		# horizontal split position feeds the VFX's log-base source; the raised
+		# point remains the open-air spatial-audio source.
 		var burst_mesh: Mesh = target.get_meta("mesh_ref")
 		var burst_height: float = burst_mesh.get_aabb().size.y if burst_mesh != null else 0.2
 		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
@@ -1454,7 +1496,9 @@ func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> void:
 		swings += 1
 		var branch := ProgressionProcs.branch_for_proc(proc_def.id)
 		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
-		ProcBurst.spawn(self, burst_point, _last_proc_burst_color)
+		ProcBurst.spawn_from_log_base(self, burst_point, _stump_top_y,
+			_last_proc_burst_color, branch.id if branch != null else &"",
+			_camera.global_transform.basis.z)
 		_play_proc_audio(proc_def.id, burst_point)
 	_last_follow_up_swings = swings
 	if swings > 0:
@@ -1866,14 +1910,15 @@ func _award_grain_bonus(burst_point: Vector3) -> void:
 	if mastery_xp > 0.0:
 		bonus = maxi(bonus, int(round(float(bonus) * (1.0 + mastery_xp))))
 	_last_grain_bonus = bonus
-	bonus = GameState.award_xp(bonus, &"grain")
+	bonus = GameState.award_xp(bonus, GameState.XP_ORIGIN_GRAIN)
 	_last_grain_bonus = bonus
 	_burst_xp_orbs(bonus, burst_point)
 
 	var branch := ProgressionProcs.branch_for_proc(&"grain_read")
 	var color := branch.color if branch != null else Color.WHITE
 	_last_proc_burst_color = color
-	ProcBurst.spawn(self, burst_point, color)
+	ProcBurst.spawn(self, burst_point, color,
+		branch.id if branch != null else &"")
 	AudioDirector.play_world(&"precision_success", burst_point)
 	grain_read_awarded.emit(bonus)
 
@@ -2003,8 +2048,8 @@ func _size_fraction(piece: Area3D) -> float:
 	return clampf((s.x * s.y * s.z) / whole, 0.0, 1.0)
 
 
-## The mark a failed swing leaves: a thin line ACROSS THE TOP OF THE LOG, along
-## the cut the axe was trying to make.
+## The mark a failed swing leaves: a generated normal-map gouge projected ACROSS
+## THE TOP OF THE STRUCK PIECE, along the cut the axe was trying to make.
 ##
 ## Creative Director call, 2026-08-01: *"It would need to be on the top, the line
 ## in the direction the camera is facing from where the player clicked."* That is
@@ -2017,9 +2062,16 @@ func _size_fraction(piece: Area3D) -> float:
 ## the plane leaves on the top face runs away from the viewer, exactly the line the
 ## split would have opened.
 ##
-## It is a child of the piece, so it turns with it and dies with it. A piece that
-## finally splits takes its marks with it and the two fresh halves start clean —
-## which is correct, since the cleave went straight through them.
+## Compatibility does not render Decal nodes. Instead `_scar_projection_mesh`
+## copies only the struck mesh's upward-facing triangles, gives them scar-local
+## UVs and lifts that receiver by `scar_lift`. No side or neighbouring piece is
+## eligible to receive the projection.
+##
+## The record is stored in the piece's local mesh space. When that geometry is
+## sliced, `_scar_records_for_split` passes the record into every descendant it
+## still overlaps and `_restore_scar_records` rebases it around the new mesh
+## centre. This is physical damage, not a transient child-node effect: an
+## adjacent cut may clip the scar, but it cannot erase the surviving part.
 func _add_scar(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
 	var line_dir := Vector3.UP.cross(normal)
 	if line_dir.length() < 0.001:
@@ -2029,19 +2081,153 @@ func _add_scar(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
 	var mesh: Mesh = piece.get_meta("mesh_ref")
 	if mesh == null:
 		return
-	# Pieces on the block are only ever yawed, so the mesh's own height still gives
-	# the top face, and the click's x/z give where along it the axe came down.
-	var top_y := piece.global_position.y + mesh.get_aabb().size.y * 0.5
-	var length := maxf(_piece_extent_along(piece, line_dir) * scar_length_frac, scar_width)
+	# A scar must be authored against settled mesh-space, otherwise the record
+	# would freeze a transient hop/tilt and drift when PieceAnimator lands it.
+	_animator.finish_for([piece])
+	var local_origin := piece.to_local(world_point)
+	local_origin.y = mesh.get_aabb().end.y
+	var local_line_dir := piece.global_transform.basis.inverse() * line_dir
+	local_line_dir.y = 0.0
+	if local_line_dir.length() < 0.001:
+		return
+	local_line_dir = local_line_dir.normalized()
 
-	var scar := MeshInstance3D.new()
-	scar.mesh = _scar_mesh()
-	piece.add_child(scar)
-	# Built as a unit quad and stretched here, so one cached mesh serves a line of
-	# any length on any piece.
-	scar.global_transform = Transform3D(
-		Basis(line_dir * length, Vector3.UP.cross(line_dir) * scar_width, Vector3.UP),
-		Vector3(world_point.x, top_y + scar_lift, world_point.z))
+	var visible_length := maxf(
+		_piece_extent_along(piece, line_dir) * scar_length_frac, scar_width)
+	var record := {
+		"local_origin": local_origin,
+		"local_line_dir": local_line_dir,
+		"receiver_length": visible_length / _SCAR_VISIBLE_LENGTH_FRAC,
+		"receiver_width": scar_width / _SCAR_VISIBLE_WIDTH_FRAC,
+		"counts_for_pity": true,
+	}
+	var projection := _scar_projection_for(piece, record)
+	if projection == null:
+		return
+	var records := _scar_records_on(piece)
+	records.append(record)
+	piece.set_meta("scar_records", records)
+
+
+func _scar_records_on(piece: Node3D) -> Array:
+	var records: Variant = piece.get_meta("scar_records", [])
+	return records.duplicate(true) if records is Array else []
+
+
+func _scar_projection_for(piece: Node3D, record: Dictionary) -> MeshInstance3D:
+	var projection_mesh := _scar_projection_mesh(piece.get_meta("mesh_ref"), record)
+	if projection_mesh == null:
+		return null
+	var projection := MeshInstance3D.new()
+	projection.name = "ScarProjection_%d" % piece.get_child_count()
+	projection.mesh = projection_mesh
+	piece.add_child(projection)
+	return projection
+
+
+## Build a receiver from the piece's ACTUAL top triangles. UVs are planar in the
+## scar's own local axes; fragments outside 0..1 are transparent in the shader.
+## Using the cut mesh itself as the mask is what prevents a rectangular decal
+## from spilling over a rounded top, down bark, or onto an adjacent billet.
+func _scar_projection_mesh(source: Mesh, record: Dictionary) -> ArrayMesh:
+	if source == null:
+		return null
+	var origin: Vector3 = record.get("local_origin", Vector3.ZERO)
+	var line_dir: Vector3 = record.get("local_line_dir", Vector3.FORWARD)
+	line_dir.y = 0.0
+	if line_dir.length() < 0.001:
+		return null
+	line_dir = line_dir.normalized()
+	var across_dir := Vector3.UP.cross(line_dir).normalized()
+	var receiver_length := maxf(float(record.get("receiver_length", scar_width)), 0.0001)
+	var receiver_width := maxf(float(record.get("receiver_width", scar_width)), 0.0001)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var added := 0
+	for surface in range(source.get_surface_count()):
+		if source.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES:
+			continue
+		var arrays := source.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		if vertices.is_empty():
+			continue
+		var normals := PackedVector3Array()
+		if arrays[Mesh.ARRAY_NORMAL] is PackedVector3Array:
+			normals = arrays[Mesh.ARRAY_NORMAL]
+		var indices := PackedInt32Array()
+		if arrays[Mesh.ARRAY_INDEX] is PackedInt32Array:
+			indices = arrays[Mesh.ARRAY_INDEX]
+		var element_count := indices.size() if not indices.is_empty() else vertices.size()
+		for start in range(0, element_count - 2, 3):
+			var ia := indices[start] if not indices.is_empty() else start
+			var ib := indices[start + 1] if not indices.is_empty() else start + 1
+			var ic := indices[start + 2] if not indices.is_empty() else start + 2
+			if ia >= vertices.size() or ib >= vertices.size() or ic >= vertices.size():
+				continue
+			var a := vertices[ia]
+			var b := vertices[ib]
+			var c := vertices[ic]
+			if not _scar_triangle_faces_up(a, b, c, normals, ia, ib, ic):
+				continue
+
+			var triangle_uvs: Array[Vector2] = []
+			var uv_min := Vector2(INF, INF)
+			var uv_max := Vector2(-INF, -INF)
+			for vertex: Vector3 in [a, b, c]:
+				var delta := vertex - origin
+				var uv := Vector2(
+					delta.dot(across_dir) / receiver_width + 0.5,
+					delta.dot(line_dir) / receiver_length + 0.5)
+				triangle_uvs.append(uv)
+				uv_min = uv_min.min(uv)
+				uv_max = uv_max.max(uv)
+			if uv_max.x < 0.0 or uv_min.x > 1.0 or uv_max.y < 0.0 or uv_min.y > 1.0:
+				continue
+
+			for i in range(3):
+				st.set_normal(Vector3.UP)
+				st.set_uv(triangle_uvs[i])
+				st.set_color(Color.WHITE)
+				st.add_vertex([a, b, c][i] + Vector3.UP * scar_lift)
+				added += 1
+
+	if added == 0:
+		return null
+	st.generate_tangents()
+	var projection := st.commit()
+	projection.surface_set_material(0, _scar_projection_material())
+	return projection
+
+
+func _scar_triangle_faces_up(a: Vector3, b: Vector3, c: Vector3,
+		normals: PackedVector3Array, ia: int, ib: int, ic: int) -> bool:
+	if normals.size() > maxi(ia, maxi(ib, ic)):
+		var average := normals[ia] + normals[ib] + normals[ic]
+		if average.length() > 0.001:
+			return average.normalized().dot(Vector3.UP) >= _SCAR_TOP_NORMAL_MIN_DOT
+	# Godot's triangle convention winds the geometric cross opposite its shading
+	# normal (pinned by test_slicer's winding check), hence c×b here.
+	var face := (c - a).cross(b - a)
+	return face.length() > 0.000001 \
+		and face.normalized().dot(Vector3.UP) >= _SCAR_TOP_NORMAL_MIN_DOT
+
+
+func _scar_projection_material() -> ShaderMaterial:
+	if _scar_projection_mat != null:
+		return _scar_projection_mat
+	_scar_projection_mat = ShaderMaterial.new()
+	_scar_projection_mat.shader = _SCAR_SHADER
+	_scar_projection_mat.set_shader_parameter("scar_normal", _SCAR_NORMAL)
+	_scar_projection_mat.set_shader_parameter("scar_tint",
+		Vector3(scar_colour.r, scar_colour.g, scar_colour.b))
+	_scar_projection_mat.set_shader_parameter("scar_shadow",
+		Vector3(scar_shadow_colour.r, scar_shadow_colour.g, scar_shadow_colour.b))
+	_scar_projection_mat.set_shader_parameter("scar_highlight",
+		Vector3(scar_highlight_colour.r, scar_highlight_colour.g, scar_highlight_colour.b))
+	_scar_projection_mat.set_shader_parameter("scar_opacity", scar_opacity)
+	_scar_projection_mat.set_shader_parameter("normal_strength", scar_normal_strength)
+	return _scar_projection_mat
 
 
 func _add_alien_weak_band(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
@@ -2051,7 +2237,7 @@ func _add_alien_weak_band(piece: Area3D, world_point: Vector3, normal: Vector3) 
 		return
 	var cue := MeshInstance3D.new()
 	cue.name = "LuminousWeakBand"
-	cue.mesh = _scar_mesh()
+	cue.mesh = _unit_alien_band_mesh()
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.30, 1.0, 0.82, 0.92)
 	mat.emission_enabled = true
@@ -2068,24 +2254,12 @@ func _add_alien_weak_band(piece: Area3D, world_point: Vector3, normal: Vector3) 
 			Vector3.UP), Vector3(world_point.x, top_y + scar_lift * 1.5, world_point.z))
 
 
-## The mark itself: a 1x1 quad, laid flat and stretched to length by _add_scar,
-## in one soft dark tone shared by every wood.
-##
-## Creative Director calls, both learned the hard way. *"I am having a hard time
-## seeing the scar, it can just be a dark color as well, so no need to have it
-## match every log"* retired a prettier two-tone version that wore each species'
-## own inside grain and was much harder to see. Then *"the line is way too dark,
-## it should just be a soft-indicator of failure"* — so it is translucent now,
-## a thin mark where the axe failed to punch through rather than a black bar.
-##
-## UNSHADED on purpose: a lit material dims into dark bark exactly where the mark
-## matters most. And it is laid just PROUD of the surface, never carved into it —
-## geometry cannot subtract from a surface, and the first version sank a notch into
-## the log and rendered completely invisible behind the bark in front of it.
-## (Godot's Decal node, the obvious tool, does not render under Compatibility.)
-func _scar_mesh() -> ArrayMesh:
-	if _scar_meshes.has(0):
-		return _scar_meshes[0]
+## The resonant alien behavior still wants a clean luminous band rather than a
+## physical axe gouge. Its unit quad is separate from the normal-map projection
+## above and never serves ordinary failed hits.
+func _unit_alien_band_mesh() -> ArrayMesh:
+	if _alien_band_mesh != null:
+		return _alien_band_mesh
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -2106,13 +2280,13 @@ func _scar_mesh() -> ArrayMesh:
 	var mesh := st.commit()
 
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = scar_colour
+	mat.albedo_color = Color.WHITE
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh.surface_set_material(0, mat)
 
-	_scar_meshes[0] = mesh
+	_alien_band_mesh = mesh
 	return mesh
 
 
@@ -2173,6 +2347,12 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	# A slice must run on a settled mesh — snap any in-flight hop first.
 	_animator.finish_for([piece])
 	var mesh: Mesh = piece.get_meta("mesh_ref")
+	# Snapshot the physical marks before the owner is replaced. The normal-map
+	# receivers themselves are disposable; these mesh-local records are what the
+	# two newly sliced descendants inherit.
+	var inherited_scar_records := _scar_records_on(piece)
+	var inherited_projection_offset: Vector3 = piece.get_meta(
+		"projection_offset", Vector3.ZERO)
 	var xform := piece.global_transform
 	var local_plane: Plane
 	if local_override != null:
@@ -2218,9 +2398,15 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	piece.queue_free()
 
 	var new_stays: Array = []
-	for half: ArrayMesh in [res.above, res.below]:
-		var out_sgn := 1.0 if half == res.above else -1.0
-		var node := _realise_half(half, xform, normal * out_sgn)
+	for half_index in range(2):
+		var is_above := half_index == 0
+		var half: ArrayMesh = res.above if is_above else res.below
+		var out_sgn := 1.0 if is_above else -1.0
+		var descendant_scars := _scar_records_for_split(
+			inherited_scar_records, local_plane, is_above)
+		var node := _realise_half(
+			half, xform, normal * out_sgn, descendant_scars,
+			inherited_projection_offset)
 		if node != null:
 			new_stays.append(node)
 
@@ -2250,13 +2436,49 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	return true
 
 
+## Duplicate the visual record to both geometric descendants so either can keep
+## the surviving clipped relief. Its pity contribution belongs to exactly one
+## side of the split, preventing one physical failed hit from becoming two
+## mechanical bonuses when the scar itself straddles the new edge.
+func _scar_records_for_split(records: Array, local_plane: Plane, is_above: bool) -> Array:
+	var descendants: Array = []
+	for source_record: Dictionary in records:
+		var record := source_record.duplicate(true)
+		var origin: Vector3 = record.get("local_origin", Vector3.ZERO)
+		var origin_is_above := local_plane.distance_to(origin) >= 0.0
+		record["counts_for_pity"] = bool(record.get("counts_for_pity", true)) \
+			and origin_is_above == is_above
+		descendants.append(record)
+	return descendants
+
+
+func _restore_scar_records(piece: Node3D, records: Array, source_center: Vector3) -> void:
+	var accepted: Array = []
+	var pity_count := 0
+	for source_record: Dictionary in records:
+		var record := source_record.duplicate(true)
+		var local_origin: Vector3 = record.get("local_origin", Vector3.ZERO)
+		record["local_origin"] = local_origin - source_center
+		if _scar_projection_for(piece, record) == null:
+			continue
+		accepted.append(record)
+		if bool(record.get("counts_for_pity", true)):
+			pity_count += 1
+	piece.set_meta("scar_records", accepted)
+	piece.set_meta("scars", pity_count)
+
+
 ## Classify a freshly-sliced half and realise it. Returns the stay node, or null
-## if it became firewood (physics).
-func _realise_half(half: ArrayMesh, parent_xform: Transform3D, out_dir: Vector3) -> Area3D:
+## if it became firewood (physics). Scar records are rebased from the slicer's
+## parent-local coordinates to the new centered mesh in either outcome.
+func _realise_half(half: ArrayMesh, parent_xform: Transform3D, out_dir: Vector3,
+		inherited_scar_records: Array = [],
+		inherited_projection_offset: Vector3 = Vector3.ZERO) -> Area3D:
 	var aabb := half.get_aabb()
 	var c := aabb.position + aabb.size * 0.5
 	var centered := _translate_mesh(half, -c)
 	var world_pos := parent_xform * c
+	var projection_offset := inherited_projection_offset + c
 
 	var s := centered.get_aabb().size
 	var vol := s.x * s.y * s.z
@@ -2270,10 +2492,14 @@ func _realise_half(half: ArrayMesh, parent_xform: Transform3D, out_dir: Vector3)
 	var is_firewood := vol <= min_vol or (horiz_mx / horiz_mn) > aspect_limit
 
 	if is_firewood:
-		_spawn_firewood(centered, world_pos, out_dir)
+		_spawn_firewood(
+			centered, world_pos, out_dir, inherited_scar_records, c,
+			projection_offset)
 		return null
 	var yaw := deg_to_rad(randf_range(-fresh_yaw_deg, fresh_yaw_deg))
-	return _make_stay_piece(centered, world_pos, yaw)
+	var piece := _make_stay_piece(centered, world_pos, yaw, false, projection_offset)
+	_restore_scar_records(piece, inherited_scar_records, c)
+	return piece
 
 
 ## The radial "shockwave": every on-block piece pops away from the cut point, with
@@ -2360,6 +2586,22 @@ func debug_scar_count() -> int:
 	return _scars_on(_on_block[0])
 
 
+func debug_total_scar_projection_count() -> int:
+	var count := 0
+	for piece: Area3D in _on_block:
+		for child in piece.get_children():
+			if child is MeshInstance3D and child.name.begins_with("ScarProjection"):
+				count += 1
+	return count
+
+
+func debug_total_scar_pity_count() -> int:
+	var count := 0
+	for piece: Area3D in _on_block:
+		count += _scars_on(piece)
+	return count
+
+
 func debug_has_alien_weak_band() -> bool:
 	return _alien_assist_target != null and is_instance_valid(_alien_assist_target) \
 		and _alien_assist_target.get_node_or_null("LuminousWeakBand") != null
@@ -2376,13 +2618,25 @@ func debug_has_staged_log() -> bool:
 
 
 # ------------------------------------------------------- piece factories
-func _make_stay_piece(centered_mesh: Mesh, world_pos: Vector3, yaw: float, is_whole_log := false) -> Area3D:
+## Object-space bark must survive MeshSlicer's descendant recentering. Both live
+## exterior shaders declare this per-instance value at the same explicit index,
+## so one write covers the bark and authored-end surfaces on the MeshInstance.
+func _set_log_projection_offset(instance: MeshInstance3D, offset: Vector3) -> void:
+	if instance == null:
+		return
+	instance.set_instance_shader_parameter(&"projection_offset", offset)
+
+
+func _make_stay_piece(centered_mesh: Mesh, world_pos: Vector3, yaw: float,
+		is_whole_log := false,
+		projection_offset: Vector3 = Vector3.ZERO) -> Area3D:
 	var piece := Area3D.new()
 	piece.collision_layer = _PICK_LAYER
 	piece.collision_mask = 0
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
 	mi.mesh = centered_mesh
+	_set_log_projection_offset(mi, projection_offset)
 	piece.add_child(mi)
 	var cs := CollisionShape3D.new()
 	cs.shape = centered_mesh.create_convex_shape()
@@ -2392,10 +2646,19 @@ func _make_stay_piece(centered_mesh: Mesh, world_pos: Vector3, yaw: float, is_wh
 	piece.quaternion = Quaternion(Vector3.UP, yaw)
 	piece.set_meta("mesh_ref", centered_mesh)
 	piece.set_meta("is_whole_log", is_whole_log)
+	piece.set_meta("projection_offset", projection_offset)
 	_on_block.append(piece)
 	return piece
-func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3) -> void:
+func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3,
+		inherited_scar_records: Array = [], source_center := Vector3.ZERO,
+		projection_offset: Vector3 = Vector3.ZERO) -> void:
 	var body := RigidBody3D.new()
+	# A finished billet gets one impact cue at its first contact with the yard
+	# floor. Contact monitoring is disabled again in the callback so later
+	# settling/bounces cannot turn the pitched-down chop into a noisy rattle.
+	body.contact_monitor = true
+	body.max_contacts_reported = 4
+	body.body_entered.connect(_on_firewood_body_entered.bind(body))
 	var alien_trait := AlienCampaign.trait_by_id(
 		&"" if _current_species == null else _current_species.id)
 	if alien_trait != null \
@@ -2410,12 +2673,16 @@ func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3) 
 	var mi := MeshInstance3D.new()
 	mi.name = "Mesh"
 	mi.mesh = centered_mesh
+	_set_log_projection_offset(mi, projection_offset)
 	body.add_child(mi)
 	var cs := CollisionShape3D.new()
 	cs.shape = centered_mesh.create_convex_shape()
 	body.add_child(cs)
 	_fallers.add_child(body)
 	body.global_position = world_pos
+	body.set_meta("mesh_ref", centered_mesh)
+	body.set_meta("projection_offset", projection_offset)
+	_restore_scar_records(body, inherited_scar_records, source_center)
 
 	var out := Vector3(out_dir.x, 0.0, out_dir.z)
 	if out.length() > 0.0001:
@@ -2435,6 +2702,21 @@ func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3) 
 		var old = _firewood.pop_front()
 		if is_instance_valid(old):
 			old.queue_free()
+
+
+func _on_firewood_body_entered(other_body: Node, firewood: RigidBody3D) -> void:
+	if other_body != $Floor:
+		return
+	_play_firewood_impact_sfx(firewood)
+
+
+func _play_firewood_impact_sfx(firewood: RigidBody3D) -> void:
+	if not is_instance_valid(firewood) \
+			or bool(firewood.get_meta("ground_impact_sfx_played", false)):
+		return
+	firewood.set_meta("ground_impact_sfx_played", true)
+	firewood.set_deferred("contact_monitor", false)
+	AudioDirector.play_world(&"piece_land", firewood.global_position)
 
 
 # --------------------------------------------------- separation solver (qC)
@@ -2917,43 +3199,25 @@ func _cut_mat_for(species_index: int) -> StandardMaterial3D:
 	return mat
 
 
-## Dress a log in its species' own skin.
+## Dress every imported log exterior in the procedural mapping strategy approved
+## in the material lab:
 ##
-## THE GEOMETRY IS SHARED AND THE SKIN IS NOT (Creative Director call,
-## 2026-08-02). Sam named 25 woods and there are two authored log SHAPES sets
-## (oak and birch), so most species stand on the oak FBXs — but a species with
-## its own painted textures is bound to them here and stops looking like oak at
-## all. Two ways in, in order of preference:
+##   - the bark/body slot samples species bark in object-space triplanar mapping;
+##   - every authored trunk/branch-end slot keeps one centred non-repeating disc;
+##   - MeshSlicer's third material remains the existing fresh-inside strategy.
 ##
-##   1. `bark_tex` / `top_tex` — the species' OWN painted skin. This is the real
-##      answer and it is where every row should end up.
-##   2. `bark_tint` — a colour multiplied over whatever art the log already
-##      wears. The stand-in for a wood Sam has not painted yet: identical logs
-##      would make the wood selector meaningless, since the player picks a wood
-##      and the block has to look like it changed.
+## Explicit species paths win. Empty paths preserve the imported oak/birch art,
+## so those bespoke sets are promoted into the same mapping without being
+## replaced. `bark_tint` remains only as a defensive legacy fallback for future
+## incomplete rows; the current terrestrial table no longer relies on it.
 ##
-## A species using neither is left completely alone, which is what oak and birch
-## want — they ARE the imported art.
-##
-## THE MATERIAL MUST BE DUPLICATED, and this is the trap worth naming: an
-## imported FBX's materials are shared by REFERENCE — MeshUtils.transformed_by
-## carries `surface_get_material` straight across, and mesh_from_path re-reads
-## the same imported resource every time. Writing to one would not dress this
-## log; it would repaint that FBX's material for the whole process, so every
-## species sharing the art would drift to whichever wood was loaded last, and the
-## change would outlive the log. Duplicates are cached per (species, source
-## material) for the same reason `_cut_mat_for` caches: a fresh instance per log
-## would be a fresh material per log for the renderer to track.
-##
-## Safe against the `jag_cut` reference test, which finds a cut face by comparing
-## `material == _cut_mat`: neither slot here is ever the cut material.
+## Materials are cached per (species, source material) because imported resources
+## are shared by reference. The cached ShaderMaterials also stay distinct from
+## `_cut_mat`, preserving MeshUtils.jag_cut's fresh-face identity check.
 func _apply_species_look(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
 	var row := WoodCatalogue.at(species_index)
 	if row == null:
 		return mesh
-	var tinted := row.bark_tint != Color.WHITE
-	if not tinted and row.bark_tex.is_empty() and row.top_tex.is_empty():
-		return mesh                       # this species already IS the imported art
 
 	for si in range(mesh.get_surface_count()):
 		var src := mesh.surface_get_material(si)
@@ -2961,16 +3225,6 @@ func _apply_species_look(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
 			continue
 		var key := "%d|%d" % [species_index, src.get_instance_id()]
 		if not _bark_mats.has(key):
-			var dup := src.duplicate() as BaseMaterial3D
-			if dup == null:
-				continue                  # a non-BaseMaterial3D (a shader) — leave it be
-
-			# WHICH SLOT IS THIS? Every log FBX in the project carries exactly two
-			# material slots named `oak_bark` and `oak_top` (verified with
-			# core/tools/inspect_materials.gd), so the name is what tells the side
-			# of the log from its authored end. Falling back to surface order
-			# rather than skipping keeps a future FBX with different slot names
-			# looking like SOMETHING, and says so out loud.
 			var slot := _slot_name(src)
 			var is_top := slot.contains("top") if not slot.is_empty() else si == 1
 			if slot.is_empty():
@@ -2978,47 +3232,36 @@ func _apply_species_look(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
 					% [si, "end" if is_top else "bark"])
 
 			var tex_path: String = row.top_tex if is_top else row.bark_tex
-			var normal_path: String = row.top_normal if is_top else row.bark_normal
+			var tex: Texture2D = null
 			if not tex_path.is_empty():
-				var tex: Texture2D = load(tex_path) as Texture2D
+				tex = load(tex_path) as Texture2D
 				if tex == null:
-					push_warning("chopping_minigame: %s texture '%s' did not load; keeping the imported one."
+					push_warning("chopping_minigame: %s texture '%s' did not load; using the imported albedo."
 						% [row.id, tex_path])
-				else:
-					dup.albedo_texture = tex
-					# The species brought its own albedo, so the imported wood's
-					# normal map no longer describes this surface — see the note on
-					# SpeciesDef.bark_normal for why clearing beats inheriting.
-					var nrm: Texture2D = load(normal_path) as Texture2D if not normal_path.is_empty() else null
-					dup.normal_enabled = nrm != null
-					dup.normal_texture = nrm
+			if tex == null:
+				tex = _source_albedo(src)
+			if tex == null:
+				push_warning("chopping_minigame: %s %s slot has no usable albedo; keeping its source material."
+					% [row.id, "end" if is_top else "bark"])
+				continue
 
-					# AND THE OAK MATERIAL'S SHADING COMES OFF WITH IT. `oak_bark`
-					# and `oak_top` both carry `vertex_color_use_as_albedo` plus a
-					# 0.906 grey, so the log's baked vertex-colour shading and that
-					# grey multiply over whatever albedo is bound. Oak's own texture
-					# was painted to sit under them; Sam's species textures are
-					# painted with their own light and crevice shadow already in
-					# them, so inheriting both multiplied a second set of shadows on
-					# top and Eastern White Pine came out nearly black. A species
-					# that paints its own skin gets that skin rendered as painted.
-					dup.vertex_color_use_as_albedo = false
-					dup.albedo_color = Color.WHITE
-
-					# Bark only: the end is one painted disc the UVs already fit.
-					if not is_top and row.bark_uv_scale != 1.0:
-						dup.uv1_scale = Vector3(row.bark_uv_scale, row.bark_uv_scale, 1.0)
-
-			# The stand-in tint applies ONLY to slots this species did not paint.
-			# That matters while an art drop is half-finished: Balsam Fir arrived
-			# with bark and no end grain, and tinting its real bark to match the
-			# oak end it is still borrowing would be repainting the good art to
-			# match the placeholder. MULTIPLY, never assign — a tint is a filter
-			# over whatever art is there.
-			if tinted and tex_path.is_empty():
-				dup.albedo_color = dup.albedo_color * row.bark_tint
-			_bark_mats[key] = dup
-		mesh.surface_set_material(si, _bark_mats[key])
+			var material := ShaderMaterial.new()
+			material.resource_name = slot if not slot.is_empty() else (
+				"log_top" if is_top else "log_bark")
+			var tint := row.bark_tint if tex_path.is_empty() else Color.WHITE
+			if is_top:
+				material.shader = _LOG_END_SHADER
+				material.set_shader_parameter(&"end_texture", tex)
+				material.set_shader_parameter(&"end_tint", tint)
+			else:
+				material.shader = _LOG_BARK_SHADER
+				material.set_shader_parameter(&"bark_texture", tex)
+				material.set_shader_parameter(&"bark_tint", tint)
+				material.set_shader_parameter(
+					&"projection_scale", row.bark_projection_scale)
+			_bark_mats[key] = material
+		if _bark_mats.has(key):
+			mesh.surface_set_material(si, _bark_mats[key])
 	return mesh
 
 
@@ -3029,6 +3272,20 @@ func _slot_name(mat: Material) -> String:
 	if not mat.resource_name.is_empty():
 		return mat.resource_name.to_lower()
 	return mat.resource_path.get_file().get_basename().to_lower()
+
+
+## Imported oak/birch rows intentionally omit explicit exterior paths. Extract
+## their painted albedo so they receive the same projection without replacing art.
+func _source_albedo(mat: Material) -> Texture2D:
+	if mat is BaseMaterial3D:
+		return (mat as BaseMaterial3D).albedo_texture
+	if mat is ShaderMaterial:
+		var shader_mat := mat as ShaderMaterial
+		var bark := shader_mat.get_shader_parameter(&"bark_texture") as Texture2D
+		if bark != null:
+			return bark
+		return shader_mat.get_shader_parameter(&"end_texture") as Texture2D
+	return null
 
 
 ## Load a texture path, falling back to `fallback` when the row omits it or the

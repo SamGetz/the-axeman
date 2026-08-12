@@ -62,23 +62,27 @@ func _print_campaign_projection(curve: LevelCurve, config: XPPacingConfig) -> vo
 	var total_xp := 0
 	var terrestrial_logs := 0
 	var terrestrial_seconds := 0.0
+	var core_point_seconds := -1.0
+	var core_point_target := curve.total_xp_for_level(85)
 	var species := SpeciesTable.all()
 	for index in range(species.size()):
 		var wood: SpeciesDef = species[index]
 		var mastery := M7CContent.mastery().by_species_id(wood.id)
 		var logs := mastery.mastery_target
+		var awarded_xp := maxi(1, int(round(float(wood.xp_reward) \
+			* config.global_xp_multiplier)))
 		if index + 1 < species.size():
 			var next_wood: SpeciesDef = species[index + 1]
 			var target_xp := curve.total_xp_for_level(next_wood.unlock_level)
-			var awarded_xp := maxi(1, int(round(float(wood.xp_reward) \
-				* config.global_xp_multiplier)))
 			while total_xp + logs * awarded_xp < target_xp:
 				logs += 1
-		total_xp += logs * maxi(1, int(round(float(wood.xp_reward) \
-			* config.global_xp_multiplier)))
-		terrestrial_logs += logs
-		terrestrial_seconds += logs * float(
-			config.representative_terrestrial_active_seconds[index])
+		var log_seconds := float(config.representative_terrestrial_active_seconds[index])
+		for _log in range(logs):
+			total_xp += awarded_xp
+			terrestrial_logs += 1
+			terrestrial_seconds += log_seconds
+			if core_point_seconds < 0.0 and total_xp >= core_point_target:
+				core_point_seconds = terrestrial_seconds
 
 	var alien_logs := 0
 	var alien_seconds := 0.0
@@ -98,6 +102,10 @@ func _print_campaign_projection(curve: LevelCurve, config: XPPacingConfig) -> vo
 	var active_seconds := terrestrial_seconds + PLANETARY_PROJECTION_SECONDS \
 		+ alien_seconds + flight_seconds
 	print("=== CONSERVATIVE CAMPAIGN PROJECTION — PLACEHOLDER ===")
+	print("84th core point: %.1f manual minutes; %.1f impossible max-parallel bound (target %.0f–%.0f)" % [
+		core_point_seconds / 60.0, core_point_seconds / 120.0,
+		config.core_tree_target_min_seconds / 60.0,
+		config.core_tree_target_max_seconds / 60.0])
 	print("Terrestrial gate: %d logs, %.1f minutes" % [
 		terrestrial_logs, terrestrial_seconds / 60.0])
 	print("Planetary maximum projection: %.1f minutes (validated inside 16.5–17)" % (

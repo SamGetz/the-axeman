@@ -18,7 +18,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.12, 1.08, 0.94, 1)
-bark_tint = Color(1.1, 1.06, 0.92, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/quaking_aspen/quaking_aspen_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/quaking_aspen/quaking_aspen_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_eastern_white_pine"]
 resource_name = "eastern_white_pine"
@@ -39,7 +42,7 @@ inside_tint = Color(1, 1, 1, 1)
 bark_tint = Color(1, 1, 1, 1)
 bark_tex = "res://assets/textures/wood_eastern_pine/eastern_pine_bark.png"
 top_tex = "res://assets/textures/wood_eastern_pine/eastern_pine_top.png"
-bark_uv_scale = 2.6
+bark_projection_scale = 2.16
 
 [sub_resource type="Resource" id="Resource_norway_spruce"]
 resource_name = "norway_spruce"
@@ -59,7 +62,7 @@ inside_tint = Color(1, 1, 1, 1)
 bark_tint = Color(1, 1, 1, 1)
 bark_tex = "res://assets/textures/wood_norway_spruce/norway_spruce_bark.png"
 top_tex = "res://assets/textures/wood_norway_spruce/norway_spruce_top.png"
-bark_uv_scale = 2.2
+bark_projection_scale = 2.16
 
 [sub_resource type="Resource" id="Resource_balsam_fir"]
 resource_name = "balsam_fir"
@@ -76,9 +79,11 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.98, 0.96, 0.86, 1)
-bark_tint = Color(0.96, 0.94, 0.84, 1)
+bark_tint = Color(1, 1, 1, 1)
 bark_tex = "res://assets/textures/wood_balsam_fir/balsam_fir_bark.png"
-bark_uv_scale = 2.4
+top_tex = "res://assets/textures/wood_placeholders/balsam_fir/balsam_fir_top_placeholder.png"
+exterior_textures_placeholder = true
+bark_projection_scale = 2.16
 
 [sub_resource type="Resource" id="Resource_lodgepole_pine"]
 resource_name = "lodgepole_pine"
@@ -95,7 +100,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.06, 0.96, 0.78, 1)
-bark_tint = Color(1.04, 0.94, 0.76, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/lodgepole_pine/lodgepole_pine_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/lodgepole_pine/lodgepole_pine_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_white_spruce"]
 resource_name = "white_spruce"
@@ -112,7 +120,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.04, 1.0, 0.88, 1)
-bark_tint = Color(1.02, 0.98, 0.86, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/white_spruce/white_spruce_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/white_spruce/white_spruce_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_black_spruce"]
 resource_name = "black_spruce"
@@ -129,7 +140,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.88, 0.88, 0.82, 1)
-bark_tint = Color(0.86, 0.86, 0.8, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/black_spruce/black_spruce_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/black_spruce/black_spruce_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_scots_pine"]
 resource_name = "scots_pine"
@@ -146,7 +160,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.02, 0.88, 0.68, 1)
-bark_tint = Color(1.0, 0.86, 0.66, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/scots_pine/scots_pine_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/scots_pine/scots_pine_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_western_hemlock"]
 resource_name = "western_hemlock"
@@ -163,7 +180,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.92, 0.86, 0.8, 1)
-bark_tint = Color(0.9, 0.84, 0.78, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/western_hemlock/western_hemlock_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/western_hemlock/western_hemlock_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_red_pine"]
 resource_name = "red_pine"
@@ -180,7 +200,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.02, 0.82, 0.68, 1)
-bark_tint = Color(1.0, 0.8, 0.66, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/red_pine/red_pine_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/red_pine/red_pine_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_douglas_fir"]
 resource_name = "douglas_fir"
@@ -197,7 +220,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.0, 0.84, 0.7, 1)
-bark_tint = Color(0.98, 0.82, 0.68, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/douglas_fir/douglas_fir_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/douglas_fir/douglas_fir_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_black_ash"]
 resource_name = "black_ash"
@@ -214,7 +240,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.8, 0.76, 0.72, 1)
-bark_tint = Color(0.78, 0.74, 0.7, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/black_ash/black_ash_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/black_ash/black_ash_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_paper_birch"]
 resource_name = "paper_birch"
@@ -232,6 +261,7 @@ inside_tex = "res://assets/textures/wood_birch/birch_inside_tilable.png"
 inside_normal = "res://assets/textures/wood_birch/birch_inside_tilable_normal.png"
 inside_tint = Color(1, 1, 1, 1)
 bark_tint = Color(1, 1, 1, 1)
+bark_projection_scale = 1.62
 
 [sub_resource type="Resource" id="Resource_pedunculate_oak"]
 resource_name = "pedunculate_oak"
@@ -265,7 +295,11 @@ meshes = PackedStringArray("res://assets/models/logs_export/birch_log_01.fbx", "
 inside_tex = "res://assets/textures/wood_birch/birch_inside_tilable.png"
 inside_normal = "res://assets/textures/wood_birch/birch_inside_tilable_normal.png"
 inside_tint = Color(1.04, 1.04, 1.02, 1)
-bark_tint = Color(1.04, 1.04, 1.02, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/silver_birch/silver_birch_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/silver_birch/silver_birch_top_placeholder.png"
+exterior_textures_placeholder = true
+bark_projection_scale = 1.62
 
 [sub_resource type="Resource" id="Resource_yellow_birch"]
 resource_name = "yellow_birch"
@@ -282,7 +316,11 @@ meshes = PackedStringArray("res://assets/models/logs_export/birch_log_01.fbx", "
 inside_tex = "res://assets/textures/wood_birch/birch_inside_tilable.png"
 inside_normal = "res://assets/textures/wood_birch/birch_inside_tilable_normal.png"
 inside_tint = Color(1.0, 0.9, 0.68, 1)
-bark_tint = Color(1.0, 0.9, 0.7, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/yellow_birch/yellow_birch_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/yellow_birch/yellow_birch_top_placeholder.png"
+exterior_textures_placeholder = true
+bark_projection_scale = 1.62
 
 [sub_resource type="Resource" id="Resource_northern_red_oak"]
 resource_name = "northern_red_oak"
@@ -299,7 +337,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.02, 0.84, 0.76, 1)
-bark_tint = Color(1.0, 0.82, 0.74, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/northern_red_oak/northern_red_oak_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/northern_red_oak/northern_red_oak_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_american_beech"]
 resource_name = "american_beech"
@@ -316,7 +357,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.02, 0.94, 0.84, 1)
-bark_tint = Color(1.0, 0.92, 0.82, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/american_beech/american_beech_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/american_beech/american_beech_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_white_ash"]
 resource_name = "white_ash"
@@ -333,7 +377,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.0, 0.96, 0.88, 1)
-bark_tint = Color(0.98, 0.94, 0.86, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/white_ash/white_ash_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/white_ash/white_ash_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_white_oak"]
 resource_name = "white_oak"
@@ -350,7 +397,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.98, 0.94, 0.84, 1)
-bark_tint = Color(0.96, 0.92, 0.82, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/white_oak/white_oak_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/white_oak/white_oak_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_sugar_maple"]
 resource_name = "sugar_maple"
@@ -367,7 +417,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.08, 0.98, 0.82, 1)
-bark_tint = Color(1.05, 0.96, 0.8, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/sugar_maple/sugar_maple_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/sugar_maple/sugar_maple_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_european_beech"]
 resource_name = "european_beech"
@@ -384,7 +437,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(1.02, 0.9, 0.8, 1)
-bark_tint = Color(1.0, 0.88, 0.78, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/european_beech/european_beech_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/european_beech/european_beech_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_river_red_gum"]
 resource_name = "river_red_gum"
@@ -401,7 +457,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.94, 0.6, 0.52, 1)
-bark_tint = Color(0.92, 0.58, 0.5, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/river_red_gum/river_red_gum_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/river_red_gum/river_red_gum_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_tasmanian_blue_gum"]
 resource_name = "tasmanian_blue_gum"
@@ -418,7 +477,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.88, 0.82, 0.82, 1)
-bark_tint = Color(0.86, 0.8, 0.8, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/tasmanian_blue_gum/tasmanian_blue_gum_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/tasmanian_blue_gum/tasmanian_blue_gum_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [sub_resource type="Resource" id="Resource_lignum_vitae"]
 resource_name = "lignum_vitae"
@@ -435,7 +497,10 @@ meshes = PackedStringArray("res://assets/models/logs_export/log_01.fbx", "res://
 inside_tex = ""
 inside_normal = ""
 inside_tint = Color(0.64, 0.72, 0.6, 1)
-bark_tint = Color(0.62, 0.7, 0.58, 1)
+bark_tint = Color(1, 1, 1, 1)
+bark_tex = "res://assets/textures/wood_placeholders/lignum_vitae/lignum_vitae_bark_placeholder.png"
+top_tex = "res://assets/textures/wood_placeholders/lignum_vitae/lignum_vitae_top_placeholder.png"
+exterior_textures_placeholder = true
 
 [resource]
 script = ExtResource("1_table")

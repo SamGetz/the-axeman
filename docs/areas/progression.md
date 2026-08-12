@@ -186,38 +186,25 @@ ownership, or the yard HUD.
   existing atomic `SaveSystem.save_game()` replacement before gameplay starts.
   A failed write leaves the prior save intact and reloads it into memory.
 
-## First-time and contextual tutorial
+## Tutorial presentation
 
 - `data/tutorial_content.tres` is the typed source for guide identities,
   portraits, dialogue, objectives, completion conditions, reveal gates and the
-  final two-second post-event presentation delay.
+  final two-second post-event presentation delay. It remains available for a
+  future opt-in pass.
 - Rowan Pike, Ada Gearhart and Nova Quill are UI-only presentation mentors. They
   are not restored villagers, staff or automation workers and own no progression.
-- A fresh New Game shows only the untouched log and normal HUD. Chopping
-  feedback, the coin counter and the XP bar teach the first interaction and
-  reward loop without an outline or explanatory card. The first skill point at
-  level 2 restores the Skills lesson; level 3 reveals Jobs, and completing the
-  first authored job reveals Shop and authorises purchases. Cash and skill
-  spending cannot bypass either gate. Tutorial cards can be closed temporarily
-  without marking their lesson complete or permanently skipping later guidance.
-  Tree Catalog keeps its separate post-opening affordability gate. Loading
-  resumes only an armed/started tutorial on that save; existing progressed saves
-  are not surprised by a new opening sequence.
-- Shop, Tree Catalog and Contract Board lessons observe their real HUD actions.
-  Tutorial code never
-  calls cash, XP, inventory, purchase or unlock writers.
-- The fresh dock is empty. Jobs, Skills, Catalog, Atlas, standing
-  commissions, automation and launch guidance remain absent until their live
-  public prerequisites are actionable. Future reward identities are not teased
-  by the XP strip, Shop, Catalog or contract rows. Completion and skipping
-  persist in the v16 introduced-feature ledger and participate in autosave.
-- Related progression signals can arrive in one transaction. Deferred tutorial
-  advancement pins the expected beat identity so one receipt cannot skip two
-  dialogue beats. Every lesson waits five seconds after its triggering event,
-  allowing reward and unlock feedback to settle first. If the player completes
-  the lesson during that pause, the stale card is completed without appearing.
+- `TutorialDirector.ENABLED` is false. The overlay, focus ring and replay help
+  remain hidden, the director subscribes to no progression signals, and starting
+  a session writes no tutorial armed/completed/skipped feature state.
+- Yard HUD reveal logic ignores legacy staged-tutorial flags while presentation
+  is disabled. Jobs, Skills, Catalog, Atlas, commissions, automation and launch
+  systems therefore follow only their normal public prerequisites.
+- The authored tutorial data and old feature-ledger entries are retained rather
+  than deleted or migrated, making the switch reversible without changing a
+  player's progression state.
 - Use `core/tests/startup_acceptance.tscn` for the behavioural boundary and
-  `core/tools/startup_shot.tscn` for the native stand-in presentation.
+  `core/tests/tutorial_acceptance.tscn` for the disabled-presentation contract.
 
 ## Reward presentation
 
@@ -259,9 +246,14 @@ ownership, or the yard HUD.
   `InventoryManager`, then sells exactly that receipt through
   `Market.sell_automation()`. Inventory removal remains in `InventoryManager`;
   cash arrives through `GameState`.
-- Automation starts at 20% of the assigned `SpeciesDef.xp_reward`, written by
-  `GameState`. It does not advance orders, emit manual gather/log roots, add
-  lifetime chopped or mastery/certification, or trigger manual skill procs.
+- Automation starts at 20% of equivalent manual XP per active second, using the
+  assigned species' representative manual-time anchor. Cycle speed and Logs per
+  Split increase throughput/cash but cannot multiply XP per minute; sub-integer
+  final XP carries between watched cycles after global/skill multipliers, without
+  per-cycle round-up inflation. The
+  final award is written by `GameState` and does not advance orders, emit manual
+  gather/log roots, add lifetime chopped or mastery/certification, or trigger
+  manual skill procs.
 - One static representative log proxy is shown during processing regardless of
   species or Logs per Split rank. It uses the assigned species' existing bark
   and inside treatment, then disappears on settlement; no runtime slice or
@@ -339,8 +331,10 @@ ownership, or the yard HUD.
 - Use `core/tools/equipment_progression_shot.tscn` non-headless with the
   Compatibility renderer to capture all eight axe/stump placeholder pairs.
 - Use `core/tests/skill_overhaul_acceptance.tscn` and
-  `core/tools/xp_pacing_probe.tscn` for uncapped levels, point/cash switching,
-  exact orb shares and the complete terrestrial/alien XP ramp.
+  `core/tests/xp_pacing_balance_acceptance.tscn` for uncapped levels, the
+  84-point boundary, time-budgeted splitter XP and bounded Masterwork sources.
+  Use `core/tools/xp_pacing_probe.tscn` for exact orb shares and the complete
+  terrestrial/alien XP ramp.
 - Use `core/tools/save_probe.tscn` modes only as temporary feel-test setup; they
   are not shipped progression or tuning authority.
 - For yard/pile presentation, pair acceptance coverage with the relevant

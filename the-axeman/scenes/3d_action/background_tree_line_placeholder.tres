@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BackgroundTreeLineDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/3d_action/background_tree_line_def.gd" id="1_def"]
+
+[resource]
+resource_name = "PLACEHOLDER - background tree composition pending visual approval"
+script = ExtResource("1_def")
+positions = Array[Vector3]([Vector3(-7.4, -0.3, -8.4), Vector3(-5.4, -0.24, -7.9), Vector3(-3.6, -0.28, -8.6), Vector3(-1.7, -0.22, -8.1), Vector3(0.5, -0.3, -8.8), Vector3(2.7, -0.24, -8), Vector3(4.8, -0.28, -8.7), Vector3(7, -0.26, -8.2), Vector3(-6.1, -0.34, -6.2), Vector3(-4.4, -0.3, -6.6), Vector3(4.3, -0.32, -6.5), Vector3(6, -0.34, -6.1)])
+scales = PackedFloat32Array(0.56, 0.48, 0.6, 0.46, 0.58, 0.5, 0.62, 0.52, 0.4, 0.44, 0.43, 0.4)
+yaws = PackedFloat32Array(0.12, -0.18, 0.28, -0.08, 0.19, -0.24, 0.06, -0.14, 0.22, -0.12, 0.16, -0.2)
+canopy_centres = PackedFloat32Array(2.9, 4.45, 5.8)
+canopy_heights = PackedFloat32Array(3.4, 3, 2.6)
+canopy_radii = PackedFloat32Array(1.65, 1.3, 0.95)
+trunk_height = 4.5
+trunk_radius = 0.22
+trunk_dark = Color(0.3, 0.19, 0.11, 1)
+trunk_light = Color(0.42, 0.27, 0.14, 1)
+foliage_dark = Color(0.16, 0.29, 0.14, 1)
+foliage_light = Color(0.25, 0.38, 0.17, 1)

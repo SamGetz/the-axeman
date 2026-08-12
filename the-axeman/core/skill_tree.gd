@@ -67,22 +67,13 @@ static func is_branch_presented(branch_id: StringName) -> bool:
 	if not is_branch_revealed(branch_id):
 		return false
 	match branch_id:
-		&"strength":
+		&"strength", &"speed", &"mastery", &"frontier":
 			return true
-		&"speed":
-			return GameState.get_campaign_phase() \
-				>= GameState.CampaignPhase.WORKING_YARD
-		&"mastery":
-			return GameState.get_campaign_phase() \
-				>= GameState.CampaignPhase.REGIONAL_COMPANY
-		&"frontier":
-			return GameState.get_campaign_phase() \
-				>= GameState.CampaignPhase.COSMIC_FINALE
 	return false
 
 
-## Presentation is phased independently of purchase authority. The player sees
-## one relevant branch tab at a time instead of 36 mostly-grey nodes at level 2.
+## All three terrestrial branches are presented together. Frontier uses its
+## separate Earth Master reveal gate and therefore remains absent until endgame.
 static func get_presented_nodes() -> Array[SkillNodeDef]:
 	var out: Array[SkillNodeDef] = []
 	for node: SkillNodeDef in get_revealed_nodes():

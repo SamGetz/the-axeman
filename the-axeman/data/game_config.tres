@@ -29,10 +29,11 @@ opening_scale = 0.42
 base_xp = 26
 ; Raising the power steepens later terrestrial levels much more than early ones;
 ; lowering it flattens the campaign and compresses late-level effort.
-curve_power = 1.25
-; Levels at and above this point repeat one fixed XP span forever. Moving it
+curve_power = 1.3
+; PLACEHOLDER: the repeatable span begins only after the complete terrestrial
+; skill-point run and the three representative Frontier levels. Moving it
 ; changes where infinite progression stops getting progressively slower.
-endgame_plateau_level = 80
+endgame_plateau_level = 112
 
 [sub_resource type="Resource" id="XPPacing_main"]
 script = ExtResource("3_xp")
@@ -42,9 +43,14 @@ opening_target_logs_per_level = 1.5
 ; Acceptance/probe target only: raising this declares a slower terrestrial end;
 ; it does not itself alter awarded XP or the level curve.
 terrestrial_end_target_logs_per_level = 2.5
+; PLACEHOLDER fresh-save manual projection band for the 84th core skill point.
+; These values define an acceptance target only and require Sam's timed-session
+; approval before they can be labelled final.
+core_tree_target_min_seconds = 5400.0
+core_tree_target_max_seconds = 7200.0
 ; The final Frontier pacing probe is expected to land near this duration. Change
 ; it with the alien XP/active-time assumptions or the acceptance gate will move.
-final_frontier_target_seconds = 114.0
+final_frontier_target_seconds = 217.0
 ; This is the assumed hands-on time for an endgame terrestrial log. Raising it
 ; makes time projections longer without changing live chop speed.
 expected_active_seconds_per_endgame_log = 42.0
@@ -172,16 +178,17 @@ processing_duration_seconds = 5.0
 ; UI, persistence and queue contract—not merely throughput.
 queue_capacity = 1
 ; APPROVED represented logs per baseline split. Raising it increases baseline
-; cash, XP and production output from automation.
+; cash and production output, but deliberately does not accelerate XP.
 base_logs_per_split = 5
 ; APPROVED hard cap after Logs per Split upgrades. Raising it increases late-game
-; automation output and changes the signed-off upgrade band.
+; cash/output and changes the signed-off upgrade band, but not XP per minute.
 maximum_logs_per_split = 12
 ; APPROVED firewood units per represented log. Raising it multiplies inventory,
 ; cash settlement and visible pile output.
 output_amount = 1
-; APPROVED fraction of manual XP paid by baseline automation. Raising it makes
-; automated levelling compete more strongly with manual play.
+; APPROVED fraction of equivalent manual XP paid per active second. Raising it
+; makes automated levelling compete more strongly with manual play; represented
+; log count and cycle speed do not multiply this share.
 base_xp_rate = 0.2
 ; APPROVED floor after Speed upgrades. Lowering it permits faster maximum cycles;
 ; raising it weakens purchased speed ranks.

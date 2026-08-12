@@ -1,21 +1,60 @@
 extends Node
-## Focused first-time tutorial, dialogue, persistence and placeholder-art checks.
+## Focused disabled-presentation, retained-content and placeholder-art checks.
 
 var _passes := 0
 var _fails := 0
 
 
 func _ready() -> void:
-	print("=== TUTORIAL ACCEPTANCE — First Yard Guidance ===")
+	print("=== TUTORIAL ACCEPTANCE — Presentation Gate ===")
 	await _test_content_and_art()
-	await _test_opening_flow_and_persistence()
-	await _test_skip_is_persisted_and_non_granting()
+	if TutorialDirector.ENABLED:
+		await _test_opening_flow_and_persistence()
+		await _test_skip_is_persisted_and_non_granting()
+	else:
+		await _test_tutorials_disabled()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 	print("=== TUTORIAL RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
 		print("=== ALL TUTORIAL AND PLACEHOLDER-ART CRITERIA PASS ===")
 	get_tree().quit(1 if _fails > 0 else 0)
+
+
+func _test_tutorials_disabled() -> void:
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	GameState.mark_feature_introduced(&"tutorial_armed")
+	GameState.mark_feature_introduced(&"tutorial_started")
+	var next_wood := GameState.get_next_unowned_species()
+	if next_wood != null:
+		var setup := GameState.to_save_dict()
+		setup["owned_species"] = [String(next_wood.id)]
+		GameState.apply_save_dict(setup)
+	var cash_before := GameState.get_cash()
+	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(hud)
+	var director: TutorialDirector = hud.call("tutorial_director")
+	hud.call("begin_tutorial", false)
+	await get_tree().process_frame
+	_check(not TutorialDirector.ENABLED and not director.visible \
+		and not director.is_showing_tip() and director.active_beat_id() == &"" \
+		and not (director.get_node("HelpButton") as Button).visible,
+		"tutorial cards, focus and replay help stay fully disabled")
+	_check(not GameState.has_introduced_feature(&"tutorial_opening_complete") \
+		and not GameState.has_introduced_feature(&"tutorial_all_skipped") \
+		and GameState.get_cash() == cash_before,
+		"starting the disabled director does not mutate tutorial or progression state")
+	var skill_boughs: HBoxContainer = hud.get_node(
+		"SkillPanel/Column/SkillBody/BoughScroll/Boughs")
+	_check((hud.get_node("QuickMenu/TreesButton") as Button).visible \
+		and hud.get_node_or_null("SkillPanel/Column/BranchTabs") == null \
+		and skill_boughs.get_child_count() == 3,
+		"old tutorial flags cannot hide an actionable Catalog or the tab-free three-tree window (catalog=%s trees=%d)" % [
+			(hud.get_node("QuickMenu/TreesButton") as Button).visible,
+			skill_boughs.get_child_count()])
+	hud.queue_free()
+	await get_tree().process_frame
 
 
 func _test_content_and_art() -> void:

@@ -38,7 +38,7 @@ enum Kind {
 	CONTINUOUS_HANDOFF,
 	## Guarantees a later grain opportunity after Quick Study fires.
 	GRAIN_GUARANTEE,
-	## Marks the first completed manual log after a level as a Masterwork.
+	## Marks the next manual log after an ordinary manual level-up as a Masterwork.
 	MASTERWORK,
 	## Alien-only split and special-behaviour handling contribution.
 	ALIEN_HANDLING,

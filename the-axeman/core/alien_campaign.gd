@@ -97,5 +97,6 @@ static func apply_automation_receipt(receipt: AlienAutomationReceipt) -> bool:
 			base_xp += units * wood_trait.xp_reward
 	if base_xp > 0:
 		GameState.award_xp(maxi(1, int(round(float(base_xp) \
-			* ProductionEconomy.automation_xp_rate()))), &"alien_automation")
+			* ProductionEconomy.automation_xp_rate()))),
+			GameState.XP_ORIGIN_ALIEN_AUTOMATION)
 	return true

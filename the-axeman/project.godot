@@ -17,6 +17,10 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 config/build_date="2026-08-07"
 
+[audio]
+
+buses/default_bus_layout="uid://baule5sst3un7"
+
 [autoload]
 
 EventBus="*uid://r7cli5a7vq2p"

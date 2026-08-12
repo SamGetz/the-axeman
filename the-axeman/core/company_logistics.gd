@@ -92,7 +92,7 @@ static func apply_receipt(receipt: CompanySimulationReceipt) -> bool:
 		return false
 	var xp := _receipt_xp(receipt)
 	if xp > 0:
-		GameState.award_xp(xp, &"company_automation")
+		GameState.award_xp(xp, GameState.XP_ORIGIN_COMPANY_AUTOMATION)
 	for line: Dictionary in lines:
 		GameState.record_automation_bulk_delivery(StringName(line.item_id),
 			int(line.amount), receipt.receipt_id)

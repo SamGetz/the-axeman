@@ -38,6 +38,9 @@ var _last_state := -1
 var _last_cash_earned := 0
 var _last_xp_earned := 0
 var _last_logs_processed := 0
+## Sub-integer final XP is carried between watched cycles so small opening
+## rewards are neither rounded up into a hidden multiplier nor rounded away.
+var _automation_xp_fraction := 0.0
 
 
 func _ready() -> void:
@@ -163,6 +166,17 @@ func automation_xp_rate() -> float:
 		return 0.0
 	return clampf(config.base_xp_rate
 		+ Shop.total_effect(UpgradeDef.Effect.AUTOMATION_XP_GAIN), 0.0, 1.0)
+
+
+func automation_base_xp_budget_for_cycle(species_id: StringName) -> float:
+	var species := SpeciesTable.by_id(species_id)
+	var pacing := GameConfig.current().xp_pacing
+	if species == null or pacing == null:
+		return 0.0
+	var duration := _processing_duration if _processing_duration > 0.0 \
+		else effective_duration_seconds()
+	return pacing.watched_automation_base_xp_for_cycle(species, duration,
+		automation_xp_rate())
 
 
 func automation_cash_bonus() -> float:
@@ -308,10 +322,11 @@ func _deliver_pending_output() -> bool:
 	var species := SpeciesTable.by_id(species_id)
 	var xp_earned := 0
 	if species != null and logs > 0:
-		xp_earned = maxi(0, int(round(
-			float(species.xp_reward * logs) * automation_xp_rate())))
-		if xp_earned > 0:
-			xp_earned = GameState.award_xp(xp_earned, &"splitter")
+		var xp_receipt := GameState.award_fractional_xp(
+			automation_base_xp_budget_for_cycle(species_id),
+			_automation_xp_fraction, GameState.XP_ORIGIN_SPLITTER)
+		xp_earned = int(xp_receipt.get("awarded", 0))
+		_automation_xp_fraction = float(xp_receipt.get("carry", 0.0))
 	_last_cash_earned = cash_earned
 	_last_xp_earned = xp_earned
 	_last_logs_processed = logs
@@ -348,6 +363,7 @@ func _reset_ephemeral_work() -> void:
 	_last_cash_earned = 0
 	_last_xp_earned = 0
 	_last_logs_processed = 0
+	_automation_xp_fraction = 0.0
 	progress_changed.emit(0.0)
 
 

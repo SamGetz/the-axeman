@@ -137,7 +137,20 @@ func _test_v9_migration_and_restore() -> void:
 
 
 func _test_native_atlas() -> void:
+	GameState.reset_to_defaults()
 	GameState.apply_save_dict({"reputation": 8})
+	var early_hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
+	add_child(early_hud)
+	await get_tree().process_frame
+	_check(not (early_hud.get_node("QuickMenu/AtlasButton") as Button).visible,
+		"reputation alone does not expose the mid-game Supplier Atlas")
+	early_hud.queue_free()
+	await get_tree().process_frame
+
+	GameState.apply_save_dict({
+		"reputation": 8,
+		"building_tiers": {String(CompanyStrategy.machine().id): 2},
+	})
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
 	await get_tree().process_frame

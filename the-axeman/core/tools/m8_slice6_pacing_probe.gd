@@ -9,7 +9,7 @@ const _LEVELS := [9, 49, 96]
 func _ready() -> void:
 	var failed := false
 	print("=== M8 SLICE 6 PACING PROBE — PLACEHOLDER VALUES ===")
-	print("level,species,unlock_cost,unit_cash,contract_pieces,base_delivery_cash,contract_bonus,profile_cost,mastery_logs,splitter_base_cash,splitter_base_xp")
+	print("level,species,unlock_cost,unit_cash,contract_pieces,base_delivery_cash,contract_bonus,profile_cost,mastery_logs,splitter_base_cash,splitter_time_budget_xp")
 	for level in _LEVELS:
 		var species := _species_at_level(level)
 		if species == null:
@@ -26,7 +26,8 @@ func _ready() -> void:
 		var unit_cash := Market.get_price(species.yield_item)
 		var splitter_logs := 5
 		var splitter_cash := unit_cash * splitter_logs
-		var splitter_xp := int(round(float(species.xp_reward * splitter_logs) * 0.20))
+		var splitter_xp := int(floor(GameConfig.current().xp_pacing \
+			.watched_automation_base_xp_for_cycle(species, 5.0, 0.20)))
 		print("%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d" % [
 			level, species.display_name, species.unlock_cost, unit_cash,
 			order.required_count, unit_cash * order.required_count,

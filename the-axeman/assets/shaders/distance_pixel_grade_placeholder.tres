@@ -1,0 +1,12 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://assets/shaders/distance_pixel_grade.gdshader" id="1_shader"]
+
+[resource]
+resource_name = "PLACEHOLDER - true camera-distance pixel gradient"
+render_priority = -128
+shader = ExtResource("1_shader")
+shader_parameter/gradient_near_distance = 2.0
+shader_parameter/gradient_far_distance = 9.0
+shader_parameter/near_pixel_block_size = 3.0
+shader_parameter/far_pixel_block_size = 7.0

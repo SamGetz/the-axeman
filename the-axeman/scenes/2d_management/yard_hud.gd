@@ -73,12 +73,6 @@ const _COMPLETED_ORDERS_TAB := 2
 
 @onready var _cash_label: Label = $TopBar/CashRow/CashLabel
 @onready var _earth_trees_label: Label = $EarthTreesRemaining
-@onready var _campaign_goal: PanelContainer = $CampaignGoal
-@onready var _campaign_goal_phase: Label = $CampaignGoal/Column/Phase
-@onready var _campaign_goal_title: Label = $CampaignGoal/Column/Title
-@onready var _campaign_goal_detail: Label = $CampaignGoal/Column/Detail
-@onready var _campaign_goal_progress: ProgressBar = $CampaignGoal/Column/Progress
-@onready var _campaign_goal_progress_text: Label = $CampaignGoal/Column/ProgressText
 @onready var _credits_panel: ColorRect = $CreditsPanel
 @onready var _credits_column: VBoxContainer = $CreditsPanel/CreditsColumn
 @onready var _credits_stats: Label = $CreditsPanel/CreditsColumn/Stats
@@ -117,7 +111,6 @@ const _COMPLETED_ORDERS_TAB := 2
 @onready var _skills_button: Button = $QuickMenu/SkillsButton
 @onready var _skills_badge: Label = $QuickMenu/SkillsButton/Badge
 @onready var _skill_panel: PanelContainer = $SkillPanel
-@onready var _skill_branch_tabs: TabBar = $SkillPanel/Column/BranchTabs
 @onready var _skill_boughs: HBoxContainer = $SkillPanel/Column/SkillBody/BoughScroll/Boughs
 @onready var _points_label: Label = $SkillPanel/Column/Header/PointsLabel
 @onready var _skill_respec_button: Button = $SkillPanel/Column/SkillFooter/RespecButton
@@ -171,8 +164,7 @@ var _delivery_receipt_queue: Array[Dictionary] = []
 var _delivery_receipt_flush_queued := false
 var _delivery_receipt_showing := false
 var _active_tasks_collapsed := true
-var _presented_skill_branch: StringName = &""
-var _rebuilding_skill_tabs := false
+var _rebuilding_skills := false
 
 # PLACEHOLDER — adaptive non-blocking receipt timing pending measured review.
 const _RECEIPT_SINGLE_HOLD := 2.2
@@ -212,7 +204,6 @@ func _ready() -> void:
 	_skills_button.pressed.connect(_on_skills_pressed)
 	_close_skill_button.pressed.connect(_on_close_skill_pressed)
 	_skill_respec_button.pressed.connect(_on_respec_skills_pressed)
-	_skill_branch_tabs.tab_changed.connect(_on_skill_branch_tab_changed)
 	_orders_button.pressed.connect(_on_orders_pressed)
 	_active_job_button.pressed.connect(_on_active_job_pressed)
 	_active_job_toggle.pressed.connect(_on_active_job_toggle_pressed)
@@ -272,7 +263,6 @@ func _ready() -> void:
 	_apply_xp_orb_color()
 	_refresh_stats()
 	_refresh_earth_trees()
-	_refresh_campaign_goal(GameState.get_campaign_goal_snapshot())
 	_refresh_reveal_visibility()
 	_refresh_xp_bar()
 	_rebuild_shop()
@@ -581,13 +571,16 @@ func _refresh_earth_trees() -> void:
 			18 if phase >= GameState.CampaignPhase.PLANETARY_MACHINE else 13)
 
 
-func _on_campaign_goal_changed(snapshot: CampaignGoalSnapshot) -> void:
-	_refresh_campaign_goal(snapshot)
-	_refresh_earth_trees()
+func _on_campaign_goal_changed(_snapshot: CampaignGoalSnapshot) -> void:
+	# The tracker is retired, but the derived goal still owns when Atlas becomes
+	# relevant. Repaint the dock when the campaign reaches that handoff.
+	_refresh_reveal_visibility()
+	_rebuild_atlas()
 
 
 func _on_campaign_phase_changed(_previous: int, next: int) -> void:
 	_rebuild_skills()
+	_refresh_earth_trees()
 	_refresh_reveal_visibility()
 	_show_phase_introduction(next)
 
@@ -613,25 +606,7 @@ func _show_phase_introduction(phase: int) -> void:
 	AudioDirector.play_ui(&"level_up")
 
 
-func _refresh_campaign_goal(snapshot: CampaignGoalSnapshot) -> void:
-	if snapshot == null or _campaign_goal == null:
-		return
-	_campaign_goal.visible = not _credits_panel.visible
-	_campaign_goal_phase.text = CampaignProgression.phase_name(snapshot.phase).to_upper()
-	_campaign_goal_title.text = snapshot.title
-	_campaign_goal_detail.text = snapshot.detail
-	_campaign_goal_progress.visible = snapshot.has_progress()
-	_campaign_goal_progress_text.visible = snapshot.has_progress()
-	if snapshot.has_progress():
-		_campaign_goal_progress.max_value = maxi(1, snapshot.target)
-		_campaign_goal_progress.value = mini(snapshot.current, snapshot.target)
-		_campaign_goal_progress_text.text = "%s / %s" % [
-			_thousands(snapshot.current), _thousands(snapshot.target)]
-		_campaign_goal_progress.tooltip_text = _campaign_goal_progress_text.text
-
-
 func _show_campaign_credits() -> void:
-	_campaign_goal.visible = false
 	_credits_stats.text = "25 Earth woods mastered\n%s trees removed\n3 alien woods mastered\n3 orbital lines running\nFrontier Master" % \
 		_thousands(GameState.TOTAL_EARTH_TREES)
 	_credits_panel.visible = true
@@ -645,7 +620,6 @@ func _show_campaign_credits() -> void:
 
 func _on_close_credits_pressed() -> void:
 	_credits_panel.visible = false
-	_campaign_goal.visible = true
 
 
 func _on_earth_finale_completed() -> void:
@@ -671,13 +645,14 @@ func _refresh_reveal_visibility() -> void:
 	_orders_button.visible = displayed_level() >= Orders.JOBS_UNLOCK_LEVEL
 	_skills_button.visible = _displayed_skill_points_earned > 0
 	_trees_button.visible = not staged_opening and _catalogue_is_actionable()
-	var atlas_actionable := GameState.is_earth_master()
-	for region: RegionDef in RegionalNetwork.regions():
-		if GameState.is_region_discovered(region.id) \
-				or (GameState.get_reputation() > 0 \
-					and GameState.get_reputation() >= region.reputation_required):
-			atlas_actionable = true
-			break
+	# Reputation alone used to reveal Atlas almost immediately because the home
+	# region has a zero reputation threshold. Keep the map out of the early yard
+	# until the derived campaign goal actually asks for its first regional route;
+	# once the regional company exists, later infrastructure/launch actions keep it.
+	var goal := GameState.get_campaign_goal_snapshot()
+	var atlas_actionable := GameState.get_campaign_phase() \
+		>= GameState.CampaignPhase.REGIONAL_COMPANY \
+		or (goal != null and goal.action_id == &"atlas")
 	_atlas_button.visible = atlas_actionable
 	if (not shop_actionable and _shop_panel.visible) \
 			or (not _orders_button.visible and _orders_panel.visible) \
@@ -688,6 +663,8 @@ func _refresh_reveal_visibility() -> void:
 
 
 func _tutorial_opening_is_staged() -> bool:
+	if not TutorialDirector.ENABLED:
+		return false
 	var tutorial_save := GameState.has_introduced_feature(_TUTORIAL_ARMED_ID) \
 		or GameState.has_introduced_feature(_TUTORIAL_STARTED_ID)
 	return tutorial_save \
@@ -2395,14 +2372,14 @@ func _on_close_skill_pressed() -> void:
 	_on_player_closed_panels()
 
 
-## Each campaign-relevant branch owns one tab. This keeps the opening readable
-## and lets later mechanics arrive as clear additions instead of grey clutter.
+## Every revealed branch shares one window. The three terrestrial trees appear
+## together; Frontier joins them as a fourth column only after Earth Master.
 func _rebuild_skills() -> void:
 	if _skill_boughs == null:
 		return   # _ready has not run yet; the initial build is at the end of it
-	if _rebuilding_skill_tabs:
+	if _rebuilding_skills:
 		return
-	_rebuilding_skill_tabs = true
+	_rebuilding_skills = true
 	for child in _skill_boughs.get_children():
 		_skill_boughs.remove_child(child)
 		child.queue_free()
@@ -2417,26 +2394,10 @@ func _rebuild_skills() -> void:
 		if branch != null and SkillTree.is_branch_presented(branch.id):
 			revealed.append(branch)
 	if revealed.is_empty():
-		_rebuilding_skill_tabs = false
+		_rebuilding_skills = false
 		return
-	var previous_branch := _presented_skill_branch
-	_skill_branch_tabs.clear_tabs()
-	for branch: SkillBranchDef in revealed:
-		_skill_branch_tabs.add_tab(branch.display_name)
-		_skill_branch_tabs.set_tab_metadata(_skill_branch_tabs.tab_count - 1,
-			branch.id)
-	var selected_index := 0
-	for index in range(_skill_branch_tabs.tab_count):
-		if StringName(_skill_branch_tabs.get_tab_metadata(index)) == previous_branch:
-			selected_index = index
-			break
-	_skill_branch_tabs.current_tab = selected_index
-	_presented_skill_branch = StringName(
-		_skill_branch_tabs.get_tab_metadata(selected_index))
 	var revealed_graph_height := 0.0
 	for branch: SkillBranchDef in revealed:
-		if branch.id != _presented_skill_branch:
-			continue
 		var column := VBoxContainer.new()
 		column.name = String(branch.id).to_pascal_case() + "Tree"
 		column.custom_minimum_size = Vector2(170.0, 0.0)
@@ -2458,16 +2419,7 @@ func _rebuild_skills() -> void:
 		_skill_boughs.add_child(column)
 	_resize_skill_panel(revealed_graph_height)
 	_refresh_respec_button()
-	_rebuilding_skill_tabs = false
-
-
-func _on_skill_branch_tab_changed(index: int) -> void:
-	if _rebuilding_skill_tabs:
-		return
-	if index < 0 or index >= _skill_branch_tabs.tab_count:
-		return
-	_presented_skill_branch = StringName(_skill_branch_tabs.get_tab_metadata(index))
-	_rebuild_skills()
+	_rebuilding_skills = false
 
 
 func _resize_skill_panel(graph_height: float) -> void:

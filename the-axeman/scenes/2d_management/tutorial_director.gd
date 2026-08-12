@@ -3,6 +3,9 @@ extends Control
 ## Persisted, state-observing tutorial presentation. It never grants cash, XP,
 ## items or progression and never reveals a feature before its public gate.
 
+## Tutorial content remains in the project for a future opt-in pass, but live
+## presentation is deliberately disabled.
+const ENABLED := false
 const _CONTENT := preload("res://data/tutorial_content.tres")
 const _ARMED_ID := &"tutorial_armed"
 const _STARTED_ID := &"tutorial_started"
@@ -37,13 +40,17 @@ var _active_is_pending := false
 
 
 func _ready() -> void:
+	_panel.hide()
+	_focus_ring.hide()
+	_help_button.hide()
+	if not ENABLED:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hide()
+		return
 	_show_timer = Timer.new()
 	_show_timer.one_shot = true
 	_show_timer.timeout.connect(_present_active_beat)
 	add_child(_show_timer)
-	_panel.hide()
-	_focus_ring.hide()
-	_help_button.hide()
 	_continue_button.pressed.connect(_on_continue_pressed)
 	_close_button.pressed.connect(_on_close_pressed)
 	_skip_button.pressed.connect(_on_skip_pressed)
@@ -65,6 +72,14 @@ func _ready() -> void:
 
 func begin_for_session(is_fresh_game: bool, hud: Control) -> void:
 	_hud = hud
+	if not ENABLED:
+		_running = false
+		_replaying = false
+		_armed = false
+		_active = null
+		_hide_card()
+		hide()
+		return
 	_opening = _content.opening_beats()
 	if is_fresh_game:
 		GameState.mark_feature_introduced(_ARMED_ID)
@@ -100,7 +115,7 @@ func _start_tutorial() -> void:
 
 
 func notify_hud_action(action_id: StringName) -> void:
-	if not _running:
+	if not ENABLED or not _running:
 		return
 	if _active == null:
 		if action_id == &"panel_closed":
@@ -114,11 +129,13 @@ func notify_hud_action(action_id: StringName) -> void:
 ## XP is authoritative before its orbs arrive. YardHUD calls this only when the
 ## visible bar has caught up, keeping the contextual Skills lesson causal.
 func notify_presented_progress_changed() -> void:
+	if not ENABLED:
+		return
 	_on_progress_changed()
 
 
 func replay_opening() -> void:
-	if _content == null:
+	if not ENABLED or _content == null:
 		return
 	_running = true
 	_replaying = true
@@ -142,6 +159,8 @@ func content_errors() -> PackedStringArray:
 ## Deterministic visual-gallery seam. Live tutorial routes always use _show_beat
 ## and its authored delay; capture tools need a chosen card on a chosen frame.
 func debug_present_beat(beat: TutorialBeatDef) -> void:
+	if not ENABLED:
+		return
 	_running = true
 	_replaying = false
 	_cancel_pending_show()
@@ -162,6 +181,8 @@ func _resume_opening() -> void:
 
 
 func _show_beat(beat: TutorialBeatDef) -> void:
+	if not ENABLED:
+		return
 	_cancel_pending_show()
 	_active = beat
 	if beat == null:
@@ -185,7 +206,7 @@ func _show_beat(beat: TutorialBeatDef) -> void:
 
 
 func _present_active_beat() -> void:
-	if not _active_is_pending or _active == null or not _running \
+	if not ENABLED or not _active_is_pending or _active == null or not _running \
 			or GameState.has_introduced_feature(_SKIPPED_ID):
 		return
 	_active_is_pending = false

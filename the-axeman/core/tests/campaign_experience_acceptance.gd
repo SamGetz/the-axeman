@@ -180,19 +180,24 @@ func _test_hud_focus_and_credits() -> void:
 	add_child(hud)
 	await get_tree().process_frame
 	var orders_tabs: TabContainer = hud.get_node("OrdersPanel/Column/Tabs")
-	var campaign_goal: Control = hud.get_node("CampaignGoal")
-	var branch_tabs: TabBar = hud.get_node("SkillPanel/Column/BranchTabs")
-	_check(orders_tabs.is_tab_hidden(1) and campaign_goal.visible \
-		and branch_tabs.tab_count == 1,
-		"the HUD keeps one goal and one skill branch visible while hiding the commission menu")
+	var skill_boughs: HBoxContainer = hud.get_node(
+		"SkillPanel/Column/SkillBody/BoughScroll/Boughs")
+	_check(orders_tabs.is_tab_hidden(1) \
+		and hud.get_node_or_null("CampaignGoal") == null \
+		and hud.get_node_or_null("SkillPanel/Column/BranchTabs") == null \
+		and skill_boughs.get_node_or_null("StrengthTree/Graph") != null \
+		and skill_boughs.get_node_or_null("SpeedTree/Graph") != null \
+		and skill_boughs.get_node_or_null("MasteryTree/Graph") != null \
+		and skill_boughs.get_node_or_null("FrontierTree") == null,
+		"the HUD omits the campaign tracker while the skill window shows all three terrestrial trees")
 	GameState.campaign_completed.emit()
 	await get_tree().process_frame
 	var credits: Control = hud.get_node("CreditsPanel")
-	_check(credits.visible and not campaign_goal.visible,
+	_check(credits.visible,
 		"campaign completion owns a legible full-screen credits state")
 	(hud.get_node("CreditsPanel/CreditsColumn/ContinueButton") as Button).pressed.emit()
-	_check(not credits.visible and campaign_goal.visible,
-		"returning from credits restores the persistent campaign objective")
+	_check(not credits.visible,
+		"returning from credits restores the tracker-free yard HUD")
 	hud.queue_free()
 	await get_tree().process_frame
 

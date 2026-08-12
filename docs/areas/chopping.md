@@ -33,6 +33,11 @@ their focused tools. The live scenes and tests remain authoritative.
 - Cut materials are cached per species by reference. `MeshUtils.jag_cut` uses
   material identity to find generated cut surfaces; replacing the material with
   a fresh instance per log breaks later roughening behavior.
+- Failed-hit scars use the generated `axe_scar_normal.png` through a Compatibility-
+  safe top-face projection mesh, not a `Decal` node. Each scar is stored in the
+  piece's local mesh space and reprojected onto overlapping descendants after a
+  slice, so an adjacent cut clips physical damage rather than erasing it. Only
+  one descendant inherits each scar's pity contribution.
 - The slicer carries positions, normals, UVs, tangents, and vertex colors across
   a cut. Cut caps generate their own tangents and white vertex colors.
 - Cap UVs are projected in the cut plane's local basis. Preserve winding when

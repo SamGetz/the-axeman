@@ -14,8 +14,9 @@ extends Resource
 @export_range(1, 100, 1) var maximum_logs_per_split: int = 12
 ## Firewood units deposited from SpeciesDef.yield_item on one completion.
 @export_range(1, 1000, 1) var output_amount: int = 1
-## Sam's approved starting automation XP share (2026-08-05). Upgrade rows add
-## percentage points; manual XP multipliers/procs never enter this calculation.
+## Sam's approved starting automation XP share (2026-08-05). This is the share
+## of equivalent manual XP per active second, independent of represented logs
+## and cycle speed. Upgrade rows add percentage points; manual XP procs do not.
 @export_range(0.0, 1.0, 0.01) var base_xp_rate: float = 0.20
 ## Approved safety floor for five stacked Speed ranks.
 @export_range(0.05, 1.0, 0.05) var minimum_duration_multiplier: float = 0.50

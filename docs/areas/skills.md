@@ -5,15 +5,16 @@ grain cues, Follow-Up, Ready Stance, or related VFX.
 
 ## Current model
 
-- Level is derived from total XP and is uncapped. The curve rises to an authored
-  endgame plateau, then repeats that achievable level span indefinitely.
+- Level is derived from total XP and is uncapped. The curve keeps rising past
+  level 85, where the 84th terrestrial point is earned, and reaches its authored
+  repeatable endgame span at level 112.
 - `skill_points_earned_total` is persisted. Terrestrial levels pay points only
   until the exact 84-point core-tree entitlement, then pay cash. Earth Master
   does not reopen level-point grinding: each of the three alien manual masteries
   grants exactly three points for Frontier.
 - XP and level rewards are banked immediately for save safety, but their visible
   presentation follows orb delivery. The old level reaches a full bar first;
-  then the level label, skill-point count, Skills reveal/tutorial, and level-up
+  then the level label, skill-point count, Skills reveal, and level-up
   effect advance together. The full-bar hold is a labelled placeholder in
   the XP Pacing section of `data/game_config.tres` pending a fresh-save feel pass.
 - The skill tree is a validated DAG in `data/skill_tree.tres`. Effects are named
@@ -32,11 +33,12 @@ grain cues, Follow-Up, Ready Stance, or related VFX.
 - The live graph is exactly 45 nodes: 12 Strength, 12 Speed, 12 Mastery and 9
   Frontier. The core trees cost 84 points. Every Frontier node is one rank, for
   nine alien-earned purchases and 93 purchases across the complete tree.
-- The skill window shows one branch graph at a time: Strength from the first
-  point, Speed in Working Yard, Mastery at Regional Company and Frontier in the
-  Cosmic Finale. Unmet paths remain visible inside the active branch with locked
-  styling and prerequisite hover copy. Square buttons buy immediately; full
-  names, effects, prerequisites and cost use the high-contrast hover card.
+- The skill window has no branch tabs. Strength, Speed and Mastery render
+  together as three columns from the first skill point; Frontier is absent until
+  Earth Master reveals it as a fourth column at endgame. Unmet paths remain
+  visible with locked styling and prerequisite hover copy. Square buttons buy
+  immediately; full names, effects, prerequisites and cost use the high-contrast
+  hover card.
 - Respec returns every learned node to the existing point entitlement and costs
   20% of the player's current cash, rounded down to whole coins. The transaction
   also clears proc dry streaks and queued Masterwork state.
@@ -46,7 +48,9 @@ grain cues, Follow-Up, Ready Stance, or related VFX.
 - Mastery: Quick Study and grain reading provide visible precision cues and
   manual-XP rewards. Invalid or ineligible geometry must not reach proc rewards.
 - Eureka converts a fired Quick Study into one guaranteed future valid grain
-  opportunity. Master Axeman queues one Masterwork XP/cash event per level.
+  opportunity. Master Axeman readies one next-log XP/cash event when an ordinary
+  manual log levels the player. Automation, Quick Study, Golden Grain and the
+  Masterwork payout itself cannot ready it, and multiple levels never stack it.
 - Speed: Follow-Up is an automatic bonus swing after any landed root swing,
   whether the root split or scarred. It re-enters the ordinary strike resolver
   and makes its own real split roll.
@@ -83,15 +87,20 @@ grain cues, Follow-Up, Ready Stance, or related VFX.
 - Every genuine terrestrial and alien XP award passes through the labelled global
   `1.55` campaign multiplier before presentation. This happens after manual
   mastery/proc composition, so the final orb receipt remains exact.
-- The XP Pacing section of `data/game_config.tres` owns pacing and orb review anchors. The automated
-  probe reaches a derived ~114-second final level-span projection; a real timed manual
-  session is still required before the remaining pacing placeholders become
-  approved tuning.
+- The XP Pacing section of `data/game_config.tres` owns pacing and orb review
+  anchors. The conservative no-skill/proc/automation projection earns the 84th
+  core point in about 104.6 minutes (inside the provisional 90–120 minute band),
+  while even the deliberately impossible bound of a max-rate splitter running
+  beside every manual swing from minute zero remains about 52.3 minutes. The
+  probe reaches a derived ~217-second final Frontier level span. A real timed
+  fresh-save session is still required before these placeholders become approved.
 
 Use `core/tests/xp_delivery_acceptance.tscn` for the full-bar-before-level
 presentation contract, `core/tests/m7c_acceptance.tscn` for typed graph validation,
 `core/tests/skill_overhaul_acceptance.tscn` for the 45-node/infinite-level/reward
-contract, `core/tools/xp_pacing_probe.tscn` for every species anchor, and
+contract, `core/tests/xp_pacing_balance_acceptance.tscn` for the 84-point timing,
+automation-rate and Masterwork-source regressions,
+`core/tools/xp_pacing_probe.tscn` for every species anchor, and
 `core/tests/m12_acceptance.tscn` for Frontier/launch exclusions, `proc_shot` and `grain_shot`
 for non-headless presentation, `axe_shot` for Ready Stance timing, and
 `save_probe.tscn` only to seed temporary feel-test saves.

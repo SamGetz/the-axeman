@@ -429,6 +429,10 @@ func _test_split_reliability_and_cap() -> void:
 func _test_trees_mastery_presentation() -> void:
 	GameState.reset_to_defaults()
 	var aspen := SpeciesTable.at(0).id
+	# Exercise the open-window repaint from a state where the catalogue is genuinely
+	# actionable. A fresh one-wood yard keeps its dock button hidden by design.
+	GameState.apply_save_dict({"owned_species": [String(aspen),
+		String(SpeciesTable.at(1).id)]})
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
 	await get_tree().process_frame
@@ -445,8 +449,9 @@ func _test_trees_mastery_presentation() -> void:
 		and fresh_text.contains("+0.1% manual XP")
 		and fresh_text.contains("+0.05 pts split"),
 		"each owned Tree Catalog row shows progress and the complete next-threshold reward")
-	GameState.record_species_completion(aspen)
-	_check(_text_under(wood_list).contains("Mastery 1 / %d\nNext reward at %d" % [
+	var recorded_first := GameState.record_species_completion(aspen)
+	var live_text := _text_under(wood_list)
+	_check(recorded_first and live_text.contains("Mastery 1 / %d\nNext reward at %d" % [
 		target, thresholds[1].required_progress]),
 		"the open Tree Catalog repaints live from species_mastery_changed")
 	for _i in range(target - 1):
@@ -947,11 +952,9 @@ func _test_splitter_watched_cycle() -> void:
 	var before_xp := GameState.get_xp()
 	var before_mastery := GameState.get_species_mastery_progress(species.id)
 	var before_lifetime := GameState.get_lifetime_wood_chopped()
-	var expected_logs := runtime.effective_logs_per_split()
 	var expected_amount := runtime.effective_output_amount()
 	var expected_cash := Market.get_price(species.yield_item) * expected_amount
-	var expected_xp := int(round(float(species.xp_reward * expected_logs)
-		* config.base_xp_rate * GameConfig.current().xp_pacing.global_xp_multiplier))
+	var expected_xp := _expected_splitter_xp(runtime, species)
 	var order := Orders.by_id(&"campfire_warmup")
 	var order_started := order != null and GameState.accept_order(order.id)
 	var before_order_progress := GameState.get_active_order_progress()
@@ -997,7 +1000,7 @@ func _test_splitter_watched_cycle() -> void:
 		and runtime.last_xp_earned() == expected_xp
 		and GameState.get_cash() == before_cash + expected_cash
 		and GameState.get_xp() == before_xp + expected_xp,
-		"completion sells SpeciesDef.yield_item once and pays base cash plus 20% species XP")
+		"completion sells SpeciesDef.yield_item once and pays time-budgeted automation XP")
 	_check(settlement_events == ["started:%s" % receipts[0].receipt, "cash",
 			"completed:%s" % receipts[0].receipt],
 		"presentation starts before authoritative cash and completes with the same immutable receipt")
@@ -1063,9 +1066,7 @@ func _test_splitter_species_ladder_samples() -> void:
 		runtime.set_yard_active(true)
 		var expected_cash := Market.get_price(species.yield_item) \
 			* runtime.effective_output_amount()
-		var expected_xp := int(round(float(species.xp_reward \
-			* runtime.effective_logs_per_split()) * runtime.automation_xp_rate() \
-			* GameConfig.current().xp_pacing.global_xp_multiplier))
+		var expected_xp := _expected_splitter_xp(runtime, species)
 		var cash_before := GameState.get_cash()
 		var xp_before := GameState.get_xp()
 		var lifetime_before := GameState.get_lifetime_wood_chopped()
@@ -1174,14 +1175,13 @@ func _test_splitter_upgrade_runtime() -> void:
 	var expected_amount := runtime.effective_output_amount()
 	var expected_cash := int(round(float(Market.get_price(species.yield_item)
 		* expected_amount) * 1.10))
-	var expected_xp := int(round(float(species.xp_reward * 6) * 0.40 \
-		* GameConfig.current().xp_pacing.global_xp_multiplier))
+	var expected_xp := _expected_splitter_xp(runtime, species)
 	runtime._process(runtime.effective_duration_seconds())
 	_check(runtime.last_logs_processed() == 6
 		and runtime.last_cash_earned() == expected_cash
 		and runtime.last_xp_earned() == expected_xp
 		and InventoryManager.get_count(species.yield_item) == 0,
-		"upgraded represented batch sells once with its own Money and XP multipliers")
+		"upgraded represented batch scales output and money while XP stays time-budgeted")
 	runtime.queue_free()
 	await get_tree().process_frame
 
@@ -1189,10 +1189,13 @@ func _test_splitter_upgrade_runtime() -> void:
 func _test_splitter_runtime_presentation() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
-	var profile := _MechanicalSplitter.profile_definitions()[0]
+	# Norway Spruce's per-cycle time budget is large enough to produce an integer
+	# XP receipt on the first cycle, which keeps this presentation test focused on
+	# orb delivery rather than the runtime's sub-integer carry.
+	var profile := _MechanicalSplitter.profile_definitions()[2]
 	GameState.apply_save_dict(_splitter_runtime_save_shape(profile))
 	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
-	game.debug_forced_species = 0
+	game.debug_forced_species = 2
 	add_child(game)
 	var hud: Control = load("res://scenes/2d_management/yard_hud.tscn").instantiate()
 	add_child(hud)
@@ -1341,6 +1344,14 @@ func _set_every_species_mastered() -> void:
 			if definition != null:
 				progress[String(definition.species_id)] = definition.mastery_target
 	GameState.apply_save_dict({"species_mastery_progress": progress})
+
+
+func _expected_splitter_xp(runtime: MechanicalSplitterRuntime,
+		species: SpeciesDef) -> int:
+	var multiplier := GameConfig.current().xp_pacing.global_xp_multiplier * (1.0 \
+		+ SkillTree.total_modifier(GameplayModifierDef.Kind.GLOBAL_XP_GAIN))
+	return maxi(0, int(floor(runtime.automation_base_xp_budget_for_cycle(
+		species.id) * multiplier + 0.000001)))
 
 
 func _manual_xp_multiplier(proc_id: StringName) -> float:

@@ -133,6 +133,18 @@ const UPGRADE_COFFEE_THERMOS := &"coffee_thermos"
 ## design fact. Sam sets the real number when M7A's prices are decided.
 const DEFAULT_CASH := 0
 
+## XP origins are semantic progression inputs, not presentation labels. Only an
+## ordinary manually completed log may prepare Master Axeman's next-log reward;
+## automation and already-bonused receipts can still level the player, but may
+## not recursively manufacture more bonus receipts.
+const XP_ORIGIN_MANUAL := &"manual"
+const XP_ORIGIN_MANUAL_PROC := &"manual_proc"
+const XP_ORIGIN_MASTERWORK := &"masterwork"
+const XP_ORIGIN_GRAIN := &"grain"
+const XP_ORIGIN_SPLITTER := &"splitter"
+const XP_ORIGIN_COMPANY_AUTOMATION := &"company_automation"
+const XP_ORIGIN_ALIEN_AUTOMATION := &"alien_automation"
+
 ## -------------------------------------------------------------------- state
 ## Keys are Enums.Biome ints; value is always true (presence = unlocked).
 var _unlocked_biomes: Dictionary = { Enums.Biome.PINE_FOREST: true }
@@ -1597,10 +1609,15 @@ func select_species(species_id: StringName) -> bool:
 ## level is DERIVED from this number and taking XP away would silently un-level
 ## the player and strand skill points they had already spent.
 ##
-## Levels are announced ONE AT A TIME even when a single award crosses several: a
-## fat log at low level can jump two, and two level-ups still owe the player two
-## moments. Same rule the wood milestones used before they became purchases.
+## Levels are announced ONE AT A TIME even when a single grant crosses several:
+## test/setup grants may jump many levels, and every level-up still owes the
+## player its own presentation moment. Raw grants deliberately have no gameplay
+## origin and therefore cannot prepare source-specific rewards such as Masterwork.
 func add_xp(amount: int) -> bool:
+	return _add_xp_from_origin(amount, &"")
+
+
+func _add_xp_from_origin(amount: int, origin: StringName) -> bool:
 	if amount <= 0:
 		push_error("GameState: add_xp amount must be > 0 (got %d) — ignored." % amount)
 		return false
@@ -1610,7 +1627,7 @@ func add_xp(amount: int) -> bool:
 	var after := get_level()
 	if after > before:
 		for level in range(before + 1, after + 1):
-			_grant_level_reward(level)
+			_grant_level_reward(level, origin == XP_ORIGIN_MANUAL)
 			level_gained.emit(level)
 		skill_points_changed.emit(get_skill_points_available())
 	return true
@@ -1618,13 +1635,34 @@ func add_xp(amount: int) -> bool:
 
 ## Genuine XP earnings enter here. The returned amount is the exact final award
 ## that presentation must distribute across orbs. Raw grants use add_xp().
-func award_xp(base_amount: int, origin: StringName = &"manual") -> int:
+func award_xp(base_amount: int, origin: StringName = &"") -> int:
 	if base_amount <= 0:
 		return 0
-	var multiplier := _xp_pacing().global_xp_multiplier * (1.0 \
+	var awarded := maxi(1, int(round(float(base_amount) * _xp_award_multiplier())))
+	return awarded if _add_xp_from_origin(awarded, origin) else 0
+
+
+## Low-rate automation accrues fractional *final* XP here so the global/skill
+## multiplier is applied before carry. Rounding each isolated base point would
+## otherwise turn a 1.55x multiplier into 2x over a long opening-yard session.
+## The caller owns the ephemeral carry and receives its next value with the exact
+## integer amount banked in this transaction.
+func award_fractional_xp(base_amount: float, carried_final_xp: float,
+		origin: StringName) -> Dictionary:
+	var carry := clampf(carried_final_xp, 0.0, 0.999999)
+	if not is_finite(base_amount) or base_amount <= 0.0:
+		return {"awarded": 0, "carry": carry}
+	var raw_final := base_amount * _xp_award_multiplier() + carry
+	var awarded := maxi(0, int(floor(raw_final + 0.000001)))
+	carry = clampf(raw_final - float(awarded), 0.0, 0.999999)
+	if awarded > 0 and not _add_xp_from_origin(awarded, origin):
+		awarded = 0
+	return {"awarded": awarded, "carry": carry}
+
+
+func _xp_award_multiplier() -> float:
+	return _xp_pacing().global_xp_multiplier * (1.0 \
 		+ SkillTree.total_modifier(GameplayModifierDef.Kind.GLOBAL_XP_GAIN))
-	var awarded := maxi(1, int(round(float(base_amount) * multiplier)))
-	return awarded if add_xp(awarded) else 0
 
 
 func consume_masterwork() -> bool:
@@ -1638,7 +1676,7 @@ func get_masterwork_pending() -> int:
 	return _masterwork_pending
 
 
-func _grant_level_reward(level: int) -> void:
+func _grant_level_reward(level: int, prepare_masterwork: bool = false) -> void:
 	if level <= _last_rewarded_level:
 		return
 	_last_rewarded_level = level
@@ -1655,8 +1693,11 @@ func _grant_level_reward(level: int) -> void:
 		var awarded := award_cash(cash_reward, &"level")
 		receipt = LevelRewardReceipt.new(level,
 			LevelRewardReceipt.RewardType.CASH, awarded)
-	if SkillTree.owns_modifier(GameplayModifierDef.Kind.MASTERWORK):
-		_masterwork_pending += 1
+	if prepare_masterwork and SkillTree.owns_modifier(GameplayModifierDef.Kind.MASTERWORK):
+		# Masterwork is deliberately binary. A routine manual receipt may cross
+		# several levels, but it still prepares only the next manual log; the
+		# Masterwork payout itself and all automation/jackpot sources are ineligible.
+		_masterwork_pending = 1
 	level_reward_granted.emit(receipt)
 
 
@@ -2123,7 +2164,9 @@ func apply_save_dict(data: Dictionary) -> void:
 		int(data.get("skill_points_earned_total", maxi(0, get_level() - 1))))
 	_last_rewarded_level = clampi(int(data.get("last_rewarded_level", get_level())),
 		1, get_level())
-	_masterwork_pending = maxi(0, int(data.get("masterwork_pending", 0)))
+	# Older saves could bank an unbounded queue from multi-level automation or
+	# jackpots. The reward is now a single next-log state, so retain at most one.
+	_masterwork_pending = clampi(int(data.get("masterwork_pending", 0)), 0, 1)
 
 	_owned_species = {}
 	var owned: Variant = data.get("owned_species")

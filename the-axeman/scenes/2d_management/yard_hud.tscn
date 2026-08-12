@@ -151,50 +151,6 @@ theme_override_font_sizes/font_size = 13
 text = "Trees remaining · 3,040,000,000,000"
 metadata/pacing_role = "always_visible_earth_depletion_counter"
 
-[node name="CampaignGoal" type="PanelContainer" parent="."]
-layout_mode = 1
-offset_left = 16.0
-offset_top = 36.0
-offset_right = 430.0
-offset_bottom = 168.0
-theme_override_styles/panel = SubResource("StyleBox_contract_board")
-mouse_filter = 2
-metadata/pacing_role = "persistent_campaign_objective"
-
-[node name="Column" type="VBoxContainer" parent="CampaignGoal"]
-layout_mode = 2
-theme_override_constants/separation = 3
-
-[node name="Phase" type="Label" parent="CampaignGoal/Column"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.88, 0.64, 1)
-theme_override_font_sizes/font_size = 11
-text = "COZY CLEARING"
-
-[node name="Title" type="Label" parent="CampaignGoal/Column"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 17
-text = "Learn the yard"
-
-[node name="Detail" type="Label" parent="CampaignGoal/Column"]
-layout_mode = 2
-autowrap_mode = 3
-theme_override_font_sizes/font_size = 11
-text = "Chop, process, sell, and improve the block."
-
-[node name="Progress" type="ProgressBar" parent="CampaignGoal/Column"]
-custom_minimum_size = Vector2(0, 10)
-layout_mode = 2
-max_value = 1.0
-show_percentage = false
-
-[node name="ProgressText" type="Label" parent="CampaignGoal/Column"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.78, 0.72, 0.9)
-theme_override_font_sizes/font_size = 10
-text = "0 / 1"
-horizontal_alignment = 2
-
 [node name="FeatureIntroduction" type="Label" parent="."]
 visible = false
 layout_mode = 1
@@ -698,10 +654,6 @@ vertical_alignment = 1
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Shape your work at the block. Skill points come from Axeman levels; yard equipment remains separate."
-
-[node name="BranchTabs" type="TabBar" parent="SkillPanel/Column"]
-layout_mode = 2
-tab_alignment = 1
 
 [node name="SkillBody" type="HBoxContainer" parent="SkillPanel/Column"]
 layout_mode = 2

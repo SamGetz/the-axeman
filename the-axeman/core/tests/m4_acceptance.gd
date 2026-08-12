@@ -45,6 +45,7 @@ func _ready() -> void:
 	await _test_5_budget_cap_and_timeout()
 	await _test_6_species_table_integrity()
 	await _test_7_axe_viewmodel_drives_the_strike()
+	await _test_8_failed_strike_schedules_thud()
 	print("=== M4 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
 		print("=== ALL M4 ACCEPTANCE CRITERIA PASS ===")
@@ -148,10 +149,17 @@ func _test_3_chopdown_stocks_inventory() -> void:
 	var mg := await _make_minigame(0)
 	var before := InventoryManager.get_count(item)
 	_gathered.clear()
+	AudioDirector.begin_session()
+	var impacts_before := AudioDirector.debug_started_event_count(&"piece_land")
 	var firewood := await _drive_to_completion(mg)
 	_check(firewood > 0, "chop-down produced firewood (%d pieces)" % firewood)
 
 	await _wait(2.2)   # settle-timeout (1.5s) + margin, so _begin_stacking runs and collects
+	var ground_impacts := AudioDirector.debug_started_event_count(&"piece_land") - impacts_before
+	AudioDirector.end_session()
+	_check(ground_impacts == firewood,
+		"every finished firewood piece schedules one ground-impact cue (%d/%d)"
+			% [ground_impacts, firewood])
 	var after := InventoryManager.get_count(item)
 	_check(after - before == firewood,
 		"each finished piece deposits 1 %s (inventory +%d for %d pieces)" % [item, after - before, firewood])
@@ -408,3 +416,16 @@ func _test_7_axe_viewmodel_drives_the_strike() -> void:
 		"a swing with NO contact key still resolves on the failsafe (%d -> %d)"
 			% [before2, mg2.piece_count()])
 	await _drop(mg2)
+
+
+func _test_8_failed_strike_schedules_thud() -> void:
+	var mg := await _make_minigame(0)
+	mg.debug_split_roll = 0
+	AudioDirector.begin_session()
+	var before := AudioDirector.debug_started_event_count(&"wood_thud")
+	var split: bool = mg.debug_swing_world(Plane(Vector3.RIGHT, 0.0))
+	var thuds := AudioDirector.debug_started_event_count(&"wood_thud") - before
+	AudioDirector.end_session()
+	_check(not split and thuds == 1,
+		"one failed strike schedules exactly one wood thud")
+	await _drop(mg)
