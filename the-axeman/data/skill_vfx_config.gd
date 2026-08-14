@@ -65,6 +65,9 @@ extends Resource
 @export var level_particle_speed_max := 1.85
 @export var level_ray_height := 0.72
 @export var level_ray_width := 0.08
+@export_range(1, 24, 1) var level_pine_count := 10
+@export var level_pine_height := 0.16
+@export var level_pine_width := 0.11
 @export var level_crown_radius := 0.46
 @export_range(0.0, 1.0, 0.01) var level_ray_alpha := 0.40
 @export_range(0.0, 1.0, 0.01) var level_core_alpha := 0.50
@@ -90,7 +93,7 @@ func validate() -> PackedStringArray:
 			speed_streak_count, speed_mote_count, speed_glow_particle_count,
 			mastery_green_mote_count, mastery_gold_mote_count,
 			mastery_glow_particle_count, level_ray_count, level_spark_count,
-			level_ember_count, level_glow_particle_count]:
+			level_ember_count, level_glow_particle_count, level_pine_count]:
 		if count <= 0:
 			errors.append("skill VFX particle counts must be positive")
 			break
@@ -100,6 +103,7 @@ func validate() -> PackedStringArray:
 			or strength_cloud_radius <= 0.0 or speed_emission_radius <= 0.0 \
 			or mastery_emission_radius <= 0.0 or level_cloud_radius <= 0.0 \
 			or level_ray_height <= 0.0 or level_ray_width <= 0.0 \
+			or level_pine_height <= 0.0 or level_pine_width <= 0.0 \
 			or level_crown_radius <= 0.0 or level_light_range_multiplier <= 0.0:
 		errors.append("skill VFX dimensions must be positive")
 	if generic_speed_min > generic_speed_max \

@@ -376,10 +376,25 @@ func _absorb_point() -> Vector3:
 		+ cam.basis.x * _absorb_off.x + cam.basis.y * _absorb_off.y
 
 
-func _finish_collection() -> void:
+## Resolve a cosmetic receipt at a save boundary. XP is already authoritative;
+## this only delivers the orb's pending presentation share to the HUD without
+## waiting for another rendered frame.
+func settle_immediately(play_audio := false) -> void:
+	if is_processing():
+		_finish_collection(play_audio)
+
+
+## Return a stale receipt to the pool without presenting it. Run identity
+## changes use this before the HUD resets to the new attempt's authoritative XP.
+func cancel_collection() -> void:
+	_collection_reported = true
+	_finish_collection(false)
+
+
+func _finish_collection(play_audio := true) -> void:
 	if not _collection_reported:
 		_collection_reported = true
-		if AudioDirector != null:
+		if play_audio and AudioDirector != null:
 			AudioDirector.play_reward(&"xp", _tier, &"collect")
 		collected.emit(_xp_amount, _tier)
 	visible = false

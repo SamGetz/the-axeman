@@ -17,6 +17,12 @@ func _ready() -> void:
 		var origin := Vector3(0.0, 0.66, 0.0)
 		pool.begin_burst(origin, 1, 0.025, 0.4, 1.15, 0.025)
 		pool.queue_payout(int(sample[1]))
+		# Park the resolved art at one unobstructed review point. Motion/collision
+		# has its own acceptance coverage; this tool must show every tier rather
+		# than occasionally photographing a token behind the log.
+		pool._phases[0] = CoinRewardPool.Phase.REST
+		pool._support_y[0] = 0.46
+		pool._coins[0].global_position = Vector3(0.42, 0.62, 0.0)
 		var started := Time.get_ticks_msec()
 		while Time.get_ticks_msec() - started < 280:
 			await get_tree().process_frame

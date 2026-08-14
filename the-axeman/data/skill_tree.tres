@@ -123,34 +123,12 @@ operation = 2
 magnitude = 1.0
 tuning_status = "FINAL — approved skill-tree balance"
 
-[sub_resource type="Resource" id="Mod_masterwork"]
+[sub_resource type="Resource" id="Mod_delivery_tier"]
 script = ExtResource("3_mod")
-id = &"skill_masterwork"
-kind = 20
-operation = 2
+id = &"skill_delivery_tier_unlock"
+kind = 24
 magnitude = 1.0
-tuning_status = "FINAL — approved skill-tree balance"
-
-[sub_resource type="Resource" id="Mod_alien"]
-script = ExtResource("3_mod")
-id = &"skill_alien_handling_step"
-kind = 21
-magnitude = 0.02
-tuning_status = "FINAL — approved skill-tree balance"
-
-[sub_resource type="Resource" id="Mod_contribution"]
-script = ExtResource("3_mod")
-id = &"skill_contribution_step"
-kind = 22
-magnitude = 0.03
-tuning_status = "FINAL — approved skill-tree balance"
-
-[sub_resource type="Resource" id="Mod_logistics"]
-script = ExtResource("3_mod")
-id = &"skill_frontier_logistics_step"
-kind = 23
-magnitude = 0.10
-tuning_status = "FINAL — approved skill-tree balance"
+tuning_status = "PLACEHOLDER — delivery tier unlock pacing requires survival playtest"
 
 ; Strength -----------------------------------------------------------------
 [sub_resource type="Resource" id="S01"]
@@ -343,13 +321,14 @@ effects = Array[ExtResource("3_mod")]([SubResource("Mod_recovery")])
 [sub_resource type="Resource" id="Q06"]
 script = ExtResource("2_node")
 id = &"fast_delivery"
-display_name = "Fast Delivery"
-description = "Cuts another 2% from the wait for pieces to settle and the next log to arrive."
+display_name = "Delivery Control"
+description = "Each rank unlocks one faster delivery setting you may select while paused."
 branch_id = &"speed"
 node_type = 2
 presentation_position = Vector2i(3, 3)
 requires = [&"efficient_motion"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_turnaround")])
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_delivery_tier")])
+max_level = 3
 
 [sub_resource type="Resource" id="Q07"]
 script = ExtResource("2_node")
@@ -508,7 +487,7 @@ modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_grain")])
 [sub_resource type="Resource" id="M09"]
 script = ExtResource("2_node")
 id = &"company_insight"
-display_name = "Company Insight"
+display_name = "Yard Insight"
 description = "Earn 1% more XP whenever you gain XP and 1% more cash whenever you are paid."
 branch_id = &"mastery"
 node_type = 2
@@ -542,109 +521,13 @@ effects = Array[ExtResource("3_mod")]([SubResource("Mod_eureka")])
 script = ExtResource("2_node")
 id = &"master_axeman"
 display_name = "Master Axeman"
-description = "Earn 1% more XP and cash. Level up from a hand-cut log and your next hand-cut log gives 50% more XP plus the value of 2 extra pieces. This bonus cannot stack."
+description = "Earn 1% more XP and cash from every hand-cut log."
 branch_id = &"mastery"
 node_type = 3
 presentation_position = Vector2i(2, 8)
 requires = [&"eureka"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_masterwork"), SubResource("Mod_xp"), SubResource("Mod_cash")])
-
-; Frontier -----------------------------------------------------------------
-[sub_resource type="Resource" id="F01"]
-script = ExtResource("2_node")
-id = &"specimen_handling"
-display_name = "Specimen Handling"
-description = "Adds 2% to your chance of splitting alien wood."
-branch_id = &"frontier"
-presentation_position = Vector2i(2, 0)
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
-
-[sub_resource type="Resource" id="F02"]
-script = ExtResource("2_node")
-id = &"field_conditioning"
-display_name = "Field Conditioning"
-description = "Adds 2% to your chance of splitting alien wood."
-branch_id = &"frontier"
-presentation_position = Vector2i(1, 1)
-requires = [&"specimen_handling"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
-
-[sub_resource type="Resource" id="F03"]
-script = ExtResource("2_node")
-id = &"expedition_preparation"
-display_name = "Expedition Preparation"
-description = "Timber contributions count for 3% more launch progress."
-branch_id = &"frontier"
-presentation_position = Vector2i(3, 1)
-requires = [&"specimen_handling"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_contribution")])
-
-[sub_resource type="Resource" id="F04"]
-script = ExtResource("2_node")
-id = &"alien_reliability"
-display_name = "Alien Reliability"
-description = "Adds 2% to your chance of splitting alien wood."
-branch_id = &"frontier"
-node_type = 2
-presentation_position = Vector2i(1, 2)
-requires = [&"field_conditioning"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
-
-[sub_resource type="Resource" id="F05"]
-script = ExtResource("2_node")
-id = &"efficient_manifest"
-display_name = "Efficient Manifest"
-description = "Timber contributions count for 3% more launch progress."
-branch_id = &"frontier"
-node_type = 2
-presentation_position = Vector2i(3, 2)
-requires = [&"expedition_preparation"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_contribution")])
-
-[sub_resource type="Resource" id="F06"]
-script = ExtResource("2_node")
-id = &"alien_adaptation"
-display_name = "Alien Adaptation"
-description = "Adds 2% to your chance of splitting alien wood."
-branch_id = &"frontier"
-node_type = 2
-presentation_position = Vector2i(2, 3)
-requires = [&"alien_reliability", &"efficient_manifest"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
-
-[sub_resource type="Resource" id="F07"]
-script = ExtResource("2_node")
-id = &"frontier_logistics"
-display_name = "Frontier Logistics"
-description = "Cargo fleets and alien orbital cutting lines cost 10% less cash."
-branch_id = &"frontier"
-node_type = 2
-presentation_position = Vector2i(2, 4)
-requires = [&"alien_adaptation"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_logistics")])
-
-[sub_resource type="Resource" id="F08"]
-script = ExtResource("2_node")
-id = &"first_contact_expert"
-display_name = "First-Contact Expert"
-description = "Adds 2% alien-wood split chance."
-branch_id = &"frontier"
-node_type = 3
-presentation_position = Vector2i(2, 5)
-requires = [&"frontier_logistics"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien")])
-
-[sub_resource type="Resource" id="F09"]
-script = ExtResource("2_node")
-id = &"frontier_master"
-display_name = "Frontier Master"
-description = "Adds 2% alien-wood split chance, plus 1% more XP and 1% more cash."
-branch_id = &"frontier"
-node_type = 3
-presentation_position = Vector2i(2, 6)
-requires = [&"first_contact_expert"]
-effects = Array[ExtResource("3_mod")]([SubResource("Mod_alien"), SubResource("Mod_xp"), SubResource("Mod_cash")])
+effects = Array[ExtResource("3_mod")]([SubResource("Mod_xp"), SubResource("Mod_cash")])
 
 [resource]
 script = ExtResource("1_tree")
-nodes = Array[ExtResource("2_node")]([SubResource("S01"), SubResource("S02"), SubResource("S03"), SubResource("S04"), SubResource("S05"), SubResource("S06"), SubResource("S07"), SubResource("S08"), SubResource("S09"), SubResource("S10"), SubResource("S11"), SubResource("S12"), SubResource("Q01"), SubResource("Q02"), SubResource("Q03"), SubResource("Q04"), SubResource("Q05"), SubResource("Q06"), SubResource("Q07"), SubResource("Q08"), SubResource("Q09"), SubResource("Q10"), SubResource("Q11"), SubResource("Q12"), SubResource("M01"), SubResource("M02"), SubResource("M03"), SubResource("M04"), SubResource("M05"), SubResource("M06"), SubResource("M07"), SubResource("M08"), SubResource("M09"), SubResource("M10"), SubResource("M11"), SubResource("M12"), SubResource("F01"), SubResource("F02"), SubResource("F03"), SubResource("F04"), SubResource("F05"), SubResource("F06"), SubResource("F07"), SubResource("F08"), SubResource("F09")])
+nodes = Array[ExtResource("2_node")]([SubResource("S01"), SubResource("S02"), SubResource("S03"), SubResource("S04"), SubResource("S05"), SubResource("S06"), SubResource("S07"), SubResource("S08"), SubResource("S09"), SubResource("S10"), SubResource("S11"), SubResource("S12"), SubResource("Q01"), SubResource("Q02"), SubResource("Q03"), SubResource("Q04"), SubResource("Q05"), SubResource("Q06"), SubResource("Q07"), SubResource("Q08"), SubResource("Q09"), SubResource("Q10"), SubResource("Q11"), SubResource("Q12"), SubResource("M01"), SubResource("M02"), SubResource("M03"), SubResource("M04"), SubResource("M05"), SubResource("M06"), SubResource("M07"), SubResource("M08"), SubResource("M09"), SubResource("M10"), SubResource("M11"), SubResource("M12")])

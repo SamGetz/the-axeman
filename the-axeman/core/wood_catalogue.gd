@@ -1,38 +1,18 @@
 class_name WoodCatalogue
 extends RefCounted
-## Chopping-only union. EarthCampaign deliberately keeps using SpeciesTable so
-## its catalogue remains exactly the authored 25 terrestrial species.
-
+## Survival-era catalogue: the 25 terrestrial species only.
 
 static func all() -> Array[SpeciesDef]:
-	var rows: Array[SpeciesDef] = SpeciesTable.all().duplicate()
-	for wood_trait: AlienWoodTraitDef in AlienCampaign.traits():
-		rows.append(wood_trait.runtime_species())
-	return rows
-
+	return SpeciesTable.all()
 
 static func count() -> int:
-	return SpeciesTable.count() + AlienCampaign.traits().size()
-
+	return SpeciesTable.count()
 
 static func at(index: int) -> SpeciesDef:
-	var rows := all()
-	return null if index < 0 or index >= rows.size() else rows[index]
-
+	return SpeciesTable.at(index)
 
 static func by_id(id: StringName) -> SpeciesDef:
-	var earth := SpeciesTable.by_id(id)
-	if earth != null:
-		return earth
-	var wood_trait := AlienCampaign.trait_by_id(id)
-	return null if wood_trait == null else wood_trait.runtime_species()
-
+	return SpeciesTable.by_id(id)
 
 static func index_of(id: StringName) -> int:
-	var earth_index := SpeciesTable.index_of(id)
-	if earth_index >= 0:
-		return earth_index
-	for index in range(AlienCampaign.traits().size()):
-		if AlienCampaign.traits()[index].id == id:
-			return SpeciesTable.count() + index
-	return -1
+	return SpeciesTable.index_of(id)

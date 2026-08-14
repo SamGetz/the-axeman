@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RunOfferTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/run_offer_tuning.gd" id="1_offer"]
+
+[resource]
+script = ExtResource("1_offer")
+common_weight = 1.0
+rare_weight = 0.35
+epic_weight = 0.12
+payday_base_cash = 10
+payday_cash_per_level = 2
+payday_cash_per_pick = 5
+tuning_status = "PLACEHOLDER — offer rarity weights and Payday cash require measured tuning approval"

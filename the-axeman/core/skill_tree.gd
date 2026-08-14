@@ -6,10 +6,9 @@ extends RefCounted
 ## is immutable data and the player's spend lives in GameState, so it owns no
 ## state, and a 5th autoload would need an amendment the way GameFeel did.
 ##
-## THE SKILL TREE: what a level buys. Skill points come from LEVELLING, cash buys
-## nothing here — that split is the whole point of the 2026-08-02 direction
-## ("the currency we generate goes to things like new axes, auto cutters,
-## unlocking new logs etc and the skill tree goes towards player enhancements").
+## Retired v18 skill catalogue. The definitions remain available only to inspect
+## legacy identities during the gated migration; ownership, effects and buying
+## are deliberately neutral in live play.
 ##
 ## DIRECTIVE 6 IS NOT BYPASSED. This file writes nothing: `buy()` decides whether
 ## a purchase is legal and GameState performs it. SkillTree answers questions;
@@ -47,12 +46,7 @@ static func is_branch_revealed(branch_id: StringName) -> bool:
 	var branch := table.by_id(branch_id) if table != null else null
 	if branch == null:
 		return false
-	match branch.reveal_gate:
-		SkillBranchDef.RevealGate.ALWAYS:
-			return true
-		SkillBranchDef.RevealGate.EARTH_MASTER:
-			return GameState.is_earth_master()
-	return false
+	return branch.reveal_gate == SkillBranchDef.RevealGate.ALWAYS
 
 
 static func get_revealed_nodes() -> Array[SkillNodeDef]:
@@ -67,7 +61,7 @@ static func is_branch_presented(branch_id: StringName) -> bool:
 	if not is_branch_revealed(branch_id):
 		return false
 	match branch_id:
-		&"strength", &"speed", &"mastery", &"frontier":
+		&"strength", &"speed", &"mastery":
 			return true
 	return false
 
@@ -90,27 +84,19 @@ static func has_unfilled_revealed_nodes() -> bool:
 
 
 static func frontier_purchase_count() -> int:
-	var total := 0
-	for node: SkillNodeDef in get_nodes():
-		if node != null and node.branch_id == &"frontier":
-			total += node.max_level
-	return total
+	return 0
 
 
 static func core_purchase_count() -> int:
 	var total := 0
 	for node: SkillNodeDef in get_nodes():
-		if node != null and node.branch_id != &"frontier":
+		if node != null:
 			total += node.max_level
 	return total
 
 
 static func frontier_purchases_owned() -> int:
-	var total := 0
-	for node: SkillNodeDef in get_nodes():
-		if node != null and node.branch_id == &"frontier":
-			total += get_level(node.id)
-	return total
+	return 0
 
 
 ## Levels bought of `id`. 0 = not taken. Unlike the cash shop, this is NOT stored
@@ -118,7 +104,7 @@ static func frontier_purchases_owned() -> int:
 ## the yard going up a level, and a skill is a property of the PLAYER. GameState
 ## keeps it in its own dictionary with its own local signal, so A7 is untouched.
 static func get_level(id: StringName) -> int:
-	return GameState.get_skill_level(id)
+	return 0
 
 
 ## --------------------------------------------------------------- eligibility
@@ -160,13 +146,7 @@ static func get_next_cost(id: StringName) -> int:
 
 
 static func can_buy(id: StringName) -> bool:
-	var def := get_node_def(id)
-	if def == null or not is_branch_revealed(def.branch_id) \
-			or def.is_maxed(get_level(id)):
-		return false
-	if not prerequisites_met(id):
-		return false
-	return GameState.get_skill_points_available() >= def.cost
+	return false
 
 
 ## ------------------------------------------------------------------- effects
@@ -175,41 +155,20 @@ static func can_buy(id: StringName) -> bool:
 ## CALLER's business, because only the caller knows what the number means: 5% off
 ## a swing timer ten times over is not the same as 50% off.
 static func total_effect(kind: SkillNodeDef.Effect) -> float:
-	var total := 0.0
-	for n: SkillNodeDef in get_nodes():
-		if n != null and n.effect == kind:
-			total += float(get_level(n.id)) * n.effect_step
-	return total
+	return 0.0
 
 
 ## Levels owned across every node of one effect kind. The compounding callers need
 ## this rather than the summed magnitude — see chopping_minigame's swing cooldown.
 static func total_levels(kind: SkillNodeDef.Effect) -> int:
-	var total := 0
-	for n: SkillNodeDef in get_nodes():
-		if n != null and n.effect == kind:
-			total += get_level(n.id)
-	return total
+	return 0
 
 
 ## Summed typed contribution across every owned rank. ENABLE effects return a
 ## positive value when present; duration/probability composition stays with the
 ## gameplay caller, matching the existing `total_effect()` contract.
 static func total_modifier(kind: GameplayModifierDef.Kind) -> float:
-	var total := 0.0
-	for node: SkillNodeDef in get_nodes():
-		if node == null:
-			continue
-		var level := get_level(node.id)
-		if level <= 0:
-			continue
-		for modifier: GameplayModifierDef in node.effects:
-			if modifier != null and modifier.kind == kind:
-				total += float(level) * modifier.magnitude
-		for modifier: GameplayModifierDef in node.modifiers:
-			if modifier != null and modifier.kind == kind:
-				total += float(level) * modifier.magnitude
-	return total
+	return 0.0
 
 
 ## Which branch a proc's home skill node belongs to — a node names its proc,
@@ -228,15 +187,6 @@ static func branch_for_proc(proc_id: StringName) -> SkillBranchDef:
 ## but it cannot grant Technique's grain-reading capability by itself.
 static func owns_modifier(kind: GameplayModifierDef.Kind,
 		operation: GameplayModifierDef.Operation = GameplayModifierDef.Operation.ENABLE) -> bool:
-	for n: SkillNodeDef in get_nodes():
-		if n == null or get_level(n.id) <= 0:
-			continue
-		for modifier: GameplayModifierDef in n.effects:
-			if modifier != null and modifier.kind == kind and modifier.operation == operation:
-				return true
-		for modifier: GameplayModifierDef in n.modifiers:
-			if modifier != null and modifier.kind == kind and modifier.operation == operation:
-				return true
 	return false
 
 
@@ -244,21 +194,7 @@ static func owns_modifier(kind: GameplayModifierDef.Kind,
 ## Buys one level. Returns the NEW level, or -1 if nothing happened — in which
 ## case nothing happened at all: no points spent, no level moved, no signal.
 static func buy(id: StringName) -> int:
-	var def := get_node_def(id)
-	if def == null:
-		push_error("SkillTree: no skill named '%s' — purchase refused." % id)
-		return -1
-	if not is_branch_revealed(def.branch_id):
-		return -1
-	var level := get_level(id)
-	if def.is_maxed(level):
-		return -1
-	if not prerequisites_met(id):
-		return -1
-	if not GameState.can_afford_skill_points(def.cost):
-		return -1
-	GameState.set_skill_level(id, level + 1)
-	return level + 1
+	return -1
 
 
 ## ---------------------------------------------------------------- internals

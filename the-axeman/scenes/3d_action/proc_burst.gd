@@ -1,15 +1,15 @@
 class_name ProcBurst
 extends Node3D
-## Particle-led proc announcement for the Compatibility renderer.
-## Strength explodes as hot physical embers, Speed fires a directional spark
-## spray, and Mastery rises as mixed green/gold motes. Pure presentation: the
-## proc outcome is authoritative before this node exists.
+## Painterly proc announcement for the Compatibility renderer. Every branch uses
+## the approved impact-daub language while retaining its authored colour and
+## motion: Strength bursts, Speed sprays, and Mastery rises. Pure presentation:
+## the proc outcome is authoritative before this node exists.
 
 enum Style { GENERIC, STRENGTH, SPEED, MASTERY }
 
 const _CONFIG = preload("res://data/skill_vfx_config.tres")
-const _PARTICLE_SHADER = preload("res://assets/shaders/skill_vfx_particle.gdshader")
-const _OVERLAY_SHADER = preload("res://assets/shaders/skill_vfx_overlay_glow.gdshader")
+const _STYLE = preload("res://data/painterly_vfx_style_placeholder.tres")
+const _PARTICLE_SHADER = preload("res://assets/shaders/painterly_vfx_daub.gdshader")
 const _MAX_REAL_DELTA := 0.05
 
 static var _material_cache: Dictionary = {}
@@ -21,7 +21,6 @@ var _started_ms := 0
 var _core: MeshInstance3D
 var _emitters: Array[GPUParticles3D] = []
 var _light: OmniLight3D
-var _overlay_material: ShaderMaterial
 
 
 static func spawn(parent: Node, world_pos: Vector3, color: Color,
@@ -69,7 +68,6 @@ func _build(color: Color, style: int) -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_core(color)
 	_build_light(color)
-	_build_overlay(color)
 	match style:
 		Style.STRENGTH: _build_strength(color)
 		Style.SPEED: _build_speed(color)
@@ -107,27 +105,6 @@ func _build_light(color: Color) -> void:
 	_light.shadow_enabled = false
 	_light.position.y = 0.08
 	add_child(_light)
-
-
-func _build_overlay(color: Color) -> void:
-	var layer := CanvasLayer.new()
-	layer.name = "ProcScreenGlow"
-	layer.layer = 24
-	add_child(layer)
-	var rect := ColorRect.new()
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.position = Vector2.ZERO
-	rect.size = get_viewport().get_visible_rect().size
-	rect.color = Color.WHITE
-	_overlay_material = ShaderMaterial.new()
-	_overlay_material.shader = _OVERLAY_SHADER
-	_overlay_material.set_shader_parameter("tint", color)
-	_overlay_material.set_shader_parameter("intensity", 0.0)
-	_overlay_material.set_shader_parameter("center_weight",
-		0.22 if _style == Style.STRENGTH else (0.36 if _style == Style.SPEED else 0.64))
-	_overlay_material.set_shader_parameter("mask_mode", 0)
-	rect.material = _overlay_material
-	layer.add_child(rect)
 
 
 func _build_strength(color: Color) -> void:
@@ -257,10 +234,6 @@ func _update_shared(k: float) -> void:
 	elif _style == Style.MASTERY:
 		energy = _CONFIG.mastery_light_energy
 	_light.light_energy = energy * core_pulse
-	var overlay_pulse := sin(PI * clampf(k / 0.60, 0.0, 1.0)) * (1.0 - k)
-	var multiplier := 1.0 if _style == Style.STRENGTH else (0.70 if _style == Style.SPEED else 0.58)
-	_overlay_material.set_shader_parameter("intensity",
-		_CONFIG.proc_overlay_strength * multiplier * overlay_pulse)
 
 
 static func _sprite_material(color: Color, shape: int,
@@ -270,15 +243,18 @@ static func _sprite_material(color: Color, shape: int,
 		return _material_cache[key]
 	var material := ShaderMaterial.new()
 	material.shader = _PARTICLE_SHADER
-	material.set_shader_parameter("edge_color", Color(
-		color.r * 0.34, color.g * 0.22, color.b * 0.16, 0.0))
-	material.set_shader_parameter("core_color", color)
+	material.set_shader_parameter("dark_color", Color(
+		color.r * 0.32, color.g * 0.22, color.b * 0.18, 0.88))
+	material.set_shader_parameter("mid_color", Color(color.r, color.g, color.b,
+		0.88 if smooth else maxf(color.a, 0.92)))
+	var light := color.lerp(Color.WHITE, 0.52)
+	light.a = 0.94 if smooth else 0.98
+	material.set_shader_parameter("light_color", light)
 	material.set_shader_parameter("shape_mode", shape)
-	material.set_shader_parameter("softness",
-		_CONFIG.smooth_glow_softness if smooth else (0.40 if shape == 2 else 0.56))
-	material.set_shader_parameter("dither_strength",
-		0.0 if smooth else _CONFIG.particle_dither_strength)
-	material.set_shader_parameter("dither_pixel_size", _CONFIG.particle_dither_pixel_size)
+	material.set_shader_parameter("dry_amount", _STYLE.soft_dry_amount if smooth \
+		else (_STYLE.daub_dry_amount if shape == 0 else _STYLE.slash_dry_amount))
+	material.set_shader_parameter("opacity", _STYLE.soft_opacity if smooth else 1.0)
+	material.set_shader_parameter("seed", float(shape) * 11.0 + (3.0 if smooth else 0.0))
 	_material_cache[key] = material
 	return material
 

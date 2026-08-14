@@ -1,6 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="160" viewBox="0 0 256 160">
-  <rect x="14" y="22" width="228" height="118" rx="15" fill="#7447a8" stroke="#2c1748" stroke-width="10"/>
-  <rect x="26" y="10" width="208" height="118" rx="13" fill="#a96cd0" stroke="#4f2870" stroke-width="7"/>
-  <rect x="100" y="6" width="56" height="132" rx="8" fill="#f0c84a" stroke="#725119" stroke-width="6"/>
-  <path d="M128 36c-20 9-28 26-23 46 17-2 30-13 34-32 5 10 6 20 1 32" fill="none" stroke="#4a3213" stroke-width="7" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="160" viewBox="0 0 256 160" shape-rendering="crispEdges">
+  <!-- Staggered paper edges make the bundle read as several notes without
+       relying on tiny linework. -->
+  <path d="M18 40h16V30h182v8h20v12h8v80h-10v10H34v-8H18z"
+        fill="#382a58" stroke="#241c3c" stroke-width="8" stroke-linejoin="miter"/>
+  <path d="M10 30h14V20h190v8h22v12h8v78h-10v10H28v-8H10z"
+        fill="#65478f" stroke="#392854" stroke-width="7" stroke-linejoin="miter"/>
+  <path d="M24 38h14V28h160v6h28v12h8v54h-10v10H34v-8H24z" fill="#9b64bc"/>
+  <path d="M34 40h72v12H58v10H34z" fill="#c28bd0"/>
+  <path d="M160 40h64v12h10v20h-12V60h-62z" fill="#b979c8"/>
+  <path d="M34 88h50v12h96v10H44v-8H34z" fill="#754b9f"/>
+  <!-- Blocky ochre strap, darker on the low/right face. -->
+  <path d="M98 16h60v10h8v106h-8v12H98v-10h-8V28h8z"
+        fill="#8f5d24" stroke="#50371e" stroke-width="7" stroke-linejoin="miter"/>
+  <path d="M102 24h48v98h-8v12h-40z" fill="#e3b84a"/>
+  <path d="M102 24h48v18h-48z" fill="#f1d16a"/>
+  <path d="M102 104h48v18h-8v12h-40z" fill="#bd822f"/>
+  <path d="M132 56c-16 2-24 11-23 25 13 1 23-5 29-17 2 7 2 13-2 19"
+        fill="none" stroke="#51371d" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M116 81l19-17" fill="none" stroke="#51371d" stroke-width="5" stroke-linecap="square"/>
 </svg>

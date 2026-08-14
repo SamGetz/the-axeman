@@ -10,10 +10,14 @@ func _ready() -> void:
 	var menu: StartupMenu = load(
 		"res://scenes/2d_management/startup_menu.tscn").instantiate()
 	add_child(menu)
-	menu.configure(true)
+	menu.configure(true, true)
 	for _i in range(4):
 		await get_tree().process_frame
-	_save("_menu")
+	_save("_suspended_attempt")
+	menu.configure(true, false)
+	for _i in range(2):
+		await get_tree().process_frame
+	_save("_profile_menu")
 	var new_button: Button = menu.get_node(
 		"Center/Panel/Margin/Column/NewGameButton")
 	new_button.pressed.emit()

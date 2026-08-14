@@ -3,7 +3,7 @@
 [ext_resource type="Shader" path="res://assets/shaders/painterly_color_grade.gdshader" id="1_shader"]
 
 [resource]
-resource_name = "PLACEHOLDER grade + SELECTED broad brush edges (Sam 2026-08-12)"
+resource_name = "PLACEHOLDER - smooth painterly storybook grade"
 shader = ExtResource("1_shader")
 shader_parameter/wash_strength = 0.34
 shader_parameter/wash_radius = 1.10
@@ -11,10 +11,3 @@ shader_parameter/edge_preservation = 0.14
 shader_parameter/saturation = 0.94
 shader_parameter/warmth = 0.26
 shader_parameter/vignette_strength = 0.10
-shader_parameter/brush_sample_radius = 2.1
-shader_parameter/brush_edge_threshold = 0.115
-shader_parameter/brush_edge_softness = 0.052
-shader_parameter/brush_coverage = 0.46
-shader_parameter/brush_darkening = 0.68
-shader_parameter/brush_strength = 0.88
-shader_parameter/brush_dash_length = 28.0

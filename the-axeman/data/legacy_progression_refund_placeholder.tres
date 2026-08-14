@@ -1,0 +1,168 @@
+[gd_resource type="Resource" script_class="LegacyProgressionRefundTable" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://data/legacy_progression_refund_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://data/legacy_capability_seed_def.gd" id="2_seed"]
+
+; Every conversion below is an explicit PLACEHOLDER for v19 migration review.
+; XP and recognized skill ranks are overlapping entitlement proofs; migration
+; takes the larger explicit conversion and never adds both together.
+
+[sub_resource type="Resource" id="Seed_hold"]
+script = ExtResource("2_seed")
+legacy_source_id = &"work_rhythm"
+target_meta_upgrade_id = &"hold_to_chop"
+tuning_status = "PLACEHOLDER — Work Rhythm to Hold-to-Chop migration requires approval"
+
+[sub_resource type="Resource" id="Seed_handoff"]
+script = ExtResource("2_seed")
+legacy_source_id = &"fast_handoff"
+target_meta_upgrade_id = &"continuous_handoff"
+tuning_status = "PLACEHOLDER — Fast Handoff to Continuous Handoff migration requires approval"
+
+[sub_resource type="Resource" id="Seed_unbroken"]
+script = ExtResource("2_seed")
+legacy_source_id = &"unbroken_rhythm"
+target_meta_upgrade_id = &"continuous_handoff"
+tuning_status = "PLACEHOLDER — Unbroken Rhythm to Continuous Handoff migration requires approval"
+
+[sub_resource type="Resource" id="Seed_delivery"]
+script = ExtResource("2_seed")
+legacy_source_id = &"fast_delivery"
+target_meta_upgrade_id = &"fall_frequency_control"
+copy_legacy_rank = true
+tuning_status = "PLACEHOLDER — Delivery Control rank migration requires approval"
+
+[resource]
+script = ExtResource("1_table")
+cumulative_upgrade_refunds = {
+&"balanced_axe": PackedInt64Array(50),
+&"reinforced_chopping_block": PackedInt64Array(50),
+&"supplier_ledger": PackedInt64Array(150),
+&"handcart": PackedInt64Array(150),
+&"coffee_thermos": PackedInt64Array(400),
+&"harvest_capacity": PackedInt64Array(250, 2750, 27750, 277750, 2777750, 27777750),
+&"tempered_woodsmans_axe": PackedInt64Array(100),
+&"forged_splitting_maul": PackedInt64Array(500),
+&"steel_cheek_axe": PackedInt64Array(2500),
+&"journeymans_bearded_axe": PackedInt64Array(12500),
+&"hardwood_pattern_axe": PackedInt64Array(75000),
+&"continental_mill_axe": PackedInt64Array(750000),
+&"earthmaster_axe": PackedInt64Array(75000000),
+&"iron_block_dogs": PackedInt64Array(150),
+&"log_cradle": PackedInt64Array(650),
+&"raised_split_stand": PackedInt64Array(3000),
+&"braced_yard_block": PackedInt64Array(15000),
+&"millhouse_chopping_block": PackedInt64Array(90000),
+&"continental_split_deck": PackedInt64Array(900000),
+&"earthmaster_ironwood_block": PackedInt64Array(90000000)
+}
+species_ownership_refunds = {
+&"quaking_aspen": 0,
+&"eastern_white_pine": 60,
+&"norway_spruce": 200,
+&"balsam_fir": 550,
+&"lodgepole_pine": 1400,
+&"white_spruce": 3200,
+&"black_spruce": 7000,
+&"scots_pine": 15000,
+&"western_hemlock": 31000,
+&"red_pine": 62000,
+&"douglas_fir": 120000,
+&"black_ash": 230000,
+&"paper_birch": 430000,
+&"pedunculate_oak": 790000,
+&"silver_birch": 1400000,
+&"yellow_birch": 2500000,
+&"northern_red_oak": 4400000,
+&"american_beech": 7600000,
+&"white_ash": 13000000,
+&"white_oak": 22000000,
+&"sugar_maple": 37000000,
+&"european_beech": 62000000,
+&"river_red_gum": 105000000,
+&"tasmanian_blue_gum": 175000000,
+&"lignum_vitae": 300000000
+}
+legacy_xp_per_home_cash_unit = 10
+legacy_skill_rank_contracts = {
+&"strong_arms": Vector2i(5, 1),
+&"deep_bite": Vector2i(5, 1),
+&"wedge_sense": Vector2i(5, 1),
+&"hardwood_training": Vector2i(5, 1),
+&"driving_force": Vector2i(1, 1),
+&"no_wasted_blow": Vector2i(1, 1),
+&"double_strike": Vector2i(1, 1),
+&"steady_continuation": Vector2i(1, 1),
+&"cleaving_judgment": Vector2i(1, 1),
+&"triple_chop": Vector2i(1, 1),
+&"earthshaker": Vector2i(1, 1),
+&"quad_chop": Vector2i(1, 1),
+&"quick_hands": Vector2i(5, 1),
+&"ready_stance": Vector2i(5, 1),
+&"fleet_footing": Vector2i(5, 1),
+&"efficient_motion": Vector2i(5, 1),
+&"fast_reset": Vector2i(1, 1),
+&"fast_delivery": Vector2i(3, 1),
+&"work_rhythm": Vector2i(1, 1),
+&"follow_up": Vector2i(1, 1),
+&"steady_rhythm": Vector2i(1, 1),
+&"fast_handoff": Vector2i(1, 1),
+&"flurry": Vector2i(1, 1),
+&"unbroken_rhythm": Vector2i(1, 1),
+&"lessons_learned": Vector2i(5, 1),
+&"studied_practice": Vector2i(5, 1),
+&"keen_appraisal": Vector2i(5, 1),
+&"balanced_growth": Vector2i(5, 1),
+&"broad_experience": Vector2i(1, 1),
+&"trusted_name": Vector2i(1, 1),
+&"quick_study": Vector2i(1, 1),
+&"grain_reader": Vector2i(1, 1),
+&"company_insight": Vector2i(1, 1),
+&"perfect_lesson": Vector2i(1, 1),
+&"eureka": Vector2i(1, 1),
+&"master_axeman": Vector2i(1, 1)
+}
+legacy_v1_skill_aliases = {
+&"keen_edge": &"ready_stance",
+&"woodsman": &"quick_study"
+}
+legacy_v1_skill_rank_contracts = {
+&"strong_arms": Vector2i(10, 1),
+&"quick_hands": Vector2i(10, 1),
+&"ready_stance": Vector2i(5, 2),
+&"quick_study": Vector2i(5, 3)
+}
+legacy_alien_destination_ids = PackedStringArray("kepler_grove", "tidal_moon", "ember_world")
+legacy_mastered_destination_state = 7
+legacy_alien_mastery_skill_points = 3
+legacy_lifetime_cash_upgrade_floors = {
+&"parallel_splitter_bay": 200000,
+&"recovery_saw_bench": 500000,
+&"commercial_grading_desk": 1000000,
+&"depot_power_drive": 8000000,
+&"rail_consist_expansion": 18000000,
+&"port_crane_array": 45000000,
+&"automated_species_router": 100000000,
+&"satellite_forest_survey": 500000000,
+&"autonomous_harvest_fleet": 2000000000,
+&"global_mill_network": 10000000000,
+&"continuity_reserve": 20000000000,
+&"planetary_dispatch_core": 50000000000,
+&"fleet_cargo_racks": 200000000000,
+&"orbital_saw_arrays": 1000000000000,
+&"alien_grading_laboratory": 4000000000000,
+&"navigation_relay": 20000000000000
+}
+legacy_timber_depot_lifetime_floor = 200000
+legacy_continental_lifetime_floor = 8000000
+legacy_planetary_lifetime_floor = 500000000
+legacy_first_alien_line_lifetime_floor = 200000000000
+legacy_second_alien_line_lifetime_floor = 4000000000000
+legacy_third_alien_line_lifetime_floor = 20000000000000
+legacy_total_earth_trees = 3040000000000
+legacy_manual_logs_per_earth_tree = 4
+legacy_complete_earth_finale_state = 3
+home_cash_per_legacy_skill_point = 100
+capability_seeds = Array[ExtResource("2_seed")]([SubResource("Seed_hold"), SubResource("Seed_handoff"), SubResource("Seed_unbroken"), SubResource("Seed_delivery")])
+exhausted_blueprint_home_cash = 250
+tuning_status = "PLACEHOLDER — all v19 legacy refund and blueprint conversion values require approval"

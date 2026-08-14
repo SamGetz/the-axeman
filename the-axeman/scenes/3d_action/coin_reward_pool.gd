@@ -463,12 +463,42 @@ func _screen_destination() -> Vector3:
 
 func _finish_pending() -> void:
 	var had_batch := _batch_remaining > 0
+	var cancelled := 0
 	for i in range(CAPACITY):
-		if _phases[i] != Phase.INACTIVE and _amounts[i] > 0:
-			AudioDirector.play_reward(&"cash", _tiers[i], &"collect")
+		if _phases[i] == Phase.INACTIVE:
+			continue
+		if _amounts[i] > 0:
 			coin_collected.emit(_amounts[i], _tiers[i])
+		else:
+			cancelled += 1
 		_deactivate(i)
 	_batch_remaining = 0
+	if cancelled > 0:
+		coins_cancelled.emit(cancelled)
+	if had_batch:
+		batch_finished.emit()
+
+
+## Canonical save boundary: deliver every paid visual receipt and explicitly
+## cancel any unpaid placeholder so the HUD's pending-token count cannot wedge.
+func settle_all() -> void:
+	_finish_pending()
+
+
+## Run identity boundary: discard old visuals without presenting their amounts.
+## Authoritative cash remains safe and the HUD repaints from the new run total.
+func cancel_all() -> void:
+	var active := 0
+	for i in range(CAPACITY):
+		if _phases[i] == Phase.INACTIVE:
+			continue
+		active += 1
+		_deactivate(i)
+	var had_batch := _batch_remaining > 0
+	_batch_remaining = 0
+	set_process(false)
+	if active > 0:
+		coins_cancelled.emit(active)
 	if had_batch:
 		batch_finished.emit()
 

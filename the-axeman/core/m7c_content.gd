@@ -6,12 +6,10 @@ extends RefCounted
 
 const BRANCH_TABLE_PATH := "res://data/skill_branch_table.tres"
 const PROC_TABLE_PATH := "res://data/proc_table.tres"
-const MASTERY_TABLE_PATH := "res://data/species_mastery_table.tres"
 const EQUIPMENT_TABLE_PATH := "res://data/equipment_table.tres"
 
 static var _branches: SkillBranchTable
 static var _procs: ProcTable
-static var _mastery: SpeciesMasteryTable
 static var _equipment: EquipmentTable
 
 
@@ -27,12 +25,6 @@ static func procs() -> ProcTable:
 	return _procs
 
 
-static func mastery() -> SpeciesMasteryTable:
-	if _mastery == null:
-		_mastery = load(MASTERY_TABLE_PATH) as SpeciesMasteryTable
-	return _mastery
-
-
 static func equipment() -> EquipmentTable:
 	if _equipment == null:
 		_equipment = load(EQUIPMENT_TABLE_PATH) as EquipmentTable
@@ -45,8 +37,6 @@ static func validate_all() -> PackedStringArray:
 		errors.append("branch table failed to load")
 	if procs() == null:
 		errors.append("proc table failed to load")
-	if mastery() == null:
-		errors.append("mastery table failed to load")
 	if equipment() == null:
 		errors.append("equipment table failed to load")
 	if not errors.is_empty():
@@ -54,7 +44,6 @@ static func validate_all() -> PackedStringArray:
 	errors.append_array(validate_branches(branches()))
 	errors.append_array(validate_procs(procs()))
 	errors.append_array(validate_skill_tree(_live_skill_table(), branches(), procs()))
-	errors.append_array(validate_mastery(mastery()))
 	errors.append_array(validate_equipment(equipment()))
 	return errors
 
@@ -321,6 +310,11 @@ static func validate_equipment(table: EquipmentTable) -> PackedStringArray:
 		if definition == null:
 			errors.append("equipment table contains null")
 			continue
+		# Retired alien equipment may remain in the source art catalogue during the
+		# transition, but it is not live progression and is intentionally ignored.
+		if not definition.is_starting_fallback \
+				and Shop.get_upgrade(definition.ownership_upgrade_id) == null:
+			continue
 		if definition.id == &"":
 			errors.append("equipment has empty id")
 		elif seen.has(definition.id):
@@ -356,7 +350,7 @@ static func _validate_modifiers(modifiers: Array[GameplayModifierDef], owner: St
 			errors.append("%s has duplicate modifier:%s" % [owner, modifier.id])
 		seen[modifier.id] = true
 		if modifier.kind < GameplayModifierDef.Kind.SPLIT_RELIABILITY \
-				or modifier.kind > GameplayModifierDef.Kind.FRONTIER_LOGISTICS:
+				or modifier.kind > GameplayModifierDef.Kind.DELIVERY_TIER_UNLOCK:
 			errors.append("%s has modifier with illegal kind" % owner)
 		if modifier.operation < GameplayModifierDef.Operation.ADD or modifier.operation > GameplayModifierDef.Operation.ENABLE:
 			errors.append("%s has modifier with illegal operation" % owner)

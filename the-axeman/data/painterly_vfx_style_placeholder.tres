@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="PainterlyVFXStyle" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/painterly_vfx_style.gd" id="1_style"]
+
+[resource]
+script = ExtResource("1_style")
+daub_dry_amount = 0.12
+slash_dry_amount = 0.18
+soft_dry_amount = 0.05
+soft_opacity = 0.66
+grain_dry_amount = 0.12
+tuning_status = "PLACEHOLDER — approved art direction; measured VFX feel pass still required"

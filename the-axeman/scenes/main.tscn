@@ -1,13 +1,19 @@
-[gd_scene load_steps=6 format=3 uid="uid://brbwfh8rdxhdq"]
+[gd_scene load_steps=8 format=3 uid="uid://brbwfh8rdxhdq"]
 
-[ext_resource type="Script" uid="uid://cfy32qifkmj4f" path="res://scenes/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scenes/main.gd" id="1_main"]
 [ext_resource type="PackedScene" uid="uid://cxmnchopmg0a1" path="res://scenes/3d_action/chopping_minigame.tscn" id="2_cblock"]
 [ext_resource type="PackedScene" path="res://scenes/2d_management/yard_hud.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/2d_management/startup_menu.tscn" id="4_startup"]
 [ext_resource type="Material" path="res://assets/shaders/painterly_color_grade_placeholder.tres" id="5_painterly_grade"]
+[ext_resource type="Script" path="res://core/run_director.gd" id="6_run"]
+[ext_resource type="Resource" path="res://data/survival_run_tuning_placeholder.tres" id="7_tuning"]
 
 [node name="Main" type="Node" unique_id=38020318]
 script = ExtResource("1_main")
+
+[node name="RunDirector" type="Node" parent="."]
+script = ExtResource("6_run")
+tuning = ExtResource("7_tuning")
 
 [node name="UI_Canvas" type="CanvasLayer" parent="." unique_id=328654733]
 layer = 0

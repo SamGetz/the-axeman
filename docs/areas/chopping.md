@@ -1,87 +1,85 @@
 # Chopping area guide
 
-Read this only for runtime chopping, slicing, fragments, the axe, the pile, or
-their focused tools. The live scenes and tests remain authoritative.
+Read this for the active block, slicing, loose logs, arena physics, powerups, or
+cut-journal suspension.
 
-## Entry and ownership
+## Live entry points
 
-- `scenes/3d_action/chopping_minigame.tscn` and `.gd` own the live chopping
-  loop. `chopping_minigame_harness.tscn` instances the same scene for feel tests.
-- `scenes/2d_management/yard_hud.*` owns the yard-facing entry/exit flow.
-- Chopping resolves species through `data/species_table.tres`, deposits finished
-  firewood through `InventoryManager`, and awards XP once per completed log.
-- Earth depletion counts four unique completed manual logs as one felled tree.
-  Individual pieces never advance the Earth counter, and automation reports its
-  own explicit tree volume separately from recovered output.
-- A species owns a list of meshes. Select species first and mesh second so
-  species frequency is independent of the amount of available shape art.
-- All 25 terrestrial species belong exactly once to one of five handling
-  families: Supple Softwood, Fibrous Conifer, Straight Grain, Interlocked
-  Hardwood or Iron-Dense Timber. Their fresh-bite, scar and size-relief
-  modifiers come from `data/wood_handling_profile_table.tres`; every numeric
-  value remains a labelled feel-test placeholder.
-- Every terrestrial species requires manual mastery. Per-species targets are
-  short (5–7 logs) and total 155; the no-bonus unlock path projects 159 manual
-  logs, avoiding a late mastery wall while preserving hands-on contact with all
-  25 woods.
+- `scenes/3d_action/chopping_minigame.tscn` owns the active block, axe, runtime
+  slicing, firewood, XP/cash presentation, and visible yard pile.
+- `scenes/3d_action/loose_log_arena.gd` owns waiting rigid bodies, the red ring,
+  per-log outside exposure, warnings, block claims, splitter claims, and blaster
+  ray hits.
+- `core/run_director.gd` owns arrival cadence, random selection, attempt phase,
+  run XP/session cash, stage pressure, choices, and settlement.
+- `data/survival_run_tuning_placeholder.tres` is the only survival tuning source.
 
-## Load-bearing behavior
+## Required behavior
 
-- Runtime plane slicing is intentional. `size_tier` is computed at slice time;
-  the frozen size test is
-  `piece.size_tier > GameFeelConfig.size_threshold`.
-- Cut materials are cached per species by reference. `MeshUtils.jag_cut` uses
-  material identity to find generated cut surfaces; replacing the material with
-  a fresh instance per log breaks later roughening behavior.
-- Failed-hit scars use the generated `axe_scar_normal.png` through a Compatibility-
-  safe top-face projection mesh, not a `Decal` node. Each scar is stored in the
-  piece's local mesh space and reprojected onto overlapping descendants after a
-  slice, so an adjacent cut clips physical damage rather than erasing it. Only
-  one descendant inherits each scar's pity contribution.
-- The slicer carries positions, normals, UVs, tangents, and vertex colors across
-  a cut. Cut caps generate their own tangents and white vertex colors.
-- Cap UVs are projected in the cut plane's local basis. Preserve winding when
-  reversing triangles; do not reverse a flat vertex list.
-- `MeshUtils.mesh_from_scene` bakes imported node transforms. Size logs by the
-  target height, not a blind multiplier.
-- Axe contact is keyed by `AnimationPlayer`. Swing-speed and Ready Stance may
-  change the lead-in, but the authored contact/follow-through relationship must
-  remain visible and testable.
-- Follow-Up is a visible automatic swing with synchronous strike resolution;
-  Flurry permits one further bounded swing. Bonus swings cannot recursively
-  create more bonus chains.
-- Double/Triple/Quad Chop use one root proc roll and at most one/two/three valid
-  geometry-safe continuation cuts. Work Rhythm turns held primary input into
-  repeated legal swings; Unbroken Rhythm carries it across log handoff.
-- Final manual XP is authoritative before its receipt orbs launch. Routine,
-  Quick Study, Mastery, grain and alien rewards share the same logarithmic count
-  and quotient/remainder distribution from `XPPacingConfig`. At a level
-  boundary, the HUD holds the old level at a full bar before rolling over; only
-  that rollover triggers the pooled level-up celebration. The celebration keeps
-  its rising rays, sparks and light but has no ground-level halo rings.
-- Reward presentation uses four bounded mixed tiers. XP progresses from green
-  through blue and violet to a gold-white core; cash glints resolve into exact
-  coin, green-note, blue-note and strapped-bundle shares only after settlement.
-  Phase-1 chopping/reward sounds are original deterministic WAVs routed through
-  pooled voices; all cue gains, pitch ranges and tier thresholds remain labelled
-  placeholders pending the measured audition gate.
+- Deliveries are whole physical logs spawned above a sampled clear position.
+  Loose bodies collide with the floor and one another.
+- Any out-of-bounds loose log takes block-claim priority, ordered by elapsed
+  exposure even if it is still settling. When none are outside, one landed log
+  is chosen randomly. Species and mesh were captured at delivery; a later
+  catalogue change never reskins them.
+- The boundary test uses the body's horizontal centre. Crossing outside starts
+  one continuous five-second proposed timer. Re-entry resets it to zero.
+- Completing a manual log freezes only boundary exposure until the replacement
+  log visibly lands. The run clock, deliveries, and arena physics continue.
+- Block handoff animation follows a data-tuned horizontal clearance arc around
+  the current camera rather than cutting through the viewer.
+- Only whole waiting logs are hazards. Active-log descendants and finished
+  firewood never participate in the boundary timer, splitter, or blaster.
+- Menus pause the run clock, deliveries, arena bodies, chopping scene, powerup
+  hazards, and splitter together.
 
-## Focused verification
+## Current interaction boundary
 
-- Logic: `core/tests/m4_acceptance.tscn`, `core/tools/test_slicer.gd`.
-- Smoke: `core/tools/chopping_smoke.tscn`.
-- Non-headless pile timing: `core/tools/pile_smoke.tscn`.
-- Visual tools include `shot_runner`, `axe_shot`, `proc_shot`, `grain_shot`,
-  `species_shot`, `m8_splitter_shot`, `inspect_materials`, and `inspect_fbx`
-  under `core/tools/`.
-- `orb_scale_shot.tscn` captures small, medium, large and capped/jackpot bursts
-  after the complete authored stagger has released.
-- Run `axe_shot` after changing the swing animation. Run `species_shot` after a
-  species mesh or bark tint change. Use `inspect_materials` for imported material
-  binding; material names alone are unreliable.
-- The Mechanical Splitter uses one static representative log proxy for every
-  assigned species/batch. It is a presentation stand-in, not runtime slice input.
+The live Slice 2 interaction remains axe-on-block. Retired Slow Time,
+right-click ammunition, Earth batches, and disposable in-run splitter purchases
+have no live HUD/economy path. Off-block slicing, shared descendants, and the
+temporary Blaster arrive together in Slice 3; do not emulate them with the old
+impulse or splitter paths.
 
-Historical implementation and post-mortem detail is in
-`docs/history/02_m4_chopping_game.md` and the older M4 handoffs. Do not load those
-unless the current guide and code do not explain a relevant trap.
+## Suspension journal
+
+`LogDescriptor` supplies the stable root identity. Its v19 extension also has
+strict run/yard/boss, hardness, reward, and original-mass snapshots. Typed
+`LogRootState`, descendant, and completion-receipt schemas are present, but
+shared arena slicing does not begin until Slice 3. Every successful block cut
+appends the parent stable piece id and parent-local plane. Descendants use stable
+`/a` and `/b` paths. A snapshot also stores each live descendant transform,
+projection offset, and scar records.
+
+Restore stages the original descriptor, replays cuts in order, then reapplies
+saved transforms and scars. Do not replace this with saved meshes or a fresh-log
+reroll. `prepare_for_suspend()` first cancels an uncontacted swing, completes
+authoritative settlement boundaries, and normalises active animation state.
+
+## Reward boundary
+
+The delivered descriptor snapshots its fixed yard cash and XP values. A final
+manual split completes the root once: `RunDirector` immediately commits the full
+cash snapshot and exact root-XP receipt, independent of visible token survival.
+Chopping divides cash only into presentation shares. Each finished-piece landing
+performs its validated add/remove through `InventoryManager`, then releases one
+share to a coin that targets the prominent session counter; it cannot mint cash
+again. XP orbs target the live fill edge of the HUD bar, and the corresponding
+level-choice pause waits for arrival. Cancelling either VFX path settles its
+display receipt immediately.
+
+Slice 3 moves block and loose descendants onto the full shared-root completion
+transaction. Craft grades, contracts, species mastery, alien behaviors, and
+automated campaign XP/cash do not run.
+
+## Verification
+
+```bash
+"$GODOT" --headless --path . res://core/tests/survival_run_acceptance.tscn
+"$GODOT" --headless --path . res://core/tests/survival_cut_journal_acceptance.tscn
+"$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
+"$GODOT" --path . res://core/tools/survival_visual_shot.tscn
+```
+
+Inspect `/private/tmp/axeman_survival_active.png` for boundary/log readability
+and ensure the active block remains unobstructed.

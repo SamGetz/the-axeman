@@ -6,7 +6,7 @@ extends Resource
 ## catalogues, save data, engine settings and scene-local layout remain outside
 ## this resource because they have different ownership and change lifecycles.
 
-const RESOURCE_PATH := "res://data/game_config.tres"
+const RESOURCE_PATH := "res://data/survival_game_config.tres"
 
 static var _current: GameConfig
 
@@ -15,16 +15,7 @@ static var _current: GameConfig
 @export var xp_pacing: XPPacingConfig = XPPacingConfig.new()
 
 @export_group("Manual play")
-@export var craftsmanship: CraftsmanshipConfig = CraftsmanshipConfig.new()
 @export var grain_cue: GrainCueDef = GrainCueDef.new()
-
-@export_group("Automation")
-@export var mechanical_splitter: MechanicalSplitterRuntimeDef = \
-	MechanicalSplitterRuntimeDef.new()
-@export var company_simulation: CompanySimulationConfig = CompanySimulationConfig.new()
-
-@export_group("Alien economy")
-@export var alien_company: AlienCompanyConfig = AlienCompanyConfig.new()
 
 @export_group("Presentation")
 @export var game_feel: GameFeelConfig = GameFeelConfig.new()
@@ -51,11 +42,7 @@ func validate() -> PackedStringArray:
 	var errors := PackedStringArray()
 	_append_validation(errors, "level_curve", level_curve)
 	_append_validation(errors, "xp_pacing", xp_pacing)
-	_append_validation(errors, "craftsmanship", craftsmanship)
 	_append_validation(errors, "grain_cue", grain_cue)
-	_append_validation(errors, "mechanical_splitter", mechanical_splitter)
-	_append_validation(errors, "company_simulation", company_simulation)
-	_append_validation(errors, "alien_company", alien_company)
 	_append_validation(errors, "game_feel", game_feel)
 	_append_validation(errors, "reward_bursts", reward_bursts)
 	return errors

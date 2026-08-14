@@ -57,6 +57,10 @@ level_particle_speed_min = 0.7
 level_particle_speed_max = 1.85
 level_ray_height = 0.72
 level_ray_width = 0.08
+; Added arrow-like pine accents — PLACEHOLDERS pending in-game approval.
+level_pine_count = 10
+level_pine_height = 0.16
+level_pine_width = 0.11
 level_crown_radius = 0.46
 level_ray_alpha = 0.40
 level_core_alpha = 0.50

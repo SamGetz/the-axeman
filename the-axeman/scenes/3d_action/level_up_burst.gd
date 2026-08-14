@@ -1,12 +1,13 @@
 class_name LevelUpBurst
 extends Node3D
-## Particle-led gold milestone shower. Ten soft rising streak sprites preserve the
-## established crown count, while dense ember emitters replace the old solid
-## triangular beams. All glow layers are intentionally dither-free.
+## Painterly gold milestone shower. The established dry-brush rays, diamond
+## sparkles, ember flecks and soft daubs stay intact; arrow-like painterly pines
+## are an additional rising accent rather than a replacement vocabulary.
 
 const _CONFIG = preload("res://data/skill_vfx_config.tres")
-const _PARTICLE_SHADER = preload("res://assets/shaders/skill_vfx_particle.gdshader")
-const _OVERLAY_SHADER = preload("res://assets/shaders/skill_vfx_overlay_glow.gdshader")
+const _STYLE = preload("res://data/painterly_vfx_style_placeholder.tres")
+const _PARTICLE_SHADER = preload("res://assets/shaders/painterly_vfx_daub.gdshader")
+const _LEVEL_PINE = preload("res://assets/generated/vfx/level_up_pine.png")
 
 static var _material_cache: Dictionary = {}
 
@@ -20,15 +21,19 @@ var _spark_starts: Array[Vector3] = []
 var _spark_dirs: Array[Vector3] = []
 var _spark_speeds := PackedFloat32Array()
 var _spark_scales := PackedFloat32Array()
+var _pines: Array[MeshInstance3D] = []
+var _pine_meshes: Array[QuadMesh] = []
+var _pine_starts: Array[Vector3] = []
+var _pine_scales := PackedFloat32Array()
 var _emitters: Array[GPUParticles3D] = []
 var _core: MeshInstance3D
 var _light: OmniLight3D
-var _overlay_material: ShaderMaterial
 
 
 static func prewarm() -> void:
 	_sprite_material(Color(1.0, 0.72, 0.12, _CONFIG.level_ray_alpha), 1, true).get_rid()
 	_sprite_material(Color(1.0, 0.86, 0.30, 0.92), 2, false).get_rid()
+	_pine_material().get_rid()
 	_sprite_material(Color(1.0, 0.92, 0.54, _CONFIG.level_core_alpha), 0, true).get_rid()
 
 
@@ -47,6 +52,7 @@ func _build(radius: float) -> void:
 	var ray_material := _sprite_material(
 		Color(1.0, 0.72, 0.12, _CONFIG.level_ray_alpha), 1, true)
 	var spark_material := _sprite_material(Color(1.0, 0.86, 0.30, 0.92), 2, false)
+	var pine_material := _pine_material()
 	var core_material := _sprite_material(
 		Color(1.0, 0.92, 0.54, _CONFIG.level_core_alpha), 0, true)
 
@@ -82,6 +88,25 @@ func _build(radius: float) -> void:
 			_CONFIG.level_spark_speed_min, _CONFIG.level_spark_speed_max))
 		_spark_scales.append(randf_range(0.82, 1.18))
 
+	for i in range(_CONFIG.level_pine_count):
+		var angle := TAU * (float(i) + 0.5) / float(_CONFIG.level_pine_count)
+		var start := Vector3(cos(angle), 0.0, sin(angle)) \
+			* randf_range(_radius * 0.28, _radius * 0.88)
+		start.y = randf_range(0.04, 0.20)
+		var pine_scale := randf_range(0.82, 1.18)
+		var pine_mesh := _draw_mesh(pine_material, Vector2(
+			_CONFIG.level_pine_width, _CONFIG.level_pine_height) * pine_scale)
+		var pine := MeshInstance3D.new()
+		pine.name = "LevelPine%d" % i
+		pine.mesh = pine_mesh
+		pine.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pine.position = start
+		add_child(pine)
+		_pines.append(pine)
+		_pine_meshes.append(pine_mesh)
+		_pine_starts.append(start)
+		_pine_scales.append(pine_scale)
+
 	_core = MeshInstance3D.new()
 	_core.name = "LevelCrownGlow"
 	_core.mesh = _draw_mesh(core_material, Vector2.ONE)
@@ -108,24 +133,6 @@ func _build(radius: float) -> void:
 	_light.shadow_enabled = false
 	_light.position.y = 0.38
 	add_child(_light)
-
-	var layer := CanvasLayer.new()
-	layer.name = "LevelScreenGlow"
-	layer.layer = 23
-	add_child(layer)
-	var rect := ColorRect.new()
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.position = Vector2.ZERO
-	rect.size = get_viewport().get_visible_rect().size
-	rect.color = Color.WHITE
-	_overlay_material = ShaderMaterial.new()
-	_overlay_material.shader = _OVERLAY_SHADER
-	_overlay_material.set_shader_parameter("tint", Color(1.0, 0.64, 0.16, 0.68))
-	_overlay_material.set_shader_parameter("intensity", 0.0)
-	_overlay_material.set_shader_parameter("mask_mode", 1)
-	rect.material = _overlay_material
-	layer.add_child(rect)
-
 
 func play_at(world_position: Vector3) -> void:
 	global_position = world_position
@@ -166,8 +173,6 @@ func _update_visuals(k: float) -> void:
 	var rise_pulse := sin(PI * clampf(k / 0.72, 0.0, 1.0))
 	var fade := 1.0 - smoothstep(0.58, 1.0, k)
 	_light.light_energy = flash * _CONFIG.level_light_energy
-	_overlay_material.set_shader_parameter("intensity",
-		flash * _CONFIG.level_overlay_strength)
 
 	_core.scale = Vector3.ONE * lerpf(0.14, 0.62, rise_pulse)
 	_core.transparency = 1.0 - fade * clampf(flash * 1.55, 0.0, 1.0)
@@ -189,14 +194,22 @@ func _update_visuals(k: float) -> void:
 		_sparks[i].scale = Vector3.ONE * 0.055 * spark_scale * _spark_scales[i]
 		_sparks[i].transparency = 1.0 - fade
 
+	for i in range(_pines.size()):
+		var pine := _pines[i]
+		pine.position = _pine_starts[i] + Vector3.UP * k \
+			* (0.52 + float(i % 3) * 0.10)
+		var pine_pulse := maxf(0.0, sin(PI * clampf(k * 1.02, 0.0, 1.0)))
+		_pine_meshes[i].size = Vector2(
+			_CONFIG.level_pine_width * _pine_scales[i] * pine_pulse,
+			_CONFIG.level_pine_height * _pine_scales[i] * pine_pulse)
+		pine.transparency = 1.0 - fade * 0.92
+
 
 func _stop() -> void:
 	set_process(false)
 	visible = false
 	if _light != null:
 		_light.light_energy = 0.0
-	if _overlay_material != null:
-		_overlay_material.set_shader_parameter("intensity", 0.0)
 	for emitter: GPUParticles3D in _emitters:
 		emitter.emitting = false
 
@@ -242,20 +255,37 @@ static func _sprite_material(color: Color, shape: int,
 		return _material_cache[key]
 	var material := ShaderMaterial.new()
 	material.shader = _PARTICLE_SHADER
-	material.set_shader_parameter("edge_color", Color(
-		color.r * 0.34, color.g * 0.22, color.b * 0.16, 0.0))
-	material.set_shader_parameter("core_color", color)
+	material.set_shader_parameter("dark_color", Color(
+		color.r * 0.34, color.g * 0.24, color.b * 0.16, 0.88))
+	material.set_shader_parameter("mid_color", Color(color.r, color.g, color.b,
+		0.88 if smooth else maxf(color.a, 0.92)))
+	var light := color.lerp(Color.WHITE, 0.48)
+	light.a = 0.94 if smooth else 0.98
+	material.set_shader_parameter("light_color", light)
 	material.set_shader_parameter("shape_mode", shape)
-	material.set_shader_parameter("softness",
-		_CONFIG.smooth_glow_softness if smooth else (0.40 if shape == 2 else 0.56))
-	material.set_shader_parameter("dither_strength",
-		0.0 if smooth else _CONFIG.particle_dither_strength)
-	material.set_shader_parameter("dither_pixel_size", _CONFIG.particle_dither_pixel_size)
+	material.set_shader_parameter("dry_amount", _STYLE.soft_dry_amount if smooth \
+		else (_STYLE.daub_dry_amount if shape == 0 else _STYLE.slash_dry_amount))
+	material.set_shader_parameter("opacity", _STYLE.soft_opacity if smooth else 1.0)
+	material.set_shader_parameter("seed", float(shape) * 13.0 + (4.0 if smooth else 0.0))
 	_material_cache[key] = material
 	return material
 
 
-static func _draw_mesh(material: ShaderMaterial, size: Vector2) -> QuadMesh:
+static func _pine_material() -> StandardMaterial3D:
+	const KEY := "level_up_pine_texture"
+	if _material_cache.has(KEY):
+		return _material_cache[KEY]
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	material.albedo_texture = _LEVEL_PINE
+	_material_cache[KEY] = material
+	return material
+
+
+static func _draw_mesh(material: Material, size: Vector2) -> QuadMesh:
 	var mesh := QuadMesh.new()
 	mesh.size = size
 	mesh.material = material

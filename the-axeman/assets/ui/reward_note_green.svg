@@ -1,5 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128">
-  <rect x="7" y="7" width="242" height="114" rx="16" fill="#6fb86b" stroke="#244a2c" stroke-width="10"/>
-  <rect x="24" y="24" width="208" height="80" rx="10" fill="#a9db82" stroke="#3f7840" stroke-width="5"/>
-  <path d="M128 34c-25 10-35 30-29 54 21-2 38-16 42-39 7 12 8 25 2 39" fill="none" stroke="#244a2c" stroke-width="8" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128" shape-rendering="crispEdges">
+  <!-- Chunky, low-resolution paper silhouette. Large colour clusters are
+       intentional so the note still reads after the 3D pickup is minified. -->
+  <path d="M10 26h8V18h20V12h180v6h20v8h8v78h-8v8h-20v6H38v-6H18v-8h-8z"
+        fill="#294737" stroke="#1d3028" stroke-width="8" stroke-linejoin="miter"/>
+  <path d="M24 30h12V22h166v6h26v10h8v52h-10v10h-24v6H42v-6H24z" fill="#69ad63"/>
+  <path d="M34 32h80v10H62v10H34z" fill="#a9d77e"/>
+  <path d="M46 82h38v12h72v10H42V94h-8z" fill="#4f8d54"/>
+  <path d="M190 30h36v10h10v22h-12V48h-34z" fill="#82c773"/>
+  <path d="M202 80h34v12h-10v10h-36V92h12z" fill="#3f7548"/>
+  <path d="M96 38h64v8h10v38h-10v8H96v-8H86V46h10z" fill="#b8df86"/>
+  <path d="M104 46h48v8h8v22h-8v8h-48v-8h-8V54h8z" fill="#d2e99b"/>
+  <!-- Broad leaf stamp; no fine veins that disappear at pickup scale. -->
+  <path d="M132 51c-18 2-28 12-27 27 14 2 27-4 33-17 3 7 3 14-1 21"
+        fill="none" stroke="#294737" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M112 78l22-18" fill="none" stroke="#294737" stroke-width="5" stroke-linecap="square"/>
+  <path d="M28 44h12v12H28zm188 22h12v12h-12z" fill="#d5eba0"/>
 </svg>

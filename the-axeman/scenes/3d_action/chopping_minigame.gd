@@ -50,25 +50,30 @@ const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 const _ManualLogOutcome := preload("res://data/manual_log_outcome.gd")
 const _LevelUpBurst := preload("res://scenes/3d_action/level_up_burst.gd")
 const _CoinRewardPool := preload("res://scenes/3d_action/coin_reward_pool.gd")
-const _SplitterRewardPresenter := preload("res://scenes/3d_action/splitter_reward_presenter.gd")
+const _PainterlyVFXDaub := preload("res://assets/shaders/painterly_vfx_daub.gdshader")
+const _PainterlyVFXStyle := preload("res://data/painterly_vfx_style_placeholder.tres")
 
 ## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
 ## the pacing probe observes this scene directly while a measured play session
 ## is running, and shipping systems do not depend on either signal.
 signal strike_resolved(did_split: bool)
 signal log_completed(species_id: StringName, piece_count: int)
+signal block_ready_for_log
+## RunDirector uses the end of the visible handoff, rather than its beginning,
+## to resume boundary countdowns after a completed log.
+signal run_log_ready
 ## M7C instrumentation: a named proc completed. Presentation is the local
 ## ProcBurst spawned at the actual result; this signal never grows a second
 ## banner/announcement path.
 signal bonus_proc_announced(proc_id: StringName, cuts: int)
 ## Receipt for one manual completed-log XP transaction. This is local
-## instrumentation/presentation data; GameState remains the only XP writer.
+## instrumentation/presentation data; RunDirector owns live run XP.
 signal manual_xp_awarded(base_xp: int, bonus_xp: int, proc_id: StringName)
 ## Receipt for one permanent gold grain mark being cut. Local instrumentation
-## only, same shape as manual_xp_awarded — GameState.add_xp is still the only
-## write, this just lets presentation/tests observe the transaction happened.
+## only, same shape as manual_xp_awarded; this lets presentation/tests observe
+## the transaction without becoming a second XP authority.
 signal grain_read_awarded(bonus_xp: int)
-## Presentation receipts only. XP is already authoritative in GameState; these
+## Presentation receipts only. XP is already authoritative in RunDirector; these
 ## let the HUD visually hold and release that value as the receipt orbs arrive.
 signal xp_orb_batch_started(amount: int)
 signal xp_orb_collected(amount: int, tier: int)
@@ -371,9 +376,9 @@ var _grain_marks: Array[MeshInstance3D] = []
 var _grain_last_clear_reason: StringName = &""
 var _grain_candidate_dirty := false
 var _grain_line_mesh: ArrayMesh = null
-var _grain_dark_mat: StandardMaterial3D = null
-var _grain_glow_mat: StandardMaterial3D = null
-var _grain_core_mat: StandardMaterial3D = null
+var _grain_dark_mat: ShaderMaterial = null
+var _grain_glow_mat: ShaderMaterial = null
+var _grain_core_mat: ShaderMaterial = null
 ## Once-per-log latch: a mark is decided at most once per log, win or lose the
 ## roll, so it never relocates onto a "better" candidate and never stacks a
 ## second one after the first is taken. Reset only in _spawn_fresh_log.
@@ -405,13 +410,17 @@ var _cut_noise := FastNoiseLite.new()    # drives the jagged displacement of cut
 var _stump_top_y := 0.5
 var _stump_radius := 0.4
 var _current_species: SpeciesDef = null   # the species of the log currently on the block; drives the yield item
+var _run_director: RunDirector
+var _external_log_flow := false
+var _current_descriptor: LogDescriptor
+var _cut_journal: Array[Dictionary] = []
 var _xp_screen_target := Callable()
 var _level_up_vfx_queued := false
 var _level_up_vfx
 var _coin_reward_pool
-var _splitter_reward_presenter
 var _xp_orb_pool_root: Node3D
 var _xp_orb_pool: Array[XPOrb] = []
+var _queued_xp_bursts: Array[Dictionary] = []
 var _render_warmup_nodes: Array[Node] = []
 var _grain_cue_config: GrainCueDef
 
@@ -474,15 +483,298 @@ func _ready() -> void:
 ## headless scenes leave it empty and retain the camera-centre fallback.
 func set_xp_screen_target(provider: Callable) -> void:
 	_xp_screen_target = provider
-	if _splitter_reward_presenter != null:
-		_splitter_reward_presenter.set_xp_screen_target(provider)
 
 
 func set_coin_screen_target(provider: Callable) -> void:
 	if _coin_reward_pool != null:
 		_coin_reward_pool.set_screen_target(provider)
-	if _splitter_reward_presenter != null:
-		_splitter_reward_presenter.set_coin_screen_target(provider)
+
+
+## RunDirector binds after this child has entered the tree. The original local
+## spawn remains for standalone feel harnesses; production clears it and stages
+## only descriptors claimed by the run.
+func bind_run_director(run: RunDirector) -> void:
+	_run_director = run
+	_external_log_flow = run != null
+	if _external_log_flow:
+		clear_run_log()
+
+
+func clear_run_log() -> void:
+	_clear_grain_cue(&"run_reset")
+	for piece: Area3D in _on_block:
+		if is_instance_valid(piece):
+			piece.queue_free()
+	_on_block.clear()
+	for body: RigidBody3D in _firewood:
+		if is_instance_valid(body):
+			body.queue_free()
+	_firewood.clear()
+	_animator.clear()
+	_pending.clear()
+	_awaiting_stack = false
+	_stacking = false
+	_current_descriptor = null
+	_current_species = null
+	_cut_journal.clear()
+
+
+func build_run_log_mesh(descriptor: LogDescriptor) -> Mesh:
+	if descriptor == null:
+		return null
+	var species_index := SpeciesTable.index_of(descriptor.species_id)
+	var species := SpeciesTable.at(species_index)
+	if species == null or species.meshes.is_empty():
+		return null
+	var mesh_index := clampi(descriptor.mesh_index, 0, species.meshes.size() - 1)
+	return _apply_species_look(
+		_center_mesh(_build_split_log(species.meshes[mesh_index])), species_index)
+
+
+func stage_run_log(descriptor: LogDescriptor, hop_from_arena: bool) -> void:
+	if descriptor == null or not descriptor.is_valid():
+		return
+	clear_run_log()
+	_current_descriptor = descriptor
+	_current_species = SpeciesTable.by_id(descriptor.species_id)
+	var species_index := SpeciesTable.index_of(descriptor.species_id)
+	_cut_mat = _cut_mat_for(species_index)
+	_source_mesh = build_run_log_mesh(descriptor)
+	_cut_noise.seed = descriptor.visual_seed
+	var half_h := _source_mesh.get_aabb().size.y * 0.5
+	var rest_y := _stump_top_y + half_h
+	var node := _make_stay_piece(_source_mesh, Vector3(0.0, rest_y, 0.0),
+		0.0, true, Vector3.ZERO, &"root")
+	var landed := Callable(self, "_on_log_landed").bind(_source_mesh)
+	if hop_from_arena and descriptor.has_transfer_pose():
+		node.global_position = descriptor.transfer_from
+		node.quaternion = descriptor.transfer_rotation
+		var handcart := clampf(Shop.total_effect(
+			UpgradeDef.Effect.DELIVERY_TIME), 0.0, 0.8)
+		var duration := _run_director.tuning.block_hop_seconds * (1.0 - handcart)
+		var target := to_global(Vector3(0.0, rest_y, 0.0))
+		var camera_origin := _camera.global_position
+		var tween := create_tween()
+		tween.tween_method(Callable(self, "_move_run_log_along_handoff").bind(
+			node, descriptor.transfer_from, target, camera_origin,
+			_run_director.tuning.block_hop_camera_clearance,
+			_run_director.tuning.block_hop_height), 0.0, 1.0, duration) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tween.parallel().tween_property(node, "quaternion", Quaternion.IDENTITY,
+			duration)
+		tween.tween_callback(landed)
+	else:
+		_animator.animate_drop(node, rest_y + drop_height, rest_y, landed, 300.0)
+	_try_show_grain_cue(node)
+
+
+func _move_run_log_along_handoff(progress: float, node: Node3D,
+		start: Vector3, target: Vector3, camera_origin: Vector3,
+		safe_radius: float, hop_height: float) -> void:
+	if not is_instance_valid(node):
+		return
+	node.global_position = _camera_safe_handoff_position(progress, start, target,
+		camera_origin, safe_radius, hop_height)
+
+
+## Three-part path: approach a clearance orbit, travel around the camera, then
+## leave that orbit radially toward the stump. Every authored segment stays at
+## or beyond safe_radius unless the log was already inside it when claimed.
+func _camera_safe_handoff_position(progress: float, start: Vector3,
+		target: Vector3, camera_origin: Vector3, safe_radius: float,
+		hop_height: float) -> Vector3:
+	var t := clampf(progress, 0.0, 1.0)
+	var camera_flat := Vector2(camera_origin.x, camera_origin.z)
+	var start_flat := Vector2(start.x, start.z)
+	var target_flat := Vector2(target.x, target.z)
+	var start_delta := start_flat - camera_flat
+	var target_delta := target_flat - camera_flat
+	if start_delta.length_squared() < 0.000001:
+		start_delta = target_delta.rotated(PI * 0.5)
+	if target_delta.length_squared() < 0.000001:
+		target_delta = start_delta.rotated(PI * 0.5)
+	var start_distance := start_delta.length()
+	var target_distance := target_delta.length()
+	var orbit_limit := safe_radius * 1.30
+	var entry_radius := maxf(safe_radius, minf(start_distance, orbit_limit))
+	var exit_radius := maxf(safe_radius, minf(target_distance, orbit_limit))
+	var start_angle := start_delta.angle()
+	var target_angle := target_delta.angle()
+	var angle_delta := wrapf(target_angle - start_angle, -PI, PI)
+	var entry := camera_flat + Vector2.from_angle(start_angle) * entry_radius
+	var exit := camera_flat + Vector2.from_angle(target_angle) * exit_radius
+	var flat: Vector2
+	if t < 0.22:
+		flat = start_flat.lerp(entry, t / 0.22)
+	elif t < 0.78:
+		var orbit_t := (t - 0.22) / 0.56
+		var radius := lerpf(entry_radius, exit_radius, orbit_t)
+		flat = camera_flat + Vector2.from_angle(
+			start_angle + angle_delta * orbit_t) * radius
+	else:
+		flat = exit.lerp(target_flat, (t - 0.78) / 0.22)
+	var base_y := lerpf(start.y, target.y, t)
+	return Vector3(flat.x, base_y + sin(t * PI) * hop_height, flat.y)
+
+
+## Freeze the run at a canonical transaction boundary before a disk snapshot.
+## Hazards are already paused by RunDirector. An uncontacted swing is cancelled;
+## a completed log finishes its authoritative inventory/cash/Earth settlement so
+## restoring cannot duplicate or lose rewards.
+func prepare_for_suspend() -> void:
+	_settle_xp_presentations()
+	_pending.clear()
+	if _axe != null and _axe.is_swinging():
+		if _axe.has_method("cancel_swing"):
+			_axe.call("cancel_swing")
+	_animator.finish_for(_on_block)
+	if _awaiting_stack:
+		_begin_stacking()
+	if _stacking:
+		var item_id: StringName = &"" if _current_species == null \
+			else _current_species.yield_item
+		while not _pending_manual_piece_receipts.is_empty() and item_id != &"":
+			_on_piece_landed(item_id)
+		_stacking = false
+		_pile.reset()
+		_current_descriptor = null
+	if _coin_reward_pool != null and _coin_reward_pool.has_method("settle_all"):
+		_coin_reward_pool.settle_all()
+
+
+## Run XP is already safe in RunDirector. At a suspend boundary, canonically
+## deliver every outstanding visual share so a restored attempt neither loses a
+## receipt nor replays one from before the save.
+func _settle_xp_presentations() -> void:
+	for orb: XPOrb in _xp_orb_pool:
+		if is_instance_valid(orb) and orb.is_processing():
+			orb.settle_immediately(false)
+	for burst: Dictionary in _queued_xp_bursts:
+		var amount := maxi(0, int(burst.get("amount", 0)))
+		if amount > 0:
+			xp_orb_collected.emit(amount, int(burst.get("tier", 0)))
+	_queued_xp_bursts.clear()
+
+
+## A new run has a different presentation authority. Stale orbs are returned
+## silently; the HUD's run-identity reset paints the new authoritative total.
+func cancel_xp_presentations() -> void:
+	_queued_xp_bursts.clear()
+	for orb: XPOrb in _xp_orb_pool:
+		if not is_instance_valid(orb):
+			continue
+		if orb.is_processing() or orb.get_parent() != _xp_orb_pool_root:
+			orb.cancel_collection()
+			if is_instance_valid(_xp_orb_pool_root) \
+					and orb.get_parent() != _xp_orb_pool_root:
+				orb.reparent(_xp_orb_pool_root)
+
+
+func cancel_reward_presentations() -> void:
+	cancel_xp_presentations()
+	if _coin_reward_pool != null and _coin_reward_pool.has_method("cancel_all"):
+		_coin_reward_pool.cancel_all()
+
+
+func to_run_save_dict() -> Dictionary:
+	if _current_descriptor == null or _on_block.is_empty():
+		return {"transitioning": true}
+	var pieces: Array[Dictionary] = []
+	for piece: Area3D in _on_block:
+		pieces.append({
+			"id": StringName(piece.get_meta("stable_piece_id", &"")),
+			"transform": piece.global_transform,
+			"projection_offset": piece.get_meta("projection_offset", Vector3.ZERO),
+			"scar_records": _scar_records_on(piece),
+		})
+	return {
+		"transitioning": false,
+		"descriptor": _current_descriptor.to_dict(),
+		"cut_journal": _cut_journal.duplicate(true),
+		"pieces": pieces,
+		"grain_offered": _grain_offered_this_log,
+	}
+
+
+func restore_run_save_dict(data: Dictionary) -> void:
+	if data.is_empty() or bool(data.get("transitioning", false)):
+		clear_run_log()
+		call_deferred("_emit_block_ready")
+		return
+	var descriptor_data: Variant = data.get("descriptor", {})
+	if not (descriptor_data is Dictionary):
+		call_deferred("_emit_block_ready")
+		return
+	var descriptor := LogDescriptor.from_save_dict(descriptor_data)
+	stage_run_log(descriptor, false)
+	_animator.finish_for(_on_block)
+	_cut_journal.clear()
+	var journal: Variant = data.get("cut_journal", [])
+	if journal is Array:
+		for raw: Variant in journal:
+			if raw is Dictionary and _replay_cut(raw):
+				_cut_journal.append((raw as Dictionary).duplicate(true))
+	var saved_pieces: Variant = data.get("pieces", [])
+	if saved_pieces is Array:
+		for raw: Variant in saved_pieces:
+			if not (raw is Dictionary):
+				continue
+			var piece := _piece_by_stable_id(StringName(raw.get("id", "")))
+			if piece == null:
+				continue
+			piece.global_transform = raw.get("transform", piece.global_transform)
+			piece.set_meta("projection_offset",
+				raw.get("projection_offset", Vector3.ZERO))
+			_restore_scar_records(piece, raw.get("scar_records", []), Vector3.ZERO)
+	_grain_offered_this_log = bool(data.get("grain_offered", false))
+	_clear_grain_cue(&"restored")
+
+
+func _emit_block_ready() -> void:
+	block_ready_for_log.emit()
+
+
+func _replay_cut(entry: Dictionary) -> bool:
+	var parent_id := StringName(entry.get("piece_id", ""))
+	var piece := _piece_by_stable_id(parent_id)
+	var local_plane: Plane = entry.get("local_plane", Plane())
+	if piece == null:
+		return false
+	var mesh: Mesh = piece.get_meta("mesh_ref")
+	var result := MeshSlicer.slice(mesh, local_plane, _cut_mat)
+	if result.above == null or result.below == null:
+		return false
+	result.above = _jag_cut(result.above, local_plane)
+	result.below = _jag_cut(result.below, local_plane)
+	var inherited_projection: Vector3 = piece.get_meta("projection_offset", Vector3.ZERO)
+	_on_block.erase(piece)
+	piece.queue_free()
+	for half_index in range(2):
+		var half: ArrayMesh = result.above if half_index == 0 else result.below
+		var aabb := half.get_aabb()
+		var center := aabb.position + aabb.size * 0.5
+		var centered := _translate_mesh(half, -center)
+		if _mesh_is_firewood(centered):
+			continue
+		_make_stay_piece(centered, Vector3.ZERO, 0.0, false,
+			inherited_projection + center,
+			StringName("%s/%s" % [parent_id, "a" if half_index == 0 else "b"]))
+	return true
+
+
+func _piece_by_stable_id(id: StringName) -> Area3D:
+	for piece: Area3D in _on_block:
+		if StringName(piece.get_meta("stable_piece_id", &"")) == id:
+			return piece
+	return null
+
+
+func _mesh_is_firewood(mesh: Mesh) -> bool:
+	var size := mesh.get_aabb().size
+	var volume := size.x * size.y * size.z
+	var horizontal_max := maxf(size.x, size.z)
+	var horizontal_min := maxf(minf(size.x, size.z), 0.0001)
+	return volume <= min_vol or horizontal_max / horizontal_min > aspect_limit
 
 
 ## Build every procedural VFX mesh/material cache during the initial scene load,
@@ -515,17 +807,6 @@ func _prewarm_vfx_geometry() -> void:
 	_coin_reward_pool.coin_collected.connect(coin_collected.emit)
 	_coin_reward_pool.coins_cancelled.connect(coins_cancelled.emit)
 	_coin_reward_pool.batch_finished.connect(coin_batch_finished.emit)
-	_splitter_reward_presenter = _SplitterRewardPresenter.new()
-	_splitter_reward_presenter.name = "SplitterRewardPresenter"
-	add_child(_splitter_reward_presenter)
-	_splitter_reward_presenter.initialize(_camera, $MechanicalSplitterRuntime,
-		Callable($YardEquipment, "splitter_output_world_position"))
-	_splitter_reward_presenter.xp_orb_batch_started.connect(xp_orb_batch_started.emit)
-	_splitter_reward_presenter.xp_orb_collected.connect(xp_orb_collected.emit)
-	_splitter_reward_presenter.coin_batch_started.connect(coin_batch_started.emit)
-	_splitter_reward_presenter.coin_collected.connect(coin_collected.emit)
-	_splitter_reward_presenter.coins_cancelled.connect(coins_cancelled.emit)
-	_splitter_reward_presenter.coin_batch_finished.connect(coin_batch_finished.emit)
 	var proc_colors: Array[Color] = []
 	var branch_table := M7CContent.branches()
 	if branch_table != null:
@@ -552,9 +833,6 @@ func begin_initial_vfx_render_warmup() -> void:
 		_coin_reward_pool.show_for_render_warmup(warm_position + Vector3.RIGHT * 0.12)
 	if not _xp_orb_pool.is_empty():
 		_xp_orb_pool[0].show_for_render_warmup(warm_position + Vector3.LEFT * 0.12)
-	if _splitter_reward_presenter != null:
-		_splitter_reward_presenter.show_for_render_warmup(
-			warm_position + Vector3.FORWARD * 0.12)
 
 	# Proc materials vary by branch colour, so submit one of each cached variant.
 	var branch_table := M7CContent.branches()
@@ -577,8 +855,6 @@ func end_initial_vfx_render_warmup() -> void:
 		_coin_reward_pool.hide_render_warmup()
 	if not _xp_orb_pool.is_empty():
 		_xp_orb_pool[0].hide_render_warmup()
-	if _splitter_reward_presenter != null:
-		_splitter_reward_presenter.hide_render_warmup()
 	for node: Node in _render_warmup_nodes:
 		if is_instance_valid(node):
 			node.queue_free()
@@ -666,7 +942,10 @@ func _process(delta: float) -> void:
 			# drops, so the fresh stack starts on clear ground.
 			if GameState.get_yard_pile_count() >= max_pile_pieces:
 				_haul_away()
-			_spawn_fresh_log(false)   # keep the pile; grow it with the next log
+			if _external_log_flow:
+				block_ready_for_log.emit()
+			else:
+				_spawn_fresh_log(false)   # standalone harness flow
 
 
 func _configure_pile() -> void:
@@ -845,19 +1124,12 @@ func _on_piece_landed(item_id: StringName) -> void:
 	GameState.add_to_yard_pile(item_id, 1)
 	if not auto_sell:
 		return
-	# Orders always pays through the unlimited Market first, then credits the one
-	# matching active manual delivery (authored contract or commission). Unmatched
-	# work therefore follows the original path, and splitter sales never enter it.
-	var cash_before := GameState.get_cash()
-	var receipt: ManualPieceReceipt = null
 	if not _pending_manual_piece_receipts.is_empty():
-		receipt = _pending_manual_piece_receipts.pop_front()
-	if receipt == null or receipt.item_id != item_id:
-		receipt = ManualPieceReceipt.new(item_id)
-	var payout := Orders.settle_manual_piece(receipt)
-	var exact_receipt := maxi(0, GameState.get_cash() - cash_before)
-	if exact_receipt > 0 and _coin_reward_pool != null:
-		_coin_reward_pool.queue_payout(exact_receipt)
+		_pending_manual_piece_receipts.pop_front()
+	var payout := _run_director.settle_completed_piece(item_id) \
+		if _run_director != null else 0
+	if payout > 0 and _coin_reward_pool != null:
+		_coin_reward_pool.queue_payout(payout)
 	if payout <= 0:
 		if _coin_reward_pool != null:
 			_coin_reward_pool.cancel_next_unpaid()
@@ -903,7 +1175,8 @@ func _firewood_settled() -> bool:
 ## its landed transform, then the pile animates it into its arc slot.
 func _begin_stacking() -> void:
 	_awaiting_stack = false
-	_stage_next_log()
+	if not _external_log_flow:
+		_stage_next_log()
 	var proxies: Array = []
 	for f in _firewood:
 		if not is_instance_valid(f):
@@ -930,7 +1203,10 @@ func _begin_stacking() -> void:
 		_coin_reward_pool.trim_unpaid_to_count(proxies.size())
 
 	if proxies.is_empty():
-		_spawn_fresh_log(false)
+		if _external_log_flow:
+			block_ready_for_log.emit()
+		else:
+			_spawn_fresh_log(false)
 		return
 
 	# COLLECT (A7): the log is fully chopped and its firewood has settled, so
@@ -942,7 +1218,11 @@ func _begin_stacking() -> void:
 	_pending_manual_piece_receipts.clear()
 	if yield_item != &"":
 		for proxy: MeshInstance3D in proxies:
-			EventBus.resource_gathered.emit(yield_item, 1)
+			# Standalone chopping harnesses retain the original gather contract;
+			# production deposits atomically through RunDirector when the visual
+			# piece actually lands and is sold.
+			if _run_director == null:
+				EventBus.resource_gathered.emit(yield_item, 1)
 			var fraction := 1.0
 			if proxy.mesh != null and _source_mesh != null:
 				var piece_size := proxy.mesh.get_aabb().size
@@ -952,9 +1232,8 @@ func _begin_stacking() -> void:
 					fraction = clampf(
 						(piece_size.x * piece_size.y * piece_size.z) / source_volume,
 						0.0, 1.0)
-			var grade := Craftsmanship.grade_piece(fraction)
 			_pending_manual_piece_receipts.append(ManualPieceReceipt.new(
-				yield_item, _current_species.id, fraction, grade,
+				yield_item, _current_species.id, fraction, 0,
 				_current_manual_log_root_id))
 	log_completed.emit(&"" if _current_species == null else _current_species.id, proxies.size())
 
@@ -969,7 +1248,7 @@ func _begin_stacking() -> void:
 
 ## The finished MANUAL log's one root XP transaction. Quick Study is resolved
 ## once against the base award through ProcResolver; its bonus is folded into
-## this single GameState write and can therefore never recurse as a new event.
+## this single RunDirector write and can therefore never recurse as a new event.
 ##
 ## EXPERIENCE IS PER LOG, NOT PER PIECE (Creative Director call, 2026-08-02: the
 ## orbs drop "when the log is finally split"). ONE award, fired from the split that
@@ -983,17 +1262,16 @@ func _award_log_xp() -> void:
 	if not auto_sell or _current_species == null:
 		return
 	_manual_log_serial += 1
-	var root_id := StringName("manual_log_%d_%d_%d" % [
-		_manual_log_session_nonce, get_instance_id(), _manual_log_serial])
+	var root_id := _current_descriptor.id \
+		if _current_descriptor != null and _current_descriptor.id != &"" \
+		else StringName("manual_log_%d_%d_%d" % [
+			_manual_log_session_nonce, get_instance_id(), _manual_log_serial])
 	_current_manual_log_root_id = root_id
-	# Alien specimens belong to their destination campaign. Terrestrial logs
-	# must reserve one of Earth's remaining trees before XP/mastery can settle.
-	if AlienCampaign.trait_by_id(_current_species.id) == null \
-			and not GameState.record_manual_log_equivalent(root_id,
-				_current_species.id):
-		return
+	var base_xp := _current_species.xp_reward
+	if _run_director != null and _current_descriptor != null:
+		base_xp = _run_director.xp_reward_for(_current_descriptor)
 	_resolve_log_xp(_ManualLogOutcome.new(
-		root_id, _ManualLogOutcome.Source.MANUAL, true, false, _current_species.xp_reward))
+		root_id, _ManualLogOutcome.Source.MANUAL, true, false, base_xp))
 
 
 func _resolve_log_xp(outcome: RefCounted) -> int:
@@ -1003,36 +1281,20 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 	if outcome == null or not outcome.completed or outcome.is_bonus_event \
 			or outcome.root_event_id == &"" or outcome.base_xp <= 0:
 		return 0
-	if _handled_log_roots.has(outcome.root_event_id):
+	var handled_id: StringName = outcome.root_event_id
+	if _run_director != null and _run_director.get_run_id() != &"":
+		handled_id = StringName("%s::%s" % [
+			_run_director.get_run_id(), outcome.root_event_id])
+	if _handled_log_roots.has(handled_id):
 		return 0
 	# A completed root is consumed before source eligibility is considered. A
 	# restored/automated id cannot be resubmitted later wearing a "manual" label.
-	_handled_log_roots[outcome.root_event_id] = true
+	# Root ids repeat from one attempt to the next, so the run identity is part of
+	# this local exact-once key without changing the descriptor's descendant path.
+	_handled_log_roots[handled_id] = true
 	if not outcome.is_manual_root_completion():
 		return 0
-	# M8 Slice 1 shares this de-duplicated manual root receipt. Follow-Up or
-	# Double Strike may land the finishing action, but they still complete the
-	# one player-started log represented by this root id, so mastery advances once.
 	var completion_procs: Array[StringName] = []
-	if AlienCampaign.trait_by_id(_current_species.id) != null:
-		GameState.record_alien_manual_completion(ManualPieceReceipt.new(
-			_current_species.yield_item, _current_species.id, 1.0,
-			Craftsmanship.Grade.ROUGH, outcome.root_event_id,
-			ManualPieceReceipt.Origin.MANUAL))
-	else:
-		var mastery_echo := ProgressionProcs.proc_def(&"mastery_echo")
-		var echo_fired := not GameState.is_species_mastered(_current_species.id) \
-			and mastery_echo != null \
-			and mastery_echo.eligibility == ProcDef.Eligibility.MANUAL_LOG_COMPLETION \
-			and ProcResolver.should_proc_with_chance(mastery_echo,
-				ProgressionProcs.effective_chance(&"mastery_echo"), debug_force_proc)
-		# One root-bound receipt. Two means the ordinary point plus exactly one
-		# Echo point; GameState clamps it to the terrestrial mastery target.
-		GameState.record_species_completion_receipt(_current_species.id,
-			outcome.root_event_id, 2 if echo_fired else 1)
-		if echo_fired:
-			completion_procs.append(&"mastery_echo")
-
 	var base: int = outcome.base_xp
 	var awarded := base
 	var fired_proc: StringName = &""
@@ -1050,31 +1312,17 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 			if SkillTree.owns_modifier(GameplayModifierDef.Kind.GRAIN_GUARANTEE):
 				_eureka_grain_pending = true
 
-	# Mastery is a global percentage on the already-resolved manual transaction.
-	# Keeping this after Quick Study preserves one proc roll, one rounding step per
-	# layer and the existing recursion guard around the root receipt.
-	var mastery_xp := SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP)
-	if mastery_xp > 0.0:
-		awarded = maxi(awarded, int(round(float(awarded) * (1.0 + mastery_xp))))
-	var masterwork_fired := GameState.consume_masterwork()
-	if masterwork_fired:
-		var config := xp_pacing_config if xp_pacing_config != null else XPPacingConfig.new()
-		awarded = maxi(awarded, int(round(float(awarded)
-			* (1.0 + config.masterwork_xp_bonus))))
-		if _current_species != null:
-			var unit_cash := Market.get_price(_current_species.yield_item)
-			if unit_cash > 0:
-				GameState.award_cash(maxi(1, int(round(float(unit_cash)
-					* config.masterwork_cash_units))), &"masterwork")
-		AudioDirector.play_world(&"masterwork", Vector3(0.0, _stump_top_y + 0.18, 0.0))
-
 	_last_quick_study_root_id = outcome.root_event_id
-	var xp_origin := GameState.XP_ORIGIN_MANUAL
-	if masterwork_fired:
-		xp_origin = GameState.XP_ORIGIN_MASTERWORK
-	elif fired_proc != &"":
-		xp_origin = GameState.XP_ORIGIN_MANUAL_PROC
-	awarded = GameState.award_xp(awarded, xp_origin)
+	if _run_director != null:
+		if _current_descriptor == null \
+				or outcome.root_event_id != _current_descriptor.id:
+			return 0
+		awarded = _run_director.award_root_xp(_current_descriptor, awarded)
+	else:
+		var xp_origin := GameState.XP_ORIGIN_MANUAL
+		if fired_proc != &"":
+			xp_origin = GameState.XP_ORIGIN_MANUAL_PROC
+		awarded = GameState.award_xp(awarded, xp_origin)
 	# A completed log keeps its final wood-impact cue silent and does not layer
 	# the generic XP-launch cue over it. Other reward sources still use that cue.
 	_burst_xp_orbs(awarded, Vector3(0.0, _stump_top_y + 0.12, 0.0), false)
@@ -1096,7 +1344,7 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 			ProcBurst.spawn_from_log_base(self, proc_point, _stump_top_y,
 				_last_proc_burst_color, branch_id, _camera.global_transform.basis.z)
 		else:
-			# Rising Mastery announcements remain in open air above the block.
+			# Rising Technique announcements remain in open air above the block.
 			ProcBurst.spawn(self, proc_point, _last_proc_burst_color, branch_id)
 		_play_proc_audio(announced_proc, Vector3(0.0, _stump_top_y + 0.18, 0.0))
 		bonus_proc_announced.emit(announced_proc, 1)
@@ -1115,7 +1363,7 @@ func _manual_xp_multiplier(proc_def: ProcDef) -> float:
 ## The green orbs, Minecraft-style: they pop off the block and are drawn into the
 ## live fill edge of the XP bar.
 ##
-## THE XP IS ALREADY BANKED by the time these spawn, and deliberately so — see
+## THE XP IS ALREADY AUTHORITATIVE by the time these spawn, and deliberately so — see
 ## xp_orb.gd. Quitting during the second of flight must not cost the player the log
 ## they just chopped. The orbs are the receipt, not the payment.
 ##
@@ -1129,28 +1377,52 @@ func _burst_xp_orbs(amount: int, from := Vector3(0.0, _stump_top_y + 0.12, 0.0),
 		play_launch_audio := true) -> void:
 	if not orbs_enabled or _camera == null or amount <= 0:
 		return
+	xp_orb_batch_started.emit(amount)
+	if not _launch_xp_orb_burst(amount, from, play_launch_audio):
+		var reward_config := GameConfig.current().reward_bursts
+		_queued_xp_bursts.append({
+			"amount": amount,
+			"from": from,
+			"play_launch_audio": play_launch_audio,
+			"tier": reward_config.tier_for_amount(
+				RewardBurstConfig.Kind.XP, amount),
+		})
+
+
+## Launch one complete presentation receipt using however many pooled nodes are
+## currently free. Re-denominating the token plan keeps the collected shares
+## equal to the authoritative award even when overlapping bursts occupy part of
+## the pool.
+func _launch_xp_orb_burst(amount: int, from: Vector3,
+		play_launch_audio: bool) -> bool:
 	var config := xp_pacing_config if xp_pacing_config != null else XPPacingConfig.new()
 	var shares := config.orb_shares_for_xp(amount)
-	var count := shares.size()
+	var desired_count := shares.size()
+	var acquired: Array[XPOrb] = []
+	for _index: int in range(desired_count):
+		var orb := _acquire_xp_orb()
+		if orb == null:
+			break
+		acquired.append(orb)
+	if acquired.is_empty():
+		return false
+	var count := acquired.size()
 	var reward_config := GameConfig.current().reward_bursts
 	var tokens := reward_config.plan_tokens(RewardBurstConfig.Kind.XP, amount, count)
 	var cap_growth := config.capped_burst_growth(amount)
 	var visual_scale := 1.0 + cap_growth * config.capped_scale_growth
 	var halo_scale := 1.0 + cap_growth * config.capped_intensity_growth
-	xp_orb_batch_started.emit(amount)
 	if play_launch_audio:
 		AudioDirector.play_reward(&"xp", reward_config.tier_for_amount(
 			RewardBurstConfig.Kind.XP, amount), &"launch")
 	for i in range(count):
-		var orb := _acquire_xp_orb()
-		if orb == null:
-			push_warning("chopping_minigame: XP orb pool exhausted; reward remains banked.")
-			break
+		var orb := acquired[i]
 		var token: Dictionary = tokens[i]
 		orb.setup(from, _camera, float(i) * orb_stagger, orb_scatter_radius,
 			pile_ground_y, _stump_radius, orb_collect_at,
 			int(token.amount), _xp_screen_target,
 			visual_scale, halo_scale, int(token.tier))
+	return true
 
 
 func _acquire_xp_orb() -> XPOrb:
@@ -1170,6 +1442,18 @@ func _return_xp_orb_to_pool(orb: XPOrb) -> void:
 	if is_instance_valid(orb) and is_instance_valid(_xp_orb_pool_root) \
 			and orb.get_parent() != _xp_orb_pool_root:
 		orb.reparent(_xp_orb_pool_root)
+	if not _queued_xp_bursts.is_empty():
+		_drain_queued_xp_bursts.call_deferred()
+
+
+func _drain_queued_xp_bursts() -> void:
+	while not _queued_xp_bursts.is_empty():
+		var burst: Dictionary = _queued_xp_bursts.front()
+		if not _launch_xp_orb_burst(int(burst.get("amount", 0)),
+				burst.get("from", Vector3.ZERO),
+				bool(burst.get("play_launch_audio", true))):
+			return
+		_queued_xp_bursts.pop_front()
 
 
 # --------------------------------------------------------------- input
@@ -1178,7 +1462,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.keycode:
 			KEY_A, KEY_LEFT: _orbit(-1)
 			KEY_D, KEY_RIGHT: _orbit(1)
-			KEY_R: _spawn_fresh_log()
+			KEY_SPACE:
+				if _run_director != null:
+					_run_director.activate_slow_time()
+			KEY_R:
+				if not _external_log_flow:
+					_spawn_fresh_log()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			_hold_chop_active = true
@@ -1186,6 +1475,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_click(event.position)
 		else:
 			_hold_chop_active = false
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT \
+			and event.pressed and _run_director != null:
+		var ray_origin := _camera.project_ray_origin(event.position)
+		var ray_direction := _camera.project_ray_normal(event.position)
+		_run_director.fire_blaster(ray_origin, ray_direction)
 	elif event is InputEventMouseMotion and _hold_chop_active:
 		_hold_screen_pos = event.position
 
@@ -1311,16 +1605,7 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 		local_override: Variant = null, is_bonus: bool = false) -> bool:
 	var split: bool
 	var strike_chain_fired := false
-	var alien_trait := AlienCampaign.trait_by_id(
-		&"" if _current_species == null else _current_species.id)
-	var alien_assisted := alien_trait != null and (
-		(alien_trait.behavior == AlienWoodTraitDef.Behavior.RESONANT_BAND \
-			and piece == _alien_assist_target) \
-		or (alien_trait.behavior == AlienWoodTraitDef.Behavior.SCAR_PRIMING \
-			and _scars_on(piece) >= alien_trait.scars_to_prime))
-	if alien_assisted or _roll_splits(piece):
-		if piece == _alien_assist_target:
-			_alien_assist_target = null
+	if _roll_splits(piece):
 		split = _perform_split(piece, world_point, normal, dir_enum, local_override)
 		strike_resolved.emit(split)
 		if split and not is_bonus:
@@ -1335,10 +1620,6 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 		# can see it.
 		piece.set_meta("scars", _scars_on(piece) + 1)
 		_add_scar(piece, world_point, normal)
-		if alien_trait != null \
-				and alien_trait.behavior == AlienWoodTraitDef.Behavior.RESONANT_BAND:
-			_alien_assist_target = piece
-			_add_alien_weak_band(piece, world_point, normal)
 		# Shake WITHOUT the hit-pause: a split keeps the time-stop to itself, so
 		# the two outcomes feel different before the player has read a number.
 		GameFeel.register_impact(fail_impact, false)
@@ -1718,9 +1999,9 @@ func _slice_preflight_ok(mesh: Mesh, local_plane: Plane) -> bool:
 	return true
 
 
-## Three raised unshaded quads on the piece's TOP surface, parented to the piece
-## so they move with it: a dark outline (readable on pale bark), a wide additive
-## glow (the "glowing" in "glowing gold line"), and a solid gold core. GOLD IS
+## Three raised pigment slashes on the piece's TOP surface, parented to the piece
+## so they move with it: a dark edge (readable on pale bark), a breathing warm
+## middle and a solid gold core. GOLD IS
 ## AUTHORED, not read from SkillTree.branch_for_proc() — this is a world marker
 ## naming an opportunity, not a proc announcement, and must read as its own
 ## thing next to the Technique-green ProcBurst the reward fires on top of it.
@@ -1771,56 +2052,31 @@ func _grain_unit_line_mesh() -> ArrayMesh:
 ## colour is fixed authored data, unlike ProcBurst's per-branch colour cache.
 func _grain_mark_materials() -> Array:
 	if _grain_core_mat == null:
-		_grain_dark_mat = StandardMaterial3D.new()
-		_grain_dark_mat.albedo_color = Color(0.015, 0.02, 0.015, 0.98)
-		_grain_dark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_grain_dark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_grain_dark_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-		_grain_core_mat = StandardMaterial3D.new()
-		_grain_core_mat.albedo_color = _grain_cue_config.mark_color
-		_grain_core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_grain_core_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_grain_core_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-
-		# ADDITIVE, and its texture fades COLOUR to black, not just alpha — the
-		# "square exp bubble" lesson XPOrb's halo already paid for (see its
-		# header): an additive surface adds its RGB to whatever is behind it, so
-		# fading only alpha leaves a hard-edged card. _update_grain_pulse breathes
-		# this material's own albedo_color alpha every frame.
-		_grain_glow_mat = StandardMaterial3D.new()
-		_grain_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_grain_glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_grain_glow_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		_grain_glow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_grain_glow_mat.albedo_texture = _grain_glow_texture()
-		_grain_glow_mat.albedo_color = Color(1.0, 1.0, 1.0, _grain_cue_config.glow_pulse_min)
+		_grain_dark_mat = _grain_paint_material(
+			Color(0.012, 0.015, 0.010, 0.98), 0.04, 41.0)
+		var mark: Color = _grain_cue_config.mark_color
+		_grain_glow_mat = _grain_paint_material(
+			mark.lerp(Color.WHITE, 0.14),
+			float(_grain_cue_config.glow_pulse_min), 47.0)
+		_grain_core_mat = _grain_paint_material(mark, 1.0, 53.0)
 	return [_grain_dark_mat, _grain_glow_mat, _grain_core_mat]
 
 
-## A soft-edged glow across the WIDTH of the line only, constant along its
-## length: the unit line mesh's WIDTH axis maps to UV.v (see
-## _grain_unit_line_mesh), so a vertical gradient reads as a neon-tube glow
-## rather than a hard bar. Fades to Color(0,0,0,0) at both edges — colour AND
-## alpha together — never alpha-only, for the exact reason ProcBurst's spark
-## texture and XPOrb's halo texture do the same.
-func _grain_glow_texture() -> GradientTexture2D:
-	var c: Color = _grain_cue_config.mark_color
-	var grad := Gradient.new()
-	grad.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
-	grad.colors = PackedColorArray([
-		Color(0.0, 0.0, 0.0, 0.0),
-		Color(c.r, c.g, c.b, 1.0),
-		Color(0.0, 0.0, 0.0, 0.0),
-	])
-	var tex := GradientTexture2D.new()
-	tex.gradient = grad
-	tex.fill = GradientTexture2D.FILL_LINEAR
-	tex.fill_from = Vector2(0.5, 0.0)
-	tex.fill_to = Vector2(0.5, 1.0)
-	tex.width = 8
-	tex.height = 64
-	return tex
+func _grain_paint_material(color: Color, opacity: float,
+		seed: float) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = _PainterlyVFXDaub
+	material.set_shader_parameter("dark_color", Color(
+		color.r * 0.26, color.g * 0.20, color.b * 0.14, 0.94))
+	material.set_shader_parameter("mid_color", Color(
+		color.r, color.g, color.b, 0.96))
+	material.set_shader_parameter("light_color", color.lerp(Color.WHITE, 0.44))
+	material.set_shader_parameter("shape_mode", 1)
+	material.set_shader_parameter("billboard_enabled", false)
+	material.set_shader_parameter("dry_amount", _PainterlyVFXStyle.grain_dry_amount)
+	material.set_shader_parameter("opacity", opacity)
+	material.set_shader_parameter("seed", seed)
+	return material
 
 
 func _update_grain_cue() -> void:
@@ -1838,8 +2094,8 @@ func _update_grain_cue() -> void:
 	_update_grain_pulse()
 
 
-## The mark is GLOWING, not static — its additive layer breathes between the
-## authored min/max on a plain sine of wall-clock time. Cosmetic only, so it
+## The middle pigment pass breathes between the authored min/max on a plain sine
+## of wall-clock time. Cosmetic only, so it
 ## rides real time rather than Engine.time_scale, which A11's hit-pause drives to
 ## near-zero for a beat on every real split.
 func _update_grain_pulse() -> void:
@@ -1848,8 +2104,9 @@ func _update_grain_pulse() -> void:
 	var period := maxf(0.05, float(_grain_cue_config.glow_pulse_period_sec))
 	var t := float(Time.get_ticks_msec()) / 1000.0
 	var k := 0.5 + 0.5 * sin(t * TAU / period)
-	_grain_glow_mat.albedo_color.a = lerpf(
-		float(_grain_cue_config.glow_pulse_min), float(_grain_cue_config.glow_pulse_max), k)
+	_grain_glow_mat.set_shader_parameter("opacity", lerpf(
+		float(_grain_cue_config.glow_pulse_min),
+		float(_grain_cue_config.glow_pulse_max), k))
 
 
 func _clear_grain_cue(reason: StringName) -> void:
@@ -1906,11 +2163,9 @@ func _award_grain_bonus(burst_point: Vector3) -> void:
 	# literal "3.0" in code.
 	var multiplier := _manual_xp_multiplier(proc_def)
 	var bonus := maxi(1, int(round(float(_current_species.xp_reward) * multiplier)))
-	var mastery_xp := SpeciesMastery.total_effect(GameplayModifierDef.Kind.MANUAL_XP)
-	if mastery_xp > 0.0:
-		bonus = maxi(bonus, int(round(float(bonus) * (1.0 + mastery_xp))))
 	_last_grain_bonus = bonus
-	bonus = GameState.award_xp(bonus, GameState.XP_ORIGIN_GRAIN)
+	bonus = _run_director.award_xp(bonus) if _run_director != null \
+		else GameState.award_xp(bonus, GameState.XP_ORIGIN_GRAIN)
 	_last_grain_bonus = bonus
 	_burst_xp_orbs(bonus, burst_point)
 
@@ -2007,10 +2262,6 @@ func split_chance_for(piece: Area3D) -> float:
 	# reliability. Separate queries prevent equipment from granting a skill id.
 	base += SkillTree.total_modifier(GameplayModifierDef.Kind.SPLIT_RELIABILITY)
 	base += Shop.total_effect(UpgradeDef.Effect.SPLIT_RELIABILITY)
-	base += SpeciesMastery.total_effect(GameplayModifierDef.Kind.SPLIT_RELIABILITY)
-	if AlienCampaign.trait_by_id(&"" if _current_species == null else _current_species.id) != null:
-		base += SkillTree.total_modifier(GameplayModifierDef.Kind.ALIEN_HANDLING)
-		base += Shop.total_effect(UpgradeDef.Effect.ALIEN_HANDLING)
 	return clampf(base, 0.0, max_split_chance)
 
 
@@ -2369,11 +2620,12 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	var res := MeshSlicer.slice(mesh, local_plane, _cut_mat)
 	if res.above == null or res.below == null:
 		return false
-	if _current_species != null:
-		GameState.record_earth_finale_split(ManualPieceReceipt.new(
-			_current_species.yield_item, _current_species.id, 1.0,
-			Craftsmanship.Grade.ROUGH, _current_manual_log_root_id,
-			ManualPieceReceipt.Origin.MANUAL))
+	var stable_piece_id: StringName = piece.get_meta("stable_piece_id", &"root")
+	if _current_descriptor != null:
+		_cut_journal.append({
+			"piece_id": String(stable_piece_id),
+			"local_plane": local_plane,
+		})
 	# Roughen the fresh cut faces so the split reads as cloven wood, not a laser cut.
 	res.above = _jag_cut(res.above, local_plane)
 	res.below = _jag_cut(res.below, local_plane)
@@ -2406,7 +2658,8 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 			inherited_scar_records, local_plane, is_above)
 		var node := _realise_half(
 			half, xform, normal * out_sgn, descendant_scars,
-			inherited_projection_offset)
+			inherited_projection_offset,
+			StringName("%s/%s" % [stable_piece_id, "a" if is_above else "b"]))
 		if node != null:
 			new_stays.append(node)
 
@@ -2433,6 +2686,12 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 		# on their own instead of inside the same burst of activity as the pieces
 		# flying to the pile.
 		_award_log_xp()
+		# Commit the root's fixed purse after its coin batch and exact XP receipt are
+		# registered. The HUD trails authority until those tokens arrive, while a
+		# stage clear or suspend can never lose part of a completed root payout.
+		if auto_sell and _run_director != null and _current_descriptor != null:
+			_run_director.complete_manual_log(_current_descriptor,
+				mini(_firewood.size(), _CoinRewardPool.CAPACITY))
 	return true
 
 
@@ -2473,7 +2732,8 @@ func _restore_scar_records(piece: Node3D, records: Array, source_center: Vector3
 ## parent-local coordinates to the new centered mesh in either outcome.
 func _realise_half(half: ArrayMesh, parent_xform: Transform3D, out_dir: Vector3,
 		inherited_scar_records: Array = [],
-		inherited_projection_offset: Vector3 = Vector3.ZERO) -> Area3D:
+		inherited_projection_offset: Vector3 = Vector3.ZERO,
+		stable_piece_id: StringName = &"") -> Area3D:
 	var aabb := half.get_aabb()
 	var c := aabb.position + aabb.size * 0.5
 	var centered := _translate_mesh(half, -c)
@@ -2497,7 +2757,8 @@ func _realise_half(half: ArrayMesh, parent_xform: Transform3D, out_dir: Vector3,
 			projection_offset)
 		return null
 	var yaw := deg_to_rad(randf_range(-fresh_yaw_deg, fresh_yaw_deg))
-	var piece := _make_stay_piece(centered, world_pos, yaw, false, projection_offset)
+	var piece := _make_stay_piece(centered, world_pos, yaw, false,
+		projection_offset, stable_piece_id)
 	_restore_scar_records(piece, inherited_scar_records, c)
 	return piece
 
@@ -2629,7 +2890,8 @@ func _set_log_projection_offset(instance: MeshInstance3D, offset: Vector3) -> vo
 
 func _make_stay_piece(centered_mesh: Mesh, world_pos: Vector3, yaw: float,
 		is_whole_log := false,
-		projection_offset: Vector3 = Vector3.ZERO) -> Area3D:
+		projection_offset: Vector3 = Vector3.ZERO,
+		stable_piece_id: StringName = &"") -> Area3D:
 	var piece := Area3D.new()
 	piece.collision_layer = _PICK_LAYER
 	piece.collision_mask = 0
@@ -2647,6 +2909,9 @@ func _make_stay_piece(centered_mesh: Mesh, world_pos: Vector3, yaw: float,
 	piece.set_meta("mesh_ref", centered_mesh)
 	piece.set_meta("is_whole_log", is_whole_log)
 	piece.set_meta("projection_offset", projection_offset)
+	if stable_piece_id == &"":
+		stable_piece_id = StringName("piece_%d" % piece.get_instance_id())
+	piece.set_meta("stable_piece_id", stable_piece_id)
 	_on_block.append(piece)
 	return piece
 func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3,
@@ -2659,11 +2924,6 @@ func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3,
 	body.contact_monitor = true
 	body.max_contacts_reported = 4
 	body.body_entered.connect(_on_firewood_body_entered.bind(body))
-	var alien_trait := AlienCampaign.trait_by_id(
-		&"" if _current_species == null else _current_species.id)
-	if alien_trait != null \
-			and alien_trait.behavior == AlienWoodTraitDef.Behavior.LOW_GRAVITY_FRAGMENTS:
-		body.gravity_scale = alien_trait.gravity_scale
 	body.physics_material_override = _phys_mat
 	body.linear_damp = piece_linear_damp
 	body.angular_damp = piece_angular_damp
@@ -2909,6 +3169,8 @@ func _on_log_landed(mesh: Mesh) -> void:
 	_play_drop_sfx()
 	AudioDirector.play_world(&"log_drop", Vector3(0.0, _stump_top_y, 0.0))
 	_spawn_log_smoke(mesh)
+	if _external_log_flow:
+		run_log_ready.emit()
 
 
 ## Build all smoke geometry/materials before the first log lands. Creating six

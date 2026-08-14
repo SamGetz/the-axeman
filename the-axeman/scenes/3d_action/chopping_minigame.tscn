@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://cxmnchopmg0a1"]
+[gd_scene load_steps=10 format=3 uid="uid://cxmnchopmg0a1"]
 
 [ext_resource type="Script" uid="uid://d2xfogqelkaw3" path="res://scenes/3d_action/chopping_minigame.gd" id="1_mg"]
 [ext_resource type="PackedScene" uid="uid://bkjcipib43xh8" path="res://assets/models/forest_floor/forest_floor_a.fbx" id="2_30w1t"]
@@ -7,7 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://ckgruj1y75quo" path="res://assets/models/axe_basic/axe_basic.fbx" id="5_axefbx"]
 [ext_resource type="AnimationLibrary" uid="uid://pyg4245tqpsu" path="res://data/axe_swing_lib.tres" id="6_axelib"]
 [ext_resource type="Script" path="res://scenes/3d_action/yard_equipment_presenter.gd" id="7_equipment"]
-[ext_resource type="Script" path="res://core/mechanical_splitter_runtime.gd" id="8_splitter_runtime"]
+[ext_resource type="Script" path="res://scenes/3d_action/loose_log_arena.gd" id="8_arena"]
 [ext_resource type="Script" path="res://scenes/3d_action/background_tree_line.gd" id="9_tree_line"]
 [ext_resource type="Material" path="res://assets/shaders/distance_pixel_grade_placeholder.tres" id="10_distance_pixels"]
 
@@ -69,8 +69,8 @@ shape = SubResource("Shape_floor")
 
 [node name="Fallers" type="Node3D" parent="." unique_id=1262106074]
 
-[node name="MechanicalSplitterRuntime" type="Node" parent="."]
-script = ExtResource("8_splitter_runtime")
+[node name="LooseLogArena" type="Node3D" parent="."]
+script = ExtResource("8_arena")
 
 [node name="YardEquipment" type="Node3D" parent="."]
 script = ExtResource("7_equipment")

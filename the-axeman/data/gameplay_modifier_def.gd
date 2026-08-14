@@ -46,6 +46,9 @@ enum Kind {
 	CONTRIBUTION_EFFICIENCY,
 	## Fraction reducing eligible late Frontier infrastructure costs.
 	FRONTIER_LOGISTICS,
+	## One additional selectable timed-delivery tier per owned rank. Appended for
+	## save compatibility with the retired modifier enum values.
+	DELIVERY_TIER_UNLOCK,
 }
 
 enum Operation { ADD, MULTIPLY, ENABLE }

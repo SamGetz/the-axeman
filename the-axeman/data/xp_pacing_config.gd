@@ -11,9 +11,6 @@ extends Resource
 ## point. These are test targets, not final tuning approval.
 @export_range(600.0, 14400.0, 60.0) var core_tree_target_min_seconds: float = 5400.0
 @export_range(600.0, 14400.0, 60.0) var core_tree_target_max_seconds: float = 7200.0
-## Derived from the campaign-calibrated plateau span and Cinderheart's authored
-## XP. This remains a placeholder until the uninterrupted fresh-save review.
-@export_range(60.0, 3600.0, 1.0) var final_frontier_target_seconds: float = 217.0
 @export_range(1.0, 180.0, 0.5) var expected_active_seconds_per_endgame_log: float = 42.0
 @export var representative_terrestrial_levels := PackedInt32Array([
 	1, 3, 6, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45,
@@ -21,8 +18,6 @@ extends Resource
 @export var representative_terrestrial_active_seconds := PackedFloat32Array([
 	42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
 	42, 42, 42, 42, 42, 42, 42, 42, 42, 42.5, 43.5, 44.5])
-@export var representative_alien_levels := PackedInt32Array([101, 106, 111])
-@export var representative_alien_active_seconds := PackedFloat32Array([55.0, 60.0, 70.0])
 
 @export_group("Level cash — PLACEHOLDER")
 @export_range(0.01, 10.0, 0.01) var level_cash_load_fraction: float = 0.20
@@ -115,7 +110,7 @@ func validate() -> PackedStringArray:
 		errors.append("orb pool cannot cover overlapping routine and grain maxima")
 	if level_up_bar_hold_seconds < 0.0:
 		errors.append("level-up bar hold cannot be negative")
-	if final_frontier_target_seconds <= 0.0 or expected_active_seconds_per_endgame_log <= 0.0:
+	if expected_active_seconds_per_endgame_log <= 0.0:
 		errors.append("XP pacing time anchors must be positive")
 	if core_tree_target_min_seconds <= 0.0 \
 			or core_tree_target_max_seconds < core_tree_target_min_seconds:
@@ -131,7 +126,4 @@ func validate() -> PackedStringArray:
 			if not is_finite(seconds) or seconds <= 0.0:
 				errors.append("terrestrial active-time anchors must be positive and finite")
 				break
-	if representative_alien_levels.size() != AlienCampaign.traits().size() \
-			or representative_alien_active_seconds.size() != AlienCampaign.traits().size():
-		errors.append("alien representative anchors do not cover the alien table")
 	return errors

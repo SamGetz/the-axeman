@@ -89,32 +89,6 @@ modifiers = Array[ExtResource("3_modifier")]([SubResource("Modifier_grain_read_m
 tuning_status = "FINAL — approved skill-tree balance"
 
 ; PLACEHOLDER EQUIPMENT PROC VALUES — pacing/feel review required.
-[sub_resource type="Resource" id="Proc_mastery_echo"]
-script = ExtResource("2_proc")
-id = &"mastery_echo"
-display_name = "Mastery Echo"
-family = 4
-eligibility = 1
-announcement_key = &"mastery_echo"
-presentation_branch_id = &"mastery"
-base_chance = 0.0
-chain_cap = 1
-bad_luck_bound = 20
-tuning_status = "PLACEHOLDER — 20-event dry-streak bound needs pacing review"
-
-[sub_resource type="Resource" id="Proc_express_handoff"]
-script = ExtResource("2_proc")
-id = &"express_handoff"
-display_name = "Express Handoff"
-family = 5
-eligibility = 1
-announcement_key = &"express_handoff"
-presentation_branch_id = &"speed"
-base_chance = 0.0
-chain_cap = 1
-bad_luck_bound = 12
-tuning_status = "PLACEHOLDER — 12-event dry-streak bound needs pacing review"
-
 [resource]
 script = ExtResource("1_table")
-procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study"), SubResource("Proc_grain_read"), SubResource("Proc_mastery_echo"), SubResource("Proc_express_handoff")])
+procs = Array[ExtResource("2_proc")]([SubResource("Proc_double_strike"), SubResource("Proc_follow_up"), SubResource("Proc_quick_study"), SubResource("Proc_grain_read")])
