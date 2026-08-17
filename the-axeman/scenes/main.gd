@@ -16,7 +16,6 @@ var _autosave_timer: Timer
 @onready var _world_root: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root"
 @onready var _chopping: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame"
 @onready var _arena: Node3D = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame/LooseLogArena"
-@onready var _presenter: YardEquipmentPresenter = $"UI_Canvas/SubViewportContainer/Action_Viewport/3D_World_Root/Chopping_Minigame/YardEquipment"
 @onready var _yard_hud: YardHUD = $UI_Overlay/YardHUD
 @onready var _startup_menu: StartupMenu = $StartupOverlay/StartupMenu
 
@@ -29,7 +28,6 @@ func _ready() -> void:
 	_autosave_timer.timeout.connect(_flush_autosave)
 	add_child(_autosave_timer)
 	_run.bind_runtime(_chopping, _arena)
-	_presenter.bind_run_director(_run)
 	_yard_hud.bind_run_director(_run)
 	_yard_hud.bind_xp_source(_chopping)
 	_yard_hud.suspend_requested.connect(_suspend_to_title)
@@ -146,7 +144,6 @@ func _begin_session(restored: bool) -> void:
 		_run.resume_attempt()
 	else:
 		_run.start_attempt()
-	_yard_hud.begin_tutorial(not SaveSystem.has_save())
 	_queue_autosave()
 
 

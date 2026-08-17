@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://b7tg84syufnxu"]
 
-[ext_resource type="Script" path="res://core/tools/pixel_grade_shot.gd" id="1_shot"]
+[ext_resource type="Script" uid="uid://bx43msmnngy3p" path="res://core/tools/pixel_grade_shot.gd" id="1_shot"]
 
-[node name="PixelGradeShot" type="Node"]
+[node name="PixelGradeShot" type="Node" unique_id=779973047]
 script = ExtResource("1_shot")

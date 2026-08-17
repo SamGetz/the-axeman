@@ -23,7 +23,7 @@ retired unless Sam explicitly restores them.
   `/Users/sgetz/Downloads/Godot.app/Contents/MacOS/Godot`.
 - Test logic changes and render/inspect visual or geometry changes.
 
-Do not preload the handoff pack or roadmaps. Read only the relevant route:
+Read only the relevant route:
 
 - Status: `docs/STATUS.md`
 - Tests/setup: `docs/TESTING.md`
@@ -32,5 +32,4 @@ Do not preload the handoff pack or roadmaps. Read only the relevant route:
 - Skills/procs: `docs/areas/skills.md`
 - Art imports: `docs/areas/assets.md`
 
-Live code, resources, and tests outrank historical prose. `handoff/` and
-`docs/history/` are background unless the current task specifically needs them.
+Live code, resources, and tests outrank prose.

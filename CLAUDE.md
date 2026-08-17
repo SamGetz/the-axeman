@@ -2,15 +2,15 @@
 
 Keep this file lean: it is loaded into every Claude session. Do not add build
 diaries, bug post-mortems, full test output, tuning discussions, or retired
-designs here. Put current task-specific guidance under `docs/areas/`, current
-status in `docs/STATUS.md`, and historical narrative in `docs/history/`.
+designs here. Put current task-specific guidance under `docs/areas/` and current
+status in `docs/STATUS.md`.
 
 ## Project
 
-The Axeman is a cozy Godot log-cutting and lumberyard progression game. Manual
-chopping is the central interaction: logs arrive on the block, the player cuts
-them into firewood, and that work becomes stock, orders, cash, reputation,
-skills, and a visibly growing yard.
+Campfire Survivors is a cozy Godot log-cutting survival/progression game. Manual
+chopping is the central interaction: timed log deliveries pressure the yard,
+temporary run powers create controlled chaos, and completed roots pay run XP
+and session cash that can be banked into permanent Home upgrades.
 
 - Engine: Godot 4.7 stable.
 - Renderer: Compatibility (`gl_compatibility`).
@@ -21,7 +21,6 @@ skills, and a visibly growing yard.
 
 Tree felling, ore mining, explorable forests, villagers, and staff rosters are
 retired. Do not restore or replace them without Sam's explicit direction.
-Regions may supply logs; automation may process already-known species.
 
 ## Authority and context loading
 
@@ -30,13 +29,10 @@ Use this precedence when sources disagree:
 1. Sam's instruction in the current conversation.
 2. The live code, resources, and tests.
 3. Current summaries in `docs/STATUS.md` and `docs/areas/`.
-4. Approved roadmap material when the task is roadmap or scope planning.
-5. `handoff/`, `docs/history/`, old test counts, and git history are background
-   only. They are not current implementation authority.
+4. Git history when an old decision is directly relevant.
 
-Do not read the handoff pack or roadmap files by default. Load only the one
-task-specific document named in the routing table below. Inspect the relevant
-code and tests before trusting prose that duplicates them.
+Load only the task-specific document named in the routing table below. Inspect
+the relevant code and tests before trusting prose that duplicates them.
 
 For ordinary code searches, start in `the-axeman/core/`, `the-axeman/data/`,
 and `the-axeman/scenes/`. Exclude `.godot/`, `*.import`, binary assets,
@@ -79,14 +75,11 @@ imports, art, Maya sources, or MCP tooling.
   `UI_Overlay(CanvasLayer, layer 2)`.
 - The viewport, base canvas, and window are 1280x720. The viewport uses 4x MSAA,
   anisotropic filtering level 3, and nearest canvas filtering.
-- `Enums` is a `class_name`, never an autoload. Current enum scope is wood-only:
-  `ItemCategory { RAW_WOOD, REFINED }`, `ToolType { AXE }`, and wood-supply
-  biomes only.
+- `Enums` is a `class_name`, never an autoload. Its live scope is
+  `ChopDirection { LEFT, RIGHT, UP, DOWN }`.
 - EventBus's existing cross-boundary signal contract is frozen. Prefer local
   signals or current public APIs over adding global signals. If a genuine
   contract change is required, stop and propose it to Sam before editing.
-- The only size-tier test is
-  `piece.size_tier > GameFeelConfig.size_threshold`.
 - In 2D mode, disable the action viewport's updates and the 3D world's
   processing; restore them on `minigame_entered`.
 - Hit pause uses an ignore-time-scale timer and must guard overlapping pauses.
@@ -94,17 +87,18 @@ imports, art, Maya sources, or MCP tooling.
 - Species selection is data-driven through `data/species_table.tres`. A species
   may own multiple meshes; pick species first and shape second so art variety
   does not distort species probability.
-- Logs are not inventory items. Chopping yields registered `*_firewood` items.
-- Cash buys world objects and supplies; skill points buy player capability.
-- Machines may process a mastered/certified species but may not discover,
-  master, certify, or award Axeman XP for a species.
+- Logs are not inventory items. Root completion owns exact-once session Cash
+  and run-XP rewards; finished billets retain the inventory validation seam.
+- Session Cash cannot be spent in a run. Banked Home Cash buys permanent
+  upgrades, while temporary powers come only from run level-up choices.
 
 ## Current status
 
-M1, M2, M3, M4, M7A, and the M7C Strength, Technique, and Speed vertical slices
-are implemented. M7C Slice 7 (automatic Follow-Up plus Ready Stance wind-up
-speed) was signed off on 2026-08-05. Do not infer permission to begin the next
-slice or M8.
+The live loop is the survivors progression pivot documented in
+`docs/STATUS.md`: Home, yard selection, timed/endless runs, run XP/offers, 27
+temporary powers, boss stacks, settlement, and save migration. Retired campaign,
+company, equipment, SkillTree, and tutorial implementations have been removed;
+only bounded save-migration data remains.
 
 Latest verified suite counts and commands live in `docs/STATUS.md` and
 `docs/TESTING.md`; do not copy growing test histories back into this file.
@@ -115,17 +109,11 @@ Latest verified suite counts and commands live in `docs/STATUS.md` and
 |---|---|
 | Current milestone, known gaps, latest suite counts | `docs/STATUS.md` |
 | Running tests or setting up another machine | `docs/TESTING.md`, then `SETUP.md` if needed |
-| Runtime slicing, chopping, fragments, axe, pile, or visual test tools | `docs/areas/chopping.md` |
+| Runtime slicing, chopping, fragments, axe, finished-piece sink, or visual test tools | `docs/areas/chopping.md` |
 | Cash, saves, inventory, orders, species ownership, or the yard HUD | `docs/areas/progression.md` |
-| XP, skill tree, procs, grain cues, Follow-Up, or Ready Stance | `docs/areas/skills.md` |
+| Run XP, power curves, run powers, quality, grain cues, or Follow-Up | `docs/areas/skills.md` |
 | FBX, materials, textures, Maya, or art imports | `docs/areas/assets.md` |
-| Near-term module planning | `handoff/08_COZY_LUMBERYARD_ROADMAP.md` |
-| Earth-to-space long-horizon planning | `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` |
-| Why an old decision was made | the specific file in `docs/history/` or git history |
-
-The roadmap files are planning references, not prerequisites for implementation
-tasks. The old `handoff/00_OVERVIEW.md` and numbered implementation briefs are
-historical unless a current area document explicitly points to one.
+| Why an old decision was made | git history |
 
 ## Test discipline
 
@@ -135,6 +123,5 @@ project manager and exit successfully without running the requested scene.
 
 After adding a new `class_name`, run a Godot import pass so the global class
 cache is refreshed. `--check-only` may report missing autoload identifiers;
-use the relevant scene suite for integration confidence. Some physics and pile
-checks require non-headless execution because their correctness depends on the
-real animation/render clock.
+use the relevant scene suite for integration confidence. Rendered layout and
+geometry checkpoints require a non-headless run.

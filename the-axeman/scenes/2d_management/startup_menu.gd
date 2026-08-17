@@ -1249,16 +1249,10 @@ func _format_effect_value(effect: ProgressionEffectDef, value: float) -> String:
 	if effect.kind in [
 		ProgressionEffectDef.Kind.SPLIT_RELIABILITY,
 		ProgressionEffectDef.Kind.SWING_RECOVERY,
-		ProgressionEffectDef.Kind.WINDUP_TIME,
-		ProgressionEffectDef.Kind.BLOCK_WORK_RADIUS,
-		ProgressionEffectDef.Kind.BLOCK_SETTLE_TIME,
-		ProgressionEffectDef.Kind.BLOCK_HANDOFF_TIME,
 		ProgressionEffectDef.Kind.SCAR_RELIABILITY,
-		ProgressionEffectDef.Kind.BOSS_CUT_EFFECTIVENESS,
 		ProgressionEffectDef.Kind.FOURTH_CARD_CHANCE,
 		ProgressionEffectDef.Kind.RARE_QUALITY_WEIGHT,
 		ProgressionEffectDef.Kind.EPIC_QUALITY_WEIGHT,
-		ProgressionEffectDef.Kind.BLASTER_DROP_CHANCE,
 		ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE,
 	]:
 		return "%.0f%%" % (value * 100.0)
@@ -1270,13 +1264,6 @@ func _effect_name(kind: ProgressionEffectDef.Kind) -> String:
 	if int(kind) < 0 or int(kind) >= names.size():
 		return "Effect"
 	return String(names[int(kind)]).capitalize()
-
-
-func _cost_ladder(costs: PackedInt64Array) -> String:
-	var values := PackedStringArray()
-	for cost: int in costs:
-		values.append("$%s" % _format_number(cost))
-	return " › ".join(values)
 
 
 func _species_roster(yard: YardDef) -> String:

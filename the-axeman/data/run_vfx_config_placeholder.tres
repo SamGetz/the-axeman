@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="RunVfxConfig" format=3 uid="uid://d21aig43d6v8p"]
+
+[ext_resource type="Script" uid="uid://d1lprkaf7s3oa" path="res://data/run_vfx_config.gd" id="1_config"]
+
+[resource]
+script = ExtResource("1_config")

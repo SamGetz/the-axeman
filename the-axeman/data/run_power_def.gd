@@ -13,12 +13,20 @@ enum Pool { INVALID, CORE, BLUEPRINT }
 @export var pool: Pool = Pool.INVALID
 @export_range(1, 99, 1) var rank_cap := 1
 
-@export_group("Authored effects and presentation")
-@export var effects: Array[ProgressionEffectDef] = []
+@export_group("Presentation")
 @export var icon_path := ""
 @export var vfx_path := ""
 @export_multiline var tuning_status := \
 	"PLACEHOLDER — run-power rank values and cadence require measured tuning approval"
+
+## Bound by RunPowerTable from the central run-power curve resource. Keeping
+## this runtime-facing property preserves one typed read path for every caller
+## without duplicating rank ladders into the identity catalogue.
+var effects: Array[ProgressionEffectDef] = []
+
+
+func bind_effects(authored_effects: Array[ProgressionEffectDef]) -> void:
+	effects = authored_effects
 
 
 func effect_value(effect_kind: ProgressionEffectDef.Kind, rank: int) -> float:
@@ -106,9 +114,9 @@ static func _effect_label(kind: ProgressionEffectDef.Kind) -> String:
 		ProgressionEffectDef.Kind.GUARANTEED_EXTRA_CUTS: return "Extra cuts"
 		ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE: return "Chance"
 		ProgressionEffectDef.Kind.FOLLOW_UP_DEPTH: return "Repeats"
-		ProgressionEffectDef.Kind.SPLINTER_COUNT: return "Splits"
+		ProgressionEffectDef.Kind.SPLINTER_COUNT: return "Logs"
 		ProgressionEffectDef.Kind.FLYING_WEDGE_INTERVAL: return "Every"
-		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT: return "Cuts"
+		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT: return "Logs"
 		ProgressionEffectDef.Kind.YARD_MAGNET_FORCE: return "Pull"
 		ProgressionEffectDef.Kind.YARD_MAGNET_PULSE_INTERVAL: return "Every"
 		ProgressionEffectDef.Kind.ARRIVAL_LATERAL_MULTIPLIER: return "Lateral"
@@ -120,16 +128,16 @@ static func _effect_label(kind: ProgressionEffectDef.Kind) -> String:
 		ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS: return "Radius"
 		ProgressionEffectDef.Kind.EARTHSHAKER_INWARD_FORCE: return "Pull"
 		ProgressionEffectDef.Kind.POWDER_KEG_RADIUS: return "Radius"
-		ProgressionEffectDef.Kind.POWDER_KEG_CUT_COUNT: return "Cuts"
+		ProgressionEffectDef.Kind.POWDER_KEG_CUT_COUNT: return "Logs"
 		ProgressionEffectDef.Kind.POWDER_KEG_INWARD_FORCE: return "Pull"
-		ProgressionEffectDef.Kind.KINDLING_CHAIN_COUNT: return "Chains"
+		ProgressionEffectDef.Kind.KINDLING_CHAIN_COUNT: return "Logs"
 		ProgressionEffectDef.Kind.KINDLING_CHAIN_RANGE: return "Range"
 		ProgressionEffectDef.Kind.ORBITING_AXE_COUNT: return "Axes"
 		ProgressionEffectDef.Kind.ORBITING_AXE_CONTACT_COOLDOWN: return "Contact"
 		ProgressionEffectDef.Kind.CROSSCUT_SWEEP_INTERVAL: return "Every"
 		ProgressionEffectDef.Kind.CROSSCUT_SWEEP_WIDTH: return "Width"
 		ProgressionEffectDef.Kind.MAUL_DROP_INTERVAL: return "Every"
-		ProgressionEffectDef.Kind.MAUL_DROP_CUT_COUNT: return "Cuts"
+		ProgressionEffectDef.Kind.MAUL_DROP_CUT_COUNT: return "Logs"
 		ProgressionEffectDef.Kind.SPLITTER_RIG_INTERVAL: return "Every"
 		ProgressionEffectDef.Kind.CANT_HOOK_FORCE: return "Pull"
 		ProgressionEffectDef.Kind.STUMP_PULSE_INTERVAL: return "Every"
@@ -195,9 +203,8 @@ static func _format_effect_value(effect: ProgressionEffectDef, value: float) -> 
 
 func _quality_adjusted_effect_value(effect: ProgressionEffectDef,
 		pick_multipliers: Array[float]) -> float:
-	# Flying Wedge always carries one authored six-cut removal payload. Rank and
-	# quality improve its separate interval effect; multiplying the payload would
-	# silently turn one wedge into several deleted roots.
+	# Flying Wedge always destroys one log. Rank and quality improve its separate
+	# interval effect; multiplying the payload would silently add deleted roots.
 	if effect.kind == ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT:
 		return effect.value_at_rank(mini(rank_cap, pick_multipliers.size()))
 	var neutral := _neutral_effect_value(effect)

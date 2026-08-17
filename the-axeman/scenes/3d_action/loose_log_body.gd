@@ -7,8 +7,7 @@ var landed := false
 ## Live floor contact, intentionally not persisted: restored bodies must prove a
 ## fresh physics contact before ground-only forces can affect them.
 var grounded := false
-var hazard_speed := 1.0
-## Base delivery gravity stays independent from Slow Time's live hazard scale.
+## Delivery gravity is snapshotted from survival tuning at spawn.
 var arrival_gravity_scale := 1.0
 ## Yard Magnet owns this ramp while grounded. Keeping it outside the physics
 ## velocity prevents floor contacts from resetting a smooth pull to zero.
@@ -29,17 +28,6 @@ var warning_active := false
 var warning_decisecond := -1
 var batched_visual := false
 var batch_key := 0
-
-
-func set_hazard_speed(value: float) -> void:
-	var next := clampf(value, 0.05, 1.0)
-	if is_equal_approx(next, hazard_speed):
-		return
-	var ratio := next / hazard_speed
-	linear_velocity *= ratio
-	angular_velocity *= ratio
-	hazard_speed = next
-	gravity_scale = arrival_gravity_scale * next * next
 
 
 func to_save_dict() -> Dictionary:

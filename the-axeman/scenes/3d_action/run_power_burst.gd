@@ -3,7 +3,7 @@ extends Node3D
 ## Short-lived, presentation-only announcement shared by run-power acquisition
 ## and runtime triggers. Gameplay resolves before this node is spawned.
 
-const _CONFIG = preload("res://data/skill_vfx_config.tres")
+const _CONFIG = preload("res://data/run_vfx_config_placeholder.tres")
 const _STYLE = preload("res://data/painterly_vfx_style_placeholder.tres")
 const _DEFAULT_SHADER = preload("res://assets/shaders/painterly_vfx_daub.gdshader")
 const _MAX_REAL_DELTA := 0.05
@@ -197,15 +197,15 @@ func _build_particles(shader: Shader, color: Color) -> void:
 	if process == null:
 		process = ParticleProcessMaterial.new()
 		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		process.emission_sphere_radius = _CONFIG.strength_cloud_radius
+		process.emission_sphere_radius = _CONFIG.generic_cloud_radius
 		process.direction = Vector3.UP
-		process.spread = _CONFIG.strength_spread_degrees
+		process.spread = _CONFIG.generic_spread_degrees
 		process.initial_velocity_min = _CONFIG.generic_speed_min
 		process.initial_velocity_max = _CONFIG.generic_speed_max
 		process.gravity = Vector3.DOWN * 1.2
 		process.damping_min = 0.15
 		process.damping_max = 0.55
-		# These are the existing generic ProcBurst placeholder dimensions, reused so
+		# Shared placeholder dimensions keep trigger silhouettes visually consistent,
 		# this announcement does not introduce a second unreviewed particle scale.
 		process.scale_min = 0.016
 		process.scale_max = 0.052
@@ -264,7 +264,7 @@ func _process(_delta: float) -> void:
 		* (1.0 - smoothstep(0.34, 0.90, k))
 	_core.scale = Vector3.ONE * _CONFIG.proc_core_size * (0.62 + pulse * 1.75)
 	_core.transparency = 1.0 - clampf(pulse * _CONFIG.proc_core_opacity, 0.0, 1.0)
-	_light.light_energy = _CONFIG.mastery_light_energy * pulse
+	_light.light_energy = _CONFIG.generic_light_energy * pulse
 	_label.position.y = _CONFIG.proc_core_size * (1.65 + k * 1.25)
 	var label_color := _label.modulate
 	label_color.a = 1.0 - smoothstep(0.56, 1.0, k)

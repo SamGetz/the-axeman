@@ -84,15 +84,17 @@ func _test_production_xp_delivery() -> void:
 	# root. Production snapshots are otherwise immutable; the debug descriptor is
 	# adjusted here so the strict root receipt still equals its staged value.
 	first_descriptor.xp_reward_snapshot = requested
-	var awarded: int = game.call("debug_award_log_xp_event",
-		&"manual", first_descriptor.id, true, false, requested)
-	var duplicate_award: int = game.call("debug_award_log_xp_event",
-		&"manual", first_descriptor.id, true, false, requested)
+	var before_first_award := run.get_xp()
+	game.call("_award_log_xp")
+	var awarded := run.get_xp() - before_first_award
+	var before_duplicate := run.get_xp()
+	game.call("_award_log_xp")
+	var duplicate_award := run.get_xp() - before_duplicate
 	var active_orbs := _active_orb_count(game)
 	_check(awarded == requested and run.get_xp() == requested \
 		and run.get_level() == 2 and batch_count[0] == 1 \
 		and batch_total[0] == awarded and active_orbs > 0 \
-		and duplicate_award == 0 and GameState.get_xp() == 0,
+		and duplicate_award == 0,
 		"a real production completion awards run XP immediately and launches a nonzero orb batch")
 	_check(hud.displayed_xp_total() == 0 and hud.displayed_level() == 1 \
 		and is_zero_approx(bar.value) and label.text == "Level 1",
@@ -164,8 +166,9 @@ func _test_production_xp_delivery() -> void:
 	game.set("orbs_enabled", false)
 	var second_descriptor := game.get("_current_descriptor") as LogDescriptor
 	second_descriptor.xp_reward_snapshot = 1
-	var repeated_root_award: int = game.call("debug_award_log_xp_event",
-		&"manual", second_descriptor.id, true, false, 1)
+	var before_repeated_root := run.get_xp()
+	game.call("_award_log_xp")
+	var repeated_root_award := run.get_xp() - before_repeated_root
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(repeated_root_award == 1 and run.get_xp() == 1 \

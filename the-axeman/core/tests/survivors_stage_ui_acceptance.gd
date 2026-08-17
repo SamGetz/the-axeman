@@ -109,10 +109,10 @@ func _run_scenario() -> void:
 	var first_continue := _find_button_with_text(first_results, "CONTINUE ENDLESS")
 	var first_bank := _find_button_with_text(first_results, "BANK & GO HOME")
 	var decision_signature := _stage_decision_signature(first_results)
-	_check(first_run.phase == RunDirector.Phase.EARTH_CLEAR \
+	_check(first_run.phase == RunDirector.Phase.STAGE_CLEAR \
 		and first_run.is_paused() and first_run.stage_remaining_ms() == 0 \
 		and stage_label.text.contains("00:00") and first_results.visible,
-		"the stage reaches zero, enters EARTH_CLEAR, and pauses behind results")
+		"the stage reaches zero, enters STAGE_CLEAR, and pauses behind results")
 	_check(first_continue != null and first_continue.visible \
 		and first_bank != null and first_bank.visible,
 		"stage clear offers CONTINUE ENDLESS and BANK & GO HOME")
@@ -122,9 +122,9 @@ func _run_scenario() -> void:
 
 	var decision_snapshot := first_run.suspend_attempt()
 	_check(not decision_snapshot.is_empty() \
-		and int(decision_snapshot.get("phase", -1)) == RunDirector.Phase.EARTH_CLEAR \
+		and int(decision_snapshot.get("phase", -1)) == RunDirector.Phase.STAGE_CLEAR \
 		and SaveSystem.save_game(decision_snapshot),
-		"suspending at the decision persists the EARTH_CLEAR snapshot")
+		"suspending at the decision persists the STAGE_CLEAR snapshot")
 	first_main.queue_free()
 	await _wait_frames(3)
 	AudioDirector.end_session()
@@ -143,10 +143,10 @@ func _run_scenario() -> void:
 	var hud := restored_main.get_node("UI_Overlay/YardHUD") as YardHUD
 	var results_overlay := hud.get_node("ResultOverlay") as Control
 	var restored_signature := _stage_decision_signature(results_overlay)
-	_check(run.phase == RunDirector.Phase.EARTH_CLEAR and run.is_paused() \
+	_check(run.phase == RunDirector.Phase.STAGE_CLEAR and run.is_paused() \
 		and run.get_cash() == _SESSION_CASH and results_overlay.visible \
 		and restored_signature == decision_signature,
-		"restore remains at EARTH_CLEAR with the identical two-action decision")
+		"restore remains at STAGE_CLEAR with the identical two-action decision")
 
 	var restored_continue := _find_button_with_text(
 		results_overlay, "CONTINUE ENDLESS")

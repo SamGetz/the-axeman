@@ -4,7 +4,7 @@ extends Node3D
 ## sparkles, ember flecks and soft daubs stay intact; arrow-like painterly pines
 ## are an additional rising accent rather than a replacement vocabulary.
 
-const _CONFIG = preload("res://data/skill_vfx_config.tres")
+const _CONFIG = preload("res://data/run_vfx_config_placeholder.tres")
 const _STYLE = preload("res://data/painterly_vfx_style_placeholder.tres")
 const _PARTICLE_SHADER = preload("res://assets/shaders/painterly_vfx_daub.gdshader")
 const _LEVEL_PINE = preload("res://assets/generated/vfx/level_up_pine.png")

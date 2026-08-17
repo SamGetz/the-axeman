@@ -1,18 +1,6 @@
-[gd_resource type="Resource" script_class="RunOfferTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="RunOfferTuning" format=3 uid="uid://f4v1w76pq0ek"]
 
-[ext_resource type="Script" path="res://data/run_offer_tuning.gd" id="1_offer"]
+[ext_resource type="Script" uid="uid://bo07ut005rldl" path="res://data/run_offer_tuning.gd" id="1_offer"]
 
 [resource]
 script = ExtResource("1_offer")
-common_quality_weight = 1.0
-rare_quality_weight = 0.2
-epic_quality_weight = 0.05
-legendary_quality_weight = 0.005
-common_quality_multiplier = 1.0
-rare_quality_multiplier = 2.0
-epic_quality_multiplier = 3.0
-legendary_quality_multiplier = 4.0
-payday_base_cash = 10
-payday_cash_per_level = 2
-payday_cash_per_pick = 5
-tuning_status = "PLACEHOLDER — card-quality odds/value multipliers and Payday cash require measured tuning approval"

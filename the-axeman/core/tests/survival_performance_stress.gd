@@ -58,7 +58,7 @@ func _ready() -> void:
 	arena.set("_paused", false)
 	var hazard_started := Time.get_ticks_usec()
 	for _step: int in range(HAZARD_STEPS):
-		arena.advance_hazards(1.0 / 60.0, 1.0)
+		arena.advance_hazards(1.0 / 60.0)
 	var hazard_ms := float(Time.get_ticks_usec() - hazard_started) / 1000.0
 	_check(hazard_ms / float(HAZARD_STEPS) < 4.0,
 		"a %d-root hazard tick stays below the 4ms stress budget" % ROOT_COUNT)
@@ -75,29 +75,22 @@ func _ready() -> void:
 	_check(cut_count == 5 and hulls_after_cuts == hulls_before_cuts,
 		"five loose slices use primitive compound bounds without new QuickHull work")
 
-	var color := Color(0.42, 0.88, 0.34, 1.0)
 	var definition := SurvivorsContent.run_powers().by_id(&"double_chop")
-	ProcBurst.spawn(game, Vector3.ZERO, color, &"strength")
 	RunPowerBurst.spawn(game, Vector3.ZERO, definition)
-	var proc_materials := ProcBurst._material_cache.size()
-	var proc_meshes := ProcBurst._mesh_cache.size()
 	var power_materials := RunPowerBurst._material_cache.size()
 	var power_meshes := RunPowerBurst._mesh_cache.size()
 	var vfx_started := Time.get_ticks_usec()
 	for index: int in range(VFX_TRIGGER_COUNT):
 		var offset := Vector3(float(index % 10) * 0.01, 0.0,
 			float(index / 10) * 0.01)
-		ProcBurst.spawn(game, offset, color, &"strength")
 		RunPowerBurst.spawn(game, offset, definition)
 	var vfx_ms := float(Time.get_ticks_usec() - vfx_started) / 1000.0
-	_check(ProcBurst._material_cache.size() == proc_materials \
-			and ProcBurst._mesh_cache.size() == proc_meshes \
-			and RunPowerBurst._material_cache.size() == power_materials \
+	_check(RunPowerBurst._material_cache.size() == power_materials \
 			and RunPowerBurst._mesh_cache.size() == power_meshes,
 		"repeat trigger VFX reuse their warmed material, process, and draw resources")
 
 	print(("SURVIVAL PERFORMANCE: roots=%d spawn=%.2fms (%.3fms/root) " \
-		+ "hazards=%d×%.3fms cuts=%.2fms (%.2fms/cut) vfx=%d×2 %.2fms") \
+		+ "hazards=%d×%.3fms cuts=%.2fms (%.2fms/cut) vfx=%d %.2fms") \
 		% [ROOT_COUNT, spawn_ms, spawn_ms / float(ROOT_COUNT),
 			HAZARD_STEPS, hazard_ms / float(HAZARD_STEPS), cuts_ms,
 			cuts_ms / 5.0, VFX_TRIGGER_COUNT, vfx_ms])

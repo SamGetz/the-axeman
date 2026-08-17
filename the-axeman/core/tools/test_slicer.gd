@@ -1,5 +1,5 @@
 extends SceneTree
-## DEV TEST for MeshSlicer (Amendment 6). Run:
+## Development test for MeshSlicer. Run:
 ##   godot --headless -s res://core/tools/test_slicer.gd
 ## Slices known primitives and checks the two pieces have the expected extents
 ## and a generated cap surface. PASS/FAIL lines; no engine window needed.
@@ -208,14 +208,8 @@ func _test_plane_to_local() -> void:
 			"...and which side of it a point is on (%.1f deg)" % deg)
 
 
-## CAP UVs MUST FIT THE ROUND, at any size. `cap_fit_round` maps a cut face as a single
-## growth-ring disc fitted to that face; the default maps it in METRES.
-##
-## The metres mapping only lands inside 0..1 when the piece is about a metre across, which
-## tree_01's ~0.5 m radius made true BY ACCIDENT — so M5's bucked ends worked until
-## `tree_size_variation` made trunks wider, at which point the UVs ran off the disc and
-## (`texture_repeat` being off) clamped to the WHITE field around it. Sam saw it as the cut
-## textures being "all wrong". Nothing measured cap UVs before this.
+## `cap_fit_round` must keep fitted end-grain UVs inside the texture at any size;
+## the default remains a metres-based tiling map.
 func _test_cap_uv_fit() -> void:
 	for r: float in [0.15, 0.5, 1.4]:
 		var cyl := CylinderMesh.new()
@@ -240,7 +234,7 @@ func _test_cap_uv_fit() -> void:
 		_check(hi - lo > 0.8,
 			"...and fill it rather than shrinking to the centre (span %.3f)" % (hi - lo))
 
-	# The DEFAULT is unchanged, because M4's cut material tiles and wants metres.
+	# The default stays in metres for the tiling chopping material.
 	var box := BoxMesh.new()
 	box.size = Vector3(2, 2, 2)
 	var plain := MeshSlicer.slice(box, Plane(Vector3.UP, 0.0))
@@ -251,6 +245,6 @@ func _test_cap_uv_fit() -> void:
 		for uv in puv:
 			pspan = maxf(pspan, absf(uv.x - 0.5))
 		_check(pspan > 0.6,
-			"the default cap mapping is still in metres, as M4's tiling cut material needs (%.2f)" % pspan)
+			"the default cap mapping remains in metres for the tiling cut material (%.2f)" % pspan)
 	else:
 		_check(false, "a box slices with a cap for the default-mapping check")

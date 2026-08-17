@@ -1,68 +1,24 @@
-[gd_resource type="Resource" script_class="MetaUpgradeTable" load_steps=100 format=3]
+[gd_resource type="Resource" script_class="MetaUpgradeTable" format=3 uid="uid://2nqgxym661en"]
 
-[ext_resource type="Script" path="res://data/meta_upgrade_table.gd" id="1_table"]
-[ext_resource type="Script" path="res://data/meta_upgrade_def.gd" id="2_def"]
-[ext_resource type="Script" path="res://data/progression_effect_def.gd" id="3_effect"]
-[ext_resource type="Script" path="res://data/meta_visual_milestone_def.gd" id="4_milestone"]
-
-; EVERY COST AND EFFECT VALUE BELOW IS A PLACEHOLDER pending measured approval.
+[ext_resource type="Script" uid="uid://copy0cft03mx5" path="res://data/meta_upgrade_table.gd" id="1_table"]
+[ext_resource type="Script" uid="uid://bvh1a6yv0tcrg" path="res://data/meta_upgrade_def.gd" id="2_def"]
+[ext_resource type="Script" uid="uid://4455vhf64h5g" path="res://data/progression_effect_def.gd" id="3_effect"]
 
 [sub_resource type="Resource" id="Effect_axe_power"]
 script = ExtResource("3_effect")
 kind = 1
 cumulative_values_by_rank = PackedFloat64Array(0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.21, 0.24)
 
-[sub_resource type="Resource" id="Milestone_axe_1"]
-script = ExtResource("4_milestone")
-rank = 1
-equipment_id = &"balanced_axe"
-
-[sub_resource type="Resource" id="Milestone_axe_2"]
-script = ExtResource("4_milestone")
-rank = 2
-equipment_id = &"tempered_woodsmans_axe"
-
-[sub_resource type="Resource" id="Milestone_axe_3"]
-script = ExtResource("4_milestone")
-rank = 3
-equipment_id = &"forged_splitting_maul"
-
-[sub_resource type="Resource" id="Milestone_axe_4"]
-script = ExtResource("4_milestone")
-rank = 4
-equipment_id = &"steel_cheek_axe"
-
-[sub_resource type="Resource" id="Milestone_axe_5"]
-script = ExtResource("4_milestone")
-rank = 5
-equipment_id = &"journeymans_bearded_axe"
-
-[sub_resource type="Resource" id="Milestone_axe_6"]
-script = ExtResource("4_milestone")
-rank = 6
-equipment_id = &"hardwood_pattern_axe"
-
-[sub_resource type="Resource" id="Milestone_axe_7"]
-script = ExtResource("4_milestone")
-rank = 7
-equipment_id = &"continental_mill_axe"
-
-[sub_resource type="Resource" id="Milestone_axe_8"]
-script = ExtResource("4_milestone")
-rank = 8
-equipment_id = &"earthmaster_axe"
-
 [sub_resource type="Resource" id="Upgrade_axe_power"]
 script = ExtResource("2_def")
 id = &"axe_power"
 display_name = "Axe Power"
-description = "Improves split reliability; rank milestones advance the existing axe presentation."
+description = "Improves split reliability."
 limitation = "It does not remove species, level, or boss hardness."
 icon_path = "res://assets/ui/powers/deep_bite.svg"
 max_rank = 8
 costs_by_rank = PackedInt64Array(50, 100, 200, 400, 800, 1600, 3200, 6400)
 effects = Array[ExtResource("3_effect")]([SubResource("Effect_axe_power")])
-visual_milestones = Array[ExtResource("4_milestone")]([SubResource("Milestone_axe_1"), SubResource("Milestone_axe_2"), SubResource("Milestone_axe_3"), SubResource("Milestone_axe_4"), SubResource("Milestone_axe_5"), SubResource("Milestone_axe_6"), SubResource("Milestone_axe_7"), SubResource("Milestone_axe_8")])
 tuning_status = "PLACEHOLDER — Axe Power costs and reliability values require measured approval"
 
 [sub_resource type="Resource" id="Effect_swing_recovery"]
@@ -82,99 +38,6 @@ costs_by_rank = PackedInt64Array(50, 100, 200, 400, 800, 1600, 3200, 6400)
 effects = Array[ExtResource("3_effect")]([SubResource("Effect_swing_recovery")])
 tuning_status = "PLACEHOLDER — Swing Recovery costs and values require measured approval"
 
-[sub_resource type="Resource" id="Effect_ready_stance"]
-script = ExtResource("3_effect")
-kind = 3
-cumulative_values_by_rank = PackedFloat64Array(0.05, 0.1, 0.15, 0.2, 0.25)
-
-[sub_resource type="Resource" id="Upgrade_ready_stance"]
-script = ExtResource("2_def")
-id = &"ready_stance"
-display_name = "Ready Stance"
-description = "Shortens axe wind-up before a legal strike lands."
-limitation = "It does not reduce post-strike recovery."
-icon_path = "res://assets/ui/powers/momentum.svg"
-max_rank = 5
-costs_by_rank = PackedInt64Array(100, 250, 600, 1400, 3200)
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_ready_stance")])
-tuning_status = "PLACEHOLDER — Ready Stance costs and values require measured approval"
-
-[sub_resource type="Resource" id="Effect_block_radius"]
-script = ExtResource("3_effect")
-kind = 4
-cumulative_values_by_rank = PackedFloat64Array(0.04, 0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.32)
-
-[sub_resource type="Resource" id="Effect_block_settle"]
-script = ExtResource("3_effect")
-kind = 5
-cumulative_values_by_rank = PackedFloat64Array(0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.21, 0.24)
-
-[sub_resource type="Resource" id="Effect_block_handoff"]
-script = ExtResource("3_effect")
-kind = 6
-cumulative_values_by_rank = PackedFloat64Array(0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.21, 0.24)
-
-[sub_resource type="Resource" id="Milestone_block_1"]
-script = ExtResource("4_milestone")
-rank = 1
-slot = 1
-equipment_id = &"reinforced_chopping_block"
-
-[sub_resource type="Resource" id="Milestone_block_2"]
-script = ExtResource("4_milestone")
-rank = 2
-slot = 1
-equipment_id = &"iron_block_dogs"
-
-[sub_resource type="Resource" id="Milestone_block_3"]
-script = ExtResource("4_milestone")
-rank = 3
-slot = 1
-equipment_id = &"log_cradle"
-
-[sub_resource type="Resource" id="Milestone_block_4"]
-script = ExtResource("4_milestone")
-rank = 4
-slot = 1
-equipment_id = &"raised_split_stand"
-
-[sub_resource type="Resource" id="Milestone_block_5"]
-script = ExtResource("4_milestone")
-rank = 5
-slot = 1
-equipment_id = &"braced_yard_block"
-
-[sub_resource type="Resource" id="Milestone_block_6"]
-script = ExtResource("4_milestone")
-rank = 6
-slot = 1
-equipment_id = &"millhouse_chopping_block"
-
-[sub_resource type="Resource" id="Milestone_block_7"]
-script = ExtResource("4_milestone")
-rank = 7
-slot = 1
-equipment_id = &"continental_split_deck"
-
-[sub_resource type="Resource" id="Milestone_block_8"]
-script = ExtResource("4_milestone")
-rank = 8
-slot = 1
-equipment_id = &"earthmaster_ironwood_block"
-
-[sub_resource type="Resource" id="Upgrade_block_control"]
-script = ExtResource("2_def")
-id = &"block_control"
-display_name = "Block Control"
-description = "Expands the work area and improves settling and handoff timing."
-limitation = "It does not increase split reliability by itself."
-icon_path = "res://assets/ui/powers/stump_pulse.svg"
-max_rank = 8
-costs_by_rank = PackedInt64Array(50, 100, 200, 400, 800, 1600, 3200, 6400)
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_block_radius"), SubResource("Effect_block_settle"), SubResource("Effect_block_handoff")])
-visual_milestones = Array[ExtResource("4_milestone")]([SubResource("Milestone_block_1"), SubResource("Milestone_block_2"), SubResource("Milestone_block_3"), SubResource("Milestone_block_4"), SubResource("Milestone_block_5"), SubResource("Milestone_block_6"), SubResource("Milestone_block_7"), SubResource("Milestone_block_8")])
-tuning_status = "PLACEHOLDER — Block Control costs, values and milestones require measured approval"
-
 [sub_resource type="Resource" id="Effect_scar_craft"]
 script = ExtResource("3_effect")
 kind = 7
@@ -191,23 +54,6 @@ max_rank = 5
 costs_by_rank = PackedInt64Array(100, 250, 600, 1400, 3200)
 effects = Array[ExtResource("3_effect")]([SubResource("Effect_scar_craft")])
 tuning_status = "PLACEHOLDER — Scar Craft costs and values require measured approval"
-
-[sub_resource type="Resource" id="Effect_boss_handling"]
-script = ExtResource("3_effect")
-kind = 8
-cumulative_values_by_rank = PackedFloat64Array(0.05, 0.1, 0.15, 0.2, 0.25)
-
-[sub_resource type="Resource" id="Upgrade_boss_handling"]
-script = ExtResource("2_def")
-id = &"boss_handling"
-display_name = "Boss Handling"
-description = "Adds boss-specific cutting effectiveness."
-limitation = "Boss roots retain their authored hardness and mass."
-icon_path = "res://assets/ui/powers/ring_reinforcement.svg"
-max_rank = 5
-costs_by_rank = PackedInt64Array(150, 350, 800, 1800, 4000)
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_boss_handling")])
-tuning_status = "PLACEHOLDER — Boss Handling costs and values require measured approval"
 
 [sub_resource type="Resource" id="Effect_run_xp"]
 script = ExtResource("3_effect")
@@ -262,22 +108,17 @@ kind = 13
 operation = 1
 cumulative_values_by_rank = PackedFloat64Array(1.05, 1.1, 1.15, 1.2, 1.25)
 
-[sub_resource type="Resource" id="Effect_luck_blaster"]
-script = ExtResource("3_effect")
-kind = 14
-cumulative_values_by_rank = PackedFloat64Array(0.01, 0.02, 0.03, 0.04, 0.05)
-
 [sub_resource type="Resource" id="Upgrade_luck"]
 script = ExtResource("2_def")
 id = &"luck"
 display_name = "Luck"
-description = "Improves fourth-card, Rare/Epic upgrade-quality, and Log Blaster drop chances."
-limitation = "It never changes which eligible power identity is selected or guarantees a drop."
+description = "Improves fourth-card and Rare/Epic upgrade-quality chances."
+limitation = "It never changes which eligible power identity is selected or guarantees a quality."
 icon_path = "res://assets/ui/powers/grain_reader.svg"
 max_rank = 5
 costs_by_rank = PackedInt64Array(200, 500, 1200, 2800, 6500)
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_luck_fourth"), SubResource("Effect_luck_rare"), SubResource("Effect_luck_epic"), SubResource("Effect_luck_blaster")])
-tuning_status = "PLACEHOLDER — Luck costs and all probabilities require measured approval"
+effects = Array[ExtResource("3_effect")]([SubResource("Effect_luck_fourth"), SubResource("Effect_luck_rare"), SubResource("Effect_luck_epic")])
+tuning_status = "PLACEHOLDER — Luck costs and offer probabilities require measured approval"
 
 [sub_resource type="Resource" id="Effect_boundary_radius"]
 script = ExtResource("3_effect")
@@ -312,41 +153,6 @@ max_rank = 5
 costs_by_rank = PackedInt64Array(150, 375, 900, 2100, 4800)
 effects = Array[ExtResource("3_effect")]([SubResource("Effect_boundary_grace")])
 tuning_status = "PLACEHOLDER — Boundary Grace costs and seconds require measured approval"
-
-[sub_resource type="Resource" id="Effect_blaster_duration"]
-script = ExtResource("3_effect")
-kind = 17
-cumulative_values_by_rank = PackedFloat64Array(1, 2, 3, 4, 5)
-
-[sub_resource type="Resource" id="Upgrade_blaster_duration"]
-script = ExtResource("2_def")
-id = &"blaster_duration"
-display_name = "Blaster Duration"
-description = "Extends temporary Log Blaster duration."
-limitation = "It does not grant a Blaster or bypass the boss cut cap."
-icon_path = "res://assets/ui/powers/powder_keg.svg"
-max_rank = 5
-costs_by_rank = PackedInt64Array(175, 425, 1000, 2400, 5500)
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_blaster_duration")])
-tuning_status = "PLACEHOLDER — Blaster Duration costs and seconds require measured approval"
-
-[sub_resource type="Resource" id="Effect_off_block"]
-script = ExtResource("3_effect")
-kind = 18
-operation = 2
-cumulative_values_by_rank = PackedFloat64Array(1)
-
-[sub_resource type="Resource" id="Upgrade_off_block"]
-script = ExtResource("2_def")
-id = &"off_block_cutting"
-display_name = "Off-Block Cutting"
-description = "Enables direct cursor strikes and real slicing on loose roots."
-limitation = "Existing targeting and valid cutting geometry still apply."
-icon_path = "res://assets/ui/powers/crosscut_sweep.svg"
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_off_block")])
-granted_capability = 1
-costs_by_rank = PackedInt64Array(1500)
-tuning_status = "PLACEHOLDER — Off-Block Cutting unlock cost requires measured approval"
 
 [sub_resource type="Resource" id="Effect_hold"]
 script = ExtResource("3_effect")
@@ -443,4 +249,4 @@ tuning_status = "PLACEHOLDER — Banish costs require measured approval"
 
 [resource]
 script = ExtResource("1_table")
-upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_axe_power"), SubResource("Upgrade_swing_recovery"), SubResource("Upgrade_ready_stance"), SubResource("Upgrade_block_control"), SubResource("Upgrade_scar_craft"), SubResource("Upgrade_boss_handling"), SubResource("Upgrade_run_xp"), SubResource("Upgrade_session_cash"), SubResource("Upgrade_luck"), SubResource("Upgrade_boundary_radius"), SubResource("Upgrade_boundary_grace"), SubResource("Upgrade_blaster_duration"), SubResource("Upgrade_off_block"), SubResource("Upgrade_hold"), SubResource("Upgrade_continuous"), SubResource("Upgrade_frequency"), SubResource("Upgrade_rerolls"), SubResource("Upgrade_banishes")])
+upgrades = Array[ExtResource("2_def")]([SubResource("Upgrade_axe_power"), SubResource("Upgrade_swing_recovery"), SubResource("Upgrade_scar_craft"), SubResource("Upgrade_run_xp"), SubResource("Upgrade_session_cash"), SubResource("Upgrade_luck"), SubResource("Upgrade_boundary_radius"), SubResource("Upgrade_boundary_grace"), SubResource("Upgrade_hold"), SubResource("Upgrade_continuous"), SubResource("Upgrade_frequency"), SubResource("Upgrade_rerolls"), SubResource("Upgrade_banishes")])

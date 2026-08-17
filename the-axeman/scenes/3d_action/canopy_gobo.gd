@@ -4,19 +4,11 @@ extends MeshInstance3D
 ## res://scenes/3d_action/chopping_minigame.tscn root.
 ##
 ## Fakes an animated leaf-canopy gobo: an alpha-scissor cutout quad hung
-## between the sun and the ground so it casts a real dappled-leaf shadow,
-## instead of A1's original SpotLight3D `light_projector` approach — confirmed
-## NOT to render under gl_compatibility (CLAUDE.md M2 known issue /
-## handoff/00_OVERVIEW.md renderer traps). This node is invisible itself
-## (cast_shadow = SHADOWS_ONLY); only its shadow shows. Requires the sibling
-## "DirectionalLight3D" to have shadow_enabled = true (set alongside this).
+## between the sun and ground so it casts a dappled shadow in Compatibility.
+## The node itself is shadow-only and needs the sibling directional light.
 ##
 ## Sway is a smoothly-interpolated random walk of the shader's UV offset —
-## Sam called the original discrete/stepped version (A1's stop-motion rule)
-## too jarring for this specific effect on 2026-07-22, so this drifts between
-## random offsets with cubic easing instead of snapping (Amendment 9
-## follow-up; a deliberate scoped exception to A1's stepped-keyframe clause,
-## same as the light_projector swap itself was).
+## Sway drifts between random offsets with cubic easing instead of snapping.
 ##
 ## EVERY value below is a PLACEHOLDER (Directive 3): tune live with Sam in F6.
 

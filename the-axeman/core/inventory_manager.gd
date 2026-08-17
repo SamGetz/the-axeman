@@ -3,18 +3,11 @@ extends Node
 ## ATTACHES TO: nothing directly. Register as Autoload "InventoryManager"
 ## (order 2, after EventBus).
 ##
-## Owns ALL item counts (A5). Writes to inventory occur ONLY inside this
-## autoload — either in response to EventBus.resource_gathered, or via the
-## public methods below (called by 2D-side systems such as M7 buildings).
-## Other modules query counts with direct read-only calls (A5, amended rule).
+## Owns all item counts. Writes occur only inside this autoload, either in
+## response to EventBus.resource_gathered or through the public methods below.
 
 ## ------------------------------------------------------------------ signals
-## M1 API ADDITION (local signal — NOT part of the A7 EventBus contract):
-## Fired on EVERY count change, including consumption. Required so the M7
-## inventory UI can "update live without polling"; EventBus.resource_gathered
-## alone only covers gains, never building-input consumption or upgrade costs.
-## This signal does not cross the 2D/3D boundary, so it does not violate the
-## A5 communication rule.
+## Fired on every count change, including consumption and profile loading.
 signal inventory_changed(item_id: StringName, new_count: int)
 
 ## ------------------------------------------------------------------- config
@@ -22,7 +15,7 @@ const _REGISTRY_PATH := "res://data/item_registry.tres"
 
 ## -------------------------------------------------------------------- state
 var _registry: ItemRegistry = null
-var _defs: Dictionary[StringName, ItemDef] = {}   # id -> ItemDef (validation + lookup)
+var _defs: Dictionary[StringName, ItemDef] = {}   # id -> definition (validation)
 var _counts: Dictionary[StringName, int] = {}     # id -> owned amount
 
 ## ---------------------------------------------------------------- lifecycle
@@ -47,11 +40,6 @@ func is_valid_id(item_id: StringName) -> bool:
 	return _defs.has(item_id)
 
 
-func get_item_def(item_id: StringName) -> ItemDef:
-	## Returns null for unregistered ids.
-	return _defs.get(item_id)
-
-
 func get_count(item_id: StringName) -> int:
 	return _counts.get(item_id, 0)
 
@@ -62,8 +50,7 @@ func get_all_counts() -> Dictionary[StringName, int]:
 
 
 func can_afford(costs: Array) -> bool:
-	## costs: Array of Dictionaries { "item_id": StringName, "amount": int }
-	## (the A8 cost format used by RecipeDef.inputs and BuildingDef.upgrade_costs).
+	## costs: Array of Dictionaries { "item_id": StringName, "amount": int }.
 	## Duplicate entries for the same id are summed before checking.
 	if costs.is_empty():
 		return true
@@ -77,9 +64,9 @@ func can_afford(costs: Array) -> bool:
 
 ## ------------------------------------------------------------------- writes
 func add_item(item_id: StringName, amount: int) -> bool:
-	## Registry-validated add. Unregistered ids: error + no change (A7 contract).
+	## Registry-validated add. Unregistered ids produce no state change.
 	if not _defs.has(item_id):
-		push_error("InventoryManager: unregistered item id '%s' — ignored (A7 contract violation by emitter)." % item_id)
+		push_error("InventoryManager: unregistered item id '%s' — ignored." % item_id)
 		return false
 	if amount <= 0:
 		push_error("InventoryManager: add_item amount must be > 0 (got %d for '%s') — ignored." % [amount, item_id])
@@ -90,7 +77,7 @@ func add_item(item_id: StringName, amount: int) -> bool:
 
 
 func remove_items(costs: Array) -> bool:
-	## ATOMIC (M7 rule): either every cost is paid or nothing is consumed.
+	## Atomic: either every cost is paid or nothing is consumed.
 	## Returns false — with zero state change — if any entry is invalid or
 	## unaffordable. Never partial-consumes.
 	if costs.is_empty():
@@ -107,9 +94,7 @@ func remove_items(costs: Array) -> bool:
 	return true
 
 ## ------------------------------------------------------------ persistence
-## InventoryManager serialises ITSELF, for the same reason GameState does: A5
-## says item counts are only ever written in here, and a save loader that poked
-## _counts from outside would be exactly the violation that rule exists to stop.
+## InventoryManager serialises itself so no save loader mutates counts directly.
 func to_save_dict() -> Dictionary:
 	## Only non-zero counts are written — a save should not grow every time an
 	## item id is added to the registry.

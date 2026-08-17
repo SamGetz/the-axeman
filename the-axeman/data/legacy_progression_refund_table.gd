@@ -13,7 +13,7 @@ const MAX_SAFE_REFUND := 1_000_000_000_000_000_000
 @export var legacy_skill_rank_contracts: Dictionary = {}
 ## Save-v1 used two retired ids and different per-rank costs. These mappings
 ## remain pinned migration data rather than borrowing values from the retired
-## live SkillTree.
+## live progression catalogue.
 @export var legacy_v1_skill_aliases: Dictionary = {}
 @export var legacy_v1_skill_rank_contracts: Dictionary = {}
 @export var legacy_alien_destination_ids := PackedStringArray()

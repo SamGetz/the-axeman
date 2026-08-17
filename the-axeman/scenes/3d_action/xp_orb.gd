@@ -44,7 +44,7 @@ extends MeshInstance3D
 ## disagree with what they watched happen. The orb is the receipt, not the payment.
 ##
 ## Script-animated rather than physics, exactly like the on-block pieces
-## (piece_animator.gd): A12 caps active rigid bodies, and spending that budget on
+## (piece_animator.gd): active rigid bodies are capped, and spending that budget on
 ## confetti would push real firewood out of the simulation.
 ##
 ## EVERY NUMBER HERE IS A PLACEHOLDER per Directive 3.

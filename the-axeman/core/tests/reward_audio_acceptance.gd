@@ -1,18 +1,18 @@
 extends Node
-## Phase-1 reward planner and generated-audio contract.
+## Current reward planner and generated-audio contract.
 
 var _passes := 0
 var _fails := 0
 
 
 func _ready() -> void:
-	print("=== REWARD + AUDIO PHASE 1 ACCEPTANCE ===")
+	print("=== REWARD + AUDIO ACCEPTANCE ===")
 	_test_reward_plans()
 	_test_audio_catalogue()
 	_test_audio_world_registration()
 	print("=== REWARD + AUDIO RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
-		print("=== ALL REWARD + AUDIO PHASE 1 CRITERIA PASS ===")
+		print("=== ALL REWARD + AUDIO CRITERIA PASS ===")
 	get_tree().quit()
 
 
@@ -42,7 +42,7 @@ func _test_reward_plans() -> void:
 	for token: Dictionary in huge_tokens:
 		huge_total += int(token.amount)
 	_check(huge_total == huge and huge_tokens.size() == 40,
-		"the safe campaign maximum folds into forty exact bounded tokens")
+		"a very large reward folds into forty exact bounded tokens")
 
 
 func _test_audio_catalogue() -> void:
@@ -53,8 +53,8 @@ func _test_audio_catalogue() -> void:
 	_check(parsed is Dictionary and String(parsed.get("tuning_status", "")).begins_with(
 		"PLACEHOLDER"), "the audio manifest retains an explicit provisional label")
 	var cues: Dictionary = parsed.get("cues", {}) if parsed is Dictionary else {}
-	_check(cues.size() >= 29 and AudioDirector.debug_cue_count() == cues.size(),
-		"AudioDirector loads the complete Phase-1 cue catalogue")
+	_check(cues.size() == 23 and AudioDirector.debug_cue_count() == cues.size(),
+		"AudioDirector loads exactly the live cue catalogue")
 	var missing := PackedStringArray()
 	var variation_count := 0
 	for cue_id: String in cues:

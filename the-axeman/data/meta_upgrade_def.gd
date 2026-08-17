@@ -4,7 +4,7 @@ extends Resource
 
 enum Capability {
 	NONE,
-	OFF_BLOCK_CUTTING,
+	RESERVED_RETIRED_OFF_BLOCK_CUTTING,
 	HOLD_TO_CHOP,
 	CONTINUOUS_HANDOFF,
 	FREQUENCY_CONTROL,
@@ -27,7 +27,6 @@ enum Capability {
 @export var granted_capability: Capability = Capability.NONE
 @export var prerequisite_upgrade_id: StringName = &""
 @export_range(0, 99, 1) var prerequisite_rank := 0
-@export var visual_milestones: Array[MetaVisualMilestoneDef] = []
 
 @export_multiline var tuning_status := \
 	"PLACEHOLDER — permanent upgrade costs and values require measured tuning approval"
@@ -78,16 +77,6 @@ func validate() -> PackedStringArray:
 		errors.append("meta upgrade has a prerequisite rank without an upgrade")
 	if prerequisite_upgrade_id != &"" and prerequisite_rank <= 0:
 		errors.append("meta upgrade prerequisite must require a positive rank")
-	var milestone_ranks: Dictionary = {}
-	for milestone: MetaVisualMilestoneDef in visual_milestones:
-		if milestone == null:
-			errors.append("meta upgrade contains a null visual milestone")
-			continue
-		errors.append_array(milestone.validate(max_rank))
-		var milestone_key := "%d:%d" % [milestone.slot, milestone.rank]
-		if milestone_ranks.has(milestone_key):
-			errors.append("meta upgrade contains a duplicate visual milestone")
-		milestone_ranks[milestone_key] = true
 	if not tuning_status.begins_with("PLACEHOLDER"):
 		errors.append("meta upgrade tuning must remain explicitly provisional")
 	return errors

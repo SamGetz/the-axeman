@@ -1,14 +1,10 @@
-[gd_resource type="Resource" script_class="GameConfig" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="GameConfig" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://data/game_config.gd" id="1"]
-[ext_resource type="Script" path="res://data/level_curve.gd" id="2"]
 [ext_resource type="Script" path="res://data/xp_pacing_config.gd" id="3"]
 [ext_resource type="Script" path="res://data/grain_cue_def.gd" id="4"]
 [ext_resource type="Script" path="res://data/game_feel_config.gd" id="5"]
 [ext_resource type="Script" path="res://data/reward_burst_config.gd" id="6"]
-
-[sub_resource type="Resource" id="LevelCurve"]
-script = ExtResource("2")
 
 [sub_resource type="Resource" id="XPPacing"]
 script = ExtResource("3")
@@ -24,7 +20,6 @@ script = ExtResource("6")
 
 [resource]
 script = ExtResource("1")
-level_curve = SubResource("LevelCurve")
 xp_pacing = SubResource("XPPacing")
 grain_cue = SubResource("GrainCue")
 game_feel = SubResource("GameFeel")

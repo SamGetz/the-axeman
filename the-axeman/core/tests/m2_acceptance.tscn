@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://dxfpgp2whv53q"]
-
-[ext_resource type="Script" uid="uid://66ea21hqif5n" path="res://core/tests/m2_acceptance.gd" id="1_test"]
-
-[node name="M2Acceptance" type="Node" unique_id=64034255]
-script = ExtResource("1_test")

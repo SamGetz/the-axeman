@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ItemRegistry" load_steps=33 format=3]
+[gd_resource type="Resource" script_class="ItemRegistry" load_steps=28 format=3]
 
 [ext_resource type="Script" path="res://data/item_registry.gd" id="1_reg"]
 [ext_resource type="Script" path="res://data/item_def.gd" id="2_def"]
@@ -7,212 +7,127 @@
 resource_name = "aspen_firewood"
 script = ExtResource("2_def")
 id = &"aspen_firewood"
-display_name = "Quaking Aspen Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_pine_firewood"]
 resource_name = "pine_firewood"
 script = ExtResource("2_def")
 id = &"pine_firewood"
-display_name = "White Pine Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_norway_spruce_firewood"]
 resource_name = "norway_spruce_firewood"
 script = ExtResource("2_def")
 id = &"norway_spruce_firewood"
-display_name = "Norway Spruce Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_balsam_fir_firewood"]
 resource_name = "balsam_fir_firewood"
 script = ExtResource("2_def")
 id = &"balsam_fir_firewood"
-display_name = "Balsam Fir Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_lodgepole_pine_firewood"]
 resource_name = "lodgepole_pine_firewood"
 script = ExtResource("2_def")
 id = &"lodgepole_pine_firewood"
-display_name = "Lodgepole Pine Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_white_spruce_firewood"]
 resource_name = "white_spruce_firewood"
 script = ExtResource("2_def")
 id = &"white_spruce_firewood"
-display_name = "White Spruce Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_black_spruce_firewood"]
 resource_name = "black_spruce_firewood"
 script = ExtResource("2_def")
 id = &"black_spruce_firewood"
-display_name = "Black Spruce Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_scots_pine_firewood"]
 resource_name = "scots_pine_firewood"
 script = ExtResource("2_def")
 id = &"scots_pine_firewood"
-display_name = "Scots Pine Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_hemlock_firewood"]
 resource_name = "hemlock_firewood"
 script = ExtResource("2_def")
 id = &"hemlock_firewood"
-display_name = "Western Hemlock Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_red_pine_firewood"]
 resource_name = "red_pine_firewood"
 script = ExtResource("2_def")
 id = &"red_pine_firewood"
-display_name = "Red Pine Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_douglas_fir_firewood"]
 resource_name = "douglas_fir_firewood"
 script = ExtResource("2_def")
 id = &"douglas_fir_firewood"
-display_name = "Douglas Fir Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_black_ash_firewood"]
 resource_name = "black_ash_firewood"
 script = ExtResource("2_def")
 id = &"black_ash_firewood"
-display_name = "Black Ash Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_birch_firewood"]
 resource_name = "birch_firewood"
 script = ExtResource("2_def")
 id = &"birch_firewood"
-display_name = "Paper Birch Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_oak_firewood"]
 resource_name = "oak_firewood"
 script = ExtResource("2_def")
 id = &"oak_firewood"
-display_name = "Pedunculate Oak Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_silver_birch_firewood"]
 resource_name = "silver_birch_firewood"
 script = ExtResource("2_def")
 id = &"silver_birch_firewood"
-display_name = "Silver Birch Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_yellow_birch_firewood"]
 resource_name = "yellow_birch_firewood"
 script = ExtResource("2_def")
 id = &"yellow_birch_firewood"
-display_name = "Yellow Birch Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_red_oak_firewood"]
 resource_name = "red_oak_firewood"
 script = ExtResource("2_def")
 id = &"red_oak_firewood"
-display_name = "Northern Red Oak Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_beech_firewood"]
 resource_name = "beech_firewood"
 script = ExtResource("2_def")
 id = &"beech_firewood"
-display_name = "American Beech Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_white_ash_firewood"]
 resource_name = "white_ash_firewood"
 script = ExtResource("2_def")
 id = &"white_ash_firewood"
-display_name = "White Ash Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_white_oak_firewood"]
 resource_name = "white_oak_firewood"
 script = ExtResource("2_def")
 id = &"white_oak_firewood"
-display_name = "White Oak Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_sugar_maple_firewood"]
 resource_name = "sugar_maple_firewood"
 script = ExtResource("2_def")
 id = &"sugar_maple_firewood"
-display_name = "Sugar Maple Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_european_beech_firewood"]
 resource_name = "european_beech_firewood"
 script = ExtResource("2_def")
 id = &"european_beech_firewood"
-display_name = "European Beech Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_river_red_gum_firewood"]
 resource_name = "river_red_gum_firewood"
 script = ExtResource("2_def")
 id = &"river_red_gum_firewood"
-display_name = "River Red Gum Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_blue_gum_firewood"]
 resource_name = "blue_gum_firewood"
 script = ExtResource("2_def")
 id = &"blue_gum_firewood"
-display_name = "Tasmanian Blue Gum Firewood"
-category = 0
 
 [sub_resource type="Resource" id="Resource_lignum_vitae_firewood"]
 resource_name = "lignum_vitae_firewood"
 script = ExtResource("2_def")
 id = &"lignum_vitae_firewood"
-display_name = "Lignum Vitae Firewood"
-category = 0
-
-[sub_resource type="Resource" id="Resource_mahogany_firewood"]
-resource_name = "mahogany_firewood"
-script = ExtResource("2_def")
-id = &"mahogany_firewood"
-display_name = "Mahogany Firewood"
-category = 0
-
-[sub_resource type="Resource" id="Resource_wood_board"]
-resource_name = "wood_board"
-script = ExtResource("2_def")
-id = &"wood_board"
-display_name = "Wood Boards"
-category = 1
-
-[sub_resource type="Resource" id="Resource_spiralwood_firewood"]
-resource_name = "spiralwood_firewood"
-script = ExtResource("2_def")
-id = &"spiralwood_firewood"
-display_name = "Resonant Spiralwood Billet"
-category = 0
-
-[sub_resource type="Resource" id="Resource_tideglass_firewood"]
-resource_name = "tideglass_firewood"
-script = ExtResource("2_def")
-id = &"tideglass_firewood"
-display_name = "Tideglass Timber Billet"
-category = 0
-
-[sub_resource type="Resource" id="Resource_cinderheart_firewood"]
-resource_name = "cinderheart_firewood"
-script = ExtResource("2_def")
-id = &"cinderheart_firewood"
-display_name = "Cinderheart Timber Billet"
-category = 0
 
 [resource]
 script = ExtResource("1_reg")
-items = Array[ExtResource("2_def")]([SubResource("Resource_aspen_firewood"), SubResource("Resource_pine_firewood"), SubResource("Resource_norway_spruce_firewood"), SubResource("Resource_balsam_fir_firewood"), SubResource("Resource_lodgepole_pine_firewood"), SubResource("Resource_white_spruce_firewood"), SubResource("Resource_black_spruce_firewood"), SubResource("Resource_scots_pine_firewood"), SubResource("Resource_hemlock_firewood"), SubResource("Resource_red_pine_firewood"), SubResource("Resource_douglas_fir_firewood"), SubResource("Resource_black_ash_firewood"), SubResource("Resource_birch_firewood"), SubResource("Resource_oak_firewood"), SubResource("Resource_silver_birch_firewood"), SubResource("Resource_yellow_birch_firewood"), SubResource("Resource_red_oak_firewood"), SubResource("Resource_beech_firewood"), SubResource("Resource_white_ash_firewood"), SubResource("Resource_white_oak_firewood"), SubResource("Resource_sugar_maple_firewood"), SubResource("Resource_european_beech_firewood"), SubResource("Resource_river_red_gum_firewood"), SubResource("Resource_blue_gum_firewood"), SubResource("Resource_lignum_vitae_firewood"), SubResource("Resource_mahogany_firewood"), SubResource("Resource_wood_board"), SubResource("Resource_spiralwood_firewood"), SubResource("Resource_tideglass_firewood"), SubResource("Resource_cinderheart_firewood")])
+items = Array[ExtResource("2_def")]([SubResource("Resource_aspen_firewood"), SubResource("Resource_pine_firewood"), SubResource("Resource_norway_spruce_firewood"), SubResource("Resource_balsam_fir_firewood"), SubResource("Resource_lodgepole_pine_firewood"), SubResource("Resource_white_spruce_firewood"), SubResource("Resource_black_spruce_firewood"), SubResource("Resource_scots_pine_firewood"), SubResource("Resource_hemlock_firewood"), SubResource("Resource_red_pine_firewood"), SubResource("Resource_douglas_fir_firewood"), SubResource("Resource_black_ash_firewood"), SubResource("Resource_birch_firewood"), SubResource("Resource_oak_firewood"), SubResource("Resource_silver_birch_firewood"), SubResource("Resource_yellow_birch_firewood"), SubResource("Resource_red_oak_firewood"), SubResource("Resource_beech_firewood"), SubResource("Resource_white_ash_firewood"), SubResource("Resource_white_oak_firewood"), SubResource("Resource_sugar_maple_firewood"), SubResource("Resource_european_beech_firewood"), SubResource("Resource_river_red_gum_firewood"), SubResource("Resource_blue_gum_firewood"), SubResource("Resource_lignum_vitae_firewood")])

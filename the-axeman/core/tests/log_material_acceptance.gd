@@ -18,7 +18,7 @@ func _ready() -> void:
 	var sampled_half: ArrayMesh = null
 
 	for species_index in range(SpeciesTable.count()):
-		var row: SpeciesDef = WoodCatalogue.at(species_index)
+		var row: SpeciesDef = SpeciesTable.at(species_index)
 		_check(row != null, "species %d is missing" % species_index)
 		if row == null:
 			continue

@@ -3,7 +3,7 @@ extends Node
 ## ATTACHES TO: root Node of res://core/tools/scar_shot.tscn. DEV TOOL, not shipped.
 ##
 ## RUN NON-HEADLESS. Renders the mark a FAILED swing leaves, on each wood, because
-## a scar is a purely visual promise: every check in m7a_acceptance can be green
+## a scar is a purely visual promise: numeric checks can be green
 ## on a gouge that is invisible, floating off the bark, or the wrong colour.
 ##
 ## `debug_split_roll = 0` forces every swing to fail. The final capture then cuts

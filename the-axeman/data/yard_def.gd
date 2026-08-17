@@ -1,8 +1,7 @@
 class_name YardDef
 extends Resource
-## Immutable stage catalogue row. Yard one is the only live row in this slice;
-## each selectable level owns one standalone YardDef `.tres`, and the schema
-## deliberately carries future scene/unlock identities.
+## Immutable stage catalogue row. Each selectable level owns one standalone
+## YardDef `.tres`.
 
 const MAX_DELIVERY_BATCH_SIZE := 100
 
@@ -11,7 +10,6 @@ const MAX_DELIVERY_BATCH_SIZE := 100
 @export var id: StringName = &""
 @export var display_name := ""
 @export_multiline var description := ""
-@export var scene_path := ""
 @export_range(1.0, 86400.0, 1.0) var stage_duration_seconds := 900.0
 
 @export_group("Timeline and ordinary rewards")
@@ -46,11 +44,6 @@ const MAX_DELIVERY_BATCH_SIZE := 100
 
 @export_group("Boss schedule")
 @export var bosses: Array[YardBossDef] = []
-
-@export_group("Future unlock metadata")
-@export var prerequisite_yard_id: StringName = &""
-@export_range(0, 999, 1) var prerequisite_clears := 0
-@export var future_unlock_rule_id: StringName = &""
 
 @export_multiline var tuning_status := \
 	"PLACEHOLDER — yard-one pressure, rewards and roster require measured approval"
@@ -188,8 +181,8 @@ func hardness_multiplier(level: int) -> float:
 func validate() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if id == &"" or display_name.strip_edges().is_empty() \
-			or description.strip_edges().is_empty() or scene_path.strip_edges().is_empty():
-		errors.append("yard identity, copy or scene path is incomplete")
+			or description.strip_edges().is_empty():
+		errors.append("yard identity or copy is incomplete")
 	if stage_duration_seconds <= 0.0:
 		errors.append("yard duration must be positive")
 	if species_timeline.is_empty():
@@ -281,10 +274,6 @@ func validate() -> PackedStringArray:
 			errors.append("yard boss schedule must be strictly ordered")
 		boss_ids[boss.id] = true
 		previous_boss_time = boss.scheduled_seconds
-	if prerequisite_yard_id == &"" and prerequisite_clears != 0:
-		errors.append("yard has a clear prerequisite without a prerequisite yard")
-	if prerequisite_yard_id != &"" and prerequisite_clears <= 0:
-		errors.append("yard prerequisite must require a positive clear count")
 	if not tuning_status.begins_with("PLACEHOLDER"):
 		errors.append("yard tuning must remain explicitly provisional")
 	return errors

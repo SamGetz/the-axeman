@@ -2,7 +2,7 @@ class_name CoinRewardPool
 extends Node3D
 ## A fully prebuilt manual-sale receipt pool. Coins burst from the final cut,
 ## bounce across the stump and yard, then fly to the HUD on the same collection
-## beat as XP. GameState/Market still own every cent; this only presents it.
+## beat as XP. RunDirector owns every cent; this only presents it.
 ## Counts, timing and motion are PLACEHOLDERS pending the VFX feel pass.
 
 enum Phase { INACTIVE, FLIGHT, REST, DRAW }
@@ -173,7 +173,7 @@ func begin_burst(from: Vector3, count: int, ground_y: float, clear_radius: float
 
 
 ## Attach the exact authoritative payout to the next coin. This is called after
-## Orders has settled one landed piece, so completion bonuses ride on the same
+## RunDirector has settled one landed piece, so completion bonuses ride on the same
 ## receipt without moving any economy authority into presentation code.
 func queue_payout(amount: int) -> void:
 	if amount <= 0:

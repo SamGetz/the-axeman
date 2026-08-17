@@ -13,10 +13,9 @@ id = &"knotted_norway"
 display_name = "The Knotted Norway"
 species_id = &"norway_spruce"
 scheduled_seconds = 225.0
-hardness_multiplier = 2.5
 cash_jackpot = 13
 xp_jackpot = 38
-tuning_status = "PLACEHOLDER — early boss schedule, identity and rewards require approval; legacy hardness/mass metadata is unused"
+tuning_status = "PLACEHOLDER — early boss schedule, identity and rewards require approval"
 
 [sub_resource type="Resource" id="Boss_middle"]
 script = ExtResource("4_boss")
@@ -25,11 +24,9 @@ display_name = "The Lodgepole Bull"
 species_id = &"lodgepole_pine"
 scheduled_seconds = 450.0
 boss_tier = 2
-hardness_multiplier = 3.5
-mass_multiplier = 2.75
 cash_jackpot = 25
 xp_jackpot = 75
-tuning_status = "PLACEHOLDER — middle boss schedule, identity and rewards require approval; legacy hardness/mass metadata is unused"
+tuning_status = "PLACEHOLDER — middle boss schedule, identity and rewards require approval"
 
 [sub_resource type="Resource" id="Boss_late"]
 script = ExtResource("4_boss")
@@ -38,11 +35,9 @@ display_name = "The White Spruce Colossus"
 species_id = &"white_spruce"
 scheduled_seconds = 675.0
 boss_tier = 3
-hardness_multiplier = 5.0
-mass_multiplier = 4.0
 cash_jackpot = 50
 xp_jackpot = 150
-tuning_status = "PLACEHOLDER — late boss schedule, identity and rewards require approval; legacy hardness/mass metadata is unused"
+tuning_status = "PLACEHOLDER — late boss schedule, identity and rewards require approval"
 
 [sub_resource type="Resource" id="Reward_aspen"]
 script = ExtResource("3_reward")
@@ -126,7 +121,6 @@ script = ExtResource("1_yard")
 id = &"yard_one"
 display_name = "Home Lumberyard"
 description = "Hold the single block for fifteen gameplay minutes as falling roots accelerate and harden."
-scene_path = "res://scenes/3d_action/chopping_minigame.tscn"
 species_timeline = Array[ExtResource("2_timeline")]([SubResource("Timeline_aspen"), SubResource("Timeline_white_pine"), SubResource("Timeline_norway"), SubResource("Timeline_balsam"), SubResource("Timeline_lodgepole"), SubResource("Timeline_white_spruce")])
 species_rewards = Array[ExtResource("3_reward")]([SubResource("Reward_aspen"), SubResource("Reward_white_pine"), SubResource("Reward_norway"), SubResource("Reward_balsam"), SubResource("Reward_lodgepole"), SubResource("Reward_white_spruce")])
 delivery_tier_interval_scales = PackedFloat64Array(1, 0.8, 0.6307692308, 0.4923076923)
@@ -139,5 +133,4 @@ endless_xp_growth = 10.0
 endless_delivery_multiplier_per_level = 0.9
 endless_hardness_multiplier_per_level = 1.05
 bosses = Array[ExtResource("4_boss")]([SubResource("Boss_early"), SubResource("Boss_middle"), SubResource("Boss_late")])
-future_unlock_rule_id = &"starting_yard"
 tuning_status = "PLACEHOLDER — yard-one roster, XP, pressure, frequency and boss values require measured approval"

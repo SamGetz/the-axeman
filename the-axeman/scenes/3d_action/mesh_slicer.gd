@@ -1,8 +1,7 @@
 class_name MeshSlicer
 extends RefCounted
 ## FILE: res://scenes/3d_action/mesh_slicer.gd
-## Runtime convex mesh plane-slicer. Amendment 6 — permitted for the M4
-## firewood chopping mini-game ONLY.
+## Runtime convex mesh plane-slicer for chopping and loose-root fragmentation.
 ##
 ## slice(source, plane, cut_mat) cuts `source` into an ABOVE piece (+normal
 ## side) and a BELOW piece, each closed with a generated cap on the cut face.
@@ -22,15 +21,12 @@ extends RefCounted
 ## makes the cut halves read flat and dark next to an uncut log.
 
 const _WELD_EPS := 0.0005
-## Where a piece's own radius lands in a single-round cut texture, 0..0.5 — so the bark ring in
-## the image sits on the bark. (The retired tree game's voxel band mapped its cut faces the
-## same way, so the two would agree; this is now the only cut-face mapping in the project.)
+## Where a piece's own radius lands in a single-round cut texture, 0..0.5.
 const _RING_FIT := 0.48
 
 
-## `cap_fit_round` maps the cut face as END GRAIN — a single growth-ring round FITTED to that
-## face, centred on it. False (the default, and M4's) maps it in metres, which is what a TILING
-## cut material wants. See `_build_caps`.
+## `cap_fit_round` fits one centred end-grain round to the cut face. False maps
+## in metres for tiling cut materials.
 static func slice(source: Mesh, plane: Plane, cut_mat: Material = null,
 		cap_fit_round := false) -> Dictionary:
 	var surf_count := source.get_surface_count()
@@ -248,25 +244,8 @@ static func _build_caps(cut_pts: Array[Vector3], plane: Plane,
 		return atan2((x - centroid).dot(w), (x - centroid).dot(u)) \
 			< atan2((y - centroid).dot(w), (y - centroid).dot(u)))
 
-	# HOW FAR ONE METRE OF CUT FACE REACHES ACROSS THE TEXTURE.
-	#
-	# `cap_fit_round` means the cut material is a SINGLE ROUND on a field (M5's end-grain
-	# `wood_oak_top_diffColor.jpg`) rather than a tiling sheet. The round is then FITTED to this
-	# cut face: the furthest point of the loop lands at `_RING_FIT` of the way out, so the whole
-	# face is inside the disc and the growth rings sit concentric on it.
-	#
-	# Fitted to the face's OWN measured extent rather than to a radius handed in, because a cut
-	# through a tree does not always meet a clean round — a cut that catches the crown takes the
-	# branches with it, and that cross-section reaches much further out than the trunk does.
-	#
-	# False keeps the original mapping — offsets in METRES — which is right for a TILING cut
-	# material and is what M4's firewood uses.
-	#
-	# THE BUG THIS FIXES: the metres mapping only lands inside 0..1 when the piece is about a
-	# metre across, and tree_01's ~0.5 m radius made that true BY ACCIDENT. Anything wider ran
-	# past the disc, and with `texture_repeat` off it clamped to the WHITE field around it — so a
-	# bucked log's sawn end came out with a white margin instead of rings. Sam: "when the logs
-	# are cut the textures are all wrong."
+	# Fit mode scales UVs from the measured face extent so the complete irregular
+	# cut stays inside the texture's growth-ring disc. Tiling mode uses metres.
 	var k := 1.0
 	if cap_fit_round:
 		var reach := 0.0

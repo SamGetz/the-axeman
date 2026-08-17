@@ -4,7 +4,7 @@ extends Control
 ## RNG and one CanvasItem draw pass, so rerolls cannot perturb gameplay rolls or
 ## create a growing tree of TextureRects/Tweens.
 
-const _CONFIG := preload("res://data/skill_vfx_config.tres")
+const _CONFIG := preload("res://data/run_vfx_config_placeholder.tres")
 const _TREE := preload("res://assets/generated/vfx/level_up_pine.png")
 const _LOG := preload("res://assets/ui/wood_icon.svg")
 

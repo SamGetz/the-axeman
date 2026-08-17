@@ -38,8 +38,6 @@ var _xp_delivery_generation := 0
 var _xp_level_up_hold_level := 0
 var _displayed_cash := 0
 var _pending_coin_count := 0
-var _splitter_installed_shown := false
-var _splitter_rank_shown := -1
 var _power_slot_labels: Array[Label] = []
 var _power_slot_panels: Array[PanelContainer] = []
 var _power_slot_icons: Array[TextureRect] = []
@@ -50,7 +48,7 @@ var _power_ranks_snapshot: Dictionary = {}
 var _power_runtime_state: Dictionary = {}
 var _power_runtime_available := false
 
-var _earth_label: Label
+var _stage_label: Label
 var _cash_label: Label
 var _bank_label: Label
 var _clock_label: Label
@@ -94,11 +92,6 @@ func _ready() -> void:
 	_build_results()
 	_build_power_offer()
 	visibility_changed.connect(_on_hud_visibility_changed)
-	GameState.skill_points_changed.connect(_on_profile_ui_changed.unbind(1))
-	GameState.skill_level_changed.connect(_on_profile_ui_changed.unbind(2))
-	GameState.selected_species_changed.connect(_on_profile_ui_changed.unbind(1))
-	GameState.species_purchased.connect(_on_profile_ui_changed.unbind(1))
-	GameState.building_tiers_changed.connect(_on_profile_ui_changed)
 	GameState.home_cash_changed.connect(_on_home_cash_changed)
 	_displayed_level = 1
 	_refresh_profile()
@@ -143,20 +136,17 @@ func bind_run_director(run: RunDirector) -> void:
 			_run.connect(&"run_power_runtime_changed", runtime_callback)
 		_power_runtime_available = true
 	_run.utility_charges_changed.connect(_on_utility_charges_changed)
-	_run.earth_changed.connect(_on_earth_changed)
 	_run.run_clock_changed.connect(_on_run_clock_changed)
 	_run.stage_time_changed.connect(_on_stage_time_changed)
 	_run.delivery_changed.connect(_on_delivery_changed)
 	_run.loose_logs_changed.connect(_on_loose_logs_changed)
 	_run.boundary_warning_changed.connect(_on_boundary_warning_changed)
-	_run.powerups_changed.connect(_on_powerups_changed)
 	_run.phase_changed.connect(_on_phase_changed)
 	_run.stage_cleared.connect(_on_stage_cleared)
 	if _run.has_signal(&"boss_stack_changed"):
 		_run.boss_stack_changed.connect(_on_boss_stack_changed)
 	_run.attempt_finished.connect(_on_attempt_finished)
 	_run.settlement_failed.connect(show_error)
-	_run.splitter_changed.connect(_on_splitter_changed)
 	var choice_callback := Callable(_run, "present_level_choice")
 	if not displayed_level_gained.is_connected(choice_callback):
 		displayed_level_gained.connect(choice_callback)
@@ -213,12 +203,6 @@ func bind_xp_source(source: Node) -> void:
 		var level_callback := Callable(source, "present_level_gain")
 		if not displayed_level_gained.is_connected(level_callback):
 			displayed_level_gained.connect(level_callback)
-
-
-func begin_tutorial(_fresh: bool) -> void:
-	# The survival loop teaches itself through the arrival timer and boundary
-	# countdown. Keep this compatibility seam for old launch callers.
-	pass
 
 
 func show_error(message: String) -> void:
@@ -319,12 +303,12 @@ func _build_always_on_hud() -> void:
 	lower_left.add_theme_constant_override("separation", 16)
 	lower_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lower_left)
-	_earth_label = _label("YARD ONE · 15:00", 13,
+	_stage_label = _label("YARD ONE · 15:00", 13,
 		Color(0.82, 0.82, 0.77, 0.96))
 	_clock_label = _label("RUN  00:00.000", 13, Color(0.90, 0.82, 0.64, 0.96))
-	_earth_label.name = "StageCountdown"
+	_stage_label.name = "StageCountdown"
 	_clock_label.name = "RunTimer"
-	for label: Label in [_earth_label, _clock_label]:
+	for label: Label in [_stage_label, _clock_label]:
 		label.add_theme_color_override("font_outline_color", Color(0.07, 0.05, 0.035, 1.0))
 		label.add_theme_constant_override("outline_size", 4)
 		lower_left.add_child(label)
@@ -1074,24 +1058,6 @@ func _rebuild_panel() -> void:
 	_build_pause_panel()
 
 
-func _build_shop_panel() -> void:
-	_modal_list.add_child(_body(
-		"Permanent upgrades are bought with banked cash from Home. Session cash "
-		+ "cannot be spent during a run."))
-
-
-func _build_skills_panel() -> void:
-	_modal_list.add_child(_body(
-		"The permanent skill tree is retired. Run powers arrive through level-up "
-		+ "choices in the next gated slice."))
-
-
-func _build_woods_panel() -> void:
-	_modal_list.add_child(_body(
-		"Yard one now owns its six-species timeline. Woods are not purchased or "
-		+ "selected during a run."))
-
-
 func _build_pause_panel() -> void:
 	var status := _label(
 		"The run clock, chopping, and physics are frozen.", 16, _MENU_MUTED)
@@ -1145,9 +1111,6 @@ func _refresh_run() -> void:
 	_on_delivery_changed(float(_run.to_save_dict().get("delivery_seconds_left", 0.0)),
 		int(_run.to_save_dict().get("delivery_tier", 0)))
 	_on_loose_logs_changed(_run.loose_log_count())
-	var p := _run.get_powerup_state()
-	_on_powerups_changed(int(p.get("slow_charges", 0)), int(p.get("blaster_ammo", 0)),
-		float(p.get("slow_seconds_left", 0.0)))
 
 
 func _refresh_profile() -> void:
@@ -1202,22 +1165,17 @@ func _on_home_cash_changed(amount: int) -> void:
 			maxi(0, amount))
 
 
-func _on_earth_changed(_remaining: int, _cleared: int) -> void:
-	# The signal remains for old attempt fixtures; stage time owns this surface.
-	pass
-
-
 func _on_run_clock_changed(ms: int) -> void:
 	_clock_label.text = "RUN  %s" % _format_time(ms)
 
 
 func _on_stage_time_changed(remaining_ms: int) -> void:
-	if _earth_label == null:
+	if _stage_label == null:
 		return
 	if _run != null and _run.phase == RunDirector.Phase.OVERFLOW:
-		_earth_label.text = "YARD ONE · ENDLESS"
+		_stage_label.text = "YARD ONE · ENDLESS"
 		return
-	_earth_label.text = "YARD ONE · %s" % _format_countdown(remaining_ms)
+	_stage_label.text = "YARD ONE · %s" % _format_countdown(remaining_ms)
 
 
 func _on_delivery_changed(seconds_left: float, tier: int) -> void:
@@ -1270,22 +1228,6 @@ func _refresh_boundary_warning_label() -> void:
 		else "BOUNDARY  %.1f" % _earliest_warning_seconds
 	_danger_label.modulate = Color.WHITE if is_inf(_earliest_warning_seconds) \
 		else Color(1.0, 0.25, 0.18, 1.0)
-
-
-func _on_powerups_changed(_slow_charges: int, _blaster_ammo: int,
-		_slow_seconds: float) -> void:
-	# Retired Slow Time/right-click ammunition no longer owns a HUD row. Keep the
-	# transitional signal callback inert until those old RunDirector fields leave.
-	pass
-
-
-func _on_splitter_changed(_installed: bool, _rank: int, _seconds: float) -> void:
-	if _installed == _splitter_installed_shown and _rank == _splitter_rank_shown:
-		return
-	_splitter_installed_shown = _installed
-	_splitter_rank_shown = _rank
-	if _panel_kind == &"shop":
-		_rebuild_panel()
 
 
 func _on_phase_changed(phase: RunDirector.Phase) -> void:
@@ -1354,12 +1296,6 @@ func _cash_out_stage() -> void:
 func _clear_button_connections(button: Button) -> void:
 	for connection: Dictionary in button.pressed.get_connections():
 		button.pressed.disconnect(connection.callable)
-
-
-func _on_profile_ui_changed() -> void:
-	_refresh_profile()
-	if _panel_kind != &"":
-		_rebuild_panel()
 
 
 func _on_run_xp_changed(total: int) -> void:
@@ -1533,12 +1469,6 @@ func coin_target_normalized() -> Vector2:
 	var rect := _cash_label.get_global_rect()
 	var target := rect.position + rect.size * 0.5
 	return Vector2(target.x / viewport_size.x, target.y / viewport_size.y)
-
-
-func _section(text: String) -> Label:
-	var label := _label(text, 16, _RUST)
-	label.add_theme_constant_override("outline_size", 0)
-	return label
 
 
 func _body(text: String) -> Label:

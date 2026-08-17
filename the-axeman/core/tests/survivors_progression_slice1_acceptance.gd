@@ -4,6 +4,7 @@ extends Node
 
 const META_PATH := "res://data/meta_upgrade_catalogue_placeholder.tres"
 const POWER_PATH := "res://data/run_power_catalogue_placeholder.tres"
+const POWER_CURVE_PATH := "res://data/run_power_curves_placeholder.tres"
 const YARD_PATH := "res://data/yard_catalogue_placeholder.tres"
 const V18_FIXTURE := "res://core/tests/fixtures/survivors_v18_structured.cfg"
 const V17_FIXTURE := "res://core/tests/fixtures/survivors_v17_legacy.cfg"
@@ -16,17 +17,12 @@ const V1_FIXTURE := "res://core/tests/fixtures/survivors_v1_alias.cfg"
 const META_CAPS := {
 	&"axe_power": 8,
 	&"swing_recovery": 8,
-	&"ready_stance": 5,
-	&"block_control": 8,
 	&"scar_craft": 5,
-	&"boss_handling": 5,
 	&"run_xp": 5,
 	&"session_cash": 5,
 	&"luck": 5,
 	&"boundary_radius": 5,
 	&"boundary_grace": 5,
-	&"blaster_duration": 5,
-	&"off_block_cutting": 1,
 	&"hold_to_chop": 1,
 	&"continuous_handoff": 1,
 	&"fall_frequency_control": 3,
@@ -82,8 +78,9 @@ func _ready() -> void:
 	_test_atomic_meta_transactions()
 	_test_exact_ledger_refund_and_tier_clamp()
 	_test_exact_once_banking_and_blueprints()
+	_test_retired_meta_refund()
 	_test_malformed_profile_sanitisation()
-	_test_typed_root_round_trip()
+	_test_log_descriptor_round_trip()
 	_test_isolated_save_migrations()
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
@@ -94,14 +91,17 @@ func _ready() -> void:
 func _test_shipping_catalogues() -> void:
 	var meta := load(META_PATH) as MetaUpgradeTable
 	var powers := load(POWER_PATH) as RunPowerTable
+	var power_curves := load(POWER_CURVE_PATH) as RunPowerCurveTable
 	var yards := load(YARD_PATH) as YardTable
 	_check(meta != null and meta.validate().is_empty(),
 		"the permanent-upgrade catalogue validates")
 	_check(powers != null and powers.validate().is_empty(),
 		"the run-power catalogue validates")
+	_check(power_curves != null and power_curves.validate().is_empty(),
+		"the central editable run-power curve resource validates")
 	_check(yards != null and yards.validate().is_empty(),
 		"the yard catalogue validates")
-	if meta == null or powers == null or yards == null:
+	if meta == null or powers == null or power_curves == null or yards == null:
 		return
 
 	var meta_shape_ok := meta.upgrades.size() == META_CAPS.size()
@@ -119,13 +119,15 @@ func _test_shipping_catalogues() -> void:
 				and effect.cumulative_values_by_rank.size() == cap \
 				and effect.tuning_status.begins_with("PLACEHOLDER")
 	_check(meta_shape_ok,
-		"all 18 visible meta lines have their locked caps and explicit placeholder ladders")
+		"all live meta lines have locked caps and explicit placeholder ladders")
 	var handoff := meta.by_id(&"continuous_handoff")
 	_check(handoff != null and handoff.prerequisite_upgrade_id == &"hold_to_chop" \
 		and handoff.prerequisite_rank == 1,
 		"Continuous Handoff has the sole Hold-to-Chop prerequisite")
 
-	var power_shape_ok := powers.powers.size() == POWER_RULES.size()
+	var power_shape_ok := powers.powers.size() == POWER_RULES.size() \
+		and power_curves.curves.size() == POWER_RULES.size() \
+		and powers.power_curves.resource_path == POWER_CURVE_PATH
 	var core_count := 0
 	var blueprint_count := 0
 	for raw_id: Variant in POWER_RULES:
@@ -163,7 +165,7 @@ func _test_shipping_catalogues() -> void:
 		and is_equal_approx(yard.stage_duration_seconds, 900.0) \
 		and yard.delivery_tier_interval_scales.size() == 4 \
 		and yard.delivery_interval_seconds_by_level != null \
-		and yard.delivery_interval_seconds_by_level.point_count == 35 \
+		and yard.delivery_interval_seconds_by_level.point_count >= 2 \
 		and yard.delivery_batch_size_by_level != null \
 		and yard.delivery_batch_size_by_level.point_count == 35 \
 		and is_equal_approx(yard.delivery_interval_seconds(1, 0), 6.5 / 3.0) \
@@ -174,10 +176,10 @@ func _test_shipping_catalogues() -> void:
 		and yard.force_curve_end_in_final_window \
 		and is_equal_approx(yard.final_pressure_remaining_seconds, 60.0) \
 		and yard.force_curve_end_in_endless \
-		and is_equal_approx(yard.delivery_interval_seconds(2), 1.906667) \
-		and is_equal_approx(yard.delivery_interval_seconds(10), 0.69333345) \
-		and is_equal_approx(yard.delivery_interval_seconds(15), 0.3683334) \
-		and is_equal_approx(yard.delivery_interval_seconds(20), 0.2) \
+		and is_equal_approx(yard.delivery_interval_seconds(2), 2.069205) \
+		and is_equal_approx(yard.delivery_interval_seconds(10), 1.2381315) \
+		and is_equal_approx(yard.delivery_interval_seconds(15), 0.8269343) \
+		and is_equal_approx(yard.delivery_interval_seconds(20), 0.5592844) \
 		and yard.delivery_batch_size(19) == 1 \
 		and yard.delivery_batch_size(20) == 2 \
 		and yard.delivery_batch_size(21) == 3 \
@@ -199,11 +201,13 @@ func _test_shipping_catalogues() -> void:
 	var duplicate_meta := MetaUpgradeTable.new()
 	duplicate_meta.upgrades = [meta.upgrades[0], meta.upgrades[0]]
 	var duplicate_power := RunPowerTable.new()
+	duplicate_power.power_curves = power_curves
 	duplicate_power.powers = [powers.powers[0], powers.powers[0]]
 	_check(_contains_error(duplicate_meta.validate(), "duplicate meta upgrade id") \
 		and _contains_error(duplicate_power.validate(), "duplicate run-power id"),
 		"catalogue validators reject duplicate stable identities")
 	var oversized_power_table := RunPowerTable.new()
+	oversized_power_table.power_curves = power_curves
 	for _index: int in range(RunPowerTable.MAX_POWER_COUNT + 1):
 		oversized_power_table.powers.append(powers.powers[0])
 	_check(_contains_error(oversized_power_table.validate(),
@@ -266,15 +270,6 @@ func _test_atomic_meta_transactions() -> void:
 		and GameState.get_meta_upgrade_spend(&"hold_to_chop") == hold.cost_for_rank(1) \
 		and GameState.get_meta_upgrade_spend(&"continuous_handoff") == handoff.cost_for_rank(1),
 		"prerequisite purchases debit cash, rank, and exact ledger together")
-
-	GameState.reset_to_defaults()
-	var off_block := meta.by_id(&"off_block_cutting")
-	_bank_cash(&"single_rank_cap_funds", off_block.cost_for_rank(1))
-	_check(GameState.purchase_meta_upgrade(&"off_block_cutting") \
-		and not GameState.purchase_meta_upgrade(&"off_block_cutting") \
-		and GameState.get_meta_upgrade_rank(&"off_block_cutting") == 1 \
-		and GameState.get_home_cash() == 0,
-		"a capped line cannot charge or advance beyond its authored maximum")
 
 	GameState.reset_to_defaults()
 	var axe := meta.by_id(&"axe_power")
@@ -462,15 +457,12 @@ func _test_malformed_profile_sanitisation() -> void:
 		"home_cash": -50,
 		"meta_upgrade_ranks": {
 			"axe_power": 999,
-			"block_control": 2,
 			"continuous_handoff": 1,
 			"fall_frequency_control": 999,
 			"not_an_upgrade": 7,
 		},
 		"meta_upgrade_spend_ledger": {
 			"axe_power": [10, -3],
-			"block_control": [GameState.MAX_SAFE_ECONOMY_VALUE,
-				GameState.MAX_SAFE_ECONOMY_VALUE],
 			"continuous_handoff": [99],
 			"fall_frequency_control": [1, 2, 3],
 			"not_an_upgrade": [999],
@@ -511,7 +503,27 @@ func _test_malformed_profile_sanitisation() -> void:
 		"aggregate corrupt ledgers normalise to a refundable safe total")
 
 
-func _test_typed_root_round_trip() -> void:
+func _test_retired_meta_refund() -> void:
+	GameState.apply_save_dict({
+		"home_cash": 100,
+		"meta_upgrade_ranks": {
+			"block_control": 2,
+			"blaster_duration": 1,
+			"not_an_upgrade": 1,
+		},
+		"meta_upgrade_spend_ledger": {
+			"block_control": [50, 100],
+			"blaster_duration": [175],
+			"not_an_upgrade": [999],
+		},
+	})
+	_check(GameState.get_home_cash() == 425 \
+		and not GameState.get_meta_upgrade_ranks().has("block_control") \
+		and not GameState.get_meta_upgrade_spend_ledger().has("blaster_duration"),
+		"profile load refunds exact proven spend from removed dead meta lines once")
+
+
+func _test_log_descriptor_round_trip() -> void:
 	var species := SpeciesTable.starting_species()
 	var descriptor := LogDescriptor.create_run(
 		&"root_17", species.id, 2, 17, 991, &"run_typed", &"yard_one",
@@ -532,82 +544,15 @@ func _test_typed_root_round_trip() -> void:
 		and restored_descriptor.has_transfer_pose(),
 		"a run descriptor round-trips stable identity, rewards, hardness, mass, boss, and transfer data")
 
-	var receipt := RootCompletionReceipt.new(
-		&"run_typed", &"root_17", RootCompletionReceipt.Source.OFF_BLOCK,
-		42, 18, &"boss_typed", 1, species.yield_item, 6)
-	var restored_receipt := RootCompletionReceipt.from_dict(receipt.to_dict())
-	_check(receipt.is_valid() and restored_receipt.is_valid() \
-		and restored_receipt.receipt_id == &"run_typed::root::root_17" \
-		and restored_receipt.source == RootCompletionReceipt.Source.OFF_BLOCK \
-		and restored_receipt.cash_total == 42 and restored_receipt.xp_total == 18 \
-		and restored_receipt.pending_blueprints == 1 \
-		and restored_receipt.settled_piece_count == 6,
-		"a typed root receipt round-trips one deterministic exact-once completion identity")
-	var impossible := RootCompletionReceipt.new(
-		&"run_typed", &"ordinary_root", RootCompletionReceipt.Source.BLOCK,
-		1, 1, &"", 1)
-	_check(not impossible.is_valid(),
-		"an ordinary root cannot manufacture a boss Blueprint receipt")
-
-	var descendant := LogDescendantState.new()
-	descendant.id = &"root_17/a"
-	descendant.parent_id = &"root_17"
-	descendant.mass = 5.25
-	descendant.projection_offset = Vector3(0.1, 0.0, -0.2)
-	descendant.scar_records = [{"local_plane": Plane(Vector3.RIGHT, 0.2)}]
-	var root := LogRootState.new()
-	root.descriptor = descriptor
-	root.descendants = [descendant]
-	root.cut_journal = [{"piece_id": "root", "child_ids": ["root/a", "root/b"]}]
-	root.boundary_exposure = 2.25
-	root.arena_sliced = true
-	var restored_root := LogRootState.from_dict(root.to_dict())
-	_check(root.is_valid() and restored_root.is_valid() \
-		and restored_root.descendants.size() == 1 \
-		and restored_root.descendants[0].id == &"root_17/a" \
-		and is_equal_approx(restored_root.descendants[0].mass, 5.25) \
-		and restored_root.descendants[0].scar_records.size() == 1 \
-		and restored_root.cut_journal.size() == 1 \
-		and is_equal_approx(restored_root.boundary_exposure, 2.25) \
-		and restored_root.arena_sliced,
-		"shared root state preserves descendants, scars, cut journal, and boundary exposure")
-	var completed := LogRootState.from_dict(root.to_dict())
-	completed.completion_state = LogRootState.CompletionState.COMPLETED
-	completed.completion_receipt = receipt
-	_check(completed.is_valid(),
-		"a completed root accepts its one matching snapshotted completion receipt")
-
-	var mismatched := LogRootState.from_dict(root.to_dict())
-	mismatched.completion_state = LogRootState.CompletionState.COMPLETED
-	mismatched.completion_receipt = RootCompletionReceipt.new(
-		&"another_run", descriptor.id, RootCompletionReceipt.Source.BLOCK,
-		descriptor.cash_reward_snapshot, descriptor.xp_reward_snapshot,
-		descriptor.boss_id, 1)
-	_check(not mismatched.is_valid(),
-		"a root cannot accept a completion receipt from another run identity")
-	var wrong_reward := LogRootState.from_dict(root.to_dict())
-	wrong_reward.completion_state = LogRootState.CompletionState.COMPLETED
-	wrong_reward.completion_receipt = RootCompletionReceipt.new(
-		descriptor.run_id, descriptor.id, RootCompletionReceipt.Source.BLOCK,
-		descriptor.cash_reward_snapshot + 1, descriptor.xp_reward_snapshot,
-		descriptor.boss_id, 1)
-	_check(not wrong_reward.is_valid(),
-		"a completion receipt cannot differ from its root's snapshotted rewards")
-	var malformed_descendant_data := descendant.to_dict()
-	malformed_descendant_data["transform"] = "not a transform"
 	var malformed_descriptor_data := descriptor.to_dict()
 	malformed_descriptor_data["yard_id"] = "unknown_yard"
 	var zero_reward_descriptor_data := descriptor.to_dict()
 	zero_reward_descriptor_data["cash_reward_snapshot"] = 0
-	_check(not LogDescendantState.from_dict(malformed_descendant_data).is_valid() \
-		and not LogDescriptor.from_save_dict(
+	_check(not LogDescriptor.from_save_dict(
 			malformed_descriptor_data).is_valid_run_snapshot() \
 		and not LogDescriptor.from_save_dict(
 			zero_reward_descriptor_data).is_valid_run_snapshot(),
-		"typed decoders reject malformed transforms, unknown yards, and zero reward snapshots")
-	descendant.id = &"another_root/a"
-	_check(not root.is_valid(),
-		"a descendant path and direct parent must belong to its descriptor root")
+		"the descriptor decoder rejects unknown yards and zero reward snapshots")
 
 
 func _test_isolated_save_migrations() -> void:

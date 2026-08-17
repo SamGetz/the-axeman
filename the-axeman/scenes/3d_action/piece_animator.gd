@@ -2,12 +2,8 @@ extends RefCounted
 ## FILE: res://scenes/3d_action/piece_animator.gd
 ## ATTACHES TO: nothing — a plain RefCounted helper owned by chopping_minigame.gd.
 ##
-## Faithful port of the reference firewood-chopper's piece animator (three.js).
-## It drives SCRIPTED motion on plain Node3D pieces — deliberately NOT physics.
-## In the reference, only firewood thrown to the pile uses a rigid body; every
-## piece that STAYS on the block (and every nearby piece jostled by a strike) is
-## moved by this animator. That is the single biggest reason the reference feels
-## art-directed and punchy instead of floaty. Porting it is Amendment-6 M4 work.
+## Scripted motion for on-block Node3D pieces; finished firewood alone uses
+## rigid-body motion.
 ##
 ## Timing is REAL time (Time.get_ticks_msec), matching the reference's
 ## performance.now(). A GameFeel hit-pause (Engine.time_scale) therefore freezes
@@ -184,17 +180,6 @@ func finish_for(meshes: Array) -> void:
 				a.mesh.position.y = a.end_y
 				a.mesh.quaternion = Quaternion.IDENTITY
 			_anims.remove_at(i)
-
-
-func all_done() -> bool:
-	return _anims.is_empty()
-
-
-func is_animating(mesh: Node3D) -> bool:
-	for a in _anims:
-		if a.mesh == mesh:
-			return true
-	return false
 
 
 func clear() -> void:

@@ -1,34 +1,13 @@
 class_name SpeciesTable
 extends Resource
-## FILE: res://data/species_table.gd
-## ATTACHES TO: nothing. The single instance is res://data/species_table.tres,
-## reached through the static helpers below (there is no `Species` autoload, for
-## the same reason Market, Shop and SaveSystem are not autoloads: the catalogue
-## is immutable data, and a 5th autoload would need an amendment the way GameFeel
-## did).
-##
-## EVERY WOOD IN THE GAME, IN LADDER ORDER — Sam's 25 species (2026-08-02),
-## ascending by Janka hardness, which is the order he gave them in. Index 0 is
-## the starting wood and index 24 is Lignum Vitae, the hardest commercial timber
-## on Earth and the end of the terrestrial ladder that
-## handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md builds toward.
-##
-## THE ORDER IS LOAD-BEARING, not cosmetic. Three things read it as a ladder:
-## the wood selector shows it top to bottom, `next_locked()` finds the player's
-## next goal by walking it, and m7a_acceptance asserts price and difficulty are
-## both monotonic along it — so a new wood cannot be slipped in as the most
-## valuable AND the easiest.
-##
-## Adding a species is a row in species_table.tres, an ItemDef in
-## item_registry.tres and a price in price_table.tres. Nothing else, and no code.
-
-## Ascending by Janka. See the ordering note above before reordering anything.
+## Immutable catalogue of the 25 terrestrial woods used by survival runs.
+## Rows stay in ascending Janka order: spawn progression and review tooling use
+## this array as a ladder, with index zero as the fresh-run fallback.
 @export var species: Array[SpeciesDef] = []
 
 const _TABLE_PATH := "res://data/species_table.tres"
 
-## Loaded once and cached for the life of the process — a catalogue is static
-## data, and this is read on every log spawn and every HUD repaint.
+## Loaded once and cached for the life of the process.
 static var _table: SpeciesTable = null
 
 
@@ -57,9 +36,7 @@ static func by_id(id: StringName) -> SpeciesDef:
 	return null
 
 
-## Ladder position of a species id, or -1. The chopping game works in indices
-## (its debug_forced_species seam is an index, and M4's suite drives it), so this
-## is how an id from a save or from the HUD becomes one.
+## Ladder position of a species id, or -1.
 static func index_of(id: StringName) -> int:
 	var list := all()
 	for i in range(list.size()):
@@ -68,8 +45,7 @@ static func index_of(id: StringName) -> int:
 	return -1
 
 
-## The species a finished piece of `item_id` came from, or null. Used to turn the
-## yard pile — which is stored per FIREWOOD id — back into the wood that made it.
+## The species a finished piece of `item_id` came from, or null.
 static func by_yield_item(item_id: StringName) -> SpeciesDef:
 	for s: SpeciesDef in all():
 		if s != null and s.yield_item == item_id:
@@ -77,18 +53,8 @@ static func by_yield_item(item_id: StringName) -> SpeciesDef:
 	return null
 
 
-## ---------------------------------------------------------------- the ladder
-## The wood a fresh save starts on: the first species that is free at level 1.
-## Falls back to index 0 so a table where someone has put a gate on every wood
-## still boots with something on the block.
-##
-## OWNERSHIP of every other wood now lives in GameState (it is a purchase, not a
-## derivation), which is why the "which woods does the player have" helpers that
-## used to sit here are gone — see GameState.get_owned_species().
+## The first catalogue row is the fresh-run fallback.
 static func starting_species() -> SpeciesDef:
-	for s: SpeciesDef in all():
-		if s != null and s.is_starting_wood():
-			return s
 	return at(0)
 
 

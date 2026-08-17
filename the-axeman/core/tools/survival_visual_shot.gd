@@ -39,9 +39,17 @@ func _ready() -> void:
 		bodies[0].linear_velocity = Vector3.ZERO
 		bodies[0].angular_velocity = Vector3.ZERO
 		bodies[0].landed = true
-		arena.advance_hazards(2.4, 1.0)
+		arena.advance_hazards(2.4)
 	await RenderingServer.frame_post_draw
 	_save("active")
+	# Show the current one-hit loose-log contract in the same production camera:
+	# three roots break into their deterministic-random real descendants at once.
+	arena.destroy_power_logs(&"splinter_volley", 3, Vector3.ZERO, INF,
+		&"nearest", [])
+	for _frame: int in range(5):
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	_save("power_fragments")
 	var hud := main.get_node("UI_Overlay/YardHUD") as YardHUD
 	hud.call("_open_panel", &"shop")
 	await get_tree().process_frame
@@ -49,7 +57,7 @@ func _ready() -> void:
 	_save("shop_paused")
 	hud.call("_close_panel")
 	if not bodies.is_empty():
-		arena.advance_hazards(run.tuning.boundary_grace_seconds, 1.0)
+		arena.advance_hazards(run.tuning.boundary_grace_seconds)
 	# Result text and containers change size together. Give Control layout and the
 	# compatibility renderer a complete frame before reading the viewport.
 	await get_tree().process_frame

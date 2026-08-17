@@ -410,6 +410,10 @@ func _ready() -> void:
 	arena.clear_all()
 	run.set("_xp", original_xp)
 	run.set("_elapsed_seconds", original_elapsed)
+	# The flood intentionally leaves the production delivery countdown at an
+	# arbitrary sub-0.2-second phase. Reset it so this assertion exercises one
+	# ordinary timer boundary instead of sometimes crossing two.
+	run.set("_delivery_seconds_left", run.delivery_interval())
 
 	run._process(run.delivery_interval() + 0.01)
 	_check(arena.loose_log_count() == 1,
@@ -423,7 +427,7 @@ func _ready() -> void:
 	var bodies := arena.call("_live_bodies") as Array[LooseLogBody]
 	if not bodies.is_empty():
 		bodies[0].global_position = Vector3(run.tuning.boundary_radius + 0.25, 0.4, 0.0)
-		arena.advance_hazards(run.tuning.boundary_grace_seconds, 1.0)
+		arena.advance_hazards(run.tuning.boundary_grace_seconds)
 	_check(run.phase == RunDirector.Phase.FAILED
 		and hud.get_node("ResultOverlay").visible
 		and _visible_button_with_text(hud.get_node("ResultOverlay"), "GO HOME") != null

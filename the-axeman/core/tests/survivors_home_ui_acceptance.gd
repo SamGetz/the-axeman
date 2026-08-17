@@ -225,14 +225,16 @@ func _test_catalogue_surfaces(home: StartupMenu) -> void:
 		and detail != null and detail.visible \
 		and back != null and back.visible,
 		"Power Up opens a four-column selection grid with fixed detail and Back controls")
-	var all_meta_rows := meta != null and meta.upgrades.size() == 18
+	var expected_rows := 0 if meta == null else meta.upgrades.size()
+	var all_meta_rows := expected_rows > 0
 	if meta != null:
 		for definition: MetaUpgradeDef in meta.upgrades:
 			all_meta_rows = all_meta_rows and definition != null \
 				and _find_named(home, "Upgrade_%s" % definition.id) != null \
 				and _find_named(home, "Buy_%s" % definition.id) != null
-	_check(all_meta_rows and _nodes_with_prefix(home, "Upgrade_").size() == 18,
-		"Home renders one stable card and purchase control for all 18 upgrade lines")
+	_check(all_meta_rows \
+		and _nodes_with_prefix(home, "Upgrade_").size() == expected_rows,
+		"Home renders one stable card and purchase control for every live upgrade line")
 
 	_click_nav(home, "PowerCatalogueTabButton")
 	var powers := SurvivorsContent.run_powers()
@@ -305,7 +307,9 @@ func _test_suspended_lock(home: StartupMenu, frequency_cost: int) -> void:
 		"suspension disables every frequency control, including an otherwise legal tier")
 
 	_click_nav(home, "UpgradesTabButton")
-	var all_buys_locked := _nodes_with_prefix(home, "Buy_").size() == 18
+	var meta := SurvivorsContent.meta_upgrades()
+	var expected_rows := 0 if meta == null else meta.upgrades.size()
+	var all_buys_locked := _nodes_with_prefix(home, "Buy_").size() == expected_rows
 	for node: Node in _nodes_with_prefix(home, "Buy_"):
 		all_buys_locked = all_buys_locked and node is Button \
 			and (node as Button).disabled

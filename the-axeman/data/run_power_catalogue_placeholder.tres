@@ -1,16 +1,8 @@
-[gd_resource type="Resource" script_class="RunPowerTable" load_steps=108 format=3]
+[gd_resource type="Resource" script_class="RunPowerTable" format=3 uid="uid://cfq8pmu1gggtr"]
 
-[ext_resource type="Script" path="res://data/run_power_table.gd" id="1_table"]
-[ext_resource type="Script" path="res://data/run_power_def.gd" id="2_def"]
-[ext_resource type="Script" path="res://data/progression_effect_def.gd" id="3_effect"]
-
-; EVERY RANK VALUE BELOW IS A PLACEHOLDER pending measured approval.
-; Shared provisional icons/VFX are replaced in the generated-asset slice.
-
-[sub_resource type="Resource" id="Effect_deep_bite"]
-script = ExtResource("3_effect")
-kind = 1
-cumulative_values_by_rank = PackedFloat64Array(0.04, 0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.32)
+[ext_resource type="Script" uid="uid://c1gxqkd34igj7" path="res://data/run_power_table.gd" id="1_table"]
+[ext_resource type="Script" uid="uid://brrqn62taqfpb" path="res://data/run_power_def.gd" id="2_def"]
+[ext_resource type="Resource" uid="uid://bddbtyit83mjt" path="res://data/run_power_curves_placeholder.tres" id="3_curves"]
 
 [sub_resource type="Resource" id="Power_deep_bite"]
 script = ExtResource("2_def")
@@ -19,15 +11,9 @@ display_name = "Deep Bite"
 description = "Improves split reliability against the hardness snapshotted by this run."
 pool = 1
 rank_cap = 8
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_deep_bite")])
 icon_path = "res://assets/ui/powers/deep_bite.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Deep Bite values require measured approval"
-
-[sub_resource type="Resource" id="Effect_quick_hands"]
-script = ExtResource("3_effect")
-kind = 2
-cumulative_values_by_rank = PackedFloat64Array(0.04, 0.08, 0.12, 0.16, 0.2, 0.24, 0.28, 0.32)
 
 [sub_resource type="Resource" id="Power_quick_hands"]
 script = ExtResource("2_def")
@@ -36,15 +22,9 @@ display_name = "Quick Hands"
 description = "Temporarily improves swing recovery, compounding with the permanent baseline to a floor."
 pool = 1
 rank_cap = 8
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_quick_hands")])
 icon_path = "res://assets/ui/powers/quick_hands.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Quick Hands values require measured approval"
-
-[sub_resource type="Resource" id="Effect_scar_wisdom"]
-script = ExtResource("3_effect")
-kind = 7
-cumulative_values_by_rank = PackedFloat64Array(0.05, 0.1, 0.15, 0.2, 0.25)
 
 [sub_resource type="Resource" id="Power_scar_wisdom"]
 script = ExtResource("2_def")
@@ -53,39 +33,20 @@ display_name = "Scar Wisdom"
 description = "Failed bites add stronger reliability to the struck descendant."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_scar_wisdom")])
 icon_path = "res://assets/ui/powers/scar_wisdom.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Scar Wisdom values require measured approval"
-
-[sub_resource type="Resource" id="Effect_double_chop"]
-script = ExtResource("3_effect")
-kind = 24
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(1, 2, 3)
 
 [sub_resource type="Resource" id="Power_double_chop"]
 script = ExtResource("2_def")
 id = &"double_chop"
 display_name = "Double Chop"
-description = "Adds guaranteed real cuts after a successful manual strike, spilling to the most endangered root when needed."
+description = "Adds guaranteed real block cuts after a successful manual strike; each unused cut immediately destroys one ordered loose log."
 pool = 1
 rank_cap = 3
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_double_chop")])
 icon_path = "res://assets/ui/powers/double_chop.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Double Chop rank values require measured approval"
-
-[sub_resource type="Resource" id="Effect_follow_chance"]
-script = ExtResource("3_effect")
-kind = 25
-cumulative_values_by_rank = PackedFloat64Array(0.15, 0.22, 0.29, 0.36, 0.43)
-
-[sub_resource type="Resource" id="Effect_follow_depth"]
-script = ExtResource("3_effect")
-kind = 26
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(1, 1, 2, 2, 3)
 
 [sub_resource type="Resource" id="Power_follow_up"]
 script = ExtResource("2_def")
@@ -94,66 +55,31 @@ display_name = "Follow-Up"
 description = "A landed manual swing may repeat, including after failure; ranks improve chance and repeat depth."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_follow_chance"), SubResource("Effect_follow_depth")])
 icon_path = "res://assets/ui/powers/follow_up.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Follow-Up chance and depth require measured approval"
-
-[sub_resource type="Resource" id="Effect_splinter_count"]
-script = ExtResource("3_effect")
-kind = 27
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(1, 2, 3, 4, 5, 6, 7, 8)
-tuning_status = "PLACEHOLDER — restored user-directed 1-8 split-count ladder requires measured approval"
 
 [sub_resource type="Resource" id="Power_splinter_volley"]
 script = ExtResource("2_def")
 id = &"splinter_volley"
 display_name = "Splinter Volley"
-description = "Every successful manual strike fires a visible splinter that makes the displayed number of real splits on the nearest loose root."
+description = "Every successful manual strike fires visible splinters that immediately destroy the displayed number of nearest loose logs."
 pool = 1
 rank_cap = 8
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_splinter_count")])
 icon_path = "res://assets/ui/powers/splinter_volley.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Splinter Volley's restored split counts require measured approval"
-
-[sub_resource type="Resource" id="Effect_wedge_interval"]
-script = ExtResource("3_effect")
-kind = 28
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(12, 11, 10, 9, 8, 7, 6, 5)
-
-[sub_resource type="Resource" id="Effect_wedge_cuts"]
-script = ExtResource("3_effect")
-kind = 29
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(6, 6, 6, 6, 6, 6, 6, 6)
-tuning_status = "PLACEHOLDER — user-directed fixed six-cut payload; cadence requires measured approval"
+tuning_status = "PLACEHOLDER — Splinter Volley's destroyed-log counts require measured approval"
 
 [sub_resource type="Resource" id="Power_flying_wedge"]
 script = ExtResource("2_def")
 id = &"flying_wedge"
 display_name = "Flying Wedge"
-description = "Periodically drives six cuts into the root nearest failure, removing one loose log; ranks improve its interval."
+description = "Periodically destroys the loose log nearest failure; ranks improve its interval."
 pool = 1
 rank_cap = 8
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_wedge_interval"), SubResource("Effect_wedge_cuts")])
 icon_path = "res://assets/ui/powers/flying_wedge.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Flying Wedge interval requires measured approval; its six-cut payload is fixed"
-
-[sub_resource type="Resource" id="Effect_yard_magnet"]
-script = ExtResource("3_effect")
-kind = 30
-cumulative_values_by_rank = PackedFloat64Array(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
-
-[sub_resource type="Resource" id="Effect_yard_magnet_interval"]
-script = ExtResource("3_effect")
-kind = 58
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5)
-tuning_status = "PLACEHOLDER — user-directed 5-second Rank 1 pulse; 0.5-second rank reductions require measured approval"
+tuning_status = "PLACEHOLDER — Flying Wedge interval requires measured approval; its one-log payload is fixed"
 
 [sub_resource type="Resource" id="Power_yard_magnet"]
 script = ExtResource("2_def")
@@ -162,28 +88,9 @@ display_name = "Yard Magnet"
 description = "Pulses for 0.5 seconds, drawing grounded loose roots toward the chopping block; ranks reduce the time between pulses."
 pool = 1
 rank_cap = 8
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_yard_magnet"), SubResource("Effect_yard_magnet_interval")])
 icon_path = "res://assets/ui/powers/yard_magnet.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Yard Magnet force and rank pulse intervals require measured approval"
-
-[sub_resource type="Resource" id="Effect_soft_lateral"]
-script = ExtResource("3_effect")
-kind = 31
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(0.92, 0.84, 0.76, 0.68, 0.6)
-
-[sub_resource type="Resource" id="Effect_soft_bounce"]
-script = ExtResource("3_effect")
-kind = 32
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(0.9, 0.8, 0.7, 0.6, 0.5)
-
-[sub_resource type="Resource" id="Effect_soft_outward"]
-script = ExtResource("3_effect")
-kind = 33
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(0.92, 0.84, 0.76, 0.68, 0.6)
 
 [sub_resource type="Resource" id="Power_soft_landing"]
 script = ExtResource("2_def")
@@ -192,20 +99,9 @@ display_name = "Soft Landing"
 description = "Reduces lateral launch, bounce, and outward momentum for future deliveries."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_soft_lateral"), SubResource("Effect_soft_bounce"), SubResource("Effect_soft_outward")])
 icon_path = "res://assets/ui/powers/soft_landing.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Soft Landing multipliers require measured approval"
-
-[sub_resource type="Resource" id="Effect_ring_radius"]
-script = ExtResource("3_effect")
-kind = 15
-cumulative_values_by_rank = PackedFloat64Array(0.12, 0.24, 0.36, 0.48, 0.6)
-
-[sub_resource type="Resource" id="Effect_ring_grace"]
-script = ExtResource("3_effect")
-kind = 16
-cumulative_values_by_rank = PackedFloat64Array(0.4, 0.8, 1.2, 1.6, 2)
 
 [sub_resource type="Resource" id="Power_ring_reinforcement"]
 script = ExtResource("2_def")
@@ -214,16 +110,9 @@ display_name = "Ring Reinforcement"
 description = "Adds run-only boundary radius and grace; the rendered ring updates with it."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_ring_radius"), SubResource("Effect_ring_grace")])
 icon_path = "res://assets/ui/powers/ring_reinforcement.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Ring Reinforcement values require measured approval"
-
-[sub_resource type="Resource" id="Effect_quick_study"]
-script = ExtResource("3_effect")
-kind = 9
-operation = 1
-cumulative_values_by_rank = PackedFloat64Array(1.1, 1.2, 1.3, 1.4, 1.5)
 
 [sub_resource type="Resource" id="Power_quick_study"]
 script = ExtResource("2_def")
@@ -232,16 +121,9 @@ display_name = "Quick Study"
 description = "Multiplies run XP, trading a combat slot for faster choices and faster pressure."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_quick_study")])
 icon_path = "res://assets/ui/powers/quick_study.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Quick Study multipliers require measured approval"
-
-[sub_resource type="Resource" id="Effect_keen_appraisal"]
-script = ExtResource("3_effect")
-kind = 10
-operation = 1
-cumulative_values_by_rank = PackedFloat64Array(1.1, 1.2, 1.3, 1.4, 1.5)
 
 [sub_resource type="Resource" id="Power_keen_appraisal"]
 script = ExtResource("2_def")
@@ -250,294 +132,9 @@ display_name = "Keen Appraisal"
 description = "Multiplies fixed session-cash rewards."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_keen_appraisal")])
 icon_path = "res://assets/ui/powers/keen_appraisal.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Keen Appraisal multipliers require measured approval"
-
-[sub_resource type="Resource" id="Effect_grain_chance"]
-script = ExtResource("3_effect")
-kind = 34
-cumulative_values_by_rank = PackedFloat64Array(0.1, 0.16, 0.22, 0.28, 0.34)
-
-[sub_resource type="Resource" id="Effect_grain_xp"]
-script = ExtResource("3_effect")
-kind = 35
-operation = 1
-cumulative_values_by_rank = PackedFloat64Array(1.5, 1.75, 2, 2.25, 2.5)
-
-[sub_resource type="Resource" id="Power_grain_reader"]
-script = ExtResource("2_def")
-id = &"grain_reader"
-display_name = "Grain Reader"
-description = "Creates active-block grain marks; taking the authored plane guarantees a split and grants bonus run XP."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_grain_chance"), SubResource("Effect_grain_xp")])
-icon_path = "res://assets/ui/powers/grain_reader.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Grain Reader chance and XP require measured approval"
-
-[sub_resource type="Resource" id="Effect_earth_trigger"]
-script = ExtResource("3_effect")
-kind = 36
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(4, 3, 2)
-
-[sub_resource type="Resource" id="Effect_earth_radius"]
-script = ExtResource("3_effect")
-kind = 37
-cumulative_values_by_rank = PackedFloat64Array(1.5, 2.25, 3)
-
-[sub_resource type="Resource" id="Effect_earth_force"]
-script = ExtResource("3_effect")
-kind = 38
-cumulative_values_by_rank = PackedFloat64Array(2, 3.5, 5)
-
-[sub_resource type="Resource" id="Power_earthshaker"]
-script = ExtResource("2_def")
-id = &"earthshaker"
-display_name = "Earthshaker"
-description = "Multi-cut sequences send an inward shockwave that cuts nearby loose roots to completion and draws survivors toward the block."
-pool = 2
-rank_cap = 3
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_earth_trigger"), SubResource("Effect_earth_radius"), SubResource("Effect_earth_force")])
-icon_path = "res://assets/ui/powers/earthshaker.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Earthshaker trigger, radius and force require measured approval"
-
-[sub_resource type="Resource" id="Effect_keg_radius"]
-script = ExtResource("3_effect")
-kind = 39
-cumulative_values_by_rank = PackedFloat64Array(1.5, 2.25, 3)
-
-[sub_resource type="Resource" id="Effect_keg_cuts"]
-script = ExtResource("3_effect")
-kind = 40
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(2, 4, 6)
-
-[sub_resource type="Resource" id="Effect_keg_force"]
-script = ExtResource("3_effect")
-kind = 41
-cumulative_values_by_rank = PackedFloat64Array(2, 3.5, 5)
-
-[sub_resource type="Resource" id="Power_powder_keg"]
-script = ExtResource("2_def")
-id = &"powder_keg"
-display_name = "Powder Keg"
-description = "Root completion produces a radial burst that slices and pushes nearby roots inward."
-pool = 2
-rank_cap = 3
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_keg_radius"), SubResource("Effect_keg_cuts"), SubResource("Effect_keg_force")])
-icon_path = "res://assets/ui/powers/powder_keg.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Powder Keg radius, cuts and force require measured approval"
-
-[sub_resource type="Resource" id="Effect_chain_count"]
-script = ExtResource("3_effect")
-kind = 42
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(1, 2, 3, 4, 5)
-
-[sub_resource type="Resource" id="Effect_chain_range"]
-script = ExtResource("3_effect")
-kind = 43
-cumulative_values_by_rank = PackedFloat64Array(1.5, 2, 2.5, 3, 3.5)
-
-[sub_resource type="Resource" id="Power_kindling_chain"]
-script = ExtResource("2_def")
-id = &"kindling_chain"
-display_name = "Kindling Chain"
-description = "Root completion sends sequential real cuts through the most endangered nearby roots."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_chain_count"), SubResource("Effect_chain_range")])
-icon_path = "res://assets/ui/powers/kindling_chain.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Kindling Chain count and range require measured approval"
-
-[sub_resource type="Resource" id="Effect_orbit_count"]
-script = ExtResource("3_effect")
-kind = 44
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(1, 1, 2, 2, 3)
-
-[sub_resource type="Resource" id="Effect_orbit_cooldown"]
-script = ExtResource("3_effect")
-kind = 45
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(2, 1.75, 1.5, 1.25, 1)
-
-[sub_resource type="Resource" id="Power_whirling_axe"]
-script = ExtResource("2_def")
-id = &"whirling_axe"
-display_name = "Whirling Axe"
-description = "Adds visible orbiting axes that cut contacted loose roots to completion, with a per-root contact cooldown."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_orbit_count"), SubResource("Effect_orbit_cooldown")])
-icon_path = "res://assets/ui/powers/whirling_axe.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Whirling Axe count and cooldown require measured approval"
-
-[sub_resource type="Resource" id="Effect_sweep_interval"]
-script = ExtResource("3_effect")
-kind = 46
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(14, 12, 10, 8, 6)
-
-[sub_resource type="Resource" id="Effect_sweep_width"]
-script = ExtResource("3_effect")
-kind = 47
-cumulative_values_by_rank = PackedFloat64Array(2, 2.5, 3, 3.5, 4)
-
-[sub_resource type="Resource" id="Power_crosscut_sweep"]
-script = ExtResource("2_def")
-id = &"crosscut_sweep"
-display_name = "Crosscut Sweep"
-description = "Periodically sweeps a saw plane across the yard and cuts every intersected root to completion."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_sweep_interval"), SubResource("Effect_sweep_width")])
-icon_path = "res://assets/ui/powers/crosscut_sweep.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Crosscut Sweep interval and width require measured approval"
-
-[sub_resource type="Resource" id="Effect_maul_interval"]
-script = ExtResource("3_effect")
-kind = 48
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(18, 14, 10)
-
-[sub_resource type="Resource" id="Effect_maul_cuts"]
-script = ExtResource("3_effect")
-kind = 49
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(3, 5, 7)
-
-[sub_resource type="Resource" id="Power_maul_drop"]
-script = ExtResource("2_def")
-id = &"maul_drop"
-display_name = "Maul Drop"
-description = "Periodically performs a heavy capped series of cuts against the hardest or boss root."
-pool = 2
-rank_cap = 3
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_maul_interval"), SubResource("Effect_maul_cuts")])
-icon_path = "res://assets/ui/powers/maul_drop.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Maul Drop interval and cut cap require measured approval"
-
-[sub_resource type="Resource" id="Effect_splitter_interval"]
-script = ExtResource("3_effect")
-kind = 50
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(18, 15, 12, 9, 6)
-
-[sub_resource type="Resource" id="Power_splitter_rig"]
-script = ExtResource("2_def")
-id = &"splitter_rig"
-display_name = "Splitter Rig"
-description = "Periodically processes an endangered non-boss root for its full normal rewards."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_splitter_interval")])
-icon_path = "res://assets/ui/powers/splitter_rig.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Splitter Rig interval requires measured approval"
-
-[sub_resource type="Resource" id="Effect_cant_hook"]
-script = ExtResource("3_effect")
-kind = 51
-cumulative_values_by_rank = PackedFloat64Array(1, 2, 3, 4, 5)
-
-[sub_resource type="Resource" id="Power_cant_hook"]
-script = ExtResource("2_def")
-id = &"cant_hook"
-display_name = "Cant Hook"
-description = "Successful manual cuts tug the worst exposed loose root toward the centre."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_cant_hook")])
-icon_path = "res://assets/ui/powers/cant_hook.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Cant Hook force requires measured approval"
-
-[sub_resource type="Resource" id="Effect_pulse_interval"]
-script = ExtResource("3_effect")
-kind = 52
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(14, 12, 10, 8, 6)
-
-[sub_resource type="Resource" id="Effect_pulse_force"]
-script = ExtResource("3_effect")
-kind = 53
-cumulative_values_by_rank = PackedFloat64Array(2, 3, 4, 5, 6)
-
-[sub_resource type="Resource" id="Power_stump_pulse"]
-script = ExtResource("2_def")
-id = &"stump_pulse"
-display_name = "Stump Pulse"
-description = "Periodically emits a strong inward impulse from the block."
-pool = 2
-rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_pulse_interval"), SubResource("Effect_pulse_force")])
-icon_path = "res://assets/ui/powers/stump_pulse.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Stump Pulse interval and force require measured approval"
-
-[sub_resource type="Resource" id="Effect_rescue_charges"]
-script = ExtResource("3_effect")
-kind = 54
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(1, 2, 3)
-
-[sub_resource type="Resource" id="Power_last_ditch"]
-script = ExtResource("2_def")
-id = &"last_ditch_rescue"
-display_name = "Last-Ditch Rescue"
-description = "Ranks increase the rescues available to return expiring roots inside and reset their timers."
-pool = 2
-rank_cap = 3
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_rescue_charges")])
-icon_path = "res://assets/ui/powers/last_ditch_rescue.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Last-Ditch Rescue charges require measured approval"
-
-[sub_resource type="Resource" id="Effect_momentum_stacks"]
-script = ExtResource("3_effect")
-kind = 55
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(3, 4, 5, 6, 7, 8, 9, 10)
-
-[sub_resource type="Resource" id="Effect_momentum_speed"]
-script = ExtResource("3_effect")
-kind = 56
-cumulative_values_by_rank = PackedFloat64Array(0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055)
-
-[sub_resource type="Resource" id="Effect_momentum_reliability"]
-script = ExtResource("3_effect")
-kind = 57
-cumulative_values_by_rank = PackedFloat64Array(0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045)
-
-[sub_resource type="Resource" id="Power_momentum"]
-script = ExtResource("2_def")
-id = &"momentum"
-display_name = "Momentum"
-description = "Successful manual splits build temporary speed and reliability stacks; a failed bite resets them."
-pool = 2
-rank_cap = 8
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_momentum_stacks"), SubResource("Effect_momentum_speed"), SubResource("Effect_momentum_reliability")])
-icon_path = "res://assets/ui/powers/momentum.svg"
-vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
-tuning_status = "PLACEHOLDER — Momentum stacks and per-stack values require measured approval"
-
-[sub_resource type="Resource" id="Effect_area_size"]
-script = ExtResource("3_effect")
-kind = 59
-operation = 1
-cumulative_values_by_rank = PackedFloat64Array(1.1, 1.2, 1.3, 1.4, 1.5)
-tuning_status = "PLACEHOLDER — general AoE size multiplier requires measured approval"
 
 [sub_resource type="Resource" id="Power_area_size"]
 script = ExtResource("2_def")
@@ -546,54 +143,165 @@ display_name = "Area Size"
 description = "Increases the gameplay reach and matching visuals of every power with an area or area of effect."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_area_size")])
 icon_path = "res://assets/ui/powers/area_size.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Area Size multipliers require measured approval"
-
-[sub_resource type="Resource" id="Effect_sawblade_halo_interval"]
-script = ExtResource("3_effect")
-kind = 60
-operation = 3
-cumulative_values_by_rank = PackedFloat64Array(12, 10.5, 9, 7.5, 6)
-tuning_status = "PLACEHOLDER — Sawblade Halo cadence requires measured approval"
-
-[sub_resource type="Resource" id="Effect_sawblade_halo_radius"]
-script = ExtResource("3_effect")
-kind = 61
-cumulative_values_by_rank = PackedFloat64Array(1.5, 1.8, 2.1, 2.4, 2.7)
-tuning_status = "PLACEHOLDER — Sawblade Halo radius requires measured approval"
 
 [sub_resource type="Resource" id="Power_sawblade_halo"]
 script = ExtResource("2_def")
 id = &"sawblade_halo"
 display_name = "Sawblade Halo"
-description = "Periodically sweeps a circular blade around the stump, cutting every loose root in its area to completion."
+description = "Periodically sweeps a circular blade around the stump, immediately destroying every loose root in its area."
 pool = 1
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_sawblade_halo_interval"), SubResource("Effect_sawblade_halo_radius")])
 icon_path = "res://assets/ui/powers/sawblade_halo.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Sawblade Halo cadence and radius require measured approval"
 
-[sub_resource type="Resource" id="Effect_timber_burst_radius"]
-script = ExtResource("3_effect")
-kind = 62
-cumulative_values_by_rank = PackedFloat64Array(1.2, 1.5, 1.8, 2.1, 2.4)
-tuning_status = "PLACEHOLDER — Timber Burst radius requires measured approval"
+[sub_resource type="Resource" id="Power_grain_reader"]
+script = ExtResource("2_def")
+id = &"grain_reader"
+display_name = "Grain Reader"
+description = "Creates active-block grain marks; taking the authored plane guarantees a split and grants bonus run XP."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/grain_reader.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Grain Reader chance and XP require measured approval"
+
+[sub_resource type="Resource" id="Power_earthshaker"]
+script = ExtResource("2_def")
+id = &"earthshaker"
+display_name = "Earthshaker"
+description = "Multi-cut sequences send an inward shockwave that immediately destroys nearby loose roots and draws survivors toward the block."
+pool = 2
+rank_cap = 3
+icon_path = "res://assets/ui/powers/earthshaker.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Earthshaker trigger, radius and force require measured approval"
+
+[sub_resource type="Resource" id="Power_powder_keg"]
+script = ExtResource("2_def")
+id = &"powder_keg"
+display_name = "Powder Keg"
+description = "Root completion produces a radial burst that immediately destroys the displayed number of nearby loose logs and pushes survivors inward."
+pool = 2
+rank_cap = 3
+icon_path = "res://assets/ui/powers/powder_keg.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Powder Keg radius, destroyed-log count and force require measured approval"
+
+[sub_resource type="Resource" id="Power_kindling_chain"]
+script = ExtResource("2_def")
+id = &"kindling_chain"
+display_name = "Kindling Chain"
+description = "Root completion immediately destroys the displayed number of the most endangered nearby loose logs."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/kindling_chain.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Kindling Chain count and range require measured approval"
+
+[sub_resource type="Resource" id="Power_whirling_axe"]
+script = ExtResource("2_def")
+id = &"whirling_axe"
+display_name = "Whirling Axe"
+description = "Adds visible orbiting axes that immediately destroy contacted loose roots, with a per-root contact cooldown."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/whirling_axe.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Whirling Axe count and cooldown require measured approval"
+
+[sub_resource type="Resource" id="Power_crosscut_sweep"]
+script = ExtResource("2_def")
+id = &"crosscut_sweep"
+display_name = "Crosscut Sweep"
+description = "Periodically sweeps a saw plane across the yard and immediately destroys every intersected loose root."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/crosscut_sweep.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Crosscut Sweep interval and width require measured approval"
+
+[sub_resource type="Resource" id="Power_maul_drop"]
+script = ExtResource("2_def")
+id = &"maul_drop"
+display_name = "Maul Drop"
+description = "Periodically destroys the displayed number of hardest loose logs, prioritising bosses."
+pool = 2
+rank_cap = 3
+icon_path = "res://assets/ui/powers/maul_drop.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Maul Drop interval and destroyed-log count require measured approval"
+
+[sub_resource type="Resource" id="Power_splitter_rig"]
+script = ExtResource("2_def")
+id = &"splitter_rig"
+display_name = "Splitter Rig"
+description = "Periodically processes an endangered non-boss root for its full normal rewards."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/splitter_rig.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Splitter Rig interval requires measured approval"
+
+[sub_resource type="Resource" id="Power_cant_hook"]
+script = ExtResource("2_def")
+id = &"cant_hook"
+display_name = "Cant Hook"
+description = "Successful manual cuts tug the worst exposed loose root toward the centre."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/cant_hook.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Cant Hook force requires measured approval"
+
+[sub_resource type="Resource" id="Power_stump_pulse"]
+script = ExtResource("2_def")
+id = &"stump_pulse"
+display_name = "Stump Pulse"
+description = "Periodically emits a strong inward impulse from the block."
+pool = 2
+rank_cap = 5
+icon_path = "res://assets/ui/powers/stump_pulse.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Stump Pulse interval and force require measured approval"
+
+[sub_resource type="Resource" id="Power_last_ditch"]
+script = ExtResource("2_def")
+id = &"last_ditch_rescue"
+display_name = "Last-Ditch Rescue"
+description = "Ranks increase the rescues available to return expiring roots inside and reset their timers."
+pool = 2
+rank_cap = 3
+icon_path = "res://assets/ui/powers/last_ditch_rescue.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Last-Ditch Rescue charges require measured approval"
+
+[sub_resource type="Resource" id="Power_momentum"]
+script = ExtResource("2_def")
+id = &"momentum"
+display_name = "Momentum"
+description = "Successful manual splits build temporary speed and reliability stacks; a failed bite resets them."
+pool = 2
+rank_cap = 8
+icon_path = "res://assets/ui/powers/momentum.svg"
+vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
+tuning_status = "PLACEHOLDER — Momentum stacks and per-stack values require measured approval"
 
 [sub_resource type="Resource" id="Power_timber_burst"]
 script = ExtResource("2_def")
 id = &"timber_burst"
 display_name = "Timber Burst"
-description = "Completing a root releases a circular shock of splinters that cuts every loose root in its area to completion."
+description = "Completing a root releases a circular shock of splinters that immediately destroys every loose root in its area."
 pool = 2
 rank_cap = 5
-effects = Array[ExtResource("3_effect")]([SubResource("Effect_timber_burst_radius")])
 icon_path = "res://assets/ui/powers/timber_burst.svg"
 vfx_path = "res://assets/shaders/painterly_vfx_daub.gdshader"
 tuning_status = "PLACEHOLDER — Timber Burst radius requires measured approval"
 
 [resource]
 script = ExtResource("1_table")
+power_curves = ExtResource("3_curves")
 powers = Array[ExtResource("2_def")]([SubResource("Power_deep_bite"), SubResource("Power_quick_hands"), SubResource("Power_scar_wisdom"), SubResource("Power_double_chop"), SubResource("Power_follow_up"), SubResource("Power_splinter_volley"), SubResource("Power_flying_wedge"), SubResource("Power_yard_magnet"), SubResource("Power_soft_landing"), SubResource("Power_ring_reinforcement"), SubResource("Power_quick_study"), SubResource("Power_keen_appraisal"), SubResource("Power_area_size"), SubResource("Power_sawblade_halo"), SubResource("Power_grain_reader"), SubResource("Power_earthshaker"), SubResource("Power_powder_keg"), SubResource("Power_kindling_chain"), SubResource("Power_whirling_axe"), SubResource("Power_crosscut_sweep"), SubResource("Power_maul_drop"), SubResource("Power_splitter_rig"), SubResource("Power_cant_hook"), SubResource("Power_stump_pulse"), SubResource("Power_last_ditch"), SubResource("Power_momentum"), SubResource("Power_timber_burst")])

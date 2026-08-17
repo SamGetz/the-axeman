@@ -5,13 +5,3 @@
 [resource]
 script = ExtResource("1")
 delivery_intervals = PackedFloat32Array(2.166667, 1.7333335, 1.3666666, 1.0666665)
-earth_batch_sizes = PackedInt64Array(1000000, 10000000, 100000000, 500000000, 1000000000, 3000000000, 7500000000)
-harvest_capacity_costs = PackedInt64Array(250, 2500, 25000, 250000, 2500000, 25000000)
-splitter_reliability_costs = PackedInt64Array(250, 650, 1600, 4000)
-chopping_visibility_dome_radius = 0.75
-chopping_visibility_dome_height = 5.0
-chopping_visibility_dome_friction = 0.35
-chopping_visibility_tunnel_transparency = 1.0
-chopping_visibility_tunnel_restore_speed = 10.0
-chopping_visibility_screen_margin = 8.0
-finished_piece_hold_seconds = 0.0

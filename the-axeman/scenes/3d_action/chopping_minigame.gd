@@ -1,79 +1,25 @@
 
 extends Node3D
-## FILE: res://scenes/3d_action/chopping_minigame.gd
-## ATTACHES TO: the root Node3D of res://scenes/3d_action/chopping_minigame.tscn
-## (the live M4 mini-game, instanced under main's 3D_World_Root) AND of
-## res://scenes/3d_action/chopping_minigame_harness.tscn (the standalone F6
-## feel-test harness, which instances chopping_minigame.tscn inside its own
-## viewport). Both need the child nodes CameraPivot/Camera3D, Fallers, and Floor.
-##
-## This is the shipping M4 chopping mini-game (renamed 2026-07-22 from slice_poc.gd
-## once the POC was feel-approved and folded in — no reason left to carry the POC
-## name on the live script). When a log is fully chopped and its firewood settles,
-## each finished piece is deposited into InventoryManager as the log species'
-## yield item (A7 resource_gathered — see res://data/species_table.tres and
-## _settle_finished_firewood). Once their colliders retire, the pieces sink
-## immediately below the floor and despawn; there is no persistent chopped stack.
-##
-## Amendment-6 SLICING PROOF-OF-CONCEPT, re-architected (2026-07-19) to match the
-## reference firewood chopper's FEEL, not just its fall rules. The reference is
-## an ANIMATION-DRIVEN game: only completed firewood uses physics; every
-## piece that stays on the block, and every nearby piece a strike jostles, is
-## moved by a scripted pop/tilt animator (see piece_animator.gd). The earlier POC
-## made everything a RigidBody, which is why it felt floaty and needed a pile of
-## physics band-aids (mass-by-volume, damp tuning, a slide-off assist). Those are
-## gone now — stays are script-animated.
-##
-## The chop loop, lifted from the reference:
-##   1. Click a piece on the block. If it's too thin along the current cut axis,
-##      the camera snaps 90 deg to the perpendicular (long) axis instead of cutting
-##      — forcing firewood-sized chunks rather than shaving off slivers.
-##   2. The camera-mounted axe plays its overhead swing. The wood splits ON THE
-##      ANIMATION'S OWN CONTACT KEY (see axe_viewmodel.gd), so the break lands on
-##      the frame the blade bites however the swing is re-timed in the editor.
-##   3. On the split: camera shake + hit-pause fire via EventBus.action_hit_
-##      registered (GameFeel owns both). Each half is judged independently:
-##        * volume <= min_vol OR aspect > aspect_limit -> FIREWOOD (physics, thrown
-##          into the yard) ;  otherwise -> STAYS on the block (script-animated).
-##   4. Every on-block piece pops away from the cut in a radial shockwave with
-##      distance falloff + staggered delay; a hull-separation solver keeps them
-##      from overlapping and inside the stump footprint.
-##   5. A fresh log drops in when everything is chopped (R also forces a fresh log).
-##
-## Camera orbits in fixed 30-deg steps (A/D or arrows).
-##
-## EVERY tuning value below is a PLACEHOLDER carried over from the reference
-## (converted from its internal inches via ld=0.0254 m/in). Directive 4: authored
-## as @export, never a hardcoded final — tune live with Sam in F6.
+## Active block owner for `chopping_minigame.tscn` and its standalone harness.
+## On-block descendants use scripted pop/tilt motion; completed firewood uses
+## physics, validates inventory settlement, then becomes collisionless and sinks.
+## The axe contact key owns each runtime plane slice, while GameFeel owns hit
+## pause and camera shake. Exported feel values remain provisional.
 
 const _PieceAnimator := preload("res://scenes/3d_action/piece_animator.gd")
-const _ManualLogOutcome := preload("res://data/manual_log_outcome.gd")
 const _LevelUpBurst := preload("res://scenes/3d_action/level_up_burst.gd")
 const _CoinRewardPool := preload("res://scenes/3d_action/coin_reward_pool.gd")
 const _PainterlyVFXDaub := preload("res://assets/shaders/painterly_vfx_daub.gdshader")
 const _PainterlyVFXStyle := preload("res://data/painterly_vfx_style_placeholder.tres")
 const _SURVIVAL_TUNING := preload("res://data/survival_run_tuning_placeholder.tres")
 
-## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
-## the pacing probe observes this scene directly while a measured play session
-## is running, and shipping systems do not depend on either signal.
+## Local instrumentation seams used by acceptance and review tools.
 signal strike_resolved(did_split: bool)
 signal log_completed(species_id: StringName, piece_count: int)
 signal block_ready_for_log
 ## RunDirector resumes boundary countdowns once the next workpiece is genuinely
 ## ready. Collisionless farewell pieces may still be fading around it.
 signal run_log_ready
-## M7C instrumentation: a named proc completed. Presentation is the local
-## ProcBurst spawned at the actual result; this signal never grows a second
-## banner/announcement path.
-signal bonus_proc_announced(proc_id: StringName, cuts: int)
-## Receipt for one manual completed-log XP transaction. This is local
-## instrumentation/presentation data; RunDirector owns live run XP.
-signal manual_xp_awarded(base_xp: int, bonus_xp: int, proc_id: StringName)
-## Receipt for one permanent gold grain mark being cut. Local instrumentation
-## only, same shape as manual_xp_awarded; this lets presentation/tests observe
-## the transaction without becoming a second XP authority.
-signal grain_read_awarded(bonus_xp: int)
 ## Presentation receipts only. XP is already authoritative in RunDirector; these
 ## let the HUD visually hold and release that value as the receipt orbs arrive.
 signal xp_orb_batch_started(amount: int)
@@ -85,25 +31,8 @@ signal coin_collected(amount: int, tier: int)
 signal coins_cancelled(count: int)
 signal coin_batch_finished
 
-# --- log species ---------------------------------------------------------
-## THE SPECIES TABLE LIVES IN DATA NOW: res://data/species_table.tres, schema in
-## res://data/species_def.gd, read through SpeciesTable's static helpers.
-##
-## Until 2026-08-02 this was a `_LOG_SPECIES` const right here — three rows of
-## dictionary literal. It moved the day Sam named all 25 woods of the finished
-## game, for two reasons a three-row const never had to answer:
-##   - twenty-five rows of literal do not belong in a gameplay script; and
-##   - the YARD HUD has to list species to let the player choose one, and it is
-##     2D-side (A9) — it must never import this file to find out what wood is.
-##
-## Nothing about how a species is USED changed. A row is still picked first and a
-## SHAPE second, so a wood with six authored meshes never turns up more often
-## than a wood with one; `yield_item` is still what a finished piece deposits;
-## `inside_tex`/`inside_normal`/`inside_tint` still describe the cut face, which
-## is generated here at runtime and is not the FBX's business.
-##
-## WHICH wood turns up is no longer random. The player chooses it in the yard and
-## GameState owns that choice — see _pick_species_index().
+# Species identity comes from `SpeciesTable`; shape selection happens after
+# identity so mesh variety never changes species probability.
 
 # --- infrastructure (unchanged geometry/material setup) -------------------
 @export var log_height := 0.42            # finished height of a log standing on the block (m)
@@ -242,16 +171,10 @@ signal coin_batch_finished
 @export_range(0.0, 4.0) var scar_normal_strength := 3.5 # PLACEHOLDER pending single-hit feel test
 @export var debug_split_roll := -1      # -1 = roll for real; 0 = always fail; 1 = always split (tests only)
 
-# --- procs (M7C: named chance-driven events off a successful split) --------
-@export_group("Procs")
-## Belt-and-braces safety cap on EXTRA cuts one swing's continuation chain may
-## ever perform, independent of any node's own learned chain_cap — the M7C
-## fairness contract requires both a learned AND a global stop ("the learned
-## cap, the global safety cap, or the absence of useful geometry, whichever
-## comes first"). PLACEHOLDER per Directive 3.
-@export var global_proc_chain_cap := 3
+# --- run-power test seams -------------------------------------------------
+@export_group("Run power tests")
 @export var debug_force_proc := -1      # -1 = roll for real; 0 = never; 1 = always (tests only)
-## Forces the grain_read OFFER roll (does a fresh piece get a gold mark), same
+## Forces the Grain Reader offer roll (does a fresh piece get a gold mark), same
 ## shape as debug_force_proc. Independent of debug_split_roll/debug_force_proc,
 ## which govern what happens once a piece already has (or doesn't have) a mark.
 @export var debug_force_grain := -1     # -1 = roll for real; 0 = never; 1 = always (tests only)
@@ -262,16 +185,9 @@ signal coin_batch_finished
 ## none at all and a swing was gated only by the anticipation window.
 @export_group("Swing rate")
 @export var swing_cooldown := 0.45      # Creative Director call, 2026-08-01
-@export var coffee_step := 0.05         # Sam's 5%, compounding per level
-## Hard floor shared by skills and permanent equipment so the axe never loses
-## its authored weight. PLACEHOLDER pending the measured tuning session.
+## Hard floor for run-power speed so the axe never loses its authored weight.
+## PLACEHOLDER pending the measured tuning session.
 @export var min_swing_cooldown := 0.25
-## M7C Ready Stance: hard ceiling on how much faster than authored the WIND-UP
-## (swing start through the contact key) may ever play, however many ranks are
-## owned — this is a SPEED MULTIPLIER (2.0 = twice as fast), not a duration, so
-## the cap is a maximum. Mirrors min_swing_cooldown's role for the coffee/
-## SWING_SPEED chain. PLACEHOLDER pending the measured tuning session.
-@export var max_windup_scale := 2.5
 
 # --- audio (hooks; drop a stream in to hear it) ---------------------------
 @export_group("Audio")
@@ -286,7 +202,7 @@ const _LOG_END_SHADER := preload("res://assets/shaders/log_end_cap.gdshader")
 const _SCAR_NORMAL := preload("res://assets/generated/chopping/axe_scar_normal.png")
 const _SCAR_SHADER := preload("res://assets/shaders/axe_scar_projection.gdshader")
 const _STUMP_FBX := preload("res://assets/models/chopping_stump_a/chopping_stump_a.fbx")
-const _SKILL_VFX_CONFIG := preload("res://data/skill_vfx_config.tres")
+const _RUN_VFX_CONFIG := preload("res://data/run_vfx_config_placeholder.tres")
 
 ## The generated map keeps neutral-normal padding around its damage. These are
 ## asset-layout facts, not feel tuning: the exports above still describe the
@@ -313,35 +229,15 @@ var _pending: Dictionary = {}             # strike in flight, waiting for the ax
 var _cooldown_left := 0.0                 # seconds until the axe can swing again (what coffee shortens)
 var _awaiting_finished_settlement := false # log done; waiting for its firewood to settle
 var _finished_batch_age := 0.0            # active-play seconds since this log's final chop
-var _staged_log: Dictionary = {}          # Handcart's one prepared next log; never inventory or automation
-## M7C precision guard: the player's own request to suppress bonus cuts on the
-## current work, with no penalty and no fairness spend. Input binding is an
-## unresolved Creative Director decision (brief item 10), so the only entry
-## point today is debug_set_precision_guard() — the same shape as every other
-## debug_* seam in this file until Sam picks the real control.
-var _precision_guard := false
-var _last_double_strike_cuts := -1        # debug seam: cuts by the most recent continuation attempt
-var _last_follow_up_swings := -1          # debug seam: swings by the most recent Follow-Up attempt
-var _last_proc_burst_color := Color.TRANSPARENT   # debug seam: color of the most recent ProcBurst
 ## `get_instance_id()` is unique only inside one Godot process. Manual receipt
 ## ids are persisted, so a relaunched scene needs a process-external nonce or its
 ## first logs can collide with saved ids and be mistaken for duplicate rewards.
 var _manual_log_session_nonce := int(Time.get_unix_time_from_system() * 1_000_000.0)
 var _manual_log_serial := 0
 var _current_manual_log_root_id: StringName = &""
-var _pending_manual_piece_receipts: Array[ManualPieceReceipt] = []
 var _handled_log_roots: Dictionary = {}
-var _last_quick_study_bonus := 0
-var _last_quick_study_root_id: StringName = &""
-var _alien_assist_target: Area3D
 var _hold_chop_active := false
 var _hold_screen_pos := Vector2.ZERO
-var _eureka_grain_pending := false
-## Set by one genuine manual completion and consumed by the next spawned log.
-## Not saved: completion settlement and next-log spawn occur in one live yard
-## flow, while the persisted fairness streak itself remains in GameState.
-var _express_handoff_pending := false
-var _last_log_arrival_ms := -1.0
 ## Claimed loose roots use an explicit, generation-checked presentation handoff.
 ## The authoritative on-block geometry stays hidden until the visual snapshot has
 ## lifted, repositioned fully off-screen, and landed on the stump.
@@ -402,7 +298,6 @@ var _bark_mats: Dictionary = {}           # "species index|source material id" -
 ## Cache the finite species/variant set so a 50-roots/s wave does not repeatedly
 ## load, transform, upload, and redress identical imported geometry.
 var _run_log_mesh_cache: Dictionary = {}
-var _alien_band_mesh: ArrayMesh = null     # unit quad used only by the luminous alien weak-band cue
 var _scar_projection_mat: ShaderMaterial  # generated normal-map material shared by persistent scars
 var _smoke_root: Node3D                    # landing puff pool; built before play to keep allocations off impact
 var _smoke_puffs: Array[MeshInstance3D] = []
@@ -477,9 +372,6 @@ func _ready() -> void:
 	_build_stump()
 	_build_smoke_pool()
 	_prewarm_vfx_geometry()
-	GameState.building_tiers_changed.connect(_refresh_equipment_effects)
-	GameState.skill_level_changed.connect(_on_grain_progression_changed)
-	_refresh_equipment_effects()
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
 	_spawn_fresh_log()
@@ -593,7 +485,8 @@ func slice_loose_run_piece(descriptor: LogDescriptor, mesh: Mesh,
 		var center := aabb.position + aabb.size * 0.5
 		var centered := _translate_mesh(half, -center)
 		# Match the block splitter's authored fresh-half push. Both descendants
-		# remain under the loose root's physics owner until the fifth slice.
+		# remain under the loose root's physics owner until its one-hit random
+		# fragmentation batch is complete.
 		var separation := local_plane.normal * half_push \
 			* (1.0 if half_index == 0 else -1.0)
 		halves.append({
@@ -606,10 +499,10 @@ func slice_loose_run_piece(descriptor: LogDescriptor, mesh: Mesh,
 	return {"halves": halves, "local_plane": local_plane}
 
 
-## A loose root completes on its fifth successful power slice. Release its six
-## real descendants as individual physics bodies so they fall apart at the
-## completion location, present the already-authoritative cash/XP there, then
-## retire each settled piece through the normal opaque hold/sink lifecycle.
+## An off-block power has already completed this root synchronously. Release its
+## random real descendants as individual physics bodies so they fall apart at
+## the impact location, present the authoritative cash/XP there, then retire
+## each settled piece through the normal opaque hold/sink lifecycle.
 func retire_off_block_finished_log(body: RigidBody3D,
 		completion_receipt: Dictionary = {},
 		world_position := Vector3.ZERO) -> void:
@@ -681,7 +574,7 @@ func retire_off_block_finished_log(body: RigidBody3D,
 			"age": 0.0,
 			"start_y": fragment.global_position.y,
 		})
-	# Keep the now-empty owner alive until the fifth-cut white flash finishes;
+	# Keep the now-empty owner alive until the destruction flash finishes;
 	# its tween owns the shared overlay material used by the released fragments.
 	body.freeze = true
 	body.collision_layer = 0
@@ -757,7 +650,7 @@ func stage_run_log(descriptor: LogDescriptor, hop_from_arena: bool) -> void:
 	if hop_from_arena and descriptor.has_transfer_pose():
 		# The old arena body was hidden synchronously before queue_free. Keep this
 		# authoritative replacement hidden too and fly a visual snapshot instead;
-		# partially cut roots therefore do not turn whole during delivery.
+		# legacy partially cut roots therefore do not turn whole during delivery.
 		node.visible = false
 		var handoff_visual := _build_run_handoff_visual(descriptor, _source_mesh)
 		handoff_visual.global_position = descriptor.transfer_from
@@ -1390,7 +1283,7 @@ func present_splinter_volley(source_position: Vector3,
 		target_position: Vector3, amount: int) -> void:
 	var projectile := MeshInstance3D.new()
 	projectile.name = "SplinterProjectile"
-	var vfx := _SKILL_VFX_CONFIG as SkillVfxConfig
+	var vfx := _RUN_VFX_CONFIG as RunVfxConfig
 	projectile.mesh = _shared_splinter_projectile_mesh()
 	projectile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	projectile.set_meta("splinter_source", source_position)
@@ -1415,7 +1308,7 @@ func present_splinter_volley(source_position: Vector3,
 func _shared_splinter_projectile_mesh() -> BoxMesh:
 	if _splinter_projectile_mesh != null:
 		return _splinter_projectile_mesh
-	var vfx := _SKILL_VFX_CONFIG as SkillVfxConfig
+	var vfx := _RUN_VFX_CONFIG as RunVfxConfig
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.albedo_color = _run_power_color(&"splinter_volley").lerp(
@@ -1540,14 +1433,6 @@ func debug_last_run_power_cuts(power_id: StringName) -> int:
 
 func debug_orbiting_axe_count() -> int:
 	return _run_power_orbit_axes.size()
-
-
-func debug_pending_power_cuts() -> int:
-	return _pending_descriptor_power_cuts
-
-
-func debug_pending_power_cut_sources() -> Array[StringName]:
-	return _pending_descriptor_power_cut_sources.duplicate()
 
 
 ## Freeze the run at a canonical transaction boundary before a disk snapshot.
@@ -1725,8 +1610,7 @@ func _grain_cue_save_dict() -> Dictionary:
 		return {}
 	var stable_piece_id := StringName(
 		_grain_target.get_meta("stable_piece_id", &""))
-	if stable_piece_id == &"" or _grain_offer_source not in [
-			&"grain_read", &"grain_reader"]:
+	if stable_piece_id == &"" or _grain_offer_source != &"grain_reader":
 		return {}
 	return {
 		"target_piece_id": String(stable_piece_id),
@@ -1745,7 +1629,7 @@ func _restore_grain_cue(raw: Variant) -> void:
 	if not (raw_plane is Plane) or not (raw_anchor is Vector3):
 		return
 	var source := StringName(saved.get("source", ""))
-	if source not in [&"grain_read", &"grain_reader"]:
+	if source != &"grain_reader":
 		return
 	var target := _piece_by_stable_id(StringName(
 		saved.get("target_piece_id", "")))
@@ -1846,20 +1730,12 @@ func _prewarm_vfx_geometry() -> void:
 	_coin_reward_pool.coin_collected.connect(coin_collected.emit)
 	_coin_reward_pool.coins_cancelled.connect(coins_cancelled.emit)
 	_coin_reward_pool.batch_finished.connect(coin_batch_finished.emit)
-	var proc_colors: Array[Color] = []
-	var branch_table := M7CContent.branches()
-	if branch_table != null:
-		for branch: SkillBranchDef in branch_table.branches:
-			if branch != null and not proc_colors.has(branch.color):
-				proc_colors.append(branch.color)
-	ProcBurst.prewarm(proc_colors)
 	_shared_splinter_projectile_mesh().get_rid()
 	_grain_unit_line_mesh().get_rid()
 	for material: Material in _grain_mark_materials():
 		material.get_rid()
 	_SCAR_NORMAL.get_rid()
 	_scar_projection_material().get_rid()
-	_unit_alien_band_mesh().get_rid()
 
 
 ## Called by Main only while the opaque startup screen is still on top. These
@@ -1873,19 +1749,6 @@ func begin_initial_vfx_render_warmup() -> void:
 		_coin_reward_pool.show_for_render_warmup(warm_position + Vector3.RIGHT * 0.12)
 	if not _xp_orb_pool.is_empty():
 		_xp_orb_pool[0].show_for_render_warmup(warm_position + Vector3.LEFT * 0.12)
-
-	# Proc materials vary by branch colour, so submit one of each cached variant.
-	var branch_table := M7CContent.branches()
-	if branch_table != null:
-		var color_index := 0
-		for branch: SkillBranchDef in branch_table.branches:
-			if branch == null:
-				continue
-			var node := ProcBurst.spawn(self,
-				warm_position + Vector3(float(color_index) * 0.03, 0.0, 0.0),
-				branch.color, branch.id)
-			_render_warmup_nodes.append(node)
-			color_index += 1
 
 	# Run powers can each carry a distinct shader and several use a solid action
 	# silhouette. Submit every variant once behind the opaque startup screen so a
@@ -1943,15 +1806,8 @@ func _spawn_level_up_vfx() -> void:
 	AudioDirector.play_ui(&"level_up")
 
 
-func _on_grain_progression_changed(_skill_id: StringName, _new_level: int) -> void:
-	_refresh_grain_availability()
-
-
-## Only ever CLEARS. A live mark is a rolled, once-per-log event, not a display
-## of what the player currently owns — losing the skill (or the modifier that
-## grants it) takes an unspent mark away, but gaining it never retroactively
-## places one on whatever happens to be on the block; the next piece-creation
-## event is the earliest a fresh offer can be rolled.
+## A live mark reflects the current run power. Losing the effect clears the mark;
+## gaining it waits for the next eligible piece-creation event.
 func _refresh_grain_availability() -> void:
 	if not _grain_cue_enabled():
 		_clear_grain_cue(&"skill_unavailable")
@@ -2289,10 +2145,8 @@ func _process(delta: float) -> void:
 
 
 func _firewood_settled() -> bool:
-	var turnaround := clampf(SkillTree.total_modifier(
-		GameplayModifierDef.Kind.LOG_TURNAROUND), 0.0, 0.75)
 	var settle_limit := maxf(min_firewood_settle_timeout,
-		firewood_settle_timeout * (1.0 - turnaround))
+		firewood_settle_timeout)
 	# This clock advances only from _process while chopping is enabled. A pause or
 	# title-screen suspension therefore cannot consume the landing window and
 	# freeze billets in mid-air on the first resumed frame.
@@ -2312,9 +2166,6 @@ func _settle_finished_firewood(emit_handoff := true) -> void:
 	if not _awaiting_finished_settlement:
 		return
 	_awaiting_finished_settlement = false
-	if not _external_log_flow:
-		_stage_next_log()
-
 	var finished_bodies: Array[RigidBody3D] = []
 	for raw_body: Variant in _firewood:
 		if not is_instance_valid(raw_body) or not (raw_body is RigidBody3D):
@@ -2336,17 +2187,13 @@ func _settle_finished_firewood(emit_handoff := true) -> void:
 
 	var species_id: StringName = &"" if _current_species == null else _current_species.id
 	var yield_item: StringName = &"" if _current_species == null else _current_species.yield_item
-	_pending_manual_piece_receipts.clear()
 	if yield_item != &"":
-		for body: RigidBody3D in finished_bodies:
+		for _body: RigidBody3D in finished_bodies:
 			# Standalone chopping retains the original gather contract. Production
 			# already has one root receipt in RunDirector and settles its prepared
 			# per-piece cash shares below.
 			if _run_director == null:
 				EventBus.resource_gathered.emit(yield_item, 1)
-			var fraction := _finished_piece_fraction(body)
-			_pending_manual_piece_receipts.append(ManualPieceReceipt.new(
-				yield_item, species_id, fraction, 0, _current_manual_log_root_id))
 
 	# Reward settlement is intentionally independent from the visual sink. Each
 	# body carries its own exact-once latch before the authority call.
@@ -2392,20 +2239,6 @@ func _retire_finished_body(body: RigidBody3D) -> void:
 		geometry.visible = true
 
 
-func _finished_piece_fraction(body: RigidBody3D) -> float:
-	var source := body.get_node_or_null("Mesh") as MeshInstance3D
-	if source == null or source.mesh == null or _source_mesh == null:
-		return 1.0
-	var piece_size := source.mesh.get_aabb().size
-	var source_size := _source_mesh.get_aabb().size
-	var source_volume := source_size.x * source_size.y * source_size.z
-	if source_volume <= 0.0001:
-		return 1.0
-	return clampf(
-		(piece_size.x * piece_size.y * piece_size.z) / source_volume,
-		0.0, 1.0)
-
-
 func _settle_finished_piece(body: RigidBody3D, item_id: StringName) -> void:
 	if not is_instance_valid(body) \
 			or bool(body.get_meta("finished_piece_settled", false)):
@@ -2415,8 +2248,6 @@ func _settle_finished_piece(body: RigidBody3D, item_id: StringName) -> void:
 	body.set_meta("finished_piece_settled", true)
 	if not auto_sell:
 		return
-	if not _pending_manual_piece_receipts.is_empty():
-		_pending_manual_piece_receipts.pop_front()
 	var payout := _run_director.settle_completed_piece(item_id) \
 		if _run_director != null and item_id != &"" else 0
 	if payout > 0 and _coin_reward_pool != null:
@@ -2488,26 +2319,6 @@ func _update_finished_piece_sink(delta: float) -> void:
 		else:
 			entry["age"] = age
 			_finished_firewood[index] = entry
-
-
-func _finished_body_is_below_floor(body: RigidBody3D) -> bool:
-	var found_geometry := false
-	for geometry: GeometryInstance3D in _finished_geometry(body):
-		if not (geometry is MeshInstance3D):
-			continue
-		var instance := geometry as MeshInstance3D
-		if instance.mesh == null:
-			continue
-		found_geometry = true
-		var aabb := instance.mesh.get_aabb()
-		for corner_index: int in range(8):
-			var corner := Vector3(
-				aabb.end.x if (corner_index & 1) != 0 else aabb.position.x,
-				aabb.end.y if (corner_index & 2) != 0 else aabb.position.y,
-				aabb.end.z if (corner_index & 4) != 0 else aabb.position.z)
-			if (instance.global_transform * corner).y >= reward_ground_y:
-				return false
-	return found_geometry
 
 
 ## Finished bodies only translate while sinking. Cache their highest vertex once
@@ -2590,19 +2401,16 @@ func debug_finished_piece_state() -> Dictionary:
 	}
 
 
-## The finished MANUAL log's one root XP transaction. Quick Study is resolved
-## once against the base award through ProcResolver; its bonus is folded into
-## this single RunDirector write and can therefore never recurse as a new event.
-##
-## EXPERIENCE IS PER LOG, NOT PER PIECE (Creative Director call, 2026-08-02: the
+## The finished manual log's one root XP transaction. Experience is per log,
+## not per piece (Creative Director call, 2026-08-02: the
 ## orbs drop "when the log is finally split"). ONE award, fired from the split that
 ## empties the block — the same instant the orbs burst, so the number going up and
 ## the thing on screen are one event rather than two.
 ##
 ## Gated on `auto_sell` with the cash payout: that flag means "the yard's payouts
-## are live", and M4's suite switches it off because it is testing the YIELD
+## are live", and chopping_acceptance switches it off because it tests the yield
 ## contract and must not have the economy moving underneath it.
-func _award_log_xp(source: int = _ManualLogOutcome.Source.MANUAL) -> void:
+func _award_log_xp(automatic := false) -> void:
 	if not auto_sell or _current_species == null:
 		return
 	_manual_log_serial += 1
@@ -2614,7 +2422,7 @@ func _award_log_xp(source: int = _ManualLogOutcome.Source.MANUAL) -> void:
 	var base_xp := _current_species.xp_reward
 	if _run_director != null and _current_descriptor != null:
 		base_xp = _run_director.xp_reward_for(_current_descriptor)
-	if source == _ManualLogOutcome.Source.AUTOMATION:
+	if automatic:
 		# A power cut owns this completion. Commit the same exact root receipt and
 		# presentation, but never route through manual-only procs/signals.
 		var automatic_xp := _run_director.award_root_xp(
@@ -2624,21 +2432,16 @@ func _award_log_xp(source: int = _ManualLogOutcome.Source.MANUAL) -> void:
 			_burst_xp_orbs(automatic_xp,
 				Vector3(0.0, _stump_top_y + 0.12, 0.0), false)
 		return
-	_resolve_log_xp(_ManualLogOutcome.new(
-		root_id, source, true, false, base_xp))
+	_resolve_log_xp(root_id, base_xp)
 
 
-func _resolve_log_xp(outcome: RefCounted) -> int:
-	_last_quick_study_bonus = 0
-	_last_quick_study_root_id = &""
-	_last_proc_burst_color = Color.TRANSPARENT
-	if outcome == null or not outcome.completed or outcome.is_bonus_event \
-			or outcome.root_event_id == &"" or outcome.base_xp <= 0:
+func _resolve_log_xp(root_event_id: StringName, base_xp: int) -> int:
+	if root_event_id == &"" or base_xp <= 0:
 		return 0
-	var handled_id: StringName = outcome.root_event_id
+	var handled_id: StringName = root_event_id
 	if _run_director != null and _run_director.get_run_id() != &"":
 		handled_id = StringName("%s::%s" % [
-			_run_director.get_run_id(), outcome.root_event_id])
+			_run_director.get_run_id(), root_event_id])
 	if _handled_log_roots.has(handled_id):
 		return 0
 	# A completed root is consumed before source eligibility is considered. A
@@ -2646,72 +2449,18 @@ func _resolve_log_xp(outcome: RefCounted) -> int:
 	# Root ids repeat from one attempt to the next, so the run identity is part of
 	# this local exact-once key without changing the descriptor's descendant path.
 	_handled_log_roots[handled_id] = true
-	if not outcome.is_manual_root_completion():
-		return 0
-	var completion_procs: Array[StringName] = []
-	var base: int = outcome.base_xp
-	var awarded := base
-	var fired_proc: StringName = &""
-	var proc_def: ProcDef = M7CContent.procs().by_id(&"quick_study") if M7CContent.procs() != null else null
-	if ProgressionProcs.is_available(&"quick_study") and proc_def != null \
-			and proc_def.eligibility == ProcDef.Eligibility.MANUAL_LOG_COMPLETION \
-			and ProcResolver.should_proc_with_chance(proc_def,
-				ProgressionProcs.effective_chance(&"quick_study"), debug_force_proc):
-		var multiplier := _manual_xp_multiplier(proc_def)
-		awarded = maxi(base, int(round(float(base) * multiplier)))
-		_last_quick_study_bonus = awarded - base
-		if _last_quick_study_bonus > 0:
-			fired_proc = proc_def.id
-			completion_procs.append(proc_def.id)
-			if SkillTree.owns_modifier(GameplayModifierDef.Kind.GRAIN_GUARANTEE):
-				_eureka_grain_pending = true
-
-	_last_quick_study_root_id = outcome.root_event_id
+	var awarded := base_xp
 	if _run_director != null:
 		if _current_descriptor == null \
-				or outcome.root_event_id != _current_descriptor.id:
+				or root_event_id != _current_descriptor.id:
 			return 0
 		awarded = _run_director.award_root_xp(_current_descriptor, awarded)
 	else:
-		var xp_origin := GameState.XP_ORIGIN_MANUAL
-		if fired_proc != &"":
-			xp_origin = GameState.XP_ORIGIN_MANUAL_PROC
-		awarded = GameState.award_xp(awarded, xp_origin)
+		return 0
 	# A completed log keeps its final wood-impact cue silent and does not layer
 	# the generic XP-launch cue over it. Other reward sources still use that cue.
 	_burst_xp_orbs(awarded, Vector3(0.0, _stump_top_y + 0.12, 0.0), false)
-	manual_xp_awarded.emit(base, _last_quick_study_bonus, fired_proc)
-
-	var handoff := ProgressionProcs.proc_def(&"express_handoff")
-	if handoff != null and ProgressionProcs.is_available(&"express_handoff") \
-			and ProcResolver.should_proc_with_chance(handoff,
-				ProgressionProcs.effective_chance(&"express_handoff"), debug_force_proc):
-		_express_handoff_pending = true
-		completion_procs.append(&"express_handoff")
-
-	for announced_proc: StringName in completion_procs:
-		var branch := ProgressionProcs.branch_for_proc(announced_proc)
-		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
-		var branch_id: StringName = branch.id if branch != null else &""
-		var proc_point := Vector3(0.0, _stump_top_y + 0.18, 0.0)
-		if branch_id == &"strength" or branch_id == &"speed":
-			ProcBurst.spawn_from_log_base(self, proc_point, _stump_top_y,
-				_last_proc_burst_color, branch_id, _camera.global_transform.basis.z)
-		else:
-			# Rising Technique announcements remain in open air above the block.
-			ProcBurst.spawn(self, proc_point, _last_proc_burst_color, branch_id)
-		_play_proc_audio(announced_proc, Vector3(0.0, _stump_top_y + 0.18, 0.0))
-		bonus_proc_announced.emit(announced_proc, 1)
 	return awarded
-
-
-func _manual_xp_multiplier(proc_def: ProcDef) -> float:
-	for modifier: GameplayModifierDef in proc_def.modifiers:
-		if modifier != null \
-				and modifier.kind == GameplayModifierDef.Kind.MANUAL_XP \
-				and modifier.operation == GameplayModifierDef.Operation.MULTIPLY:
-			return maxf(1.0, modifier.magnitude)
-	return 1.0
 
 
 ## The green orbs, Minecraft-style: they pop off the block and are drawn into the
@@ -2816,9 +2565,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		match event.keycode:
 			KEY_A, KEY_LEFT: _orbit(-1)
 			KEY_D, KEY_RIGHT: _orbit(1)
-			KEY_SPACE:
-				if _run_director != null:
-					_run_director.activate_slow_time()
 			KEY_R:
 				if not _external_log_flow:
 					_spawn_fresh_log()
@@ -2829,11 +2575,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_click(event.position)
 		else:
 			_hold_chop_active = false
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT \
-			and event.pressed and _run_director != null:
-		var ray_origin := _camera.project_ray_origin(event.position)
-		var ray_direction := _camera.project_ray_normal(event.position)
-		_run_director.fire_blaster(ray_origin, ray_direction)
 	elif event is InputEventMouseMotion and _hold_chop_active:
 		_hold_screen_pos = event.position
 
@@ -2912,8 +2653,7 @@ func _on_click(screen_pos: Vector2) -> void:
 
 func _orbit(dir: int) -> void:
 	_yaw_steps += dir
-	var orbit_scale := 1.0 + SkillTree.total_modifier(GameplayModifierDef.Kind.ORBIT_SPEED)
-	_tween_pivot(deg_to_rad(_yaw_steps * camera_step_deg), orbit_time / orbit_scale)
+	_tween_pivot(deg_to_rad(_yaw_steps * camera_step_deg), orbit_time)
 
 
 ## Snap the camera ~90 deg (rounded to whole `camera_step_deg` steps so it stays on
@@ -2924,8 +2664,7 @@ func _turn_cross_axis(sign_dir: int) -> void:
 	if steps == 0:
 		steps = 1
 	_yaw_steps += steps * sign_dir
-	var orbit_scale := 1.0 + SkillTree.total_modifier(GameplayModifierDef.Kind.ORBIT_SPEED)
-	_tween_pivot(deg_to_rad(_yaw_steps * camera_step_deg), orbit_time / orbit_scale)
+	_tween_pivot(deg_to_rad(_yaw_steps * camera_step_deg), orbit_time)
 
 
 func _tween_pivot(target_y: float, t: float) -> void:
@@ -2938,7 +2677,7 @@ func _tween_pivot(target_y: float, t: float) -> void:
 # ------------------------------------------------- does the swing go through?
 ## Resolve one landed swing: either the wood cleaves, or the axe bites and leaves
 ## a scar. THE ROLL LIVES HERE AND NOT IN _perform_split ON PURPOSE — _perform_split
-## means "cut this piece" and is what `debug_slice_world` and the whole M4 suite
+## means "cut this piece" and is what `debug_slice_world` and chopping_acceptance
 ## drive, so those keep testing geometry rather than luck.
 ##
 ## Deliberately does NOT clear a live grain cue just because a DIFFERENT piece was
@@ -2946,19 +2685,11 @@ func _tween_pivot(target_y: float, t: float) -> void:
 ## real lifecycle edge removes it (see _clear_grain_cue's callers); chopping
 ## around the yard must not sweep away an opportunity sitting on another piece.
 ##
-## `is_bonus` marks this as a M7C bonus swing (a Follow-Up continuation) rather
-## than the player's own root swing. A bonus swing never spawns a Double Strike
-## OR a Follow-Up chain of its own — that recursion guard is what keeps a root
-## swing to AT MOST one bonus chain of one kind, exactly like
-## _attempt_double_strike's own "never back through _resolve_strike" comment
-## keeps its chain to one root cut. Also why Follow-Up is rolled HERE and not
-## from _resolve_pending(): `debug_swing_world` (the dev-tool/test seam used
-## throughout m7c_acceptance and proc_shot) calls _resolve_strike directly,
-## never through _resolve_pending, and Double Strike already has to work there.
+## `is_bonus` marks a run-power repeat swing. Bonus swings cannot recursively
+## trigger another run-power sequence.
 func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_enum: int,
 		local_override: Variant = null, is_bonus: bool = false) -> bool:
 	var split: bool
-	var strike_chain_fired := false
 	var run_sequence_cuts := 0
 	if _roll_splits(piece):
 		split = _perform_split(piece, world_point, normal, dir_enum, local_override)
@@ -2969,13 +2700,6 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 			if _run_director != null and _run_director.has_method(
 					"trigger_splinter_volley"):
 				_run_director.call("trigger_splinter_volley", world_point)
-			# M7C: the ONLY call site. A continuation cut lands through
-			# _perform_split directly, never back through _resolve_strike, so a
-			# root swing can never spawn a second root event — see
-			# _attempt_double_strike.
-			strike_chain_fired = _attempt_double_strike(normal, dir_enum)
-			if strike_chain_fired:
-				run_sequence_cuts += _last_double_strike_cuts
 	else:
 		# It bit, it did not go through. Mark the wood and make the next swing
 		# into this piece more likely — the pity bonus, worn where the player
@@ -2990,12 +2714,6 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 		strike_resolved.emit(false)
 		split = false
 
-	# M7C Follow-Up: rolled once per landed ROOT swing, split OR scar — after
-	# everything about THIS swing (including any Double Strike chain) has
-	# resolved. Never for a bonus swing itself, so a fired Follow-Up can only
-	# ever be one swing deep from a root event — see the doc comment above.
-	if not is_bonus and not strike_chain_fired:
-		run_sequence_cuts += _attempt_follow_up(piece, normal, dir_enum)
 	if not is_bonus:
 		run_sequence_cuts += _attempt_run_follow_up(piece, normal, dir_enum)
 		if _run_director != null and _run_director.has_method(
@@ -3017,8 +2735,8 @@ func _attempt_run_double_chop() -> int:
 	var spilled_cuts := 0
 	var remaining := maxi(0, count - block_cuts)
 	if remaining > 0 and _run_director != null and _run_director.has_method(
-			"queue_run_power_cuts"):
-		spilled_cuts = maxi(0, int(_run_director.call("queue_run_power_cuts",
+			"destroy_run_power_logs"):
+		spilled_cuts = maxi(0, int(_run_director.call("destroy_run_power_logs",
 			&"double_chop", remaining, Vector3.ZERO, &"endangered")))
 	var total_cuts := block_cuts + spilled_cuts
 	if total_cuts > 0 and _run_director != null and _run_director.has_method(
@@ -3039,7 +2757,7 @@ func _attempt_run_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> in
 		ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE), 0.0, 1.0)
 	var depth := maxi(0, int(round(_run_power_effect(
 		ProgressionEffectDef.Kind.FOLLOW_UP_DEPTH))))
-	if chance <= 0.0 or depth <= 0 or _precision_guard or _run_director == null:
+	if chance <= 0.0 or depth <= 0 or _run_director == null:
 		return 0
 	var fires := debug_force_proc == 1
 	if debug_force_proc < 0 and _run_director.has_method("roll_run_power_chance"):
@@ -3074,179 +2792,18 @@ func _attempt_run_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> in
 	return split_count
 
 
-# ------------------------------------------------------- M7C: Double Strike
-## After a primary split lands, maybe cut a second, real billet with the same
-## swing. Bounded by the LEARNED cap (the node's own ProcDef.chain_cap) AND the
-## GLOBAL safety cap, and stops the moment there is no useful geometry left —
-## "whichever comes first" (M7C brief). Every iteration preflights the
-## candidate plane BEFORE rolling: a proc is never even asked for on a cut that
-## could not execute, so a fired proc can never fail to land and an unfired
-## roll never shows up as an announcement.
-##
-## THE ANNOUNCEMENT IS A COLOURED VFX AT THE CUT, NOT A TEXT BANNER (Creative
-## Director call, 2026-08-04 — see ProcBurst). It fires once per EXECUTED cut,
-## scaling with the completed result exactly like the fairness contract
-## requires, never with the rolled intention.
-func _attempt_double_strike(normal: Vector3, dir_enum: int) -> bool:
-	_last_double_strike_cuts = 0
-	if _precision_guard and not _double_strike_safe_in_precision() \
-			and not SkillTree.owns_modifier(GameplayModifierDef.Kind.PRECISION_CHAIN_SAFETY):
-		return false   # suppressed: no target lookup, no roll, no fairness spend
-	if not ProgressionProcs.is_available(&"double_strike"):
-		return false
-	var proc_def: ProcDef = M7CContent.procs().by_id(&"double_strike") if M7CContent.procs() != null else null
-	if proc_def == null:
-		return false
-	var cap := mini(ProgressionProcs.effective_chain_cap(&"double_strike"),
-		global_proc_chain_cap)
-	if cap <= 0:
-		return false
-	var cuts := 0
-	var first_target := _pick_double_strike_target()
-	if first_target == null or not _bonus_cut_preflight(first_target,
-			first_target.global_position, normal):
-		return false   # ineligible geometry never spends fairness
-	if not ProcResolver.should_proc_with_chance(proc_def,
-			ProgressionProcs.effective_chance(&"double_strike"), debug_force_proc):
-		return false
-	while cuts < cap:
-		var target := first_target if cuts == 0 else _pick_double_strike_target()
-		if target == null:
-			break   # no useful geometry left on the block — stop, do not roll
-		var point: Vector3 = target.global_position
-		if not _bonus_cut_preflight(target, point, normal):
-			break   # this target cannot take the cut either — stop, do not roll
-		# Measured BEFORE the cut, while the target still exists. The horizontal
-		# split position feeds the VFX's log-base source; the raised point remains
-		# the spatial-audio source so the cue is not buried inside solid wood.
-		var burst_mesh: Mesh = target.get_meta("mesh_ref")
-		var burst_height: float = burst_mesh.get_aabb().size.y if burst_mesh != null else 0.2
-		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
-		if not _perform_split(target, point, normal, dir_enum):
-			break   # belt-and-braces: preflight said yes but the real cut refused
-		cuts += 1
-		var branch := ProgressionProcs.branch_for_proc(proc_def.id)
-		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
-		ProcBurst.spawn_from_log_base(self, burst_point, _stump_top_y,
-			_last_proc_burst_color, branch.id if branch != null else &"",
-			_camera.global_transform.basis.z)
-		_play_proc_audio(proc_def.id, burst_point)
-	_last_double_strike_cuts = cuts
-	if cuts > 0:
-		if SkillTree.owns_modifier(GameplayModifierDef.Kind.EARTHSHAKER):
-			for remaining: Area3D in _on_block:
-				if is_instance_valid(remaining):
-					remaining.set_meta("scars", _scars_on(remaining) + 1)
-					_add_scar(remaining, remaining.global_position, normal)
-		bonus_proc_announced.emit(&"double_strike", cuts)
-	return cuts > 0
-
-
-# ------------------------------------------------------------ M7C: Follow-Up
-## Speed's own signature proc — a bonus SWING, not a bonus cut (contrast
-## _attempt_double_strike). Rolled once per landed ROOT swing, split or scar,
-## from the tail of _resolve_strike itself, guarded by `not is_bonus` exactly
-## like Double Strike's own call site — so a bonus swing's own outcome can
-## never trigger a second Follow-Up roll, and a fired Follow-Up can never spawn
-## a Double Strike chain of its own (a root swing spawns AT MOST one bonus
-## chain, of one kind). Called from _resolve_strike rather than
-## _resolve_pending() specifically so debug_swing_world — the seam
-## m7c_acceptance and proc_shot both drive Double Strike through — exercises
-## Follow-Up too, not just the real mouse-click path.
-##
-## Prefers the just-struck piece if it is still on the block (the mercy case:
-## a scar becomes a second real chance at the SAME wood) and falls back to the
-## largest remaining piece otherwise, exactly like Double Strike's own target
-## rule — see _pick_bonus_target().
-func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> int:
-	_last_follow_up_swings = 0
-	if _precision_guard:
-		# Suppressed with no escape: no owned modifier grants Follow-Up an
-		# exception the way Steady Continuation does for Double Strike (no such
-		# Speed node exists yet — a Directive 3 authoring call for Sam).
-		return 0   # no target lookup, no roll, no fairness spend
-	if not ProgressionProcs.is_available(&"follow_up"):
-		return 0
-	var proc_def: ProcDef = M7CContent.procs().by_id(&"follow_up") if M7CContent.procs() != null else null
-	if proc_def == null:
-		return 0
-	var cap := mini(ProgressionProcs.effective_chain_cap(&"follow_up"),
-		global_proc_chain_cap)
-	if cap <= 0:
-		return 0
-	var swings := 0
-	var cuts := 0
-	var preferred := piece
-	var first_target := _pick_bonus_target(preferred)
-	if first_target == null or not _bonus_cut_preflight(first_target,
-			first_target.global_position, normal):
-		return 0   # ineligible geometry never spends fairness
-	if not ProcResolver.should_proc_with_chance(proc_def,
-			ProgressionProcs.effective_chance(&"follow_up"), debug_force_proc):
-		return 0
-	while swings < cap:
-		var target := first_target if swings == 0 else _pick_bonus_target(preferred)
-		preferred = null   # only the root's own piece gets first refusal
-		if target == null:
-			break   # no useful geometry left on the block — stop, do not roll
-		var point: Vector3 = target.global_position
-		if not _bonus_cut_preflight(target, point, normal):
-			break   # this target cannot take the cut either — stop, do not roll
-		# Measured BEFORE the swing resolves, while the target still exists. Its
-		# horizontal split position feeds the VFX's log-base source; the raised
-		# point remains the open-air spatial-audio source.
-		var burst_mesh: Mesh = target.get_meta("mesh_ref")
-		var burst_height: float = burst_mesh.get_aabb().size.y if burst_mesh != null else 0.2
-		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
-		# A real SWING, not a forced cut: it rolls its own split chance and can
-		# leave the wood scarred instead, which is what makes Follow-Up feel
-		# different from Double Strike. `is_bonus = true` so it can never spawn
-		# a Double Strike chain of its own.
-		#
-		# Plays the axe again (Sam, 2026-08-05, feel-testing seed_speed: "It
-		# splits it does do two strikes on the log, but you only get one
-		# animation"). Purely a visual flourish — it does NOT gate the
-		# resolution below, which stays synchronous exactly like every other
-		# debug/test seam in this file (debug_swing_world) already assumes.
-		# Double Strike is deliberately left alone: its own flavour text is
-		# "one good swing... a second real cut", not a second swing.
-		_swing_axe(point, normal)
-		if _resolve_strike(target, point, normal, dir_enum, null, true):
-			cuts += 1
-		swings += 1
-		var branch := ProgressionProcs.branch_for_proc(proc_def.id)
-		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
-		ProcBurst.spawn_from_log_base(self, burst_point, _stump_top_y,
-			_last_proc_burst_color, branch.id if branch != null else &"",
-			_camera.global_transform.basis.z)
-		_play_proc_audio(proc_def.id, burst_point)
-	_last_follow_up_swings = swings
-	if swings > 0:
-		bonus_proc_announced.emit(&"follow_up", swings)
-	return cuts
-
-
-## Shared by Double Strike and Follow-Up: `preferred`, when it is still a live
-## on-block piece, is used as-is (Follow-Up's mercy case — the piece the player
-## just struck). Otherwise falls back to the deterministic largest-on-block
-## rule both procs share.
+## A repeat swing gives the just-struck piece first refusal, then falls back to
+## the deterministic largest remaining block piece.
 func _pick_bonus_target(preferred: Area3D) -> Area3D:
 	if preferred != null and is_instance_valid(preferred) and preferred in _on_block:
 		return preferred
 	return _pick_double_strike_target()
 
 
-## Does an owned modifier explicitly make Double Strike safe during precision
-## work? Only Steady Continuation grants this today (M7C brief: "unless an
-## owned modifier explicitly makes them safe").
-func _double_strike_safe_in_precision() -> bool:
-	return SkillTree.get_level(&"steady_continuation") > 0
-
-
 ## Deterministic continuation target: the largest on-block piece by measured
 ## volume. `_on_block` only ever holds live, script-animated stays — never a
 ## settling or fading firewood piece — so any entry here already satisfies the
-## fairness contract's "does not select settling, frozen, or consumed pieces".
+## requirement that repeat swings never select settling or consumed pieces.
 func _pick_double_strike_target() -> Area3D:
 	var best: Area3D = null
 	var best_vol := -1.0
@@ -3267,10 +2824,7 @@ func _pick_double_strike_target() -> Area3D:
 ## Pure trial: does a candidate world plane through `piece` produce two valid
 ## halves? Mirrors _perform_split's own plane-building exactly (square bias,
 ## world-to-local, sliver guard) but stops before any mutation — nothing is
-## queue_free'd, nothing joins _on_block, no signal fires. Kept as a separate
-## trial rather than a refactor of _perform_split so the well-tested M4 cut
-## path is never touched by an M7C change. Shared by Double Strike and
-## Follow-Up — both are "one more real cut, if the geometry can take it".
+## queue_free'd, nothing joins _on_block, and no signal fires.
 func _bonus_cut_preflight(piece: Area3D, world_point: Vector3, normal: Vector3) -> bool:
 	var mesh: Mesh = piece.get_meta("mesh_ref")
 	if mesh == null:
@@ -3284,80 +2838,13 @@ func _bonus_cut_preflight(piece: Area3D, world_point: Vector3, normal: Vector3) 
 	return res.above != null and res.below != null
 
 
-## Test/debug seam only — the real control is an unresolved Creative Director
-## decision (M7C brief item 10). Mirrors this file's existing debug_* pattern.
-func debug_set_precision_guard(enabled: bool) -> void:
-	_precision_guard = enabled
-
-
-func debug_last_double_strike_cuts() -> int:
-	return _last_double_strike_cuts
-
-
-func debug_last_follow_up_swings() -> int:
-	return _last_follow_up_swings
-
-
-func debug_last_proc_burst_color() -> Color:
-	return _last_proc_burst_color
-
-
-func debug_last_quick_study_bonus() -> int:
-	return _last_quick_study_bonus
-
-
-func debug_last_quick_study_root_id() -> StringName:
-	return _last_quick_study_root_id
-
-
-func debug_has_express_handoff_pending() -> bool:
-	return _express_handoff_pending
-
-
-func debug_last_log_arrival_ms() -> float:
-	return _last_log_arrival_ms
-
-
-## Acceptance/tool seam over the exact live completion transaction. String ids
-## keep callers from fabricating the typed enum directly; unknown sources are
-## rejected as restored/non-eligible work.
-func debug_award_log_xp_event(source_id: StringName, root_id: StringName,
-		completed: bool, is_bonus_event: bool, base_xp: int) -> int:
-	var source := _ManualLogOutcome.Source.RESTORED
-	match source_id:
-		&"manual": source = _ManualLogOutcome.Source.MANUAL
-		&"automation": source = _ManualLogOutcome.Source.AUTOMATION
-		&"restored": source = _ManualLogOutcome.Source.RESTORED
-	return _resolve_log_xp(_ManualLogOutcome.new(
-		root_id, source, completed, is_bonus_event, base_xp))
-
-
-# ------------------------------------------ M7C Technique: grain opportunity
+# ------------------------------------------------ Grain Reader opportunity
 ##
-## REWORKED 2026-08-04 (Creative Director call): the earlier version was an
-## EPHEMERAL cue that forced a 90-degree camera turn on exactly the pieces it
-## could appear on, and cleared itself ~150-300ms after being shown — "the brief
-## pop doesn't feel good when you get auto turned". It is now a PERMANENT mark,
-## occasionally rolled onto a fresh piece, that cuts without ever consuming the
-## cross-axis turn (see _on_click) and always goes through when taken (see
-## _roll_splits) — see _award_grain_bonus for what taking it pays.
-##
-## THE OFFER IS A REAL PROC (`grain_read` in proc_table.tres), rolled through the
-## same ProcResolver every other named chance-driven event in this file uses, so
-## it inherits bounded-dry-streak fairness and the debug_force_grain seam for
-## free — same shape as Double Strike and Quick Study. It is rolled once per
-## fresh ON-BLOCK PIECE (Eligibility.MANUAL_PIECE_OFFER), preflighted BEFORE the
-## roll exactly like Double Strike ("a proc is never even asked for on a cut
-## that could not execute"), and LATCHES OFF for the rest of the current log the
-## moment one placement succeeds — a mark neither relocates to a new "current"
-## piece nor stacks a second one onto the same log.
+## Grain Reader rolls once per fresh on-block piece. A successful mark is
+## permanent until cut, never forces a camera turn, and latches off for the rest
+## of that root so marks cannot relocate or stack.
 func _grain_cue_enabled() -> bool:
-	return _run_power_effect(ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE) > 0.0 \
-		or ProgressionProcs.is_available(&"grain_read")
-
-
-func _grain_proc_def() -> ProcDef:
-	return M7CContent.procs().by_id(&"grain_read") if M7CContent.procs() != null else null
+	return _run_power_effect(ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE) > 0.0
 
 
 func _try_show_grain_cue(target: Area3D) -> void:
@@ -3386,35 +2873,15 @@ func _try_show_grain_cue(target: Area3D) -> void:
 		return
 	var run_chance := clampf(_run_power_effect(
 		ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE), 0.0, 1.0)
-	var proc_def := _grain_proc_def()
-	var permanent_available := proc_def != null \
-		and ProgressionProcs.is_available(&"grain_read")
-	if not permanent_available and run_chance <= 0.0:
+	if run_chance <= 0.0:
 		return
-	var guaranteed := _eureka_grain_pending and SkillTree.owns_modifier(
-		GameplayModifierDef.Kind.GRAIN_GUARANTEE)
-	var offer_source: StringName = &"grain_read" if guaranteed else &""
-	if not guaranteed:
-		var offered := debug_force_grain == 1
-		if offered:
-			offer_source = &"grain_read" if permanent_available else &"grain_reader"
-		if debug_force_grain < 0:
-			# Preserve the retired/permanent proc's own fairness authority, then
-			# independently roll the run power only when that first source misses.
-			# This composes their chances without allowing Grain Reader to replace
-			# or downgrade an already-earned permanent mark.
-			if permanent_available and ProcResolver.should_proc_with_chance(proc_def,
-					ProgressionProcs.effective_chance(&"grain_read"), -1):
-				offered = true
-				offer_source = &"grain_read"
-			elif run_chance > 0.0 and _run_director != null \
-					and _run_director.has_method("roll_run_power_chance"):
-				offered = bool(_run_director.call(
-					"roll_run_power_chance", &"grain_reader", run_chance))
-				if offered:
-					offer_source = &"grain_reader"
-		if not offered:
-			return
+	var offered := debug_force_grain == 1
+	if debug_force_grain < 0 and _run_director != null \
+			and _run_director.has_method("roll_run_power_chance"):
+		offered = bool(_run_director.call(
+			"roll_run_power_chance", &"grain_reader", run_chance))
+	if not offered:
+		return
 
 	_grain_target = target
 	_grain_target_mesh = mesh
@@ -3422,9 +2889,7 @@ func _try_show_grain_cue(target: Area3D) -> void:
 	_grain_candidate_dirty = false
 	_grain_offered_this_log = true
 	_grain_offer_count_this_log += 1
-	_grain_offer_source = offer_source
-	if guaranteed:
-		_eureka_grain_pending = false
+	_grain_offer_source = &"grain_reader"
 
 	# The sliver guard may shift the precomputed plane away from the requested
 	# centre. Place the mark on that FINAL plane, never on the earlier intention.
@@ -3468,9 +2933,8 @@ func _slice_preflight_ok(mesh: Mesh, local_plane: Plane) -> bool:
 ## Three raised pigment slashes on the piece's TOP surface, parented to the piece
 ## so they move with it: a dark edge (readable on pale bark), a breathing warm
 ## middle and a solid gold core. GOLD IS
-## AUTHORED, not read from SkillTree.branch_for_proc() — this is a world marker
-## naming an opportunity, not a proc announcement, and must read as its own
-## thing next to the Technique-green ProcBurst the reward fires on top of it.
+## Gold is authored identity for the world opportunity, independent of the run
+## power's trigger burst.
 func _build_grain_top_mark(target: Area3D, world_anchor: Vector3, normal: Vector3) -> void:
 	var line_dir := Vector3.UP.cross(normal).normalized()
 	var length := maxf(
@@ -3515,7 +2979,7 @@ func _grain_unit_line_mesh() -> ArrayMesh:
 
 
 ## Lazily built and cached: only one gold mark is ever live at a time and its
-## colour is fixed authored data, unlike ProcBurst's per-branch colour cache.
+## colour is fixed authored data.
 func _grain_mark_materials() -> Array:
 	if _grain_core_mat == null:
 		_grain_dark_mat = _grain_paint_material(
@@ -3562,7 +3026,7 @@ func _update_grain_cue() -> void:
 
 ## The middle pigment pass breathes between the authored min/max on a plain sine
 ## of wall-clock time. Cosmetic only, so it
-## rides real time rather than Engine.time_scale, which A11's hit-pause drives to
+## rides real time rather than Engine.time_scale, which hit-pause drives to
 ## near-zero for a beat on every real split.
 func _update_grain_pulse() -> void:
 	if _grain_glow_mat == null:
@@ -3607,35 +3071,16 @@ func _pick_grain_target(candidates: Array) -> Area3D:
 	return best
 
 
-## The reward for taking the mark: a Technique-green ProcBurst plus a big XP
-## payout, banked before the orbs that carry it erupt from the SAME point the
-## mark was cut — never the stump centre — so a gold cut visibly outsizes a
-## routine log award. `burst_point` is measured by the caller from the piece's
-## SETTLED transform, in open air above its top surface (never inside the solid
-## wood — the failure-scar bug, "drawn outward, not carved in", in new paint).
-##
-## THE VFX READS TECHNIQUE GREEN, NOT GOLD — Quick Study is the node that grants
-## the mechanic, and a proc's announcement colour is always its branch's, per the
-## 2026-08-04 ProcBurst convention. Gold stays the mark's own identity; green is
-## this event's.
+## The reward for taking a Grain Reader mark is banked before its receipt orbs
+## erupt from the exact cut point, never from the stump centre.
 func _award_grain_bonus(burst_point: Vector3) -> void:
 	_last_grain_bonus = 0
 	if _current_species == null:
 		return
-	var proc_def := _grain_proc_def()
-	var run_multiplier := _run_power_effect(
+	var multiplier := _run_power_effect(
 		ProgressionEffectDef.Kind.GRAIN_BONUS_XP_MULTIPLIER)
-	if proc_def == null and run_multiplier <= 0.0:
-		return
-	# The multiplier is authored data on the proc (proc_table.tres), read through
-	# the same generic helper Quick Study's log-completion bonus uses — never a
-	# literal "3.0" in code.
-	var permanent_multiplier := _manual_xp_multiplier(proc_def) \
-		if proc_def != null else 0.0
-	var multiplier := run_multiplier if _grain_offer_source == &"grain_reader" \
-		else permanent_multiplier
 	if multiplier <= 0.0:
-		multiplier = maxf(run_multiplier, permanent_multiplier)
+		return
 	var base_xp := _current_species.xp_reward
 	if _current_descriptor != null:
 		var yards := SurvivorsContent.yards()
@@ -3647,25 +3092,15 @@ func _award_grain_bonus(burst_point: Vector3) -> void:
 			base_xp = reward.xp_reward
 	var bonus := maxi(1, int(round(float(base_xp) * multiplier)))
 	_last_grain_bonus = bonus
-	bonus = _run_director.award_xp(bonus) if _run_director != null \
-		else GameState.award_xp(bonus, GameState.XP_ORIGIN_GRAIN)
+	bonus = _run_director.award_xp(bonus) if _run_director != null else 0
 	_last_grain_bonus = bonus
 	_burst_xp_orbs(bonus, burst_point)
 
-	if _grain_offer_source == &"grain_reader" and _run_director != null \
+	if _run_director != null \
 			and _run_director.has_method("record_run_power_trigger"):
 		_run_director.call("record_run_power_trigger", &"grain_reader",
 			burst_point, 1, true)
-		_last_proc_burst_color = _run_power_color(&"grain_reader")
-	else:
-		var branch := ProgressionProcs.branch_for_proc(&"grain_read")
-		var color := branch.color if branch != null \
-			else _run_power_color(&"grain_reader")
-		_last_proc_burst_color = color
-		ProcBurst.spawn(self, burst_point, color,
-			branch.id if branch != null else &"")
 	AudioDirector.play_world(&"precision_success", burst_point)
-	grain_read_awarded.emit(bonus)
 
 
 func debug_has_grain_cue() -> bool:
@@ -3737,7 +3172,7 @@ func debug_hold_grain_cue() -> void:
 ##   capped so a swing is never a certainty.
 func split_chance_for(piece: Area3D) -> float:
 	var base: float = default_split_chance if _current_species == null else _current_species.split_chance
-	var handling := WoodHandlingProfiles.profile_for_species(
+	var handling := SurvivorsContent.wood_handling().by_species_id(
 		&"" if _current_species == null else _current_species.id)
 	if handling != null:
 		base += handling.fresh_split_modifier
@@ -3751,15 +3186,10 @@ func split_chance_for(piece: Area3D) -> float:
 
 	var profile_scar_bonus := 1.0 if handling == null else handling.scar_bonus_multiplier
 	base += float(_scars_on(piece)) * (scar_bonus * profile_scar_bonus \
-		+ SkillTree.total_modifier(GameplayModifierDef.Kind.SCAR_RELIABILITY) \
 		+ _run_power_effect(ProgressionEffectDef.Kind.SCAR_RELIABILITY))
-	# Strength owns player capability; the cash axe only weights ordinary
-	# reliability. Separate queries prevent equipment from granting a skill id.
-	base += SkillTree.total_modifier(GameplayModifierDef.Kind.SPLIT_RELIABILITY)
 	base += _run_power_effect(ProgressionEffectDef.Kind.SPLIT_RELIABILITY)
 	base += float(_momentum_stacks()) * _run_power_effect(
 		ProgressionEffectDef.Kind.MOMENTUM_RELIABILITY_PER_STACK)
-	base += Shop.total_effect(UpgradeDef.Effect.SPLIT_RELIABILITY)
 	return clampf(base, 0.0, max_split_chance)
 
 
@@ -3979,102 +3409,13 @@ func _scar_projection_material() -> ShaderMaterial:
 	return _scar_projection_mat
 
 
-func _add_alien_weak_band(piece: Area3D, world_point: Vector3, normal: Vector3) -> void:
-	var line_dir := Vector3.UP.cross(normal).normalized()
-	var mesh: Mesh = piece.get_meta("mesh_ref")
-	if mesh == null or line_dir.length() < 0.001:
-		return
-	var cue := MeshInstance3D.new()
-	cue.name = "LuminousWeakBand"
-	cue.mesh = _unit_alien_band_mesh()
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.30, 1.0, 0.82, 0.92)
-	mat.emission_enabled = true
-	mat.emission = Color(0.18, 0.95, 0.72, 1.0)
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	cue.material_override = mat
-	piece.add_child(cue)
-	var top_y := piece.global_position.y + mesh.get_aabb().size.y * 0.5
-	var length := maxf(_piece_extent_along(piece, line_dir) * scar_length_frac, scar_width)
-	cue.global_transform = Transform3D(
-		Basis(line_dir * length, Vector3.UP.cross(line_dir) * scar_width * 1.8,
-			Vector3.UP), Vector3(world_point.x, top_y + scar_lift * 1.5, world_point.z))
-
-
-## The resonant alien behavior still wants a clean luminous band rather than a
-## physical axe gouge. Its unit quad is separate from the normal-map projection
-## above and never serves ordinary failed hits.
-func _unit_alien_band_mesh() -> ArrayMesh:
-	if _alien_band_mesh != null:
-		return _alien_band_mesh
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# Winding is deliberately not fussed over: the material is CULL_DISABLED (see
-	# the winding note in CLAUDE.md), so a mark cannot end up see-through whichever
-	# way its triangles happen to wind.
-	var a := Vector3(-0.5, -0.5, 0.0)
-	var b := Vector3(0.5, -0.5, 0.0)
-	var c := Vector3(0.5, 0.5, 0.0)
-	var d := Vector3(-0.5, 0.5, 0.0)
-	for tri: Array in [[a, b, c], [a, c, d]]:
-		for i in range(3):
-			var v: Vector3 = tri[i]
-			st.set_normal(Vector3.BACK)
-			st.set_uv(Vector2(v.x, v.y) + Vector2(0.5, 0.5))
-			st.set_color(Color.WHITE)
-			st.add_vertex(v)
-	var mesh := st.commit()
-
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color.WHITE
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mesh.surface_set_material(0, mat)
-
-	_alien_band_mesh = mesh
-	return mesh
-
-
-func _species_index_of(row: SpeciesDef) -> int:
-	if row == null:
-		return 0
-	var i := WoodCatalogue.index_of(row.id)
-	return i if i >= 0 else 0
-
-
-## Seconds the player must wait between swings, after the coffee. Compounding, so
-## each cup is 5% off what the last one left rather than 5% off the original.
+## Seconds the player must wait between swings after current run-power effects.
 func current_swing_cooldown() -> float:
-	# COMPOUNDING, which is why this asks the tree for LEVELS rather than for a
-	# summed magnitude: ten levels of 5% off is 40% of the original wait, not
-	# zero. Only the caller knows what its number means.
-	var recovery := SkillTree.total_modifier(
-		GameplayModifierDef.Kind.SWING_RECOVERY)
-	recovery += _run_power_effect(ProgressionEffectDef.Kind.SWING_RECOVERY)
+	var recovery := _run_power_effect(ProgressionEffectDef.Kind.SWING_RECOVERY)
 	recovery += float(_momentum_stacks()) * _run_power_effect(
 		ProgressionEffectDef.Kind.MOMENTUM_SPEED_PER_STACK)
 	recovery = clampf(recovery, 0.0, 0.8)
-	var after_skill := swing_cooldown * (1.0 - recovery)
-	var equipment := clampf(Shop.total_effect(UpgradeDef.Effect.SWING_RECOVERY), 0.0, 0.9)
-	return maxf(min_swing_cooldown, after_skill * (1.0 - equipment))
-
-
-## M7C Ready Stance: how much faster than authored the axe's WIND-UP (swing
-## start through the contact key) plays. `SkillNodeDef.Effect.CHOP_SPEED`'s own
-## doc calls it "fraction off the axe's wind-up" — a fraction SUMS across ranks
-## (unlike SWING_SPEED, which compounds and therefore asks the tree for levels
-## instead), so this reads `total_effect()`'s summed magnitude directly. That
-## fraction becomes a SPEED MULTIPLIER (AxeViewmodel.set_windup_scale expects
-## 1.0 == authored rate), clamped so the wind-up can neither reverse nor exceed
-## `max_windup_scale`.
-func current_windup_scale() -> float:
-	var fraction := clampf(SkillTree.total_modifier(
-		GameplayModifierDef.Kind.WINDUP_TIME), 0.0, 0.95)
-	return clampf(1.0 / (1.0 - fraction), 1.0, max_windup_scale)
+	return maxf(min_swing_cooldown, swing_cooldown * (1.0 - recovery))
 
 
 # --------------------------------------------------------------- slicing
@@ -4132,10 +3473,9 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 	res.above = _jag_cut(res.above, local_plane)
 	res.below = _jag_cut(res.below, local_plane)
 
-	# A7: this is the ONLY hit path — GameFeel turns it into shake + hit-pause.
+	# This is the only hit path; GameFeel turns it into shake and hit-pause.
 	# (Reference fires triggerShake right here, inside performSplit.)
-	EventBus.action_hit_registered.emit(
-		world_point, GameState.get_tool_tier(Enums.ToolType.AXE), dir_enum)
+	EventBus.action_hit_registered.emit(world_point)
 	_play_sfx(split_sfx)
 	AudioDirector.play_world(&"wood_split", world_point)
 
@@ -4187,8 +3527,7 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 		# reward a beat behind the swing that earned it, and the orbs then arrived
 		# on their own instead of inside the same burst of activity as the pieces
 		# landing around the block.
-		_award_log_xp(_ManualLogOutcome.Source.AUTOMATION \
-			if _power_cut_context != &"" else _ManualLogOutcome.Source.MANUAL)
+		_award_log_xp(_power_cut_context != &"")
 		# Commit the root's fixed purse after its coin batch and exact XP receipt are
 		# registered. The HUD trails authority until those tokens arrive, while a
 		# stage clear or suspend can never lose part of a completed root payout.
@@ -4377,19 +3716,10 @@ func debug_total_scar_pity_count() -> int:
 	return count
 
 
-func debug_has_alien_weak_band() -> bool:
-	return _alien_assist_target != null and is_instance_valid(_alien_assist_target) \
-		and _alien_assist_target.get_node_or_null("LuminousWeakBand") != null
-
-
 func debug_split_chance() -> float:
 	if _on_block.is_empty():
 		return 0.0
 	return split_chance_for(_on_block[0])
-
-
-func debug_has_staged_log() -> bool:
-	return not _staged_log.is_empty()
 
 
 ## World-space centre of the actual chopping block. LooseLogArena must not
@@ -4623,7 +3953,6 @@ func _dir_from_normal(normal: Vector3) -> int:
 ## (the standalone R debug key); ordinary auto-respawn leaves them to finish.
 func _spawn_fresh_log(clear_finished := true) -> void:
 	_clear_grain_cue(&"piece_changed")
-	_alien_assist_target = null
 	# A brand new log is a brand new roll — the once-per-log latch belongs to
 	# THIS log, never the one that just left the block.
 	_grain_offered_this_log = false
@@ -4641,8 +3970,6 @@ func _spawn_fresh_log(clear_finished := true) -> void:
 	_firewood.clear()
 	_animator.clear()
 	_pending = {}
-	if clear_finished:
-		_staged_log = {}
 	_awaiting_finished_settlement = false
 	_finished_batch_age = 0.0
 	if clear_finished:
@@ -4651,42 +3978,17 @@ func _spawn_fresh_log(clear_finished := true) -> void:
 	# Select the next log's species — the species is what this log will yield,
 	# and what its exposed end-grain looks like when it is cut.
 	var species_index := _pick_species_index()
-	var chosen := WoodCatalogue.at(species_index)
-	var using_cart: bool = (
-		not _staged_log.is_empty()
-		and chosen != null
-		and _staged_log.get("species_id", &"") == chosen.id
-	)
-	if using_cart:
-		_current_species = _staged_log.species
-		_cut_mat = _staged_log.cut_mat
-		_source_mesh = _staged_log.mesh
-	else:
-		_current_species = chosen
-		_cut_mat = _cut_mat_for(species_index)
-		_source_mesh = _apply_species_look(
-			_center_mesh(_build_split_log(_pick_mesh(_current_species))), species_index)
-	_staged_log = {}
+	_current_species = SpeciesTable.at(species_index)
+	_cut_mat = _cut_mat_for(species_index)
+	_source_mesh = _apply_species_look(
+		_center_mesh(_build_split_log(_pick_mesh(_current_species))), species_index)
 
 	var half_h := _source_mesh.get_aabb().size.y * 0.5
 	var rest_y := _stump_top_y + half_h
 	var node := _make_stay_piece(_source_mesh, Vector3(0.0, rest_y, 0.0), 0.0, true)
 	var landed := Callable(self, "_on_log_landed").bind(_source_mesh)
-	var express := _express_handoff_pending
-	_express_handoff_pending = false
-	if using_cart:
-		var reduction := clampf(Shop.total_effect(UpgradeDef.Effect.DELIVERY_TIME), 0.0, 0.8)
-		reduction = clampf(reduction + SkillTree.total_modifier(
-			GameplayModifierDef.Kind.LOG_TURNAROUND), 0.0, 0.8)
-		var duration := 100.0 if express else maxf(100.0, 300.0 * (1.0 - reduction))
-		_last_log_arrival_ms = duration
-		_animator.animate_drop(node, rest_y + drop_height, rest_y, landed, duration)
-	else:
-		var reduction := clampf(SkillTree.total_modifier(
-			GameplayModifierDef.Kind.LOG_TURNAROUND), 0.0, 0.8)
-		var duration := 100.0 if express else maxf(100.0, 300.0 * (1.0 - reduction))
-		_last_log_arrival_ms = duration
-		_animator.animate_drop(node, rest_y + drop_height, rest_y, landed, duration)
+	var duration := 300.0
+	_animator.animate_drop(node, rest_y + drop_height, rest_y, landed, duration)
 	_try_show_grain_cue(node)
 
 
@@ -4792,26 +4094,6 @@ func _update_log_smoke(delta: float) -> void:
 			_smoke_age[i] = -1.0
 
 
-## Prepare one mesh while the completed log is already waiting to settle. It is
-## not placed, counted, paid or interactable until _spawn_fresh_log consumes it.
-func _stage_next_log() -> void:
-	if Shop.get_level(GameState.UPGRADE_HANDCART) <= 0 or not _staged_log.is_empty():
-		return
-	var species_index := _pick_species_index()
-	var species := WoodCatalogue.at(species_index)
-	if species == null:
-		return
-	var mat := _cut_mat_for(species_index)
-	var mesh := _apply_species_look(
-		_center_mesh(_build_split_log(_pick_mesh(species))), species_index)
-	_staged_log = {
-		"species_id": species.id,
-		"species": species,
-		"cut_mat": mat,
-		"mesh": mesh,
-	}
-
-
 func _build_stump() -> void:
 	var raw := _load_stump_mesh()
 	var aabb := raw.get_aabb()
@@ -4843,13 +4125,7 @@ func _build_stump() -> void:
 
 
 func current_work_radius() -> float:
-	return _stump_radius * (1.0 + Shop.total_effect(UpgradeDef.Effect.WORK_RADIUS))
-
-
-func _refresh_equipment_effects() -> void:
-	var cs: CollisionShape3D = get_node_or_null("StumpBody/StumpCollision")
-	if cs != null and cs.shape is CylinderShape3D:
-		(cs.shape as CylinderShape3D).radius = current_work_radius()
+	return _stump_radius
 
 
 # ------------------------------------------------------------------- axe
@@ -4877,25 +4153,11 @@ func _swing_axe(world_point := Vector3(0.0, _stump_top_y, 0.0), _normal := Vecto
 		screen_pos := Vector2(-1.0, -1.0)) -> void:
 	if _axe == null:
 		return
-	# The upgrade speeds up the SWING, not a dead wait after it. `swing_cooldown` is
-	# the authored rate and current_swing_cooldown() is what the skill tree has
-	# bought it down to, so the ratio is exactly what the player paid for.
+	# Run-power speed changes the whole swing while preserving the authored base.
 	var base := maxf(current_swing_cooldown(), 0.001)
 	_axe.set_speed(clampf(swing_cooldown / base, 0.25, 4.0))
-	# M7C Ready Stance: shortens the WIND-UP only — see current_windup_scale()
-	# and AxeViewmodel.set_windup_scale().
-	_axe.set_windup_scale(current_windup_scale())
 	AudioDirector.play_world(&"axe_whoosh", world_point)
 	_axe.swing(_aim_from_screen(screen_pos, world_point))
-
-
-func _play_proc_audio(proc_id: StringName, world_position: Vector3) -> void:
-	var cue := &"proc_mastery"
-	if proc_id in [&"double_strike", &"triple_chop", &"quad_chop"]:
-		cue = &"proc_strength"
-	elif proc_id in [&"follow_up", &"flurry", &"express_handoff"]:
-		cue = &"proc_speed"
-	AudioDirector.play_world(cue, world_position)
 
 
 ## Where to lean the swing, as -1..1 from the centre of the frame. Prefers the
@@ -4978,7 +4240,7 @@ func _make_planar(tex: Texture2D) -> StandardMaterial3D:
 func _cut_mat_for(species_index: int) -> StandardMaterial3D:
 	if _cut_mats.has(species_index):
 		return _cut_mats[species_index]
-	var row := WoodCatalogue.at(species_index)
+	var row := SpeciesTable.at(species_index)
 	# Paths, not preloaded Textures, so a row reads the same way as its "mesh".
 	var albedo := _tex_or("" if row == null else row.inside_tex, _TEX_INSIDE)
 	var normal := _tex_or("" if row == null else row.inside_normal, _TEX_INSIDE_N)
@@ -5007,7 +4269,7 @@ func _cut_mat_for(species_index: int) -> StandardMaterial3D:
 ## are shared by reference. The cached ShaderMaterials also stay distinct from
 ## `_cut_mat`, preserving MeshUtils.jag_cut's fresh-face identity check.
 func _apply_species_look(mesh: ArrayMesh, species_index: int) -> ArrayMesh:
-	var row := WoodCatalogue.at(species_index)
+	var row := SpeciesTable.at(species_index)
 	if row == null:
 		return mesh
 
@@ -5211,13 +4473,12 @@ func _translate_mesh(src: Mesh, offset: Vector3) -> ArrayMesh:
 ## GameState owns the choice, and its getter already resolves a save that predates
 ## the selector, a deleted species or a choice a retuned ladder put back out of
 ## reach, so there is nothing to validate here. `debug_forced_species` still wins,
-## so M4's suite and every shot tool drive an exact wood without touching
+## so chopping_acceptance and every shot tool drive an exact wood without touching
 ## progression.
 func _pick_species_index() -> int:
 	if debug_forced_species >= 0 and debug_forced_species < SpeciesTable.count():
 		return debug_forced_species
-	var index := WoodCatalogue.index_of(GameState.get_selected_species())
-	return index if index >= 0 else 0
+	return 0
 
 
 ## Which authored log SHAPE of that species turns up. Picked separately from the
@@ -5233,7 +4494,7 @@ func _pick_mesh(species: SpeciesDef) -> String:
 
 func _load_log_mesh(variant_path := "") -> Mesh:
 	if variant_path.is_empty():
-		variant_path = _pick_mesh(WoodCatalogue.at(_pick_species_index()))
+		variant_path = _pick_mesh(SpeciesTable.at(_pick_species_index()))
 	return MeshUtils.mesh_from_path(variant_path)
 
 

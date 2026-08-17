@@ -3,8 +3,7 @@ extends Node
 ## Sole authority for disposable attempt state. Permanent writes are explicit
 ## transactions into GameState; inventory writes remain in InventoryManager.
 
-enum Phase { PREP, ACTIVE, EARTH_CLEAR, OVERFLOW, FAILED, SUSPENDED, COMPLETE }
-enum Powerup { SLOW_TIME, LOG_BLASTER }
+enum Phase { PREP, ACTIVE, STAGE_CLEAR, OVERFLOW, FAILED, SUSPENDED, COMPLETE }
 
 signal phase_changed(phase: Phase)
 signal pause_changed(paused: bool)
@@ -16,17 +15,11 @@ signal level_choice_changed(offer: Dictionary)
 signal power_slots_changed(slots: Array, ranks: Dictionary)
 signal run_power_runtime_changed(state: Dictionary)
 signal utility_charges_changed(rerolls: int, banishes: int)
-signal earth_changed(remaining: int, cleared: int)
 signal run_clock_changed(elapsed_ms: int)
 signal stage_time_changed(remaining_ms: int)
 signal delivery_changed(seconds_left: float, tier: int)
 signal loose_logs_changed(count: int)
 signal boundary_warning_changed(log_id: StringName, seconds_left: float)
-signal powerups_changed(slow_charges: int, blaster_ammo: int, slow_seconds: float)
-signal powerup_dropped(kind: Powerup)
-signal splitter_changed(installed: bool, reliability_rank: int, seconds_left: float)
-signal splitter_rescued(log_id: StringName)
-signal earth_cleared(clear_ms: int)
 signal stage_cleared(clear_ms: int)
 signal boss_stack_changed(display_name: String, remaining_logs: int)
 signal attempt_finished(results: Dictionary)
@@ -71,17 +64,10 @@ var _offer_paused_run := false
 var _offer_serial := 0
 var _payday_picks := 0
 var _bank_receipt: Dictionary = {}
-var _earth_remaining: int = GameState.TOTAL_EARTH_TREES
 var _elapsed_seconds := 0.0
-var _earth_clear_seconds := -1.0
+var _stage_clear_seconds := -1.0
 var _delivery_seconds_left := 0.0
 var _delivery_tier := 0
-var _slow_charges := 0
-var _blaster_ammo := 0
-var _slow_seconds_left := 0.0
-var _splitter_installed := false
-var _splitter_reliability_rank := 0
-var _splitter_seconds_left := 0.0
 var _spawn_serial := 0
 var _waiting_for_active_log := false
 var _active_log_id: StringName = &""
@@ -96,11 +82,8 @@ var _bosses_defeated := 0
 var _pending_blueprint_rolls: Array[int] = []
 var _boundary_timers_paused := false
 var _manual_clears := 0
-var _splitter_rescues := 0
 var _peak_loose_logs := 0
 var _cash_earned := 0
-var _cash_spent := 0
-var _permanent_purchases := 0
 var _pending_piece_cash: Array[int] = []
 var _periodic_power_seconds_left: Dictionary = {}
 var _run_power_trigger_counts: Dictionary = {}
@@ -165,35 +148,23 @@ func _process(delta: float) -> void:
 		stage_time_changed.emit(0)
 		_enter_stage_clear()
 		return
-	if _slow_seconds_left > 0.0:
-		_slow_seconds_left = maxf(0.0, _slow_seconds_left - delta)
-		if is_zero_approx(_slow_seconds_left):
-			powerups_changed.emit(_slow_charges, _blaster_ammo, 0.0)
-	var hazard_delta := delta * hazard_speed_multiplier()
 	var live_yard := _yard_definition()
 	if _maximum_delivery_pressure_active(live_yard):
 		# Entering the final pressure window must not inherit a slower remainder.
 		# Both the interval and batch now come from the curves' rightmost points.
 		_delivery_seconds_left = minf(_delivery_seconds_left,
 			delivery_interval())
-	_delivery_seconds_left -= hazard_delta
+	_delivery_seconds_left -= delta
 	while _delivery_seconds_left <= 0.0:
 		_delivery_seconds_left += delivery_interval()
 		if _spawn_delivery_batch() <= 0:
 			break
-	if _splitter_installed:
-		_splitter_seconds_left -= hazard_delta
-		if _splitter_seconds_left <= 0.0:
-			_splitter_seconds_left += tuning.splitter_cycle_seconds
-			_resolve_splitter_cycle()
 	_advance_run_power_runtime(delta)
 	if _arena != null:
-		_arena.call("advance_hazards", hazard_delta, hazard_speed_multiplier())
+		_arena.call("advance_hazards", delta)
 	run_clock_changed.emit(elapsed_ms())
 	stage_time_changed.emit(stage_remaining_ms())
 	delivery_changed.emit(_delivery_seconds_left, _delivery_tier)
-	if _splitter_installed:
-		splitter_changed.emit(true, _splitter_reliability_rank, _splitter_seconds_left)
 
 
 # ---------------------------------------------------------------- lifecycle
@@ -237,7 +208,7 @@ func pause_attempt() -> void:
 
 
 func resume_attempt() -> void:
-	if phase not in [Phase.ACTIVE, Phase.OVERFLOW, Phase.EARTH_CLEAR]:
+	if phase not in [Phase.ACTIVE, Phase.OVERFLOW, Phase.STAGE_CLEAR]:
 		return
 	if not _current_offer.is_empty():
 		_paused = true
@@ -246,11 +217,11 @@ func resume_attempt() -> void:
 		return
 	# A generic resume must not silently choose Endless for a restored stage-clear
 	# decision. Only the explicit Continue Endless action may cross this boundary.
-	if phase == Phase.EARTH_CLEAR:
+	if phase == Phase.STAGE_CLEAR:
 		_paused = true
 		_set_runtime_paused(true)
 		pause_changed.emit(true)
-		stage_cleared.emit(earth_clear_ms())
+		stage_cleared.emit(stage_clear_ms())
 		return
 	_paused = false
 	_set_runtime_paused(false)
@@ -258,7 +229,7 @@ func resume_attempt() -> void:
 
 
 func continue_endless() -> bool:
-	if phase != Phase.EARTH_CLEAR or not _current_offer.is_empty():
+	if phase != Phase.STAGE_CLEAR or not _current_offer.is_empty():
 		return false
 	phase = Phase.OVERFLOW
 	_paused = false
@@ -304,7 +275,7 @@ func abandon_attempt() -> void:
 
 
 func has_live_attempt() -> bool:
-	return phase in [Phase.ACTIVE, Phase.EARTH_CLEAR, Phase.OVERFLOW, Phase.SUSPENDED]
+	return phase in [Phase.ACTIVE, Phase.STAGE_CLEAR, Phase.OVERFLOW, Phase.SUSPENDED]
 
 
 func is_paused() -> bool:
@@ -322,11 +293,6 @@ func max_delivery_tier() -> int:
 		if yard != null else tuning.delivery_intervals.size()
 	return clampi(GameState.get_max_frequency_tier(), 0,
 		maxi(0, tier_count - 1))
-
-
-func set_delivery_tier(tier: int) -> bool:
-	# Starting frequency is selected at Home. A live attempt cannot alter it.
-	return false
 
 
 func delivery_interval() -> float:
@@ -569,7 +535,8 @@ func _scaled_run_xp(base_amount: int) -> int:
 func _pick_timeline_species() -> StringName:
 	var yard := _yard_definition()
 	if yard == null or yard.species_timeline.is_empty():
-		return GameState.get_selected_species()
+		var starting := SpeciesTable.starting_species()
+		return &"" if starting == null else starting.id
 	var active: Array[YardTimelineEntryDef] = []
 	var total_weight := 0.0
 	for entry: YardTimelineEntryDef in yard.species_timeline:
@@ -644,19 +611,6 @@ func _finish_boss_stack() -> void:
 	attempt_snapshot_dirty.emit()
 
 
-func get_boss_stack_state() -> Dictionary:
-	return {
-		"boss_id": String(_active_boss_id),
-		"display_name": _active_boss_name,
-		"tier": _active_boss_tier,
-		"remaining_logs": _boss_stack_remaining.size() \
-			+ (1 if _active_boss_id != &"" else 0),
-		"pending_schedules": _pending_boss_schedule_indices.duplicate(),
-		"bosses_defeated": _bosses_defeated,
-		"pending_blueprints": _pending_blueprint_rolls.size(),
-	}
-
-
 func _on_loose_log_landed(_id: StringName) -> void:
 	if _waiting_for_active_log:
 		_claim_next_active_log()
@@ -681,23 +635,9 @@ func complete_manual_log(descriptor: LogDescriptor, piece_count: int) -> Diction
 	var cash_total := _prepare_root_cash_shares(descriptor, piece_count)
 	attempt_snapshot_dirty.emit()
 	return {
-		"earth_cleared": 0,
 		"piece_count": maxi(0, piece_count),
-		"batch_size": current_batch_size(),
 		"cash_total": cash_total,
 	}
-
-
-func settle_firewood(item_id: StringName, amount: int = 1) -> int:
-	var unit := Market.get_price(item_id)
-	if amount <= 0 or unit <= 0 or not InventoryManager.remove_items([{
-		"item_id": item_id, "amount": amount,
-	}]):
-		return 0
-	var multiplier := maxf(1.0, GameState.get_meta_effect(
-		ProgressionEffectDef.Kind.SESSION_CASH_MULTIPLIER))
-	return award_cash(maxi(unit * amount,
-		int(round(float(unit * amount) * multiplier))))
 
 
 func settle_completed_piece(item_id: StringName) -> int:
@@ -727,13 +667,6 @@ func _prepare_root_cash_shares(descriptor: LogDescriptor, piece_count: int) -> i
 	for index: int in range(piece_count):
 		_pending_piece_cash.append(quotient + (1 if index < remainder else 0))
 	return accepted
-
-
-func _pending_piece_cash_total() -> int:
-	var total := 0
-	for share: int in _pending_piece_cash:
-		total += share
-	return total
 
 
 func award_cash(amount: int) -> int:
@@ -1086,8 +1019,8 @@ func on_manual_strike_resolved(did_split: bool, world_position: Vector3,
 				ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS))
 			var cuts: Array = []
 			var pulse: Array = []
-			if _arena.has_method("cut_all_in_radius"):
-				cuts = _arena.call("cut_all_in_radius", &"earthshaker",
+			if _arena.has_method("destroy_all_in_radius"):
+				cuts = _arena.call("destroy_all_in_radius", &"earthshaker",
 					world_position, radius)
 			if _arena.has_method("apply_inward_pulse"):
 				pulse = _arena.call("apply_inward_pulse", &"earthshaker",
@@ -1144,8 +1077,8 @@ func _resolve_root_completion_powers(descriptor: LogDescriptor,
 			ProgressionEffectDef.Kind.POWDER_KEG_RADIUS))
 		var cuts: Array = []
 		var pulse: Array = []
-		if _arena.has_method("queue_power_cuts"):
-			cuts = _arena.call("queue_power_cuts", &"powder_keg", maxi(0,
+		if _arena.has_method("destroy_power_logs"):
+			cuts = _arena.call("destroy_power_logs", &"powder_keg", maxi(0,
 				int(round(get_effect(ProgressionEffectDef.Kind.POWDER_KEG_CUT_COUNT)))),
 				world_position, radius, &"nearest", [])
 		if _arena.has_method("apply_inward_pulse"):
@@ -1158,8 +1091,8 @@ func _resolve_root_completion_powers(descriptor: LogDescriptor,
 				maxi(1, _cut_receipt_count(cuts)))
 			changed = true
 	if get_run_power_rank(&"kindling_chain") > 0 \
-			and _arena.has_method("queue_power_cuts"):
-		var chain: Array = _arena.call("queue_power_cuts", &"kindling_chain",
+			and _arena.has_method("destroy_power_logs"):
+		var chain: Array = _arena.call("destroy_power_logs", &"kindling_chain",
 			maxi(0, int(round(get_effect(
 				ProgressionEffectDef.Kind.KINDLING_CHAIN_COUNT)))), world_position,
 			scale_power_area(get_effect(
@@ -1171,10 +1104,10 @@ func _resolve_root_completion_powers(descriptor: LogDescriptor,
 				_cut_receipt_count(chain))
 			changed = true
 	if get_run_power_rank(&"timber_burst") > 0 \
-			and _arena.has_method("cut_all_in_radius"):
+			and _arena.has_method("destroy_all_in_radius"):
 		var timber_radius := scale_power_area(get_effect(
 			ProgressionEffectDef.Kind.TIMBER_BURST_RADIUS))
-		var burst_cuts: Array = _arena.call("cut_all_in_radius", &"timber_burst",
+		var burst_cuts: Array = _arena.call("destroy_all_in_radius", &"timber_burst",
 			world_position, timber_radius)
 		if not burst_cuts.is_empty():
 			receipt["timber_burst"] = burst_cuts
@@ -1196,15 +1129,15 @@ func on_manual_root_completed(descriptor: LogDescriptor,
 
 func trigger_splinter_volley(world_position: Vector3) -> Array[Dictionary]:
 	if get_run_power_rank(&"splinter_volley") <= 0 or _arena == null \
-			or not _arena.has_method("queue_power_cuts"):
+			or not _arena.has_method("destroy_power_logs"):
 		return []
 	var split_count := maxi(0, int(round(get_effect(
 		ProgressionEffectDef.Kind.SPLINTER_COUNT))))
 	if split_count <= 0:
 		return []
-	var receipts: Array[Dictionary] = _arena.call("queue_power_cuts",
+	var receipts: Array[Dictionary] = _arena.call("destroy_power_logs",
 		&"splinter_volley", split_count, world_position, INF,
-		&"nearest_single", [])
+		&"nearest", [])
 	if not receipts.is_empty():
 		var applied := _cut_receipt_count(receipts)
 		var target_position := _first_cut_receipt_position(receipts,
@@ -1223,10 +1156,9 @@ func trigger_splinter_volley(world_position: Vector3) -> Array[Dictionary]:
 
 
 ## Lets an on-block guaranteed cut spill unused work to loose roots without
-## letting chopping reach through to arena internals. The originating caller
-## owns the single trigger receipt/presentation, so this applies immediate real
-## cuts to the selected loose-root descendants without duplicating the burst.
-func queue_run_power_cuts(power_id: StringName, count: int,
+## letting chopping reach through to arena internals. Each unused unit destroys
+## one distinct loose log immediately.
+func destroy_run_power_logs(power_id: StringName, count: int,
 		world_position: Vector3 = Vector3.ZERO,
 		mode: StringName = &"endangered") -> int:
 	if count <= 0 or get_run_power_rank(power_id) <= 0 \
@@ -1538,8 +1470,9 @@ func _trigger_periodic_power(power_id: StringName) -> bool:
 		&"flying_wedge":
 			var cuts := maxi(0, int(round(get_effect(
 				ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT))))
-			# "Nearest failure" is a loose-root hazard rule. Only fall back to
-			# the active block when no endangered loose root can receive the cut.
+			# "Nearest failure" is a loose-root hazard rule. The legacy effect
+			# identifier now counts whole logs; only fall back to the active block
+			# when no endangered loose root can be destroyed.
 			var receipts := _queue_arena_cut_receipts(power_id, cuts,
 				Vector3.ZERO, INF, &"endangered")
 			applied = _cut_receipt_count(receipts)
@@ -1558,8 +1491,8 @@ func _trigger_periodic_power(power_id: StringName) -> bool:
 		&"maul_drop":
 			var cuts := maxi(0, int(round(get_effect(
 				ProgressionEffectDef.Kind.MAUL_DROP_CUT_COUNT))))
-			# Boss/hardness ordering lives on loose descriptors; the block is a
-			# fallback so a normal active root cannot mask a waiting boss.
+			# Boss/hardness ordering lives on loose descriptors. The value counts
+			# distinct logs destroyed in that order; the block is only a fallback.
 			var receipts := _queue_arena_cut_receipts(power_id, cuts,
 				Vector3.ZERO, INF, &"hardest")
 			applied = _cut_receipt_count(receipts)
@@ -1569,9 +1502,9 @@ func _trigger_periodic_power(power_id: StringName) -> bool:
 				applied = _apply_chopping_power_cuts(power_id, cuts, &"hardest")
 		&"splitter_rig":
 			if _arena != null and _arena.has_method(
-					"claim_endangered_non_boss_for_splitter"):
+					"claim_endangered_non_boss_for_rig"):
 				var descriptor: LogDescriptor = _arena.call(
-					"claim_endangered_non_boss_for_splitter")
+					"claim_endangered_non_boss_for_rig")
 				if descriptor != null:
 					if descriptor.has_transfer_pose():
 						presentation_position = descriptor.transfer_from
@@ -1586,10 +1519,10 @@ func _trigger_periodic_power(power_id: StringName) -> bool:
 						ProgressionEffectDef.Kind.STUMP_PULSE_FORCE))
 				applied = pulse.size()
 		&"sawblade_halo":
-			if _arena != null and _arena.has_method("cut_all_in_radius"):
+			if _arena != null and _arena.has_method("destroy_all_in_radius"):
 				var radius := scale_power_area(get_effect(
 					ProgressionEffectDef.Kind.SAWBLADE_HALO_RADIUS))
-				var receipts: Array = _arena.call("cut_all_in_radius", power_id,
+				var receipts: Array = _arena.call("destroy_all_in_radius", power_id,
 					Vector3.ZERO, radius)
 				applied = _cut_receipt_count(receipts)
 	if applied <= 0:
@@ -1705,9 +1638,9 @@ func _queue_arena_cut_count(power_id: StringName, count: int,
 
 func _queue_arena_cut_receipts(power_id: StringName, count: int,
 		origin: Vector3, max_range: float, mode: StringName) -> Array:
-	if count <= 0 or _arena == null or not _arena.has_method("queue_power_cuts"):
+	if count <= 0 or _arena == null or not _arena.has_method("destroy_power_logs"):
 		return []
-	return _arena.call("queue_power_cuts", power_id, count,
+	return _arena.call("destroy_power_logs", power_id, count,
 		origin, max_range, mode, [])
 
 
@@ -1715,7 +1648,11 @@ func _cut_receipt_count(receipts: Array) -> int:
 	var applied := 0
 	for raw: Variant in receipts:
 		if raw is Dictionary:
-			applied += maxi(0, int((raw as Dictionary).get("cuts", 0)))
+			var receipt := raw as Dictionary
+			# New destructive powers report whole logs. Retain the cut fallback for
+			# old probes and migration-only receipts.
+			applied += maxi(0, int(receipt.get("logs",
+				receipt.get("cuts", 0))))
 	return applied
 
 
@@ -2139,122 +2076,22 @@ func _level_choice_is_tracked(level: int) -> bool:
 		and int(_current_offer.get("level", -1)) == level
 
 
-func try_spend_cash(amount: int) -> bool:
-	# Session cash is a settlement purse, never an in-run spending currency.
-	return false
-
-
-func purchase_permanent_upgrade(id: StringName) -> bool:
-	return false
-
-
-func permanent_upgrade_cost(id: StringName) -> int:
-	return 0
-
-
-func purchase_species(species_id: StringName) -> bool:
-	return false
-
-
-func current_batch_size() -> int:
-	return int(tuning.earth_batch_sizes[0])
-
-
-# ---------------------------------------------------------------- splitter
-func purchase_splitter() -> bool:
-	return false
-
-
-func purchase_splitter_reliability() -> bool:
-	return false
-
-
-func splitter_chance() -> float:
-	return clampf(tuning.splitter_base_chance
-		+ float(_splitter_reliability_rank) * tuning.splitter_chance_per_rank, 0.0, 1.0)
-
-
-func _resolve_splitter_cycle() -> void:
-	if _arena == null or loose_log_count() <= 0 or _rng.randf() >= splitter_chance():
-		return
-	var descriptor: LogDescriptor = _arena.call("claim_highest_risk_for_splitter")
-	if descriptor == null:
-		return
-	_splitter_rescues += 1
-	if phase == Phase.ACTIVE:
-		var cleared := mini(_earth_remaining, current_batch_size())
-		_earth_remaining -= cleared
-		earth_changed.emit(_earth_remaining, cleared)
-	splitter_rescued.emit(descriptor.id)
-	attempt_snapshot_dirty.emit()
-	if _earth_remaining <= 0 and phase == Phase.ACTIVE:
-		_enter_earth_clear()
-
-
-# ---------------------------------------------------------------- powerups
-func _roll_powerup_drop() -> void:
-	if _rng.randf() >= tuning.powerup_drop_chance:
-		return
-	if _rng.randf() < tuning.slow_time_weight:
-		if _slow_charges >= tuning.slow_time_charge_cap:
-			return
-		_slow_charges += 1
-		powerup_dropped.emit(Powerup.SLOW_TIME)
-	else:
-		if _blaster_ammo >= tuning.blaster_ammo_cap:
-			return
-		_blaster_ammo = mini(tuning.blaster_ammo_cap,
-			_blaster_ammo + tuning.blaster_ammo_per_drop)
-		powerup_dropped.emit(Powerup.LOG_BLASTER)
-	powerups_changed.emit(_slow_charges, _blaster_ammo, _slow_seconds_left)
-
-
-func activate_slow_time() -> bool:
-	if not is_gameplay_active() or _slow_charges <= 0 or _slow_seconds_left > 0.0:
-		return false
-	_slow_charges -= 1
-	_slow_seconds_left = tuning.slow_time_duration
-	powerups_changed.emit(_slow_charges, _blaster_ammo, _slow_seconds_left)
-	attempt_snapshot_dirty.emit()
-	return true
-
-
-func fire_blaster(ray_origin: Vector3, ray_direction: Vector3) -> bool:
-	if not is_gameplay_active() or _blaster_ammo <= 0 or _arena == null:
-		return false
-	if not bool(_arena.call("blast", ray_origin, ray_direction, tuning.blaster_impulse)):
-		return false
-	_blaster_ammo -= 1
-	powerups_changed.emit(_slow_charges, _blaster_ammo, _slow_seconds_left)
-	attempt_snapshot_dirty.emit()
-	return true
-
-
-func hazard_speed_multiplier() -> float:
-	return tuning.slow_hazard_multiplier if _slow_seconds_left > 0.0 else 1.0
-
-
 # ---------------------------------------------------------------- failure / victory
-func _enter_earth_clear() -> void:
-	_enter_stage_clear()
-
-
 func _enter_stage_clear() -> void:
 	if phase != Phase.ACTIVE:
 		return
-	_earth_clear_seconds = _elapsed_seconds
-	phase = Phase.EARTH_CLEAR
+	_stage_clear_seconds = _elapsed_seconds
+	phase = Phase.STAGE_CLEAR
 	_paused = true
 	_set_runtime_paused(true)
 	phase_changed.emit(phase)
 	pause_changed.emit(true)
-	earth_cleared.emit(earth_clear_ms())
-	stage_cleared.emit(earth_clear_ms())
+	stage_cleared.emit(stage_clear_ms())
 	attempt_snapshot_dirty.emit()
 
 
 func cash_out_stage() -> bool:
-	if phase != Phase.EARTH_CLEAR or not _paused or _run_id == &"":
+	if phase != Phase.STAGE_CLEAR or not _paused or _run_id == &"":
 		return false
 	_bank_receipt = _bank_current_run(true)
 	if _bank_receipt.is_empty():
@@ -2279,7 +2116,7 @@ func _bank_current_run(cleared: bool) -> Dictionary:
 		"yard_id": String(GameState.get_selected_yard()),
 		"session_cash": _cash,
 		"cleared": cleared,
-		"clear_ms": earth_clear_ms(),
+		"clear_ms": stage_clear_ms(),
 		"stage_ms": mini(elapsed_ms(), int(round(stage_duration_seconds() * 1000.0))),
 		"endless_ms": overflow_ms(),
 		"level": get_level(),
@@ -2306,7 +2143,7 @@ func _on_breach_expired(log_id: StringName) -> void:
 	_paused = true
 	var was_overflow := phase == Phase.OVERFLOW
 	_set_runtime_paused(true)
-	_bank_receipt = _bank_current_run(was_overflow and _earth_clear_seconds >= 0.0)
+	_bank_receipt = _bank_current_run(was_overflow and _stage_clear_seconds >= 0.0)
 	if _bank_receipt.is_empty():
 		pause_changed.emit(true)
 		settlement_failed.emit(
@@ -2327,18 +2164,14 @@ func results_snapshot(breached_log_id: StringName = &"") -> Dictionary:
 		"phase": phase,
 		"result_kind": "cash_out" if phase == Phase.COMPLETE else "failure",
 		"breached_log_id": String(breached_log_id),
-		"earth_remaining": _earth_remaining,
-		"earth_clear_ms": earth_clear_ms(),
+		"stage_clear_ms": stage_clear_ms(),
 		"total_ms": elapsed_ms(),
 		"stage_remaining_ms": stage_remaining_ms(),
 		"overflow_ms": overflow_ms(),
 		"manual_clears": _manual_clears,
 		"bosses_defeated": _bosses_defeated,
-		"splitter_rescues": _splitter_rescues,
 		"peak_loose_logs": _peak_loose_logs,
 		"cash_earned": _cash_earned,
-		"cash_spent": _cash_spent,
-		"permanent_purchases": _permanent_purchases,
 		"run_id": String(_run_id),
 		"session_cash": _cash,
 		"xp": _xp,
@@ -2396,10 +2229,6 @@ func get_run_id() -> StringName:
 	return _run_id
 
 
-func get_earth_remaining() -> int:
-	return _earth_remaining
-
-
 func elapsed_ms() -> int:
 	return maxi(0, int(round(_elapsed_seconds * 1000.0)))
 
@@ -2410,36 +2239,19 @@ func stage_duration_seconds() -> float:
 
 
 func stage_remaining_ms() -> int:
-	if phase == Phase.OVERFLOW or _earth_clear_seconds >= 0.0:
+	if phase == Phase.OVERFLOW or _stage_clear_seconds >= 0.0:
 		return 0
 	return maxi(0, int(round(
 		(stage_duration_seconds() - _elapsed_seconds) * 1000.0)))
 
 
-func earth_clear_ms() -> int:
-	return -1 if _earth_clear_seconds < 0.0 else int(round(_earth_clear_seconds * 1000.0))
+func stage_clear_ms() -> int:
+	return -1 if _stage_clear_seconds < 0.0 else int(round(_stage_clear_seconds * 1000.0))
 
 
 func overflow_ms() -> int:
-	return -1 if _earth_clear_seconds < 0.0 \
-		else maxi(0, elapsed_ms() - earth_clear_ms())
-
-
-func get_powerup_state() -> Dictionary:
-	return {
-		"slow_charges": _slow_charges,
-		"blaster_ammo": _blaster_ammo,
-		"slow_seconds_left": _slow_seconds_left,
-	}
-
-
-func get_splitter_state() -> Dictionary:
-	return {
-		"installed": _splitter_installed,
-		"reliability_rank": _splitter_reliability_rank,
-		"seconds_left": _splitter_seconds_left,
-		"chance": splitter_chance(),
-	}
+	return -1 if _stage_clear_seconds < 0.0 \
+		else maxi(0, elapsed_ms() - stage_clear_ms())
 
 
 func to_save_dict() -> Dictionary:
@@ -2481,17 +2293,10 @@ func to_save_dict() -> Dictionary:
 		"offer_serial": _offer_serial,
 		"payday_picks": _payday_picks,
 		"pending_piece_cash": _pending_piece_cash.duplicate(),
-		"earth_remaining": _earth_remaining,
 		"elapsed_seconds": _elapsed_seconds,
-		"earth_clear_seconds": _earth_clear_seconds,
+		"stage_clear_seconds": _stage_clear_seconds,
 		"delivery_seconds_left": _delivery_seconds_left,
 		"delivery_tier": _delivery_tier,
-		"slow_charges": _slow_charges,
-		"blaster_ammo": _blaster_ammo,
-		"slow_seconds_left": _slow_seconds_left,
-		"splitter_installed": _splitter_installed,
-		"splitter_reliability_rank": _splitter_reliability_rank,
-		"splitter_seconds_left": _splitter_seconds_left,
 		"spawn_serial": _spawn_serial,
 		"rng_state": _rng.state,
 		"waiting_for_active_log": _waiting_for_active_log,
@@ -2506,11 +2311,8 @@ func to_save_dict() -> Dictionary:
 		"pending_blueprint_rolls": _pending_blueprint_rolls.duplicate(),
 		"boundary_timers_paused": _boundary_timers_paused,
 		"manual_clears": _manual_clears,
-		"splitter_rescues": _splitter_rescues,
 		"peak_loose_logs": _peak_loose_logs,
 		"cash_earned": _cash_earned,
-		"cash_spent": _cash_spent,
-		"permanent_purchases": _permanent_purchases,
 		"arena": {} if _arena == null else _arena.call("to_save_dict"),
 		"chopping": {} if _chopping == null else _chopping.call("to_run_save_dict"),
 	}
@@ -2553,7 +2355,7 @@ func restore_attempt(data: Dictionary) -> bool:
 	_cancel_xp_presentations()
 	_reset_attempt_state()
 	var saved_phase := int(data.get("phase", Phase.ACTIVE))
-	if saved_phase not in [Phase.ACTIVE, Phase.EARTH_CLEAR, Phase.OVERFLOW]:
+	if saved_phase not in [Phase.ACTIVE, Phase.STAGE_CLEAR, Phase.OVERFLOW]:
 		return false
 	phase = saved_phase
 	_paused = true
@@ -2586,19 +2388,13 @@ func restore_attempt(data: Dictionary) -> bool:
 	_restore_run_choice_state(data)
 	_restore_run_power_runtime(data.get("run_power_runtime", {}))
 	_refresh_run_power_environment(false)
-	_earth_remaining = clampi(int(data.get("earth_remaining", GameState.TOTAL_EARTH_TREES)),
-		0, GameState.TOTAL_EARTH_TREES)
 	_elapsed_seconds = maxf(0.0, float(data.get("elapsed_seconds", 0.0)))
-	_earth_clear_seconds = float(data.get("earth_clear_seconds", -1.0))
+	# Pre-cleanup v19 attempts used the retired Earth name for this same timed
+	# stage boundary. Read it once, but only write the current field above.
+	_stage_clear_seconds = float(data.get("stage_clear_seconds",
+		data.get("earth_clear_seconds", -1.0)))
 	_delivery_seconds_left = maxf(0.0, float(data.get("delivery_seconds_left", delivery_interval())))
 	_delivery_tier = clampi(int(data.get("delivery_tier", 0)), 0, max_delivery_tier())
-	_slow_charges = clampi(int(data.get("slow_charges", 0)), 0, tuning.slow_time_charge_cap)
-	_blaster_ammo = clampi(int(data.get("blaster_ammo", 0)), 0, tuning.blaster_ammo_cap)
-	_slow_seconds_left = maxf(0.0, float(data.get("slow_seconds_left", 0.0)))
-	_splitter_installed = bool(data.get("splitter_installed", false))
-	_splitter_reliability_rank = clampi(int(data.get("splitter_reliability_rank", 0)),
-		0, tuning.splitter_reliability_costs.size())
-	_splitter_seconds_left = maxf(0.0, float(data.get("splitter_seconds_left", tuning.splitter_cycle_seconds)))
 	_spawn_serial = maxi(0, int(data.get("spawn_serial", 0)))
 	_rng.state = int(data.get("rng_state", 0))
 	_waiting_for_active_log = bool(data.get("waiting_for_active_log", false))
@@ -2619,11 +2415,8 @@ func restore_attempt(data: Dictionary) -> bool:
 		data.get("pending_blueprint_rolls", []))
 	_boundary_timers_paused = bool(data.get("boundary_timers_paused", false))
 	_manual_clears = maxi(0, int(data.get("manual_clears", 0)))
-	_splitter_rescues = maxi(0, int(data.get("splitter_rescues", 0)))
 	_peak_loose_logs = maxi(0, int(data.get("peak_loose_logs", 0)))
 	_cash_earned = maxi(0, int(data.get("cash_earned", 0)))
-	_cash_spent = maxi(0, int(data.get("cash_spent", 0)))
-	_permanent_purchases = maxi(0, int(data.get("permanent_purchases", 0)))
 	if _arena != null:
 		_arena.call("restore_from_save", data.get("arena", {}))
 		if _arena.has_method("set_boundary_timers_paused"):
@@ -2697,17 +2490,10 @@ func _reset_attempt_state() -> void:
 	_payday_picks = 0
 	_bank_receipt.clear()
 	_pending_piece_cash.clear()
-	_earth_remaining = GameState.TOTAL_EARTH_TREES
 	_elapsed_seconds = 0.0
-	_earth_clear_seconds = -1.0
+	_stage_clear_seconds = -1.0
 	_delivery_seconds_left = 0.0
 	_delivery_tier = 0
-	_slow_charges = 0
-	_blaster_ammo = 0
-	_slow_seconds_left = 0.0
-	_splitter_installed = false
-	_splitter_reliability_rank = 0
-	_splitter_seconds_left = 0.0
 	_spawn_serial = 0
 	_waiting_for_active_log = false
 	_active_log_id = &""
@@ -2721,11 +2507,8 @@ func _reset_attempt_state() -> void:
 	_pending_blueprint_rolls.clear()
 	_boundary_timers_paused = false
 	_manual_clears = 0
-	_splitter_rescues = 0
 	_peak_loose_logs = 0
 	_cash_earned = 0
-	_cash_spent = 0
-	_permanent_purchases = 0
 	_refresh_run_power_environment(false)
 	if _chopping != null and _chopping.has_method("refresh_run_power_visuals"):
 		_chopping.call("refresh_run_power_visuals")
@@ -2756,19 +2539,15 @@ func _emit_full_attempt_refresh() -> void:
 	level_choice_changed.emit(get_current_offer())
 	power_slots_changed.emit(get_power_slots(), get_run_power_ranks())
 	utility_charges_changed.emit(_rerolls_remaining, _banishes_remaining)
-	earth_changed.emit(_earth_remaining, 0)
 	run_clock_changed.emit(elapsed_ms())
 	stage_time_changed.emit(stage_remaining_ms())
 	delivery_changed.emit(_delivery_seconds_left, _delivery_tier)
 	loose_logs_changed.emit(loose_log_count())
 	boss_stack_changed.emit(_active_boss_name,
 		_boss_stack_remaining.size() + (1 if _active_boss_id != &"" else 0))
-	powerups_changed.emit(_slow_charges, _blaster_ammo, _slow_seconds_left)
-	splitter_changed.emit(_splitter_installed, _splitter_reliability_rank,
-		_splitter_seconds_left)
 	run_power_runtime_changed.emit(get_run_power_hud_state())
-	if phase == Phase.EARTH_CLEAR:
-		stage_cleared.emit(earth_clear_ms())
+	if phase == Phase.STAGE_CLEAR:
+		stage_cleared.emit(stage_clear_ms())
 
 
 func _yard_definition() -> YardDef:

@@ -84,20 +84,8 @@ signal swing_finished
 ## authored model scale is applied. Keep this beside the one place that uses it:
 ## it turns a designer-facing distance in metres into a scale multiplier.
 const _RAW_AXE_REACH := 0.502
-## Temporary art treatment approved 2026-08-04: reuse the current axe mesh and
-## textures, multiplying them toward a cool blue variant until an art-directed
-## upgraded asset exists.
-const _BALANCED_AXE_TINT := Color(0.62, 0.82, 1.0, 1.0)
-
 var _speed := 1.0
-## M7C Ready Stance: how much faster than `_speed` the WIND-UP (swing start
-## through the contact key) plays. Only the wind-up is affected — the
-## follow-through after contact always resumes at the ordinary `_speed`, so a
-## shorter wind-up reads as "the blade drops quicker", not as clipped frames.
-## See set_windup_scale() and chopping_minigame.current_windup_scale().
-var _windup_scale := 1.0
 var _authored_model_scale := Vector3.ONE
-var _balanced_enabled := false
 
 
 func _ready() -> void:
@@ -132,69 +120,6 @@ func _apply_extra_reach() -> void:
 	_axe_model.scale = _authored_model_scale * (1.0 + extra_reach / authored_reach)
 
 
-## Immediate colour-variant consequence for the Balanced Axe purchase. Surface
-## overrides are duplicated per instance, so the imported FBX and its shared
-## materials remain untouched and can still be replaced by final authored art.
-func set_balanced_upgrade(enabled: bool) -> void:
-	set_equipment_upgrade(&"balanced_axe" if enabled else &"", 0,
-		_BALANCED_AXE_TINT if enabled else Color.WHITE)
-
-
-## Placeholder visual swap seam. Today every stage reuses the stable axe asset
-## and gets a distinct per-instance tint; final models can replace each
-## EquipmentDef presentation path without touching ownership or proc behavior.
-func set_equipment_upgrade(equipment_id: StringName, stage: int, tint: Color) -> void:
-	_balanced_enabled = equipment_id != &""
-	if _axe_model == null:
-		return
-	var parts: Array[MeshInstance3D] = []
-	for node in _axe_model.find_children("*", "MeshInstance3D", true, false):
-		parts.append(node as MeshInstance3D)
-	for part: MeshInstance3D in parts:
-		if part.mesh == null:
-			continue
-		for surface in range(part.mesh.get_surface_count()):
-			part.set_surface_override_material(surface, null)
-	if equipment_id == &"":
-		_axe_model.remove_meta("art_status")
-		_axe_model.remove_meta("equipment_id")
-		return
-	_axe_model.set_meta("art_status", "temporary_colour_variant_existing_axe_stage_%d" % stage)
-	_axe_model.set_meta("equipment_id", equipment_id)
-	for part: MeshInstance3D in parts:
-		if part.mesh == null:
-			continue
-		for surface in range(part.mesh.get_surface_count()):
-			part.set_surface_override_material(surface,
-				_tinted_material(part.get_active_material(surface), tint))
-
-
-func has_balanced_color_variant() -> bool:
-	if _axe_model == null:
-		return false
-	for node in _axe_model.find_children("*", "MeshInstance3D", true, false):
-		var part := node as MeshInstance3D
-		if part == null or part.mesh == null:
-			continue
-		for surface in range(part.mesh.get_surface_count()):
-			if part.get_surface_override_material(surface) != null:
-				return true
-	return false
-
-
-func _tinted_material(source: Material, tint: Color) -> Material:
-	if source is BaseMaterial3D:
-		var material := source.duplicate() as BaseMaterial3D
-		var colour := material.albedo_color
-		material.albedo_color = Color(colour.r * tint.r, colour.g * tint.g,
-			colour.b * tint.b, colour.a)
-		return material
-	var fallback := StandardMaterial3D.new()
-	fallback.albedo_color = tint
-	fallback.roughness = 0.75
-	return fallback
-
-
 ## Play the swing. `aim` is the click in normalised screen coordinates — (0,0) is
 ## the centre of the frame, x right, y UP, roughly +/-1 at the edges.
 func swing(aim := Vector2.ZERO) -> void:
@@ -204,10 +129,7 @@ func swing(aim := Vector2.ZERO) -> void:
 	_apply_aim(aim)
 	if _root != null:
 		_root.visible = true
-	# Windup scale applies from the first frame; _on_swing_contact() restores the
-	# ordinary rate the instant the blade bites, so the follow-through is always
-	# authored speed regardless of how fast the drop was.
-	_anim.speed_scale = _speed * _windup_scale
+	_anim.speed_scale = _speed
 	_anim.play(swing_anim)
 	_anim.seek(0.0, true)   # true = update now, so frame one is the rest pose
 
@@ -228,71 +150,37 @@ func bounce() -> bool:
 
 
 ## How much faster than authored the swing plays. The mini-game drives this off
-## the swing-speed skill so "5% faster between swings" speeds up the SWING, not
-## just a dead wait after it — an upgrade you can see is worth more than one you
-## can only measure.
+## the current run-state multiplier.
 func set_speed(speed: float) -> void:
 	_speed = maxf(speed, 0.01)
-	# A live change mid-swing (not something any current caller does — set_speed
-	# is always called before swing()) resets to the ordinary rate rather than
-	# guessing whether the swing is still in its wind-up; _on_swing_contact()
-	# would otherwise be the only thing that can safely make that call.
 	if _anim != null and _anim.is_playing():
 		_anim.speed_scale = _speed
-
-
-## M7C Ready Stance: how much faster than `set_speed()`'s rate the wind-up
-## plays. `_swing_axe()` sets this immediately before every `swing()` call, from
-## `chopping_minigame.current_windup_scale()`. 1.0 = authored rate, unaffected.
-func set_windup_scale(scale: float) -> void:
-	_windup_scale = maxf(scale, 0.01)
 
 
 func is_swinging() -> bool:
 	return _anim != null and _anim.is_playing()
 
 
-## Authored length of the whole swing, in seconds, at the CURRENT speed AND the
-## current wind-up scale. Two segments, because only the wind-up is boosted:
-## the pre-contact portion plays at `_speed * _windup_scale`, the post-contact
-## follow-through at plain `_speed`. At the default `_windup_scale == 1.0` this
-## is numerically identical to the un-split calculation it replaces.
+## Authored length of the whole swing in seconds at the current speed.
 func swing_duration() -> float:
 	if _anim == null or not _anim.has_animation(swing_anim):
 		return 0.0
-	var length := _anim.get_animation(swing_anim).length
-	var contact := _authored_contact_time()
-	if contact < 0.0:
-		# No contact key to split on — fall back to the whole-length reading.
-		return length / _speed
-	var pre := contact / (_speed * _windup_scale)
-	var post := (length - contact) / _speed
-	return pre + post
+	return _anim.get_animation(swing_anim).length / _speed
 
 
 ## When the blade bites, in seconds from the start of the swing, at the CURRENT
-## speed AND wind-up scale (the whole contact key falls inside the wind-up
-## segment by definition). -1.0 if the animation carries no contact key at all
-## — which the caller must treat as "this animation cannot resolve a strike",
-## not as "time zero".
+## speed. -1.0 if the animation carries no contact key at all.
 func contact_time() -> float:
 	var t := _authored_contact_time()
-	return -1.0 if t < 0.0 else t / (_speed * _windup_scale)
+	return -1.0 if t < 0.0 else t / _speed
 
 
 func has_contact_key() -> bool:
 	return _authored_contact_time() >= 0.0
 
 
-## THE METHOD TRACK'S TARGET. Renaming it renames the key in
-## res://data/axe_swing_lib.tres, and m4_acceptance checks the two still agree.
-##
-## Restores the ordinary (non-wind-up-boosted) rate BEFORE emitting `contact`,
-## so Sam's authored follow-through always plays at the speed it was keyed at —
-## Ready Stance only ever touches how fast the blade FALLS, never how it lands.
+## Method-track target; chopping_acceptance checks it against axe_swing_lib.tres.
 func _on_swing_contact() -> void:
-	if _anim != null:
-		_anim.speed_scale = _speed
 	contact.emit()
 
 

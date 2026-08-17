@@ -81,7 +81,7 @@ func _build_page(page: int) -> void:
 	var start := page * _PAGE_SIZE
 	var finish := mini(start + _PAGE_SIZE, SpeciesTable.count())
 	for species_index in range(start, finish):
-		var row: SpeciesDef = WoodCatalogue.at(species_index)
+		var row: SpeciesDef = SpeciesTable.at(species_index)
 		if row == null or row.meshes.is_empty():
 			continue
 		var local_index := species_index - start

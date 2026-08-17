@@ -9,10 +9,11 @@ signal breach_expired(log_id: StringName)
 signal log_landed(log_id: StringName)
 
 const LOOSE_LAYER := 1 << 4
-const BLASTER_PICK_LAYER := 1 << 5
 const CHOPPING_VISIBILITY_DOME_LAYER := 1 << 6
 const _BASE_BOUNCE := 0.05
-const OFF_BLOCK_COMPLETION_CUTS := 5
+## Save compatibility only. New off-block power hits never leave partial cuts;
+## this reconstructs descriptors written by the retired five-hit behavior.
+const LEGACY_OFF_BLOCK_COMPLETION_CUTS := 5
 
 var _run: RunDirector
 var _chopping: Node
@@ -61,7 +62,7 @@ func spawn_loose_log(descriptor: LogDescriptor, physics_seed: int,
 	var body := LooseLogBody.new()
 	body.name = String(descriptor.id)
 	body.descriptor = descriptor
-	body.collision_layer = LOOSE_LAYER | BLASTER_PICK_LAYER
+	body.collision_layer = LOOSE_LAYER
 	body.collision_mask = 1 | LOOSE_LAYER | CHOPPING_VISIBILITY_DOME_LAYER
 	body.contact_monitor = true
 	body.max_contacts_reported = 4
@@ -128,7 +129,7 @@ func spawn_loose_log(descriptor: LogDescriptor, physics_seed: int,
 	return body
 
 
-func advance_hazards(hazard_delta: float, hazard_speed: float) -> void:
+func advance_hazards(hazard_delta: float) -> void:
 	if _paused or hazard_delta <= 0.0:
 		return
 	var expired: Array[StringName] = []
@@ -138,7 +139,6 @@ func advance_hazards(hazard_delta: float, hazard_speed: float) -> void:
 		if not is_instance_valid(body):
 			expired.append(id)
 			continue
-		body.set_hazard_speed(hazard_speed)
 		if _boundary_timers_paused:
 			continue
 		var horizontal_squared := Vector2(body.global_position.x,
@@ -211,18 +211,6 @@ func _snapshot_handoff_visuals(body: LooseLogBody,
 		descriptor.transfer_visual_projection_offsets.append(
 			visual.get_meta("projection_offset", Vector3.ZERO))
 		descriptor.transfer_visual_overlays.append(visual.material_overlay)
-
-
-func claim_highest_risk_for_splitter() -> LogDescriptor:
-	var target: LooseLogBody
-	for body: LooseLogBody in _live_bodies():
-		if target == null or body.boundary_exposure > target.boundary_exposure:
-			target = body
-	if target == null:
-		return null
-	var descriptor := target.descriptor
-	_take_body(descriptor.id, true)
-	return descriptor
 
 
 ## Run-power environment is derived by RunDirector from immutable catalogue
@@ -524,76 +512,53 @@ func yard_magnet_target_world_position() -> Vector3:
 	return global_position
 
 
-## Applies bounded real cuts immediately to loose roots. Each hit splits the
-## largest unfinished descendant with a log-local top-to-bottom X/Z plane; the
-## descriptor retains successful cut/source receipts for restore and later block
-## claims.
-func queue_power_cuts(power_id: StringName, count: int,
+## Immediately destroys up to `count` distinct loose roots in target order.
+## Each root is synchronously fragmented, rewarded, released into floor physics,
+## and removed from the hazard set before the next target is considered.
+func destroy_power_logs(power_id: StringName, count: int,
 		origin: Vector3 = Vector3.ZERO, max_range: float = INF,
 		mode: StringName = &"endangered", excluded_ids: Array = []) -> Array[Dictionary]:
 	var applied: Dictionary = {}
 	var hit_positions: Dictionary = {}
-	var touched: Dictionary = {}
+	var fragment_counts: Dictionary = {}
+	var hit_order: Dictionary = {}
 	if count <= 0:
 		return []
 	var candidates := _ordered_power_targets(origin, max_range, mode, excluded_ids)
 	if candidates.is_empty():
 		return []
-	# Wedge, maul, and restored nearest-root Splinter Volley payloads name one
-	# authoritative target. Explicit spread/radial/chain modes retain rotation.
-	if mode in [&"endangered", &"hardest", &"nearest_single"]:
-		candidates.resize(1)
-	for index: int in range(count):
-		var body := candidates[index % candidates.size()] as LooseLogBody
+	for index: int in range(mini(count, candidates.size())):
+		var body := candidates[index] as LooseLogBody
 		if body == null or body.descriptor == null \
 				or not _bodies.has(body.descriptor.id):
 			continue
-		var hit_position := body.global_position
-		if not _apply_power_cut(body, power_id, false, true, false):
-			continue
 		var id := body.descriptor.id
-		applied[id] = int(applied.get(id, 0)) + 1
-		hit_positions[id] = hit_position
-		touched[id] = body
-	for raw_id: Variant in touched:
-		var body := touched[raw_id] as LooseLogBody
-		if body == null or not is_instance_valid(body) or body.descriptor == null \
-				or not _bodies.has(body.descriptor.id):
+		var hit_position := body.global_position
+		var fragment_count := _destroy_power_target(body, power_id)
+		if fragment_count <= 0:
 			continue
-		_rebuild_body_collisions(body)
-		_flash_power_cut(body)
-		_refresh_power_marker(body)
-	var receipts := _target_receipts(power_id, applied, &"cuts")
+		applied[id] = 1
+		hit_positions[id] = hit_position
+		fragment_counts[id] = fragment_count
+		hit_order[id] = hit_order.size()
+	var receipts := _target_receipts(power_id, applied, &"logs")
+	receipts.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		return int(hit_order.get(StringName(left.get("log_id", "")), 0)) \
+			< int(hit_order.get(StringName(right.get("log_id", "")), 0)))
 	for receipt: Dictionary in receipts:
 		var id := StringName(receipt.get("log_id", ""))
 		if hit_positions.has(id):
 			receipt["position"] = hit_positions[id]
+		if fragment_counts.has(id):
+			receipt["fragments"] = fragment_counts[id]
 	return receipts
 
 
-func queue_power_scars(power_id: StringName, count: int,
-		origin: Vector3 = Vector3.ZERO, max_range: float = INF,
-		mode: StringName = &"nearest") -> Array[Dictionary]:
-	var applied: Dictionary = {}
-	if count <= 0:
-		return []
-	var candidates := _ordered_power_targets(origin, max_range, mode, [])
-	for index: int in range(mini(count, candidates.size())):
-		var body := candidates[index] as LooseLogBody
-		if body == null or body.descriptor == null:
-			continue
-		body.descriptor.pending_power_scars = _safe_pending_add(
-			body.descriptor.pending_power_scars, 1)
-		applied[body.descriptor.id] = 1
-		_refresh_power_marker(body)
-	return _target_receipts(power_id, applied, &"scars")
-
-
-## Completes every loose root inside a circular AoE with real descendant cuts.
+## Destroys every loose root inside a circular AoE immediately.
 ## Target count still comes from live geometry, so Area Size only increases the
 ## reach; it does not silently add ranks or affect roots outside the authored
 ## circle.
-func cut_all_in_radius(power_id: StringName, origin: Vector3,
+func destroy_all_in_radius(power_id: StringName, origin: Vector3,
 		radius: float) -> Array[Dictionary]:
 	var applied: Dictionary = {}
 	var hit_positions: Dictionary = {}
@@ -606,12 +571,12 @@ func cut_all_in_radius(power_id: StringName, origin: Vector3,
 			continue
 		var id := body.descriptor.id
 		var hit_position := body.global_position
-		var cut_count := _complete_power_cut_target(body, power_id)
-		if cut_count <= 0:
+		var fragment_count := _destroy_power_target(body, power_id)
+		if fragment_count <= 0:
 			continue
-		applied[id] = cut_count
+		applied[id] = 1
 		hit_positions[id] = hit_position
-	var receipts := _target_receipts(power_id, applied, &"cuts")
+	var receipts := _target_receipts(power_id, applied, &"logs")
 	for receipt: Dictionary in receipts:
 		var id := StringName(receipt.get("log_id", ""))
 		if hit_positions.has(id):
@@ -697,7 +662,7 @@ func rescue_log(id: StringName) -> bool:
 	return true
 
 
-func claim_endangered_non_boss_for_splitter() -> LogDescriptor:
+func claim_endangered_non_boss_for_rig() -> LogDescriptor:
 	for body: LooseLogBody in _ordered_power_targets(
 			Vector3.ZERO, INF, &"endangered", []):
 		if body.descriptor == null or body.descriptor.boss_id != &"":
@@ -720,11 +685,11 @@ func crosscut_sweep(power_id: StringName, width: float,
 		if absf(coordinate) > half_width or body.descriptor == null:
 			continue
 		var id := body.descriptor.id
-		var cut_count := _complete_power_cut_target(body, power_id)
-		if cut_count <= 0:
+		var fragment_count := _destroy_power_target(body, power_id)
+		if fragment_count <= 0:
 			continue
-		applied[id] = cut_count
-	return _target_receipts(power_id, applied, &"cuts")
+		applied[id] = 1
+	return _target_receipts(power_id, applied, &"logs")
 
 
 ## Resolve contacts at the rendered axes' actual world positions. Each visible
@@ -763,11 +728,11 @@ func queue_orbiting_axe_contacts(power_id: StringName, axes: Array,
 			continue
 		var body := candidates[0]
 		var id := body.descriptor.id
-		var cut_count := _complete_power_cut_target(body, power_id)
-		if cut_count <= 0:
+		var fragment_count := _destroy_power_target(body, power_id)
+		if fragment_count <= 0:
 			continue
-		applied[id] = cut_count
-	return _target_receipts(power_id, applied, &"cuts")
+		applied[id] = 1
+	return _target_receipts(power_id, applied, &"logs")
 
 
 func get_log_world_position(id: StringName) -> Vector3:
@@ -826,26 +791,6 @@ func debug_chopping_visibility_dome_state() -> Dictionary:
 		"world_position": _visibility_dome.global_position \
 			if _visibility_dome != null else Vector3.ZERO,
 	}
-
-
-func blast(ray_origin: Vector3, ray_direction: Vector3, impulse: float) -> bool:
-	if _paused or get_world_3d() == null:
-		return false
-	var direction := ray_direction.normalized()
-	var query := PhysicsRayQueryParameters3D.create(ray_origin,
-		ray_origin + direction * 100.0, BLASTER_PICK_LAYER)
-	query.collide_with_areas = false
-	query.collide_with_bodies = true
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty() or not (hit.collider is LooseLogBody):
-		return false
-	var body := hit.collider as LooseLogBody
-	if not _bodies.has(body.descriptor.id):
-		return false
-	_unbatch_body(body)
-	body.continuous_cd = true
-	body.apply_impulse(direction * impulse, hit.position - body.global_position)
-	return true
 
 
 func loose_log_count() -> int:
@@ -907,7 +852,7 @@ func restore_from_save(data: Dictionary) -> void:
 		spawn_loose_log(descriptor, descriptor.visual_seed, raw)
 
 
-func _take_body(id: StringName, splitter: bool) -> LooseLogBody:
+func _take_body(id: StringName, for_rig: bool) -> LooseLogBody:
 	var body := _bodies.get(id) as LooseLogBody
 	if not is_instance_valid(body):
 		return null
@@ -918,12 +863,12 @@ func _take_body(id: StringName, splitter: bool) -> LooseLogBody:
 	body.collision_layer = 0
 	body.collision_mask = 0
 	body.freeze = true
-	if not splitter:
+	if not for_rig:
 		# queue_free is deferred. Hide the claimed rigid body synchronously so the
 		# handoff presentation never draws on top of it for one renderer frame.
 		body.visible = false
 	loose_count_changed.emit(_bodies.size())
-	if splitter:
+	if for_rig:
 		if body.descriptor != null:
 			body.descriptor.transfer_from = body.global_position
 			body.descriptor.transfer_rotation = body.quaternion
@@ -1138,36 +1083,45 @@ func _apply_power_cut(body: LooseLogBody, power_id: StringName,
 	body.set_meta("power_cut_local_planes", local_planes)
 	if rebuild_collisions:
 		_rebuild_body_collisions(body)
-	if next >= OFF_BLOCK_COMPLETION_CUTS and allow_completion:
+	if next >= LEGACY_OFF_BLOCK_COMPLETION_CUTS and allow_completion:
 		_finish_off_block_root(body, power_id)
 	elif present_flash:
 		_flash_power_cut(body)
 	return true
 
 
-## Apply only the remaining real cuts needed by the shared off-block completion
-## rule. A partly cut root therefore receives fewer new cuts than a fresh one,
-## while both finish through the same geometry, reward, and retirement path.
-func _complete_power_cut_target(body: LooseLogBody,
+## Builds a random number of real fragments synchronously and immediately
+## completes the root. The deterministic per-root seed makes the visual result
+## stable without consuming the attempt RNG used by offers and proc chances.
+func _destroy_power_target(body: LooseLogBody,
 		power_id: StringName) -> int:
 	if body == null or body.descriptor == null:
 		return 0
 	var descriptor := body.descriptor
-	var applied := 0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s|%s|off_block_fragments" % [
+		String(descriptor.id), String(power_id)])
+	var minimum_parts := clampi(_tuning.off_block_fragment_parts_min, 2, 16) \
+		if _tuning != null else 2
+	var maximum_parts := clampi(_tuning.off_block_fragment_parts_max,
+		minimum_parts, 16) if _tuning != null else 6
+	var target_parts := rng.randi_range(minimum_parts, maximum_parts)
+	var current_parts := _piece_visuals(body).size()
+	var failed := false
 	while is_instance_valid(body) and _bodies.has(descriptor.id) \
-			and descriptor.pending_power_cuts < OFF_BLOCK_COMPLETION_CUTS:
+			and current_parts < target_parts:
 		if not _apply_power_cut(body, power_id, false, false, false):
+			failed = true
 			break
-		applied += 1
-	if is_instance_valid(body) and _bodies.has(descriptor.id) \
-			and descriptor.pending_power_cuts >= OFF_BLOCK_COMPLETION_CUTS:
-		_finish_off_block_root(body, power_id)
-	if _bodies.has(descriptor.id):
+		current_parts = _piece_visuals(body).size()
+	# A malformed or unsliceable whole mesh cannot satisfy the requested break;
+	# leave it in the yard so a power never pays for an intact disappearing log.
+	if failed and current_parts < 2:
 		_rebuild_body_collisions(body)
-		if applied > 0:
-			_flash_power_cut(body)
-		_refresh_power_marker(body)
-	return applied
+		return 0
+	var completed_parts := current_parts
+	_finish_off_block_root(body, power_id)
+	return completed_parts
 
 
 func _replay_saved_power_cuts(body: LooseLogBody) -> void:
@@ -1182,7 +1136,7 @@ func _replay_saved_power_cuts(body: LooseLogBody) -> void:
 			else &"precut"
 		if not _apply_power_cut(body, source, false, false, false):
 			break
-	if body.descriptor.pending_power_cuts >= OFF_BLOCK_COMPLETION_CUTS:
+	if body.descriptor.pending_power_cuts >= LEGACY_OFF_BLOCK_COMPLETION_CUTS:
 		_finish_off_block_root(body, sources[-1] if not sources.is_empty() \
 			else &"precut")
 	elif is_instance_valid(body) and body.descriptor != null \
@@ -1196,19 +1150,14 @@ func _largest_choppable_piece(body: LooseLogBody) -> MeshInstance3D:
 	for piece: MeshInstance3D in _piece_visuals(body):
 		if piece.mesh == null:
 			continue
-		# A block cut releases firewood-sized descendants immediately, but a loose
-		# root is one five-hit power transaction. Keep every real descendant
-		# sliceable until that fifth hit releases the complete batch; otherwise
-		# canonical (non-diagonal) quarter pieces strand the root after three cuts.
+		# Keep every real descendant eligible until the one-hit fragmentation batch
+		# reaches its random target. This also lets migration replay old partial
+		# roots without stranding canonical quarter pieces.
 		var volume := _mesh_volume(piece.mesh)
 		if volume > best_volume:
 			best = piece
 			best_volume = volume
 	return best
-
-
-func _has_choppable_piece(body: LooseLogBody) -> bool:
-	return _largest_choppable_piece(body) != null
 
 
 func _choppable_piece_count(body: LooseLogBody) -> int:

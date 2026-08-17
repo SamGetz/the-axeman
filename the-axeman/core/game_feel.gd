@@ -1,23 +1,20 @@
 extends Node
 ## FILE: res://core/game_feel.gd
-## ATTACHES TO: nothing directly. Autoload "GameFeel" (order 4, after
-## GameState — Amendment 5). Single owner of A11 hit-pause and the camera
-## shake. M4–M6 feed it hits via EventBus.action_hit_registered (already
-## wired below); they never call Engine.time_scale themselves.
+## Autoload owner of hit pause and camera shake. Gameplay feeds it through
+## `EventBus.action_hit_registered`; callers never set Engine.time_scale.
 ##
 ## Nothing here is a final tuning value: pause/shake numbers come from the
-## GameFeelConfig embedded in res://data/game_config.tres and are tuned by the
+## GameFeelConfig embedded in res://data/survival_game_config.tres and are tuned by the
 ## Creative Director. The 0.05 pause scale and the impact strength are the only
 ## literals, and they are flagged.
 
-const _HIT_PAUSE_SCALE := 0.05   # A11 verbatim — NOT a tunable.
-## Placeholder: how much trauma one registered hit adds (0..1). Whether this
-## should scale with tool tier / piece size is an M4 tuning question for Sam.
+const _HIT_PAUSE_SCALE := 0.05
+## Placeholder: how much trauma one registered hit adds (0..1).
 const _IMPACT_STRENGTH := 1.0
 
 var config: GameFeelConfig               # read-only for everyone else
 
-var _active_pauses := 0                  # A11 overlap guard: last one out restores 1.0
+var _active_pauses := 0                  # overlap guard: last one out restores 1.0
 var _trauma := 0.0                       # 0..1, decays every frame
 var _camera: Camera3D = null
 var _shaking := false                    # true while we are actively writing camera offsets
@@ -31,9 +28,7 @@ func _ready() -> void:
 	_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_noise.frequency = 0.5
 
-	# A7 signals only — EventBus (autoload 1) is guaranteed to exist by now.
 	EventBus.action_hit_registered.connect(_on_action_hit_registered)
-	EventBus.minigame_exited.connect(_on_minigame_exited)
 
 
 func _process(delta: float) -> void:
@@ -66,8 +61,7 @@ func _process(delta: float) -> void:
 ## `with_pause = false` gives shake WITHOUT stopping time, for a blow that landed
 ## but did not resolve anything — the chopping game's failed swings use it, so a
 ## split still owns the punctuation of a time-stop and a bounced axe reads as a
-## lesser event. Added 2026-08-01; an optional argument on a public method, so
-## every existing caller and the A7 signal path are untouched.
+## lesser event.
 func register_impact(strength: float, with_pause := true) -> void:
 	strength = clampf(strength, 0.0, 1.0)
 	_trauma = clampf(_trauma + strength, 0.0, 1.0)
@@ -75,7 +69,7 @@ func register_impact(strength: float, with_pause := true) -> void:
 		hit_pause()
 
 
-## A11 hit-pause. Pins Engine.time_scale to 0.05 for `duration` real seconds
+## Pins Engine.time_scale to 0.05 for `duration` real seconds
 ## (default = config.hit_pause_duration). Overlapping calls are counted so
 ## time_scale is only restored to 1.0 when the LAST pause expires — it can
 ## never get stuck low.
@@ -86,7 +80,7 @@ func hit_pause(duration := -1.0) -> void:
 	Engine.time_scale = _HIT_PAUSE_SCALE
 	_active_pauses += 1
 	# create_timer(sec, process_always, process_in_physics, ignore_time_scale)
-	# ignore_time_scale MUST be true (A11): otherwise the 0.05 scale would
+	# ignore_time_scale must be true: otherwise the 0.05 scale would
 	# stretch this very timer and the pause would never end correctly.
 	await get_tree().create_timer(duration, true, false, true).timeout
 	_active_pauses -= 1
@@ -118,15 +112,7 @@ func get_trauma() -> float:
 	return _trauma
 
 
-## ------------------------------------------------------------- A7 handlers
+## ------------------------------------------------------------- signal handlers
 
-func _on_action_hit_registered(_hit_position: Vector3, _tool_tier: int, _direction: Enums.ChopDirection) -> void:
+func _on_action_hit_registered(_hit_position: Vector3) -> void:
 	register_impact(_IMPACT_STRENGTH)
-
-
-func _on_minigame_exited() -> void:
-	# Leave no shake bleeding into the next entry. Do NOT touch time_scale
-	# here: any in-flight hit_pause owns it via the counter and its timer
-	# ignores time_scale, so it still restores 1.0 on its own.
-	_trauma = 0.0
-	unregister_camera()

@@ -1,242 +1,70 @@
-# SETUP — getting The Axeman running on another machine
+# Setup
 
-Everything the game needs is in this repository. There is no package manager
-step, no dependency to fetch and no third-party plugin to install — the Godot
-project is native nodes and GDScript only, and the addon it does use
-(`godot_mcp`) is committed alongside the rest.
+Campfire Survivors is a native Godot 4.7 Compatibility project. It has no
+package-manager step and no external runtime dependency.
 
-What is **not** in the repository, and what you therefore have to supply on a
-new machine, is exactly three things: the engine binary, the import cache, and
-your save file.
+## Requirements
 
----
+- Godot 4.7.1 stable, standard GDScript build (not .NET/Mono).
+- A checkout of this repository.
+- A Compatibility-capable graphics driver for rendered review.
 
-## 1. Install the engine
+The Godot project is the inner `the-axeman/` directory. All engine commands
+must run there.
 
-**Godot 4.7.1 stable, standard build (NOT the .NET/Mono build).** The project is
-pure GDScript; the .NET build is a different binary with a different startup
-path and there is no reason to use it here.
-
-Get it from <https://godotengine.org/download> or the release tag directly at
-<https://github.com/godotengine/godot/releases> (tag `4.7.1-stable`). On Windows
-the file is `Godot_v4.7.1-stable_win64.exe`.
-
-Godot ships as a single portable executable — put it wherever you like. On the
-desktop machine it lives at `C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe`,
-which is an example for that machine only, not the project's path. Nothing in
-the repo reads it; it is only ever typed on a command line.
-
-The version matters. `project.godot` declares
-`config/features=PackedStringArray("4.7", "GL Compatibility")`, and opening the
-project in an older Godot will refuse or downgrade, while a newer one may
-silently rewrite resource files on save.
-
-### Make the path easy to type
-
-Every command below assumes a `GODOT` variable pointing at the binary. Set it
-once per shell:
+On Sam's Mac:
 
 ```bash
-export GODOT="/c/Users/Sam/Desktop/Godot_v4.7.1-stable_win64.exe"
+export GODOT="/Users/sgetz/Downloads/Godot.app/Contents/MacOS/Godot"
+cd the-axeman
 ```
+
+On another machine, point `GODOT` at that machine's Godot 4.7.1 executable.
+
+## First import
+
+The `.godot/` import cache is generated and gitignored. Build it after a fresh
+checkout, and refresh it after adding or renaming a global `class_name`:
 
 ```bash
-$env:GODOT = "C:\Users\Sam\Desktop\Godot_v4.7.1-stable_win64.exe"
+"$GODOT" --headless --path . --rendering-method gl_compatibility --editor --quit
 ```
 
-(The first is for the Git Bash shell, the second for PowerShell. Adjust the path
-to wherever you actually put the binary on that machine.)
+The command must complete without parse or resource-load errors. Editor-setting
+or local MCP connection messages do not affect gameplay parsing.
 
----
+## Verify
 
-## 2. Clone the repository
+Run the current command matrix and compare its exact counts with
+`docs/TESTING.md`. A quick integration check is:
 
 ```bash
-git clone <your-remote-url> the_axeman
+"$GODOT" --headless --path . --rendering-method gl_compatibility \
+  res://core/tests/survival_main_smoke.tscn
 ```
 
-The repo root is the clone — `CLAUDE.md`, the `handoff/` pack, `images/` and
-`maya_working/` all sit at the top level, and **the Godot project is the
-`the-axeman/` subfolder inside it.** That distinction has cost this project
-real time before; see the trap in section 5.
-
-The clone is roughly 160 MB of working tree and 130 MB of history, dominated by
-the FBX logs and the source PNGs. That is well inside GitHub's limits — the
-largest single file is a 4.7 MB birch log — so **Git LFS is not needed and is
-not configured.** If a future art drop lands a file over about 50 MB, revisit
-that decision before committing it, not after.
-
----
-
-## 3. Build the import cache — do this before anything else
-
-`the-axeman/.godot/` is gitignored. It is 233 MB of engine-generated import
-artifacts, and committing it would be both enormous and wrong — it is derived
-data keyed to the exact engine build. A fresh clone therefore has **no imported
-assets at all**: every FBX and PNG is raw source until Godot converts it.
-
-Run the import from inside the Godot project folder — **twice**:
+Open the project for manual input and rendered-layout review:
 
 ```bash
-cd the-axeman && "$GODOT" --headless --path . --import && "$GODOT" --headless --path . --import
+"$GODOT" --path . --rendering-method gl_compatibility --editor
 ```
 
-The first pass takes a few minutes (there are 70-odd meshes and textures) and
-rebuilds `.godot/` from scratch, ending at about 62 MB. Until it finishes,
-**every scene will fail to load and every test suite will report nonsense**,
-because the resources they reference do not exist yet in importable form.
+## Local state
 
-**The first pass ends in a script error, and it is expected.** On a verified
-fresh clone it reads:
+Player progress lives outside the repository at
+`user://the_axeman_save.cfg`. Copy that file separately if progress must move
+between machines. The `.godot/` directory is also machine-local and should
+never be committed.
 
-```
-SCRIPT ERROR: Parse Error: Cannot infer the type of "yard" variable because the value doesn't have a set type.
-   at: GDScript::reload (res://scenes/3d_action/chopping_minigame.gd:427)
-ERROR: Failed to load script "res://scenes/3d_action/chopping_minigame.gd" with error "Parse error".
-```
+The source art under `maya_working/` and the imported runtime art under
+`the-axeman/assets/` are both intentional. Git LFS is not currently configured.
 
-That line is `var yard := GameState.get_yard_pile()`. The autoloads are not
-resolvable at the moment the importer reloads scripts on a cold cache, so the
-inferred type has nothing to infer from — the same reason autoload identifiers
-read as "not found" under `--check-only`. **The second pass is silent**, and
-every suite then passes. If you only run the import once, you will start
-debugging a bug that does not exist.
+## Current documentation
 
-Rerun the import whenever a new `class_name` is added, too — a headless run does
-not refresh `.godot/global_script_class_cache.cfg` on its own, so a brand-new
-global class reads as "Identifier not declared" everywhere it is used until you
-do.
+- `AGENTS.md` and `CLAUDE.md`: repository working rules.
+- `docs/STATUS.md`: current implementation and retained boundaries.
+- `docs/TESTING.md`: current verification commands and counts.
+- `docs/areas/`: focused guides for chopping, progression, powers, and assets.
 
----
-
-## 4. Verify the checkout
-
-Run the suites. The concise current command list and baseline live in
-`docs/TESTING.md`. **Run all of them from inside `the-axeman/`**, never from the
-repo root.
-
-```bash
-"$GODOT" --headless --path . --quit-after 900 res://core/tests/m1_acceptance.tscn
-```
-
-```bash
-"$GODOT" --headless --path . --quit-after 900 res://core/tests/m2_acceptance.tscn
-```
-
-```bash
-"$GODOT" --headless --path . --quit-after 900 res://core/tests/m3_acceptance.tscn
-```
-
-```bash
-"$GODOT" --headless --path . --quit-after 8000 res://core/tests/m4_acceptance.tscn
-```
-
-```bash
-"$GODOT" --headless --path . --quit-after 8000 res://core/tests/m7a_acceptance.tscn
-```
-
-```bash
-"$GODOT" --headless --path . --quit-after 20000 res://core/tests/m7c_acceptance.tscn
-```
-
-```bash
-"$GODOT" --headless --path . -s res://core/tools/test_slicer.gd
-```
-
-Expected as of 2026-08-05: M1 19/19, M2 24/24, M3 16/16, M4 55/55,
-M7A 285/285, M7C 220/220, slicer 34/34.
-**The original suite was confirmed on a fresh clone + double import on
-2026-08-02; the expanded M4/M7A counts were confirmed on the desktop on
-2026-08-04.** They are the expected current shipping-asset results.
-
-Two of them will not behave headless, by design:
-
-- **`pile_smoke` must run NON-headless.** Its last check waits out the pile
-  animation, which runs on a real-time clock that uncapped headless frames
-  outrun. Same for the render tools (`hud_shot`, `shot_runner`, `scar_shot`,
-  `species_shot`, `proc_shot`, `grain_shot`) — they need a real renderer.
-- **Red `ERROR:` lines during M1 tests 2, 5, 7 and 8 are EXPECTED.** Those tests
-  deliberately provoke the error paths. Only lines beginning `FAIL:` are
-  failures.
-
-Then open it and click something:
-
-```bash
-"$GODOT" --path . --editor
-```
-
-The click-to-chop input layer is not headless-verifiable and never has been — it
-is eyeball-tested by pressing F5 and swinging at a log.
-
----
-
-## 5. Traps that bite on a new machine specifically
-
-**Run every `godot --path .` from `the-axeman\`, not from the repo root.** The
-repo root has no `project.godot`, so the engine quietly falls back to the
-project manager: it prints its banner, runs NOTHING, and exits 0 (or segfaults
-under `--headless`). A whole suite "passing silently" or "crashing" is almost
-always this. `--verbose` gives it away — you will see it load editor settings
-and never load a project.
-
-**Your save does not travel.** The game writes to
-`user://the_axeman_save.cfg`, which on Windows resolves to
-`%APPDATA%\Godot\app_userdata\the-axeman\the_axeman_save.cfg`. It is outside the
-repository on purpose — it is your progress, not the project's. A fresh machine
-therefore starts at zero cash with an empty yard. If you want your desktop
-progress on the laptop, copy that one file across by hand. A save from a *newer*
-build is refused and moved aside to a `.bak` rather than loaded, so a
-version-mismatched copy will not corrupt anything.
-
-**Line endings are pinned, so don't fight them.** `.gitattributes` at the repo
-root and inside `the-axeman/` both force LF in the index and in the working
-tree, on every machine, whatever that machine's `core.autocrlf` happens to be.
-This is what stops a laptop checkout from showing every `.gd` and `.tscn` file
-as wholly modified. Do not set `core.autocrlf` per-machine to "fix" a diff — if
-you see a whole-file diff, the attributes are being bypassed, and that is the
-bug.
-
-**The editor clobbers hand-edited `project.godot`.** If the Godot editor is open
-when `project.godot` is edited by hand (or updated by a `git pull`), the editor
-overwrites it on its next save. Close the editor before pulling, and reopen it
-after. Re-run `m2_acceptance` if you suspect it happened — it asserts the base
-canvas and `Action_Viewport.size` are equal, which is exactly the setting a
-clobber reverts.
-
----
-
-## 6. Working across two machines
-
-There is one repo and no build server, so the discipline is just the ordinary
-one:
-
-- **Commit and push before you leave a machine.** The project has been under git
-  only since 2026-08-01 and the habit is still new.
-- When changing machines, fetch and inspect the branch state before substantial
-  implementation. Pull only after confirming the worktree is clean, with the
-  Godot editor closed.
-- `.godot/` is not shared, so each machine builds its own import cache once and
-  then never thinks about it again.
-- `.claude/settings.local.json` is per-machine and gitignored. Permissions meant
-  to apply everywhere go in `.claude/settings.json`, which is committed.
-- The stale root-level `core/` and `data/` folders (old duplicates of the M1
-  drop, a standing invitation to edit the wrong file) were deleted 2026-08-04.
-  The canonical copies are, and always were, inside `the-axeman/`.
-
----
-
-## 7. Where the documentation lives
-
-| File | What |
-|---|---|
-| `CLAUDE.md` / `AGENTS.md` | Lean agent entry points and task routing. |
-| `docs/STATUS.md` | Current milestone state and latest verified suite counts. |
-| `docs/TESTING.md` | Current test commands and verification rules. |
-| `docs/areas/` | Current task-specific guidance; read only the relevant file. |
-| `docs/history/` | Optional background and post-mortems; not current authority. |
-| `handoff/00_OVERVIEW.md` | Historical handoff-pack index; not prerequisite reading. |
-| `handoff/02_M4_CHOPPING_BLOCK.md` | Historical chopping implementation brief. |
-| `handoff/07_M4_SLICING_POC.md` | Historical POC render/debug detail. |
-| `handoff/08_COZY_LUMBERYARD_ROADMAP.md` | The binding post-pivot roadmap. |
-| `handoff/10_EARTH_TO_ALIEN_TIMBER_ROADMAP.md` | The long-horizon module sequence. |
-| `INSTALL_M1.md` | The original M1 drop instructions — historical. |
+Retired milestone briefs, build diaries, and obsolete acceptance suites are not
+kept in the working tree; use git history only when their context is necessary.

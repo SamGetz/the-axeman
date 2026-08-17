@@ -19,8 +19,8 @@ var hardness_snapshot := 1.0
 var cash_reward_snapshot := 0
 var xp_reward_snapshot := 0
 var original_mass := 0.0
-## Deferred run-power work accumulated while this root is loose in the arena.
-## Chopping consumes these bounded counts when the root is claimed for the block.
+## Migration-only deferred work from the retired partial off-block cut behavior.
+## New run-power hits destroy loose roots immediately and never write this state.
 var pending_power_cuts := 0
 var pending_power_cut_sources: Array[StringName] = []
 var pending_power_scars := 0
@@ -30,8 +30,8 @@ var transfer_from := Vector3(INF, INF, INF)
 var transfer_rotation := Quaternion.IDENTITY
 ## Live-only presentation snapshot for an arena claim. These references are
 ## deliberately excluded from save dictionaries: suspension canonicalizes an
-## active handoff before serializing, while restored waiting roots rebuild their
-## deterministic descendant geometry from pending cut receipts.
+## active handoff before serializing, while legacy waiting roots can still
+## rebuild deterministic descendant geometry from old pending cut receipts.
 var transfer_visual_meshes: Array[Mesh] = []
 var transfer_visual_transforms: Array[Transform3D] = []
 var transfer_visual_projection_offsets: Array[Vector3] = []

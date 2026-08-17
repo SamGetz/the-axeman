@@ -14,55 +14,21 @@ signal migration_notice_changed
 signal permanent_controls_lock_changed(locked: bool)
 signal profile_changed
 
-## Transitional repaint signals retained only until the home/stage presentation
-## slice replaces the current survival HUD and equipment presenter.
-signal building_tiers_changed
-signal selected_species_changed(species_id: StringName)
-signal species_purchased(species_id: StringName)
-signal xp_changed(new_total: int)
-signal level_gained(new_level: int)
-signal skill_points_changed(available: int)
-signal skill_level_changed(skill_id: StringName, new_level: int)
-signal yard_pile_changed(new_total: int)
-signal haul_aways_changed(new_total: int)
-signal lifetime_wood_chopped_changed(new_total: int)
-signal earth_clear_record_changed
-
-const DEFAULT_TOOL_TIER := 1
-const DEFAULT_BUILDING_TIER := 1
-const DEFAULT_CASH := 0
-const YARD_PILE_CAPACITY := 50
-const TOTAL_EARTH_TREES := 3_040_000_000_000
 const MAX_SAFE_ECONOMY_VALUE := 1_000_000_000_000_000_000
 const DEFAULT_YARD_ID: StringName = &"yard_one"
 
-## Legacy identifiers remain constants only so v18 migration and the temporary
-## equipment presenter can recognise old ownership. They are not purchasable.
-const UPGRADE_BALANCED_AXE := &"balanced_axe"
-const UPGRADE_REINFORCED_BLOCK := &"reinforced_chopping_block"
-const UPGRADE_SUPPLIER_LEDGER := &"supplier_ledger"
-const UPGRADE_HANDCART := &"handcart"
-const UPGRADE_COFFEE_THERMOS := &"coffee_thermos"
-const UPGRADE_HARVEST_CAPACITY := &"harvest_capacity"
-const XP_ORIGIN_MANUAL := &"manual"
-const XP_ORIGIN_MANUAL_PROC := &"manual_proc"
-const XP_ORIGIN_GRAIN := &"grain"
-
-const META_AXE_POWER := &"axe_power"
-const META_BLOCK_CONTROL := &"block_control"
 const META_HOLD_TO_CHOP := &"hold_to_chop"
 const META_CONTINUOUS_HANDOFF := &"continuous_handoff"
 const META_FREQUENCY_CONTROL := &"fall_frequency_control"
-const _LEGACY_AXE_IDS: Array[StringName] = [
-	&"balanced_axe", &"tempered_woodsmans_axe", &"forged_splitting_maul",
-	&"steel_cheek_axe", &"journeymans_bearded_axe", &"hardwood_pattern_axe",
-	&"continental_mill_axe", &"earthmaster_axe",
-]
-const _LEGACY_BLOCK_IDS: Array[StringName] = [
-	&"reinforced_chopping_block", &"iron_block_dogs", &"log_cradle",
-	&"raised_split_stand", &"braced_yard_block", &"millhouse_chopping_block",
-	&"continental_split_deck", &"earthmaster_ironwood_block",
-]
+## Removed v19 catalogue rows that never had a live gameplay consumer. Their
+## historic rank caps let profile loading refund only proven ledger entries.
+const _RETIRED_META_UPGRADE_CAPS := {
+	&"ready_stance": 5,
+	&"block_control": 8,
+	&"boss_handling": 5,
+	&"blaster_duration": 5,
+	&"off_block_cutting": 1,
+}
 
 var _home_cash := 0
 var _meta_upgrade_ranks: Dictionary = {}
@@ -175,7 +141,6 @@ func purchase_meta_upgrade(id: StringName) -> bool:
 	_meta_upgrade_spend_ledger[id] = ledger
 	home_cash_changed.emit(_home_cash)
 	meta_upgrade_changed.emit(id, previous_rank + 1, _ledger_total(ledger))
-	building_tiers_changed.emit()
 	profile_changed.emit()
 	return true
 
@@ -206,7 +171,6 @@ func refund_all_meta_upgrades() -> int:
 	meta_upgrades_refunded.emit(refund)
 	if old_tier != 0:
 		selected_frequency_tier_changed.emit(0)
-	building_tiers_changed.emit()
 	profile_changed.emit()
 	return refund
 
@@ -446,199 +410,24 @@ func acknowledge_migration_notice(id: StringName) -> bool:
 	return true
 
 
-# -------------------------------------------------------- temporary yard pile
-func add_to_yard_pile(item_id: StringName, count: int) -> void:
-	if item_id == &"" or count <= 0:
-		return
-	_yard_pile[item_id] = _safe_counter_add(int(_yard_pile.get(item_id, 0)), count)
-	yard_pile_changed.emit(get_yard_pile_count())
-	profile_changed.emit()
-
-
-func get_yard_pile() -> Dictionary:
-	return _yard_pile.duplicate()
-
-
-func get_yard_pile_count() -> int:
-	var total := 0
-	for amount: Variant in _yard_pile.values():
-		total = _safe_counter_add(total, maxi(0, int(amount)))
-	return total
-
-
-func get_yard_pile_capacity() -> int:
-	return YARD_PILE_CAPACITY
-
-
-func clear_yard_pile() -> void:
-	_yard_pile.clear()
-	yard_pile_changed.emit(0)
-	profile_changed.emit()
-
-
-func record_haul_away() -> void:
-	_lifetime_stats["haul_aways_completed"] = _safe_counter_add(
-		int(_lifetime_stats.get("haul_aways_completed", 0)), 1)
-	haul_aways_changed.emit(get_haul_aways_completed())
-	profile_changed.emit()
-
-
-func get_haul_aways_completed() -> int:
-	return maxi(0, int(_lifetime_stats.get("haul_aways_completed", 0)))
-
-
 func record_manual_completion() -> void:
 	_lifetime_stats["roots_completed"] = _safe_counter_add(
 		int(_lifetime_stats.get("roots_completed", 0)), 1)
-	lifetime_wood_chopped_changed.emit(get_lifetime_wood_chopped())
 	profile_changed.emit()
+
+
+## Read-only migration records. Live gameplay never writes pile or haul state,
+## but old profiles retain these values for player-facing history.
+func get_yard_pile() -> Dictionary:
+	return _yard_pile.duplicate()
 
 
 func get_lifetime_wood_chopped() -> int:
 	return maxi(0, int(_lifetime_stats.get("roots_completed", 0)))
 
 
-# ----------------------------------------------------- transitional read seams
-## These reads keep the block and current smoke scene alive during gate one.
-## No retired XP, skill, species or shop method below can mutate the profile.
-func get_tool_tier(tool_type: Enums.ToolType) -> int:
-	return DEFAULT_TOOL_TIER + get_meta_upgrade_rank(META_AXE_POWER) \
-		if tool_type == Enums.ToolType.AXE else DEFAULT_TOOL_TIER
-
-
-func get_building_tier(id: StringName) -> int:
-	return DEFAULT_BUILDING_TIER + get_permanent_upgrade_level(id)
-
-
-func get_permanent_upgrade_level(id: StringName) -> int:
-	var axe_index := _LEGACY_AXE_IDS.find(id)
-	if axe_index >= 0:
-		return 1 if get_meta_upgrade_rank(META_AXE_POWER) > axe_index else 0
-	var block_index := _LEGACY_BLOCK_IDS.find(id)
-	if block_index >= 0:
-		return 1 if get_meta_upgrade_rank(META_BLOCK_CONTROL) > block_index else 0
-	return 0
-
-
-func set_permanent_upgrade_level(_id: StringName, _new_level: int) -> bool:
-	return false
-
-
-func get_permanent_upgrades() -> Dictionary:
-	return get_meta_upgrade_ranks()
-
-
-func owns_species(species_id: StringName) -> bool:
-	return species_id in get_owned_species()
-
-
-func get_owned_species() -> Array[StringName]:
-	var out: Array[StringName] = []
-	var yard := _yard_definition(get_selected_yard())
-	if yard != null:
-		for entry: YardTimelineEntryDef in yard.species_timeline:
-			if entry != null and entry.species_id not in out:
-				out.append(entry.species_id)
-	return out
-
-
-func get_selected_species() -> StringName:
-	var species := get_owned_species()
-	return SpeciesTable.starting_species().id if species.is_empty() else species[0]
-
-
-func select_species(_species_id: StringName) -> bool:
-	return false
-
-
-func can_species_be_bought(_species_id: StringName) -> bool:
-	return false
-
-
-func unlock_species_after_payment(_species_id: StringName) -> bool:
-	return false
-
-
-func get_xp() -> int:
-	return 0
-
-
-func get_level() -> int:
-	return 1
-
-
-func get_level_for_xp(_value: int) -> int:
-	return 1
-
-
-func get_xp_to_next_level() -> int:
-	return 0
-
-
-func get_level_progress() -> float:
-	return 0.0
-
-
-func award_xp(_amount: int, _origin: StringName = XP_ORIGIN_MANUAL) -> int:
-	return 0
-
-
-func add_xp(_amount: int) -> void:
-	pass
-
-
-func get_skill_level(_skill_id: StringName) -> int:
-	return 0
-
-
-func get_skill_points_earned() -> int:
-	return 0
-
-
-func get_skill_points_spent() -> int:
-	return 0
-
-
-func get_skill_points_available() -> int:
-	return 0
-
-
-func can_afford_skill_points(_cost: int) -> bool:
-	return false
-
-
-func set_skill_level(_skill_id: StringName, _new_level: int) -> bool:
-	return false
-
-
-func get_skill_levels() -> Dictionary:
-	return {}
-
-
-func get_proc_dry_streak(_proc_id: StringName) -> int:
-	return 0
-
-
-func note_proc_result(_proc_id: StringName, _fired: bool) -> void:
-	pass
-
-
-func has_cleared_earth() -> bool:
-	return int(get_yard_record(DEFAULT_YARD_ID).get("clears", 0)) > 0
-
-
-func is_earth_master() -> bool:
-	return has_cleared_earth()
-
-
-func get_run_records() -> Dictionary:
-	var record := get_yard_record(DEFAULT_YARD_ID)
-	return {
-		"earth_cleared": int(record.get("clears", 0)) > 0,
-		"best_earth_clear_ms": int(record.get("best_clear_ms", -1)),
-		"best_total_run_ms": int(record.get("longest_endless_ms", -1)),
-		"best_overflow_ms": int(record.get("longest_endless_ms", -1)),
-	}
+func get_haul_aways_completed() -> int:
+	return maxi(0, int(_lifetime_stats.get("haul_aways_completed", 0)))
 
 
 # ---------------------------------------------------------------- persistence
@@ -662,6 +451,7 @@ func to_save_dict() -> Dictionary:
 
 func apply_save_dict(data: Dictionary) -> void:
 	_home_cash = clampi(int(data.get("home_cash", 0)), 0, MAX_SAFE_ECONOMY_VALUE)
+	_home_cash = _refund_retired_meta_spend(data, _home_cash)
 	_meta_upgrade_ranks.clear()
 	var saved_ranks: Variant = data.get("meta_upgrade_ranks", {})
 	if saved_ranks is Dictionary:
@@ -761,6 +551,31 @@ func apply_save_dict(data: Dictionary) -> void:
 func _meta_definition(id: StringName) -> MetaUpgradeDef:
 	var table := SurvivorsContent.meta_upgrades()
 	return null if table == null else table.by_id(id)
+
+
+func _refund_retired_meta_spend(data: Dictionary, cash: int) -> int:
+	var ranks: Variant = data.get("meta_upgrade_ranks", {})
+	var ledger: Variant = data.get("meta_upgrade_spend_ledger", {})
+	if not (ranks is Dictionary) or not (ledger is Dictionary):
+		return cash
+	var total := clampi(cash, 0, MAX_SAFE_ECONOMY_VALUE)
+	for raw_id: Variant in _RETIRED_META_UPGRADE_CAPS:
+		var id := StringName(raw_id)
+		var raw_rank: Variant = (ranks as Dictionary).get(String(id), 0)
+		var raw_values: Variant = (ledger as Dictionary).get(String(id), [])
+		if not (raw_rank is int) or not (raw_values is Array):
+			continue
+		var proven_rank := clampi(int(raw_rank), 0,
+			int(_RETIRED_META_UPGRADE_CAPS[id]))
+		for index: int in range(mini(proven_rank, raw_values.size())):
+			var raw_amount: Variant = raw_values[index]
+			if not (raw_amount is int) or int(raw_amount) < 0:
+				continue
+			var amount := int(raw_amount)
+			if amount > MAX_SAFE_ECONOMY_VALUE - total:
+				return MAX_SAFE_ECONOMY_VALUE
+			total += amount
+	return total
 
 
 func _power_definition(id: StringName) -> RunPowerDef:
@@ -1027,15 +842,7 @@ func _string_array(values: Array) -> Array[String]:
 
 func _emit_full_refresh() -> void:
 	home_cash_changed.emit(_home_cash)
-	building_tiers_changed.emit()
 	selected_yard_changed.emit(get_selected_yard())
-	selected_species_changed.emit(get_selected_species())
 	selected_frequency_tier_changed.emit(get_selected_frequency_tier())
-	xp_changed.emit(0)
-	skill_points_changed.emit(0)
-	yard_pile_changed.emit(get_yard_pile_count())
-	haul_aways_changed.emit(get_haul_aways_completed())
-	lifetime_wood_chopped_changed.emit(get_lifetime_wood_chopped())
-	earth_clear_record_changed.emit()
 	migration_notice_changed.emit()
 	profile_changed.emit()

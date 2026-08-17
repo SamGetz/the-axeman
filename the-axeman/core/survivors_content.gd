@@ -8,21 +8,17 @@ const RUN_POWER_PATH := "res://data/run_power_catalogue_placeholder.tres"
 const YARD_PATH := "res://data/yard_catalogue_placeholder.tres"
 const LEGACY_REFUND_PATH := "res://data/legacy_progression_refund_placeholder.tres"
 const RUN_OFFER_TUNING_PATH := "res://data/run_offer_tuning_placeholder.tres"
+const WOOD_HANDLING_PATH := "res://data/wood_handling_profile_table.tres"
 
 const META_CAPS := {
 	&"axe_power": 8,
 	&"swing_recovery": 8,
-	&"ready_stance": 5,
-	&"block_control": 8,
 	&"scar_craft": 5,
-	&"boss_handling": 5,
 	&"run_xp": 5,
 	&"session_cash": 5,
 	&"luck": 5,
 	&"boundary_radius": 5,
 	&"boundary_grace": 5,
-	&"blaster_duration": 5,
-	&"off_block_cutting": 1,
 	&"hold_to_chop": 1,
 	&"continuous_handoff": 1,
 	&"fall_frequency_control": 3,
@@ -67,32 +63,12 @@ const YARD_ONE_SPECIES: Array[StringName] = [
 	&"quaking_aspen", &"eastern_white_pine", &"norway_spruce",
 	&"balsam_fir", &"lodgepole_pine", &"white_spruce",
 ]
-## Existing presentation identities are pinned here instead of loading the
-## retired EquipmentTable, whose query surface still depends on the old Shop.
-const VISUAL_SLOTS := {
-	&"balanced_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"tempered_woodsmans_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"forged_splitting_maul": MetaVisualMilestoneDef.Slot.AXE,
-	&"steel_cheek_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"journeymans_bearded_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"hardwood_pattern_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"continental_mill_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"earthmaster_axe": MetaVisualMilestoneDef.Slot.AXE,
-	&"reinforced_chopping_block": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"iron_block_dogs": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"log_cradle": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"raised_split_stand": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"braced_yard_block": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"millhouse_chopping_block": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"continental_split_deck": MetaVisualMilestoneDef.Slot.BLOCK,
-	&"earthmaster_ironwood_block": MetaVisualMilestoneDef.Slot.BLOCK,
-}
-
 static var _meta_upgrades: MetaUpgradeTable
 static var _run_powers: RunPowerTable
 static var _yards: YardTable
 static var _legacy_refunds: LegacyProgressionRefundTable
 static var _run_offer_tuning: RunOfferTuning
+static var _wood_handling: WoodHandlingProfileTable
 
 
 static func meta_upgrades() -> MetaUpgradeTable:
@@ -125,12 +101,14 @@ static func run_offer_tuning() -> RunOfferTuning:
 	return _run_offer_tuning
 
 
+static func wood_handling() -> WoodHandlingProfileTable:
+	if _wood_handling == null:
+		_wood_handling = load(WOOD_HANDLING_PATH) as WoodHandlingProfileTable
+	return _wood_handling
+
+
 static func core_power_ids() -> Array[StringName]:
 	return _dictionary_ids(CORE_POWER_CAPS)
-
-
-static func blueprint_power_ids() -> Array[StringName]:
-	return _dictionary_ids(BLUEPRINT_POWER_CAPS)
 
 
 static func clear_cache() -> void:
@@ -139,6 +117,7 @@ static func clear_cache() -> void:
 	_yards = null
 	_legacy_refunds = null
 	_run_offer_tuning = null
+	_wood_handling = null
 
 
 static func validate_all() -> PackedStringArray:
@@ -153,6 +132,8 @@ static func validate_all() -> PackedStringArray:
 		errors.append("legacy-refund catalogue failed to load")
 	if run_offer_tuning() == null:
 		errors.append("run-offer tuning failed to load")
+	if wood_handling() == null:
+		errors.append("wood-handling catalogue failed to load")
 	if not errors.is_empty():
 		return errors
 	errors.append_array(meta_upgrades().validate())
@@ -160,6 +141,7 @@ static func validate_all() -> PackedStringArray:
 	errors.append_array(yards().validate())
 	errors.append_array(legacy_refunds().validate())
 	errors.append_array(run_offer_tuning().validate())
+	errors.append_array(wood_handling().validate())
 	errors.append_array(_validate_locked_meta_contract())
 	errors.append_array(_validate_locked_power_contract())
 	errors.append_array(_validate_locked_yard_contract())
@@ -171,7 +153,7 @@ static func _validate_locked_meta_contract() -> PackedStringArray:
 	var errors := PackedStringArray()
 	var table := meta_upgrades()
 	if table.upgrades.size() != META_CAPS.size():
-		errors.append("meta catalogue must contain exactly 18 locked lines")
+		errors.append("meta catalogue must match the locked live-upgrade roster")
 	for raw_id: Variant in META_CAPS:
 		var id := StringName(raw_id)
 		var definition := table.by_id(id)
@@ -180,11 +162,6 @@ static func _validate_locked_meta_contract() -> PackedStringArray:
 			continue
 		if definition.max_rank != int(META_CAPS[id]):
 			errors.append("meta line %s has the wrong locked cap" % id)
-		for milestone: MetaVisualMilestoneDef in definition.visual_milestones:
-			if not VISUAL_SLOTS.has(milestone.equipment_id) \
-					or int(VISUAL_SLOTS[milestone.equipment_id]) != int(milestone.slot):
-				errors.append("meta line %s has an invalid visual milestone:%s" % [
-					id, milestone.equipment_id])
 	var continuous := table.by_id(&"continuous_handoff")
 	if continuous == null or continuous.prerequisite_upgrade_id != &"hold_to_chop" \
 			or continuous.prerequisite_rank != 1:

@@ -1,5 +1,5 @@
 extends Node
-## DEV SMOKE TEST for the M4 chopping mini-game (Amendment 6 slicer).
+## Development smoke test for the chopping mini-game.
 ## Run: godot --headless --path . --quit-after 120 res://core/tools/chopping_smoke.tscn
 
 func _ready() -> void:

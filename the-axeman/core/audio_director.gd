@@ -1,5 +1,5 @@
 extends Node
-## Bounded Phase-1 sound owner. It stays silent until Main confirms a successful
+## Bounded runtime sound owner. It stays silent until Main confirms a successful
 ## session start, so save restoration and headless fixtures never produce audio.
 
 const _MANIFEST := "res://data/sound_manifest.json"
@@ -233,13 +233,6 @@ func debug_world_voice_viewport() -> Viewport:
 	if _voices_3d.is_empty() or not is_instance_valid(_voices_3d[0]):
 		return null
 	return _voices_3d[0].get_viewport()
-
-
-func debug_playing_3d_voice_count() -> int:
-	var count := 0
-	for voice in _voices_3d:
-		count += 1 if voice.playing else 0
-	return count
 
 
 func debug_playing_voice_count() -> int:

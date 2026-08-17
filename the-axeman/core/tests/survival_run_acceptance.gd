@@ -46,7 +46,6 @@ class MockArena:
 	var waiting: Dictionary = {}
 	var paused := true
 	var last_hazard_delta := 0.0
-	var last_hazard_speed := 1.0
 	var boundary_timers_paused := false
 	var priority_id: StringName = &""
 
@@ -79,16 +78,8 @@ class MockArena:
 	func highest_risk_outside_log_id() -> StringName:
 		return priority_id if waiting.has(priority_id) else &""
 
-	func claim_highest_risk_for_splitter() -> LogDescriptor:
-		var ids := eligible_log_ids()
-		return null if ids.is_empty() else claim_for_block(ids[0])
-
-	func blast(_origin: Vector3, _direction: Vector3, _impulse: float) -> bool:
-		return not waiting.is_empty()
-
-	func advance_hazards(delta: float, speed: float) -> void:
+	func advance_hazards(delta: float) -> void:
 		last_hazard_delta = delta
-		last_hazard_speed = speed
 
 	func set_hazards_paused(value: bool) -> void:
 		paused = value
@@ -173,24 +164,24 @@ func _test_descriptor_and_real_arena() -> void:
 		if left < 0.0: reset_seen[0] = true)
 	arena.set_hazards_paused(false)
 	body.global_position = Vector3(tuning.boundary_radius + 0.2, 0.5, 0.0)
-	arena.advance_hazards(4.9, 1.0)
+	arena.advance_hazards(4.9)
 	_check(not bool(expired[0]) and body.boundary_exposure > 4.8,
 		"a loose whole log survives until its continuous grace expires")
 	body.global_position = Vector3.ZERO
-	arena.advance_hazards(0.1, 1.0)
+	arena.advance_hazards(0.1)
 	_check(is_zero_approx(body.boundary_exposure) and bool(reset_seen[0]),
 		"re-entering the boundary fully resets that log's timer")
 	body.global_position = Vector3(tuning.boundary_radius + 0.2, 0.5, 0.0)
 	body.landed = false
 	arena.set_boundary_timers_paused(true)
-	arena.advance_hazards(5.0, 1.0)
+	arena.advance_hazards(5.0)
 	_check(is_zero_approx(body.boundary_exposure) and not bool(expired[0]),
 		"the boundary countdown freezes while a completed log changes over")
 	arena.set_boundary_timers_paused(false)
-	arena.advance_hazards(0.2, 1.0)
+	arena.advance_hazards(0.2)
 	_check(arena.highest_risk_outside_log_id() == descriptor.id,
 		"an out-of-bounds log is the next manual rescue priority even while settling")
-	arena.advance_hazards(4.8, 1.0)
+	arena.advance_hazards(4.8)
 	_check(bool(expired[0]), "five continuous outside seconds emits the death breach")
 	arena.clear_all()
 	arena.queue_free()
@@ -201,10 +192,10 @@ func _test_descriptor_and_real_arena() -> void:
 func _test_migration_contract() -> void:
 	var legacy := {
 		"cash": 999999,
-		"tool_tiers": {Enums.ToolType.AXE: 3},
+		"tool_tiers": {0: 3},
 		"building_tiers": {
-			String(GameState.UPGRADE_BALANCED_AXE): 2,
-			String(GameState.UPGRADE_SUPPLIER_LEDGER): 2,
+			"balanced_axe": 2,
+			"supplier_ledger": 2,
 			"mission_control": 7,
 		},
 		"owned_species": ["quaking_aspen", "spiralwood"],
@@ -229,9 +220,10 @@ func _test_migration_contract() -> void:
 		and bool(legacy_records.get("earth", {}).get("earth_cleared", false))
 		and int(legacy_records.get("source_version", -1)) == 17,
 		"v17 retires old equipment, Woods, and Earth while preserving read-only records")
-	_check(Market.get_price(&"aspen_firewood") > 0
-		and Market.get_price(&"spiralwood_firewood") == 0,
-		"only the 25 terrestrial species remain in the live market")
+	_check(InventoryManager.is_valid_id(&"aspen_firewood")
+		and not InventoryManager.is_valid_id(&"spiralwood_firewood")
+		and SpeciesTable.count() == 25,
+		"only the 25 terrestrial species remain in live content")
 
 
 func _test_run_lifecycle() -> void:
@@ -239,7 +231,6 @@ func _test_run_lifecycle() -> void:
 	InventoryManager.apply_save_dict({})
 	var tuning := (load("res://data/survival_run_tuning_placeholder.tres") as SurvivalRunTuning).duplicate(true)
 	tuning.delivery_intervals = PackedFloat32Array([2.0, 1.5, 1.0, 0.5])
-	tuning.splitter_base_chance = 1.0
 	var chopping := MockChopping.new()
 	var arena := MockArena.new()
 	var run := RunDirector.new()
@@ -321,9 +312,8 @@ func _test_run_lifecycle() -> void:
 	var first := chopping.staged
 	var first_result := run.complete_manual_log(first, 4)
 	_check(int(first_result.get("cash_total", 0)) > 0
-		and run.get_cash() == int(first_result.get("cash_total", 0))
-		and int(run.get_powerup_state().slow_charges) == 0,
-		"manual completion commits one fixed root payout without retired powerups")
+		and run.get_cash() == int(first_result.get("cash_total", 0)),
+		"manual completion commits one fixed root payout")
 	var completed_species := SpeciesTable.by_id(first.species_id)
 	var session_cash_after_completion := run.get_cash()
 	var displayed_cash_shares := 0
@@ -337,8 +327,6 @@ func _test_run_lifecycle() -> void:
 		"landed coin receipts validate inventory and display every share without paying twice")
 	_check(arena.boundary_timers_paused,
 		"manual completion pauses only the boundary danger timer during changeover")
-	_check(not run.activate_slow_time(),
-		"retired Slow Time cannot activate during a survivors attempt")
 	var before_ms := run.elapsed_ms()
 	run.set("_delivery_seconds_left", 2.0)
 	run._process(1.0)
@@ -346,7 +334,7 @@ func _test_run_lifecycle() -> void:
 		and is_equal_approx(arena.last_hazard_delta, 1.0)
 		and is_equal_approx(float(run.to_save_dict().delivery_seconds_left),
 			1.0),
-		"retired Slow Time no longer alters hazards or the stage clock")
+		"hazards and the stage clock advance from the same unscaled run delta")
 
 	var paused_at := run.elapsed_ms()
 	run.pause_attempt()
@@ -371,12 +359,14 @@ func _test_run_lifecycle() -> void:
 	_check(not arena.boundary_timers_paused,
 		"the danger timer resumes when the replacement log lands on the block")
 
-	run.award_cash(tuning.splitter_purchase_cost + 10)
+	run.award_cash(10)
 	var purse_before_failure := run.get_cash()
-	_check(not run.purchase_splitter() and not run.try_spend_cash(1)
-		and not bool(run.get_splitter_state().installed)
+	_check(not run.has_method("purchase_splitter")
+		and not run.has_method("try_spend_cash")
+		and not run.has_method("activate_slow_time")
+		and not run.has_method("fire_blaster")
 		and run.get_cash() == purse_before_failure,
-		"session cash cannot buy the retired run splitter or be spent during play")
+		"retired splitter, Slow Time, Blaster, and in-run spending seams are absent")
 	var profile_before_failure := GameState.to_save_dict()
 	_check(not profile_before_failure.has("xp")
 		and not profile_before_failure.has("skill_levels")
@@ -392,9 +382,7 @@ func _test_run_lifecycle() -> void:
 		and GameState.get_home_cash() == purse_before_failure,
 		"an expired boundary timer settles the full session purse exactly once")
 	run.start_attempt(99)
-	_check(run.get_cash() == 0 and not bool(run.get_splitter_state().installed)
-		and int(run.get_powerup_state().slow_charges) == 0
-		and run.get_xp() == 0 and run.get_level() == 1
+	_check(run.get_cash() == 0 and run.get_xp() == 0 and run.get_level() == 1
 		and GameState.get_home_cash() == purse_before_failure
 		and GameState.get_unlocked_run_powers().size() == 14,
 		"death restart resets disposable state while the settled home profile survives")
@@ -406,11 +394,11 @@ func _test_run_lifecycle() -> void:
 	var clear_events := [0]
 	run.stage_cleared.connect(func(_ms: int) -> void: clear_events[0] += 1)
 	run._process(0.1)
-	_check(run.phase == RunDirector.Phase.EARTH_CLEAR and run.is_paused()
-		and int(clear_events[0]) == 1 and run.earth_clear_ms() >= 0,
+	_check(run.phase == RunDirector.Phase.STAGE_CLEAR and run.is_paused()
+		and int(clear_events[0]) == 1 and run.stage_clear_ms() >= 0,
 		"the 15-minute stage boundary pauses once for the cash-out decision")
 	run.resume_attempt()
-	_check(run.phase == RunDirector.Phase.EARTH_CLEAR and run.is_paused(),
+	_check(run.phase == RunDirector.Phase.STAGE_CLEAR and run.is_paused(),
 		"generic resume cannot silently choose endless at stage clear")
 	run.continue_endless()
 	_check(run.phase == RunDirector.Phase.OVERFLOW and not run.is_paused(),

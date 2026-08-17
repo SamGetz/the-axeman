@@ -55,7 +55,7 @@ const _RANK_ONE_EFFECTS := {
 	},
 	&"flying_wedge": {
 		ProgressionEffectDef.Kind.FLYING_WEDGE_INTERVAL: 12.0,
-		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT: 6.0,
+		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT: 1.0,
 	},
 	&"yard_magnet": {
 		ProgressionEffectDef.Kind.YARD_MAGNET_FORCE: 0.1,
@@ -176,7 +176,7 @@ func _run_scenario() -> bool:
 	await _test_periodic_and_completion_powers()
 	await _test_area_size_and_new_aoe_powers()
 	await _test_boosted_single_target_receipts()
-	await _test_pending_power_cut_handoff()
+	await _test_off_block_destruction_and_migration()
 	await _test_capped_automatic_completion()
 	await _test_momentum_rescue_and_persistence()
 	return true
@@ -532,7 +532,7 @@ func _test_quality_offer_headroom() -> void:
 			ProgressionEffectDef.Kind.RESCUE_CHARGES), 4.0),
 		"quality value persists past the Common endpoint and every nominal rank still changes gameplay")
 
-	# Flying Wedge's six-cut payload is intentionally fixed; this quality history
+	# Flying Wedge's one-log payload is intentionally fixed; this quality history
 	# proves its separate interval ladder still gives every offered rank a real
 	# gameplay improvement without multiplying one wedge into multiple removals.
 	_run.start_attempt(61802)
@@ -558,7 +558,7 @@ func _test_quality_offer_headroom() -> void:
 		and _run.choose_run_offer(&"flying_wedge") \
 		and _run.get_run_power_rank(&"flying_wedge") == 6 \
 		and is_equal_approx(_run.get_effect(
-			ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT), 6.0),
+			ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT), 1.0),
 		"every visible offer's exact rolled quality changes at least one gameplay effect")
 
 	# Five Legendary Quick Hands picks reach the production recovery ceiling at
@@ -689,8 +689,7 @@ func _test_direct_cut_powers() -> void:
 		"Double Chop rank one adds one guaranteed real descendant cut")
 
 	# A high-quality first pick can grant more cuts than the current block can
-	# geometrically accept. Those authored cuts remain real work: they move to the
-	# most endangered loose root instead of disappearing at the stump.
+	# geometrically accept. Every unused unit now destroys one ordered loose log.
 	var spill_selected := false
 	for seed: int in range(68151, 68251):
 		_run.start_attempt(seed)
@@ -715,6 +714,8 @@ func _test_direct_cut_powers() -> void:
 		spill_safe.boundary_exposure = 0.25
 	if spill_endangered != null:
 		spill_endangered.boundary_exposure = 3.0
+	var spill_safe_id := _body_id(spill_safe)
+	var spill_endangered_id := _body_id(spill_endangered)
 	var block_pieces: Variant = _game.get("_on_block")
 	var block_meshes: Array[Mesh] = []
 	if block_pieces is Array:
@@ -734,13 +735,11 @@ func _test_direct_cut_powers() -> void:
 		ProgressionEffectDef.Kind.GUARANTEED_EXTRA_CUTS))))
 	_check(spill_selected and _run.get_run_power_rank(&"double_chop") == 1 \
 		and spill_count > 1 and immediate_spill_cuts == 0 \
-		and int(_arena_body_state(_body_id(spill_endangered)).get(
-			"pending_power_cuts", 0)) == spill_count \
-		and int(_arena_body_state(_body_id(spill_safe)).get(
-			"pending_power_cuts", 0)) == 0 \
+		and _arena_body_state(spill_endangered_id).is_empty() \
+		and _arena_body_state(spill_safe_id).is_empty() \
 		and _trigger_count(&"double_chop") == 1 \
 		and _has_power_burst(&"double_chop"),
-		"Legendary Double Chop rank one spills every unused cut to the most endangered loose root")
+		"Legendary Double Chop rank one turns unused block cuts into immediate ordered loose-log destruction")
 
 	# Follow-Up uses its production repeat-swing branch; the forced roll removes
 	# chance from the test while retaining the rank-one depth of one.
@@ -755,30 +754,39 @@ func _test_direct_cut_powers() -> void:
 		and _has_power_burst(&"follow_up"),
 		"Follow-Up rank one fires one repeat swing and produces another real cut")
 
-	# Splinters leave the block and immediately slice a physical loose root. A
-	# partial root keeps the successful cut receipt so block claiming can rebuild
-	# the same amount of progress rather than losing it.
+	# Splinters leave the block and immediately destroy physical loose roots.
 	await _fresh_power(&"splinter_volley", 1, 63005)
+	_game.call("_clear_finished_firewood")
 	var splinter_body := _spawn_loose_body()
 	_game.set("debug_split_roll", 1)
 	# Splinter Volley has no chance roll: even the shared forced-miss seam cannot
 	# suppress a successful primary strike.
 	_game.set("debug_force_proc", 0)
 	var splinter_id := _body_id(splinter_body)
+	var splinter_descriptor := splinter_body.descriptor \
+		if splinter_body != null else null
+	var splinter_cash_before := _run.get_cash()
+	var splinter_xp_before := _run.get_xp()
 	var root_split := bool(_game.call("debug_swing_world", _centre_cut_plane()))
 	var splinter_state := _arena_body_state(splinter_id)
-	var splinter_descriptor := _arena.claim_for_block(splinter_id)
-	_game.call("stage_run_log", splinter_descriptor, false)
-	var pending_on_block := int(_game.call("debug_pending_power_cuts"))
-	var precut_before := int(_game.call("piece_count"))
-	_game.call("_apply_pending_descriptor_power_cuts")
-	var precut_after := int(_game.call("piece_count"))
-	_check(root_split and int(splinter_state.get("pending_power_cuts", 0)) == 1 \
-		and int(splinter_state.get("piece_count", 0)) == 2 \
-		and int(splinter_state.get("power_cut_flash_count", 0)) == 1 \
-		and _trigger_count(&"splinter_volley") == 1 and pending_on_block == 1 \
-		and precut_after > precut_before,
-		"every successful strike fires Rank 1 Splinter Volley into the nearest loose root, with partial progress surviving its later block claim")
+	var splinter_parts := int(_game.debug_finished_piece_state().get("count", 0))
+	_check(root_split and splinter_state.is_empty() \
+		and splinter_descriptor != null \
+		and splinter_parts >= 2 and splinter_parts <= 6 \
+		and _run.get_cash() == splinter_cash_before \
+			+ splinter_descriptor.cash_reward_snapshot \
+		and _run.get_xp() == splinter_xp_before \
+			+ splinter_descriptor.xp_reward_snapshot \
+		and _trigger_count(&"splinter_volley") == 1,
+		"every successful strike makes Rank 1 Splinter Volley immediately destroy, reward, and randomly fragment its nearest loose log [split=%s state=%s descriptor=%s parts=%d cash=%d→%d/%d xp=%d→%d/%d triggers=%d]" % [
+			root_split, splinter_state, splinter_descriptor != null,
+			splinter_parts, splinter_cash_before, _run.get_cash(),
+			splinter_descriptor.cash_reward_snapshot \
+				if splinter_descriptor != null else -1,
+			splinter_xp_before, _run.get_xp(),
+			splinter_descriptor.xp_reward_snapshot \
+				if splinter_descriptor != null else -1,
+			_trigger_count(&"splinter_volley")])
 
 
 func _test_physics_and_boundary_powers() -> void:
@@ -1104,11 +1112,11 @@ func _test_physics_and_boundary_powers() -> void:
 		ring_body.freeze = true
 		ring_body.global_position = Vector3(base_radius + 0.06, 0.4, 0.0)
 		ring_body.boundary_exposure = 0.0
-	_arena.advance_hazards(0.2, 1.0)
+	_arena.advance_hazards(0.2)
 	var inside_exposure := ring_body.boundary_exposure if ring_body != null else -1.0
 	if ring_body != null:
 		ring_body.global_position = Vector3(base_radius + 0.20, 0.4, 0.0)
-	_arena.advance_hazards(base_grace + 0.20, 1.0)
+	_arena.advance_hazards(base_grace + 0.20)
 	_check(is_equal_approx(float(ring_arena.get("boundary_radius", 0.0)),
 			base_radius + 0.12) \
 		and is_equal_approx(float(ring_arena.get("boundary_grace", 0.0)),
@@ -1167,36 +1175,6 @@ func _test_reward_and_grain_powers() -> void:
 		and grain_split and grain_bonus == expected_grain_bonus \
 		and _run.get_xp() == grain_before_xp + grain_bonus,
 		"Grain Reader rank one draws a visible valid mark whose cut guarantees a split and bonus XP")
-
-	# Permanent Golden Grain is retired from live chance composition, but old
-	# provenance still has to remain safe when an owned R1 run card coexists with
-	# it. Drive that preserved source explicitly and prove the run multiplier does
-	# not replace or downgrade its authored payout.
-	await _fresh_power(&"grain_reader", 1, 65004)
-	_game.set("debug_force_grain", 1)
-	_game.call("debug_hold_grain_cue")
-	_game.set("_grain_offer_source", &"grain_read")
-	var permanent_source := StringName(_game.call("debug_grain_offer_source"))
-	var permanent_descriptor := _game.get("_current_descriptor") as LogDescriptor
-	var permanent_base_xp := _descriptor_base_xp(permanent_descriptor)
-	var permanent_proc := M7CContent.procs().by_id(&"grain_read") \
-		if M7CContent.procs() != null else null
-	var permanent_multiplier := float(_game.call(
-		"_manual_xp_multiplier", permanent_proc)) if permanent_proc != null else 0.0
-	var permanent_before_xp := _run.get_xp()
-	var permanent_split := bool(_game.call(
-		"debug_slice_world", _centre_cut_plane()))
-	var permanent_bonus := int(_game.call("debug_last_grain_bonus"))
-	var expected_permanent_bonus := int(round(float(int(round(
-		float(permanent_base_xp) * permanent_multiplier))) \
-		* _run.tuning.global_xp_gain_multiplier))
-	_check(permanent_source == &"grain_read" and permanent_multiplier > 1.50 \
-		and permanent_split \
-		and permanent_bonus == expected_permanent_bonus \
-		and permanent_bonus > grain_bonus \
-		and _run.get_xp() == permanent_before_xp + permanent_bonus,
-		"R1 Grain Reader keeps run and permanent mark provenance independent and never downgrades a permanent Golden Grain payout")
-
 
 func _test_grain_suspend_restore() -> void:
 	await _fresh_power(&"grain_reader", 1, 65501)
@@ -1303,6 +1281,7 @@ func _test_periodic_and_completion_powers() -> void:
 		wedge_endangered.boundary_exposure = 3.0
 		wedge_endangered.global_position = Vector3(1.5, 0.4, 0.5)
 	var wedge_endangered_id := _body_id(wedge_endangered)
+	var wedge_safe_id := _body_id(wedge_safe)
 	var wedge_descriptor := wedge_endangered.descriptor \
 		if wedge_endangered != null else null
 	var wedge_origin := wedge_endangered.global_position \
@@ -1317,13 +1296,12 @@ func _test_periodic_and_completion_powers() -> void:
 	var wedge_left := float((_runtime_state().get(
 		"periodic_seconds_left", {}) as Dictionary).get("flying_wedge", -1.0))
 	_advance_power_time(maxf(0.0, wedge_left - 0.01))
-	var wedge_early := int(_arena_body_state(_body_id(wedge_endangered)).get(
+	var wedge_early := int(_arena_body_state(wedge_endangered_id).get(
 		"pending_power_cuts", 0))
 	_advance_power_time(0.02)
 	var wedge_endangered_removed := _arena_body_state(
 		wedge_endangered_id).is_empty()
-	var wedge_safe_cuts := int(_arena_body_state(
-		_body_id(wedge_safe)).get("pending_power_cuts", 0))
+	var wedge_safe_state := _arena_body_state(wedge_safe_id)
 	var wedge_burst := _latest_power_burst(&"flying_wedge")
 	var wedge_action := wedge_burst.get_node_or_null("ActionSilhouette") \
 		as Node3D if wedge_burst != null else null
@@ -1338,8 +1316,9 @@ func _test_periodic_and_completion_powers() -> void:
 	_check(wedge_left > 0.01 and wedge_early == 0 \
 		and wedge_endangered_removed \
 		and wedge_descriptor != null \
-		and wedge_descriptor.pending_power_cuts == 5 \
-		and wedge_safe_cuts == 0 \
+		and wedge_descriptor.pending_power_cuts >= 1 \
+		and wedge_descriptor.pending_power_cuts <= 5 \
+		and not wedge_safe_state.is_empty() \
 		and int(_game.call("piece_count")) == wedge_pieces \
 		and _run.get_cash() == wedge_cash_before \
 			+ wedge_descriptor.cash_reward_snapshot \
@@ -1347,10 +1326,11 @@ func _test_periodic_and_completion_powers() -> void:
 			+ wedge_descriptor.xp_reward_snapshot \
 		and _trigger_count(&"flying_wedge") == 1 and wedge_visual \
 		and _power_burst_count(&"flying_wedge") == wedge_bursts_before + 1,
-		"Flying Wedge rank one waits 12 seconds, drives its fixed six-cut payload into the most endangered loose root, removes it on the fifth completed slice, pays once, and presents one anchored wedge silhouette [left=%.3f early=%d removed=%s cuts=%d safe=%d triggers=%d bursts=%d→%d visual=%s]" % [
+		"Flying Wedge rank one waits 12 seconds, immediately destroys and randomly fragments the most endangered loose root, pays once, and presents one anchored wedge silhouette [left=%.3f early=%d removed=%s fragments=%d safe=%s triggers=%d bursts=%d→%d visual=%s]" % [
 			wedge_left, wedge_early, wedge_endangered_removed,
-			wedge_descriptor.pending_power_cuts if wedge_descriptor != null else -1,
-			wedge_safe_cuts,
+			(wedge_descriptor.pending_power_cuts + 1) \
+				if wedge_descriptor != null else -1,
+			not wedge_safe_state.is_empty(),
 			_trigger_count(&"flying_wedge"), wedge_bursts_before,
 			_power_burst_count(&"flying_wedge"), wedge_visual])
 
@@ -1390,16 +1370,18 @@ func _test_periodic_and_completion_powers() -> void:
 		and shaker_prepared and shaker_split and shaker_cuts >= 3 \
 		and shaker_state.is_empty() \
 		and shaker_descriptor != null \
-		and shaker_descriptor.pending_power_cuts == 5 \
+		and shaker_descriptor.pending_power_cuts >= 1 \
+		and shaker_descriptor.pending_power_cuts <= 5 \
 		and shaker_descriptor.pending_power_scars == 0 \
-		and shaker_descriptor.pending_power_cut_sources.size() == 5 \
+		and shaker_descriptor.pending_power_cut_sources.size() \
+			== shaker_descriptor.pending_power_cuts \
 		and shaker_descriptor.pending_power_cut_sources.all(
 			func(source: StringName) -> bool: return source == &"earthshaker") \
 		and shaker_triggered == 1,
-		"Earthshaker R1 counts a real R1 Legendary Double Chop sequence, then completes the affected loose root with five real cuts and retires its collider [prepared=%s split=%s sequence=%d removed=%s power_cuts=%d scars=%d triggers=%d]" % [
+		"Earthshaker R1 counts a real R1 Legendary Double Chop sequence, then immediately destroys and randomly fragments the affected loose root [prepared=%s split=%s sequence=%d removed=%s fragments=%d scars=%d triggers=%d]" % [
 			shaker_prepared, shaker_split, shaker_cuts,
 			shaker_state.is_empty(),
-			shaker_descriptor.pending_power_cuts \
+			(shaker_descriptor.pending_power_cuts + 1) \
 				if shaker_descriptor != null else -1,
 			shaker_descriptor.pending_power_scars \
 				if shaker_descriptor != null else -1,
@@ -1414,27 +1396,29 @@ func _test_periodic_and_completion_powers() -> void:
 	if keg_b != null:
 		keg_b.global_position = Vector3(-0.8, 0.4, 0.0)
 		keg_b.linear_velocity = Vector3.ZERO
+	var keg_a_id := _body_id(keg_a)
+	var keg_b_id := _body_id(keg_b)
 	var active_descriptor := _game.get("_current_descriptor") as LogDescriptor
 	var keg_receipt := _run.on_manual_root_completed(active_descriptor, Vector3.ZERO)
-	var keg_cuts := int(_arena_body_state(_body_id(keg_a)).get(
-		"pending_power_cuts", 0)) + int(_arena_body_state(_body_id(keg_b)).get(
-		"pending_power_cuts", 0))
-	_check(not keg_receipt.is_empty() and keg_cuts == 2 \
-		and keg_a.linear_velocity.x < -1.99 and keg_b.linear_velocity.x > 1.99 \
+	var keg_logs := _cut_receipt_total((keg_receipt.get(
+		"powder_keg", {}) as Dictionary).get("cuts", []))
+	_check(not keg_receipt.is_empty() and keg_logs == 2 \
+		and _arena_body_state(keg_a_id).is_empty() \
+		and _arena_body_state(keg_b_id).is_empty() \
 		and _trigger_count(&"powder_keg") == 1,
-		"Powder Keg rank one makes a two-cut visible inward completion burst")
+		"Powder Keg rank one immediately destroys two nearby loose logs")
 
 	await _fresh_power(&"kindling_chain", 1, 66004)
 	var chain_body := _spawn_loose_body()
 	if chain_body != null:
 		chain_body.global_position = Vector3(0.8, 0.4, 0.0)
+	var chain_body_id := _body_id(chain_body)
 	var chain_descriptor := _game.get("_current_descriptor") as LogDescriptor
 	var chain_receipt := _run.on_manual_root_completed(chain_descriptor, Vector3.ZERO)
 	_check(not chain_receipt.is_empty() \
-		and int(_arena_body_state(_body_id(chain_body)).get(
-			"pending_power_cuts", 0)) == 1 \
+		and _arena_body_state(chain_body_id).is_empty() \
 		and _trigger_count(&"kindling_chain") == 1,
-		"Kindling Chain rank one sends one sequential real cut to a nearby root")
+		"Kindling Chain rank one immediately destroys one nearby loose log")
 
 	await _fresh_power(&"whirling_axe", 1, 66005)
 	var orbit_root := _game.get_node_or_null("RunPowerOrbitingAxes") as Node3D
@@ -1458,8 +1442,10 @@ func _test_periodic_and_completion_powers() -> void:
 	var opposite_state := _arena_body_state(opposite_id)
 	_check(orbit_visible and orbit_state.is_empty() \
 		and orbit_descriptor != null \
-		and orbit_descriptor.pending_power_cuts == 5 \
-		and orbit_descriptor.pending_power_cut_sources.size() == 5 \
+		and orbit_descriptor.pending_power_cuts >= 1 \
+		and orbit_descriptor.pending_power_cuts <= 5 \
+		and orbit_descriptor.pending_power_cut_sources.size() \
+			== orbit_descriptor.pending_power_cuts \
 		and orbit_descriptor.pending_power_cut_sources.all(
 			func(source: StringName) -> bool: return source == &"whirling_axe") \
 		and int(opposite_state.get("pending_power_cuts", 0)) == 0 \
@@ -1538,9 +1524,11 @@ func _test_periodic_and_completion_powers() -> void:
 		and sweep_first_after.is_empty() \
 		and sweep_second_state.is_empty() \
 		and sweep_first_descriptor != null \
-		and sweep_first_descriptor.pending_power_cuts == 5 \
+		and sweep_first_descriptor.pending_power_cuts >= 1 \
+		and sweep_first_descriptor.pending_power_cuts <= 5 \
 		and sweep_second_descriptor != null \
-		and sweep_second_descriptor.pending_power_cuts == 5 \
+		and sweep_second_descriptor.pending_power_cuts >= 1 \
+		and sweep_second_descriptor.pending_power_cuts <= 5 \
 		and sweep_block_cuts > 1 and sweep_block_completed \
 		and _trigger_count(&"crosscut_sweep") == 2 \
 		and sweep_first_visual and sweep_second_visual \
@@ -1559,12 +1547,14 @@ func _test_periodic_and_completion_powers() -> void:
 		maul_boss.descriptor.boss_id = &"acceptance_boss"
 		maul_boss.descriptor.boss_tier = 1
 		maul_boss.global_position = Vector3(1.6, 0.4, -0.6)
+	var maul_boss_id := _body_id(maul_boss)
+	var maul_normal_id := _body_id(maul_hard_normal)
+	var maul_boss_position := maul_boss.global_position \
+		if maul_boss != null else Vector3.INF
 	var maul_bursts_before := _power_burst_count(&"maul_drop")
 	_advance_power_time(18.01)
-	var maul_boss_cuts := int(_arena_body_state(_body_id(maul_boss)).get(
-		"pending_power_cuts", 0))
-	var maul_normal_cuts := int(_arena_body_state(
-		_body_id(maul_hard_normal)).get("pending_power_cuts", 0))
+	var maul_boss_removed := _arena_body_state(maul_boss_id).is_empty()
+	var maul_normal_removed := _arena_body_state(maul_normal_id).is_empty()
 	var maul_burst := _latest_power_burst(&"maul_drop")
 	var maul_action := maul_burst.get_node_or_null("ActionSilhouette") \
 		as Node3D if maul_burst != null else null
@@ -1573,13 +1563,12 @@ func _test_periodic_and_completion_powers() -> void:
 		and maul_action.get_node_or_null("MaulHandle") is MeshInstance3D \
 		and _action_visual_contract(maul_burst,
 			[&"MaulHead", &"MaulHandle"], true) \
-		and maul_boss != null \
-		and maul_burst.global_position.distance_to(maul_boss.global_position) < 0.2
-	_check(maul_boss_cuts == 3 and maul_normal_cuts == 0 \
+		and maul_burst.global_position.distance_to(maul_boss_position) < 0.2
+	_check(maul_boss_removed and maul_normal_removed \
 		and int(_game.call("piece_count")) == maul_pieces \
 		and _trigger_count(&"maul_drop") == 1 and maul_visual \
 		and _power_burst_count(&"maul_drop") == maul_bursts_before + 1,
-		"Maul Drop rank one targets a waiting boss before the active block and presents one anchored maul silhouette")
+		"Maul Drop rank one immediately destroys up to three hardest loose logs, boss first, and presents one anchored maul silhouette")
 
 	await _fresh_power(&"stump_pulse", 1, 66008)
 	var pulse_body := _spawn_loose_body()
@@ -1603,6 +1592,9 @@ func _test_periodic_and_completion_powers() -> void:
 		rig_remaining.global_position = Vector3(0.4, 0.4, 0.0)
 		rig_remaining.boundary_exposure = 0.1
 	var rig_descriptor := rig_body.descriptor if rig_body != null else null
+	var rig_remaining_descriptor := rig_remaining.descriptor \
+		if rig_remaining != null else null
+	var rig_remaining_id := _body_id(rig_remaining)
 	var rig_origin := rig_body.global_position if rig_body != null else Vector3.INF
 	var rig_cash_before := _run.get_cash()
 	var rig_xp_before := _run.get_xp()
@@ -1613,9 +1605,7 @@ func _test_periodic_and_completion_powers() -> void:
 	var rig_left := float((_runtime_state().get(
 		"periodic_seconds_left", {}) as Dictionary).get("splitter_rig", -1.0))
 	_advance_power_time(rig_left + 0.01)
-	var rig_remaining_state := _arena_body_state(_body_id(rig_remaining))
-	var rig_sources: Variant = rig_remaining_state.get(
-		"pending_power_cut_sources", [])
+	var rig_remaining_state := _arena_body_state(rig_remaining_id)
 	var rig_burst := _latest_power_burst(&"splitter_rig")
 	var rig_cash_after := _run.get_cash()
 	var rig_xp_after := _run.get_xp()
@@ -1623,28 +1613,28 @@ func _test_periodic_and_completion_powers() -> void:
 		rig_descriptor, &"splitter_rig") as Dictionary \
 		if rig_descriptor != null else {}
 	_check(rig_setup and rig_descriptor != null and rig_left > 0.0 \
-		and _arena.loose_log_count() == rig_count_before - 1 \
+		and _arena.loose_log_count() == rig_count_before - 2 \
 		and rig_descriptor.has_transfer_pose() \
 		and rig_descriptor.transfer_from.is_equal_approx(rig_origin) \
+		and rig_remaining_descriptor != null \
 		and rig_cash_after == rig_cash_before \
 			+ rig_descriptor.cash_reward_snapshot \
+			+ rig_remaining_descriptor.cash_reward_snapshot \
 		and rig_xp_after == rig_xp_before + rig_descriptor.xp_reward_snapshot \
+			+ rig_remaining_descriptor.xp_reward_snapshot \
 		and duplicate_rig_receipt.is_empty() \
 		and _run.get_cash() == rig_cash_after and _run.get_xp() == rig_xp_after \
-		and int(rig_remaining_state.get("pending_power_cuts", 0)) == 3 \
-		and rig_sources is Array \
-		and (rig_sources as Array) \
-			== ["powder_keg", "powder_keg", "kindling_chain"] \
+		and rig_remaining_state.is_empty() \
 		and _trigger_count(&"splitter_rig") == 1 \
 		and _trigger_count(&"powder_keg") == 1 \
-		and _trigger_count(&"kindling_chain") == 1 \
+		and _trigger_count(&"kindling_chain") == 0 \
 		and _power_burst_count(&"splitter_rig") == rig_bursts_before + 1 \
 		and _power_burst_count(&"powder_keg") == rig_keg_bursts_before + 1 \
 		and _power_burst_count(&"kindling_chain") \
-			== rig_chain_bursts_before + 1 \
+			== rig_chain_bursts_before \
 		and rig_burst != null \
 		and rig_burst.global_position.distance_to(rig_origin) < 0.3,
-		"Splitter Rig preserves its off-block target pose, pays once, anchors one burst there, and dispatches source-neutral Powder Keg/Kindling exactly once")
+		"Splitter Rig preserves its target pose and payout; its source-neutral Powder Keg immediately destroys and pays the remaining loose log")
 
 
 func _test_area_size_and_new_aoe_powers() -> void:
@@ -1660,8 +1650,6 @@ func _test_area_size_and_new_aoe_powers() -> void:
 		halo_inside.global_position = Vector3(1.58, 0.4, 0.0)
 	if halo_outside != null:
 		halo_outside.global_position = Vector3(1.72, 0.4, 0.0)
-	var halo_precuts: Array = _arena.queue_power_cuts(&"acceptance_precut", 2,
-		Vector3.ZERO, INF, &"nearest_single", [])
 	_set_runtime_bursts_visible(_main, false)
 	_advance_power_time(12.01)
 	var halo_inside_state := _arena_body_state(halo_inside_id)
@@ -1671,17 +1659,17 @@ func _test_area_size_and_new_aoe_powers() -> void:
 		if halo_burst != null else null
 	_check(halo_added and is_equal_approx(_run.get_area_size_multiplier(), 1.1) \
 		and is_equal_approx(_run.scale_power_area(1.5), 1.65) \
-		and _cut_receipt_total(halo_precuts) == 2 \
 		and halo_inside_state.is_empty() \
 		and halo_inside_descriptor != null \
-		and halo_inside_descriptor.pending_power_cuts == 5 \
+		and halo_inside_descriptor.pending_power_cuts >= 1 \
+		and halo_inside_descriptor.pending_power_cuts <= 5 \
 		and halo_inside_descriptor.pending_power_cut_sources.count(
-			&"sawblade_halo") == 3 \
+			&"sawblade_halo") == halo_inside_descriptor.pending_power_cuts \
 		and int(halo_outside_state.get("pending_power_cuts", 0)) == 0 \
 		and _trigger_count(&"sawblade_halo") == 1 \
 		and halo_ring is MeshInstance3D \
 		and is_equal_approx(float(halo_burst.get("_action_span")), 1.65),
-		"Area Size R1 expands Sawblade Halo gameplay and its visible ring from 1.5m to 1.65m; Halo applies only the three remaining real cuts to complete a pre-cut target")
+		"Area Size R1 expands Sawblade Halo gameplay and its visible ring from 1.5m to 1.65m; Halo immediately destroys only roots inside it")
 	if DisplayServer.get_name() != "headless":
 		await get_tree().create_timer(0.12, true, false, true).timeout
 		await RenderingServer.frame_post_draw
@@ -1705,7 +1693,8 @@ func _test_area_size_and_new_aoe_powers() -> void:
 	_check(earth_added \
 		and earth_state.is_empty() \
 		and earth_descriptor != null \
-		and earth_descriptor.pending_power_cuts == 5 \
+		and earth_descriptor.pending_power_cuts >= 1 \
+		and earth_descriptor.pending_power_cuts <= 5 \
 		and earth_descriptor.pending_power_scars == 0 \
 		and earth_burst != null \
 		and earth_burst.get_node_or_null("ActionSilhouette/AreaRing") \
@@ -1740,32 +1729,33 @@ func _test_area_size_and_new_aoe_powers() -> void:
 	_check(timber_receipt.has("timber_burst") \
 		and timber_inside_state.is_empty() \
 		and timber_inside_descriptor != null \
-		and timber_inside_descriptor.pending_power_cuts == 5 \
+		and timber_inside_descriptor.pending_power_cuts >= 1 \
+		and timber_inside_descriptor.pending_power_cuts <= 5 \
 		and timber_chain_state.is_empty() \
 		and timber_chain_descriptor != null \
-		and timber_chain_descriptor.pending_power_cuts == 5 \
+		and timber_chain_descriptor.pending_power_cuts >= 1 \
+		and timber_chain_descriptor.pending_power_cuts <= 5 \
 		and int(timber_outside_state.get("pending_power_cuts", 0)) == 0 \
 		and _trigger_count(&"timber_burst") == 2 \
 		and timber_burst != null \
 		and timber_burst.get_node_or_null("ActionSilhouette/AreaRing") \
 			is MeshInstance3D \
 		and is_equal_approx(float(timber_burst.get("_action_span")), 1.2),
-		"Timber Burst R1 completes every loose root inside its AoE, drains follow-on completion chains without recursion, excludes disconnected roots, and shows the authored area")
+		"Timber Burst R1 immediately destroys every loose root inside its AoE, drains follow-on completion chains without recursion, excludes disconnected roots, and shows the authored area")
 
 
 func _test_boosted_single_target_receipts() -> void:
-	# Quality can make several cuts land on one descriptor. The arena correctly
-	# returns one target receipt with an aggregated `cuts` field; presentation must
-	# show that field's total rather than mistaking the one-element array for ×1.
+	# Quality scales destructive count values as whole logs, never as partial cuts
+	# accumulated on one descriptor.
 	var splinter_effect := await _forced_quality_rank_one_effect(
 		&"splinter_volley", ProgressionEffectDef.Kind.SPLINTER_COUNT,
 		RunOfferTuning.Quality.LEGENDARY, 67501)
-	var splinter_body := _spawn_loose_body()
-	var farther_splinter_body := _spawn_loose_body()
-	if splinter_body != null:
-		splinter_body.global_position = Vector3(0.6, 0.4, 0.0)
-	if farther_splinter_body != null:
-		farther_splinter_body.global_position = Vector3(1.6, 0.4, 0.0)
+	var splinter_ids: Array[StringName] = []
+	for index: int in range(5):
+		var body := _spawn_loose_body()
+		if body != null:
+			body.global_position = Vector3(0.5 + float(index) * 0.25, 0.4, 0.0)
+			splinter_ids.append(_body_id(body))
 	var splinter_bursts_before := _power_burst_count(&"splinter_volley")
 	var splinter_receipts: Array[Dictionary] = _run.trigger_splinter_volley(
 		Vector3.ZERO)
@@ -1789,21 +1779,19 @@ func _test_boosted_single_target_receipts() -> void:
 		if splinter_burst != null:
 			break
 		await get_tree().process_frame
+	var splinter_removed := 0
+	for id: StringName in splinter_ids:
+		if _arena_body_state(id).is_empty():
+			splinter_removed += 1
 	_check(is_equal_approx(splinter_effect, 4.0) \
-		and splinter_receipts.size() == 1 and splinter_total == 4 \
-		and int(_arena_body_state(_body_id(splinter_body)).get(
-			"pending_power_cuts", 0)) == 4 \
-		and int(_arena_body_state(_body_id(farther_splinter_body)).get(
-			"pending_power_cuts", 0)) == 0 \
+		and splinter_receipts.size() == 4 and splinter_total == 4 \
+		and splinter_removed == 4 \
 		and _trigger_count(&"splinter_volley") == 1 \
 		and splinter_projectile_count == 4 \
 		and splinter_burst != null and _burst_presents_amount(splinter_burst, 4),
-		"Legendary R1 Splinter Volley fires every time, visibly travels to the nearest loose root, and applies its four quality-scaled splits only there [effect=%.1f receipts=%d total=%d near=%d far=%d projectile=%d triggers=%d bursts=%d→%d label=%s]" % [
+		"Legendary R1 Splinter Volley visibly travels and immediately destroys its four nearest loose logs [effect=%.1f receipts=%d total=%d removed=%d projectile=%d triggers=%d bursts=%d→%d label=%s]" % [
 			splinter_effect, splinter_receipts.size(), splinter_total,
-			int(_arena_body_state(_body_id(splinter_body)).get(
-				"pending_power_cuts", 0)),
-			int(_arena_body_state(_body_id(farther_splinter_body)).get(
-				"pending_power_cuts", 0)), splinter_projectile_count,
+			splinter_removed, splinter_projectile_count,
 			_trigger_count(&"splinter_volley"), splinter_bursts_before,
 			_power_burst_count(&"splinter_volley"),
 			"missing" if splinter_burst == null else String((
@@ -1812,282 +1800,97 @@ func _test_boosted_single_target_receipts() -> void:
 	var keg_effect := await _forced_quality_rank_one_effect(
 		&"powder_keg", ProgressionEffectDef.Kind.POWDER_KEG_CUT_COUNT,
 		RunOfferTuning.Quality.LEGENDARY, 67701)
-	var boosted_keg_body := _spawn_loose_body()
-	if boosted_keg_body != null:
-		boosted_keg_body.global_position = Vector3(0.7, 0.4, 0.0)
+	var keg_ids: Array[StringName] = []
+	for index: int in range(3):
+		var body := _spawn_loose_body()
+		if body != null:
+			body.global_position = Vector3(0.5 + float(index) * 0.2, 0.4, 0.0)
+			keg_ids.append(_body_id(body))
 	var keg_bursts_before := _power_burst_count(&"powder_keg")
 	var boosted_keg_descriptor := _game.get("_current_descriptor") as LogDescriptor
 	var boosted_keg_receipt := _run.on_manual_root_completed(
-		boosted_keg_descriptor,
-		boosted_keg_body.global_position if boosted_keg_body != null \
-		else Vector3.ZERO)
+		boosted_keg_descriptor, Vector3.ZERO)
 	var keg_payload := boosted_keg_receipt.get("powder_keg", {}) as Dictionary
 	var keg_receipts: Array = keg_payload.get("cuts", [])
 	var keg_total := _cut_receipt_total(keg_receipts)
 	var keg_burst := _latest_power_burst(&"powder_keg")
 	_check(is_equal_approx(keg_effect, 8.0) \
-		and keg_receipts.size() == 1 and keg_total == 5 \
-		and _arena_body_state(_body_id(boosted_keg_body)).is_empty() \
+		and keg_receipts.size() == 3 and keg_total == 3 \
+		and keg_ids.all(func(id: StringName) -> bool:
+			return _arena_body_state(id).is_empty()) \
 		and _trigger_count(&"powder_keg") == 1 \
 		and _power_burst_count(&"powder_keg") == keg_bursts_before + 1 \
-		and _burst_presents_amount(keg_burst, 5),
-		"Legendary R1 Powder Keg offers eight cuts, but one loose target completes on the fifth applied slice and presents ×5")
+		and _burst_presents_amount(keg_burst, 3),
+		"Legendary R1 Powder Keg destroys every available in-range log up to its eight-log value")
 
 	var chain_effect := await _forced_quality_rank_one_effect(
 		&"kindling_chain", ProgressionEffectDef.Kind.KINDLING_CHAIN_COUNT,
 		RunOfferTuning.Quality.LEGENDARY, 67901)
-	var boosted_chain_body := _spawn_loose_body()
-	if boosted_chain_body != null:
-		boosted_chain_body.global_position = Vector3(0.7, 0.4, 0.0)
+	var chain_ids: Array[StringName] = []
+	for index: int in range(4):
+		var body := _spawn_loose_body()
+		if body != null:
+			body.global_position = Vector3(0.5 + float(index) * 0.2, 0.4, 0.0)
+			chain_ids.append(_body_id(body))
 	var chain_bursts_before := _power_burst_count(&"kindling_chain")
 	var boosted_chain_descriptor := _game.get(
 		"_current_descriptor") as LogDescriptor
 	var boosted_chain_receipt := _run.on_manual_root_completed(
-		boosted_chain_descriptor,
-		boosted_chain_body.global_position if boosted_chain_body != null \
-		else Vector3.ZERO)
+		boosted_chain_descriptor, Vector3.ZERO)
 	var chain_receipts: Array = boosted_chain_receipt.get(
 		"kindling_chain", [])
 	var chain_total := _cut_receipt_total(chain_receipts)
 	var chain_burst := _latest_power_burst(&"kindling_chain")
 	_check(is_equal_approx(chain_effect, 4.0) \
-		and chain_receipts.size() == 1 and chain_total == 4 \
-		and int(_arena_body_state(_body_id(boosted_chain_body)).get(
-			"pending_power_cuts", 0)) == 4 \
+		and chain_receipts.size() == 4 and chain_total == 4 \
+		and chain_ids.all(func(id: StringName) -> bool:
+			return _arena_body_state(id).is_empty()) \
 		and _trigger_count(&"kindling_chain") == 1 \
 		and _power_burst_count(&"kindling_chain") \
 			== chain_bursts_before + 1 \
 		and _burst_presents_amount(chain_burst, 4),
-		"Legendary R1 Kindling Chain aggregates four cuts on one target and presents ×4")
+		"Legendary R1 Kindling Chain immediately destroys four distinct logs and presents ×4")
 
 
-func _test_pending_power_cut_handoff() -> void:
+func _test_off_block_destruction_and_migration() -> void:
 	await _fresh_power(&"splinter_volley", 1, 66801)
-	var loose_body := _spawn_loose_body()
-	# Reproduce the real failure mode: a root lying at a compound world rotation
-	# must still receive the same mesh-local top-to-bottom cut as an upright root.
-	if loose_body != null:
-		loose_body.quaternion = Quaternion(
-			Vector3(0.37, 0.22, 0.90).normalized(), 0.91)
-	var loose_id := _body_id(loose_body)
-	var queued := _run.trigger_splinter_volley(
-		loose_body.global_position if loose_body != null else Vector3.ZERO)
-	if DisplayServer.get_name() != "headless" and loose_body != null:
-		loose_body.freeze = true
-		loose_body.global_position = Vector3(1.1, 0.45, 0.15)
-		_hud.hide()
-		_set_runtime_bursts_visible(_game, false)
-		await get_tree().process_frame
-		await get_tree().process_frame
-		var capture_error := get_viewport().get_texture().get_image().save_png(
-			"/private/tmp/axeman_off_block_power_cut_flash.png")
-		print("run_power_runtime_acceptance: off-block flash capture (%s)" %
-			error_string(capture_error))
-		await get_tree().create_timer(0.18, true, false, true).timeout
-		await get_tree().process_frame
-		capture_error = get_viewport().get_texture().get_image().save_png(
-			"/private/tmp/axeman_off_block_power_cut_split.png")
-		print("run_power_runtime_acceptance: off-block split capture (%s)" %
-			error_string(capture_error))
-		_set_runtime_bursts_visible(_game, true)
-		_hud.show()
-	var queued_descriptor := loose_body.descriptor if loose_body != null else null
-	var immediate_state := _arena_body_state(loose_id)
-	var queued_source_ok := queued_descriptor != null \
-		and queued_descriptor.pending_power_cuts == 1 \
-		and queued_descriptor.pending_power_cut_sources == [&"splinter_volley"]
-	var immediate_axis_ok := false
-	var immediate_local_plane_ok := false
-	var raw_axes: Variant = immediate_state.get("power_cut_axes", [])
-	if raw_axes is Array and (raw_axes as Array).size() == 1 \
-			and (raw_axes as Array)[0] is Vector3:
-		var axis := (raw_axes as Array)[0] as Vector3
-		immediate_axis_ok = is_zero_approx(axis.y) \
-			and (axis.is_equal_approx(Vector3.RIGHT) \
-				or axis.is_equal_approx(Vector3.FORWARD))
-		var raw_local_planes: Variant = immediate_state.get(
-			"power_cut_local_planes", [])
-		if raw_local_planes is Array and (raw_local_planes as Array).size() == 1 \
-				and (raw_local_planes as Array)[0] is Plane:
-			var local_plane := (raw_local_planes as Array)[0] as Plane
-			immediate_local_plane_ok = local_plane.normal.is_equal_approx(axis)
-	var arena_save: Dictionary = _arena.to_save_dict()
-	_arena.restore_from_save(arena_save)
-	var restored_loose_state := _arena_body_state(loose_id)
-	var claimed := _arena.claim_for_block(loose_id)
-	var restored_descriptor := LogDescriptor.from_save_dict(
-		claimed.to_dict()) if claimed != null else null
-	var serialized_source_ok := restored_descriptor != null \
-		and restored_descriptor.pending_power_cut_sources == [&"splinter_volley"]
-	var live_transfer_count := claimed.transfer_visual_meshes.size() \
-		if claimed != null else 0
-	var transfer_overlays_clear := claimed != null
-	if claimed != null:
-		for overlay: Material in claimed.transfer_visual_overlays:
-			transfer_overlays_clear = transfer_overlays_clear and overlay == null
-	if DisplayServer.get_name() != "headless":
-		# Retired pieces are presentation-only and may outlive an earlier assertion.
-		# Flush them before starting the handoff so both rendered captures isolate the
-		# claimed split root rather than photographing unrelated block debris.
-		_game.call("_clear_finished_firewood")
-		await get_tree().process_frame
-	_game.call("stage_run_log", claimed, true)
-	var live_handoff := _game.get("_run_handoff_visual") as Node3D
-	var live_handoff_meshes: Array[Node] = live_handoff.find_children(
-		"*", "MeshInstance3D", true, false) if live_handoff != null else []
-	var live_handoff_visual_count := live_handoff_meshes.size()
-	var live_handoff_geometry_matches := claimed != null \
-		and live_handoff != null and live_handoff.is_visible_in_tree() \
-		and live_handoff_visual_count == claimed.transfer_visual_meshes.size()
-	if claimed != null and live_handoff_geometry_matches:
-		for index: int in range(live_handoff_meshes.size()):
-			var handoff_mesh := live_handoff_meshes[index] as MeshInstance3D
-			live_handoff_geometry_matches = handoff_mesh != null \
-				and handoff_mesh.mesh != null and handoff_mesh.visible \
-				and handoff_mesh.mesh == claimed.transfer_visual_meshes[index] \
-				and handoff_mesh.transform.is_equal_approx(
-					claimed.transfer_visual_transforms[index]) \
-				and (handoff_mesh.get_meta("projection_offset", Vector3.ZERO) \
-					as Vector3).is_equal_approx(
-						claimed.transfer_visual_projection_offsets[index])
-	var rendered_lift_visible := true
-	var rendered_drop_visible := true
-	if DisplayServer.get_name() != "headless" and live_handoff != null:
-		_hud.hide()
-		_set_runtime_bursts_visible(_game, false)
-		var fallers := _game.get("_fallers") as Node3D
-		var finished_root := _game.get("_finished_firewood_root") as Node3D
-		if fallers != null:
-			fallers.hide()
-		if finished_root != null:
-			finished_root.hide()
-		var source_position := claimed.transfer_from
-		var target_position: Vector3 = _game.get("_run_handoff_target")
-		var offscreen_y := float(_game.call("_vertical_handoff_offscreen_y",
-			source_position, target_position, live_handoff))
-		var live_tween := _game.get("_run_handoff_tween") as Tween
-		if live_tween != null and live_tween.is_valid():
-			live_tween.kill()
-			_game.set("_run_handoff_tween", null)
-		# Lifecycle timing is exercised by survival_main_smoke. These deterministic
-		# checkpoints keep the rendered geometry audit independent of frame rate.
-		var lift_progress := clampf(0.45 / maxf(
-			offscreen_y - source_position.y, 0.001), 0.02, 0.65)
-		_game.call("_move_run_log_handoff_lift", lift_progress, live_handoff,
-			source_position, offscreen_y, claimed.transfer_rotation)
-		rendered_lift_visible = Vector2(live_handoff.global_position.x,
-			live_handoff.global_position.z).is_equal_approx(
-				Vector2(source_position.x, source_position.z)) \
-			and live_handoff.global_position.y > source_position.y
-		await get_tree().process_frame
-		await get_tree().process_frame
-		var handoff_capture_error := get_viewport().get_texture().get_image() \
-			.save_png("/private/tmp/axeman_split_log_handoff_lift.png")
-		rendered_lift_visible = rendered_lift_visible \
-			and handoff_capture_error == OK \
-			and live_handoff.is_visible_in_tree()
-		print("run_power_runtime_acceptance: split handoff lift capture (%s)" %
-			error_string(handoff_capture_error))
-		_game.call("_reposition_run_log_handoff",
-			int(_game.get("_run_handoff_generation")), live_handoff,
-			target_position, offscreen_y)
-		var drop_progress := clampf(
-			1.0 - 0.75 / maxf(offscreen_y - target_position.y, 0.001),
-			0.35, 0.98)
-		_game.call("_move_run_log_handoff_drop", drop_progress, live_handoff,
-			target_position, offscreen_y)
-		rendered_drop_visible = Vector2(live_handoff.global_position.x,
-			live_handoff.global_position.z).is_equal_approx(
-				Vector2(target_position.x, target_position.z)) \
-			and live_handoff.global_position.y > target_position.y
-		await get_tree().process_frame
-		await get_tree().process_frame
-		handoff_capture_error = get_viewport().get_texture().get_image() \
-			.save_png("/private/tmp/axeman_split_log_handoff_drop.png")
-		rendered_drop_visible = rendered_drop_visible \
-			and handoff_capture_error == OK \
-			and live_handoff.is_visible_in_tree()
-		print("run_power_runtime_acceptance: split handoff drop capture (%s)" %
-			error_string(handoff_capture_error))
-		if fallers != null:
-			fallers.show()
-		if finished_root != null:
-			finished_root.show()
-		_set_runtime_bursts_visible(_game, true)
-		_hud.show()
-	_game.call("_finish_active_run_handoff")
-	var live_landed_piece_count := int(_game.call("piece_count"))
-	_game.call("stage_run_log", restored_descriptor, false)
-	var staged_sources: Array[StringName] = _game.call(
-		"debug_pending_power_cut_sources")
-	var burst_count_before := _power_burst_count(&"splinter_volley")
-	_game.call("_apply_pending_descriptor_power_cuts")
-	var burst_after := _latest_power_burst(&"splinter_volley")
-	var source_cuts := int(_game.call(
-		"debug_last_run_power_cuts", &"splinter_volley"))
-	var neutral_cuts := int(_game.call("debug_last_run_power_cuts", &"precut"))
-	var burst_count_after := _power_burst_count(&"splinter_volley")
-	_check(not queued.is_empty() and queued_source_ok and immediate_axis_ok \
-		and immediate_local_plane_ok \
-		and int(immediate_state.get("piece_count", 0)) == 2 \
-		and int(immediate_state.get("power_cut_flash_count", 0)) == 1 \
-		and int(restored_loose_state.get("piece_count", 0)) == 2 \
-		and serialized_source_ok and live_transfer_count == 2 \
-		and transfer_overlays_clear \
-		and live_handoff_visual_count == 2 \
-		and live_handoff_geometry_matches and live_landed_piece_count == 2 \
-		and rendered_lift_visible and rendered_drop_visible \
-		and staged_sources == [&"splinter_volley"] \
-		and source_cuts == 1 and neutral_cuts == 0 \
-		and burst_after != null \
-		and burst_count_after == burst_count_before + 1 \
-		and burst_after.power_id == &"splinter_volley",
-		"off-block cuts on a compound-rotated root use its true local top-to-bottom frame, immediately create two real descendants, flash white, restore as split geometry, retain both pieces throughout live delivery, and preserve source progress for a later block claim [cut=%s source=%s serialized=%s transfer=%d live=%d landed=%d staged=%s cuts=%d neutral=%d bursts=%d→%d burst_source=%s]" % [
-			not queued.is_empty(), queued_source_ok, serialized_source_ok,
-			live_transfer_count, live_handoff_visual_count,
-			live_landed_piece_count, staged_sources,
-			source_cuts, neutral_cuts, burst_count_before,
-			burst_count_after,
-			String(burst_after.power_id) if burst_after != null else "missing"])
+	# Migration only: an old descriptor can still reconstruct its saved partial
+	# geometry, but no production power below creates another such descriptor.
+	var legacy_body := _spawn_loose_body()
+	var legacy_id := _body_id(legacy_body)
+	if legacy_body != null and legacy_body.descriptor != null:
+		legacy_body.descriptor.pending_power_cuts = 1
+		legacy_body.descriptor.pending_power_cut_sources = [&"precut"]
+	var legacy_save := _arena.to_save_dict()
+	_arena.restore_from_save(legacy_save)
+	var legacy_state := _arena_body_state(legacy_id)
+	_check(int(legacy_state.get("pending_power_cuts", 0)) == 1 \
+		and int(legacy_state.get("piece_count", 0)) == 2,
+		"a retired partial-cut descriptor still reconstructs once for save migration")
 
-	await _fresh_power(&"splinter_volley", 1, 668015)
+	await _fresh_power(&"splinter_volley", 1, 66801)
 	_game.call("_clear_finished_firewood")
 	_game.set("orbs_enabled", true)
-	var off_block_body := _spawn_loose_body()
-	if off_block_body != null:
-		off_block_body.global_position = Vector3(1.1, 0.45, 0.15)
-		off_block_body.linear_velocity = Vector3.ZERO
-		off_block_body.angular_velocity = Vector3.ZERO
-	var off_block_descriptor := off_block_body.descriptor \
-		if off_block_body != null else null
-	var off_block_cash_before := _run.get_cash()
-	var off_block_xp_before := _run.get_xp()
-	var off_block_xp_bursts: Array[int] = []
-	var off_block_coin_bursts: Array[int] = []
-	_game.xp_orb_batch_started.connect(func(amount: int) -> void:
-		off_block_xp_bursts.append(amount), CONNECT_ONE_SHOT)
-	_game.coin_batch_started.connect(func(count: int) -> void:
-		off_block_coin_bursts.append(count), CONNECT_ONE_SHOT)
-	var completion_receipts: Array = _arena.queue_power_cuts(
-		&"splinter_volley", 5,
-		off_block_body.global_position if off_block_body != null \
-			else Vector3.ZERO, INF, &"nearest", [])
-	var completion_axes: Array = off_block_body.get_meta("power_cut_axes", []) \
-		if off_block_body != null and is_instance_valid(off_block_body) else []
-	await _wait_frames(1)
-	if DisplayServer.get_name() != "headless":
-		_hud.hide()
-		_set_runtime_bursts_visible(_game, false)
-		await get_tree().create_timer(0.35, true, false, true).timeout
-		await get_tree().process_frame
-		var completion_capture_error := get_viewport().get_texture().get_image() \
-			.save_png("/private/tmp/axeman_off_block_fifth_cut_completion.png")
-		print("run_power_runtime_acceptance: off-block fifth-cut capture (%s)" %
-			error_string(completion_capture_error))
-		_set_runtime_bursts_visible(_game, true)
-		_hud.show()
-	var axes_are_vertical := not completion_axes.is_empty()
-	for raw_axis: Variant in completion_axes:
+	var body := _spawn_loose_body()
+	if body != null:
+		body.quaternion = Quaternion(
+			Vector3(0.37, 0.22, 0.90).normalized(), 0.91)
+		body.global_position = Vector3(1.1, 0.45, 0.15)
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+	var id := _body_id(body)
+	var descriptor := body.descriptor if body != null else null
+	var impact_position := body.global_position if body != null else Vector3.ZERO
+	var cash_before := _run.get_cash()
+	var xp_before := _run.get_xp()
+	var receipts: Array[Dictionary] = _run.trigger_splinter_volley(
+		impact_position)
+	var fragment_count := int(receipts[0].get("fragments", 0)) \
+		if not receipts.is_empty() else 0
+	var axes: Array = body.get_meta("power_cut_axes", []) \
+		if body != null and is_instance_valid(body) else []
+	var axes_are_vertical := axes.size() == maxi(0, fragment_count - 1)
+	for raw_axis: Variant in axes:
 		if not (raw_axis is Vector3):
 			axes_are_vertical = false
 			break
@@ -2095,85 +1898,56 @@ func _test_pending_power_cut_handoff() -> void:
 		axes_are_vertical = axes_are_vertical and is_zero_approx(axis.y) \
 			and (axis.is_equal_approx(Vector3.RIGHT) \
 				or axis.is_equal_approx(Vector3.FORWARD))
-	var off_block_finished := _game.debug_finished_piece_state() as Dictionary
+	var falling := _game.debug_finished_piece_state() as Dictionary
+	var arena_save := _arena.to_save_dict()
+	if DisplayServer.get_name() != "headless":
+		_hud.hide()
+		_set_runtime_bursts_visible(_game, false)
+		await get_tree().create_timer(0.12, true, false, true).timeout
+		await RenderingServer.frame_post_draw
+		var image := get_viewport().get_texture().get_image()
+		_check(image != null and image.save_png(
+			"/private/tmp/axeman_off_block_immediate_destruction.png") == OK,
+			"the immediate off-block destruction checkpoint renders its fragment burst")
+		_set_runtime_bursts_visible(_game, true)
+		_hud.show()
 	_game.call("_update_finished_piece_sink",
 		float(_game.get("firewood_settle_timeout")) + 0.01)
-	var off_block_settled := _game.debug_finished_piece_state() as Dictionary
+	var settled := _game.debug_finished_piece_state() as Dictionary
 	_game.call("_update_finished_piece_sink", 0.05)
-	var off_block_sinking := _game.debug_finished_piece_state() as Dictionary
+	var sinking := _game.debug_finished_piece_state() as Dictionary
 	_game.call("_update_finished_piece_sink", 10.0)
-	var off_block_terminated := _game.debug_finished_piece_state() as Dictionary
-	var duplicate_completion: Dictionary = _run.complete_off_block_log(
-		off_block_descriptor, completion_axes.size(), &"splinter_volley",
-		off_block_body.global_position if off_block_body != null \
-			else Vector3.ZERO)
-	_check(off_block_descriptor != null and not completion_receipts.is_empty() \
-		and _arena_body_state(off_block_descriptor.id).is_empty() \
+	var terminated := _game.debug_finished_piece_state() as Dictionary
+	var duplicate := _run.complete_off_block_log(
+		descriptor, fragment_count, &"splinter_volley", impact_position) \
+		if descriptor != null else {}
+	_check(descriptor != null and receipts.size() == 1 \
+		and _cut_receipt_total(receipts) == 1 \
+		and fragment_count >= 2 and fragment_count <= 6 \
+		and _arena_body_state(id).is_empty() \
+		and not _arena_save_has_log_id(arena_save, id) \
 		and axes_are_vertical \
-		and _run.get_cash() == off_block_cash_before \
-			+ off_block_descriptor.cash_reward_snapshot \
-		and _run.get_xp() == off_block_xp_before \
-			+ off_block_descriptor.xp_reward_snapshot \
-		and _cut_receipt_total(completion_receipts) == 5 \
-		and completion_axes.size() == 5 \
-		and int(off_block_finished.get("count", 0)) == 6 \
-		and int(off_block_finished.get("geometry_count", 0)) == 6 \
-		and int(off_block_finished.get("settling_count", 0)) == 6 \
-		and int(off_block_finished.get("enabled_collision_count", 0)) == 6 \
-		and off_block_xp_bursts == [off_block_descriptor.xp_reward_snapshot] \
-		and not off_block_coin_bursts.is_empty() \
-		and int(off_block_settled.get("count", 0)) == 6 \
-		and int(off_block_settled.get("settling_count", -1)) == 0 \
-		and int(off_block_settled.get("enabled_collision_count", -1)) == 0 \
-		and int(off_block_sinking.get("count", 0)) == 6 \
-		and float(off_block_sinking.get("max_sink_distance", 0.0)) > 0.0 \
-		and int(off_block_terminated.get("count", -1)) == 0 \
-		and duplicate_completion.is_empty(),
-		"the fifth off-block slice completes the root, releases six physical fragments, drops exact cash/XP at that location once, then settles, sinks, and terminates normally [receipts=%d state=%s axes=%d cash=%d→%d/%d xp=%d→%d/%d xp_bursts=%s coin_bursts=%s falling=%s settled=%s sinking=%s terminated=%s duplicate=%s]" % [
-			_cut_receipt_total(completion_receipts),
-			_arena_body_state(off_block_descriptor.id) if off_block_descriptor != null else {},
-			completion_axes.size(), off_block_cash_before, _run.get_cash(),
-			off_block_descriptor.cash_reward_snapshot if off_block_descriptor != null else -1,
-			off_block_xp_before, _run.get_xp(),
-			off_block_descriptor.xp_reward_snapshot if off_block_descriptor != null else -1,
-			off_block_xp_bursts, off_block_coin_bursts,
-			off_block_finished, off_block_settled, off_block_sinking,
-			off_block_terminated, duplicate_completion])
-	_game.set("orbs_enabled", false)
-
-	await _fresh_power(&"splinter_volley", 1, 66802)
-	var descriptor := _game.get("_current_descriptor") as LogDescriptor
-	if descriptor == null:
-		_check(false,
-			"pending power cuts can complete a newly arrived active root")
-		return
-	var cash_before := _run.get_cash()
-	descriptor.pending_power_cuts = 64
-	_game.call("stage_run_log", descriptor, false)
-	var ready_receipts := [0]
-	var on_ready := func() -> void: ready_receipts[0] += 1
-	_game.connect("run_log_ready", on_ready)
-	_game.call("_on_log_landed", _game.get("_source_mesh") as Mesh)
-	await _wait_frames(1)
-	if _game.is_connected("run_log_ready", on_ready):
-		_game.disconnect("run_log_ready", on_ready)
-	var save := _run.to_save_dict()
-	var raw_shares: Variant = save.get("pending_piece_cash", [])
-	var share_count := (raw_shares as Array).size() if raw_shares is Array else 0
-	var share_total := 0
-	if raw_shares is Array:
-		for raw_share: Variant in raw_shares:
-			share_total += int(raw_share)
-	_check(bool(_game.get("_awaiting_finished_settlement")) \
-		and int(_game.call("piece_count")) > 0 \
+		and descriptor.pending_power_cuts == fragment_count - 1 \
+		and descriptor.pending_power_cut_sources.size() \
+			== fragment_count - 1 \
+		and descriptor.pending_power_cut_sources.all(
+			func(source: StringName) -> bool:
+				return source == &"splinter_volley") \
 		and _run.get_cash() == cash_before + descriptor.cash_reward_snapshot \
-		and share_count > 0 and share_count <= CoinRewardPool.CAPACITY \
-		and share_total == descriptor.cash_reward_snapshot,
-		"an automatic active-root completion prepares exact coin shares so displayed cash can catch authority")
-	_check(ready_receipts[0] == 0 \
-		and bool(save.get("boundary_timers_paused", false)) \
-		and bool(_arena.get("_boundary_timers_paused")),
-		"pending cuts that complete a root on arrival keep boundary danger paused until a real next log is ready")
+		and _run.get_xp() == xp_before + descriptor.xp_reward_snapshot \
+		and int(falling.get("count", 0)) == fragment_count \
+		and int(falling.get("geometry_count", 0)) == fragment_count \
+		and int(falling.get("settling_count", 0)) == fragment_count \
+		and int(falling.get("enabled_collision_count", 0)) == fragment_count \
+		and int(settled.get("settling_count", -1)) == 0 \
+		and int(settled.get("enabled_collision_count", -1)) == 0 \
+		and float(sinking.get("max_sink_distance", 0.0)) > 0.0 \
+		and int(terminated.get("count", -1)) == 0 \
+		and duplicate.is_empty(),
+		"one off-block power hit immediately removes one hazard, makes a random 2–6-part real breakup on log-local vertical planes, pays cash/XP once, then settles and sinks every fragment [receipts=%s fragments=%d axes=%d falling=%s settled=%s sinking=%s terminated=%s]" % [
+			receipts, fragment_count, axes.size(), falling, settled, sinking,
+			terminated])
+	_game.set("orbs_enabled", false)
 
 
 func _test_capped_automatic_completion() -> void:
@@ -2232,7 +2006,7 @@ func _test_momentum_rescue_and_persistence() -> void:
 		rescue_body.freeze = true
 		rescue_body.global_position = Vector3(rescue_radius + 0.5, 0.4, 0.0)
 		rescue_body.boundary_exposure = rescue_grace - 0.05
-	_arena.advance_hazards(0.10, 1.0)
+	_arena.advance_hazards(0.10)
 	_check(rescue_body != null and is_instance_valid(rescue_body) \
 		and Vector2(rescue_body.global_position.x,
 			rescue_body.global_position.z).length() < rescue_radius \
@@ -2242,15 +2016,20 @@ func _test_momentum_rescue_and_persistence() -> void:
 		and _run.is_gameplay_active(),
 		"Last-Ditch Rescue rank one spends one charge to return and reset an expiring root")
 
-	# Cooldowns, stacks, rescue charges, and loose-root pending work are disposable
-	# run state. They must freeze under Pause, survive suspension, and clear at the
-	# next full-run boundary.
+	# Cooldowns, stacks, rescue charges, and surviving loose roots are disposable
+	# run state. Destroyed roots must not leave partial-cut journals in a save.
 	_run.start_attempt(67003)
 	await _wait_frames(1)
 	for id: StringName in [&"flying_wedge", &"momentum",
 			&"last_ditch_rescue", &"splinter_volley", &"yard_magnet"]:
 		_run.call("debug_set_run_power_rank", id, 1)
+	var destroyed_body := _spawn_loose_body()
 	var saved_body := _spawn_loose_body()
+	if destroyed_body != null:
+		destroyed_body.global_position = Vector3(0.5, 0.4, 0.0)
+	if saved_body != null:
+		saved_body.global_position = Vector3(1.5, 0.4, 0.0)
+	var destroyed_body_id := _body_id(destroyed_body)
 	var saved_body_id := _body_id(saved_body)
 	_run.trigger_splinter_volley(Vector3.ZERO)
 	_advance_power_time(3.0)
@@ -2285,8 +2064,11 @@ func _test_momentum_rescue_and_persistence() -> void:
 		and int(restored_state.get("momentum_stacks", -2)) == 1 \
 		and int(saved_state.get("rescue_charges_remaining", -1)) == 1 \
 		and int(restored_state.get("rescue_charges_remaining", -2)) == 1 \
-		and int(saved_body_state.get("pending_power_cuts", 0)) == 1 \
-		and int(restored_body_state.get("pending_power_cuts", 0)) == 1
+		and not saved_body_state.is_empty() \
+		and int(saved_body_state.get("pending_power_cuts", -1)) == 0 \
+		and not restored_body_state.is_empty() \
+		and int(restored_body_state.get("pending_power_cuts", -1)) == 0 \
+		and _arena_body_state(destroyed_body_id).is_empty()
 	_run.start_attempt(67004)
 	var reset_state := _runtime_state()
 	_check(state_restored and int(reset_state.get("momentum_stacks", -1)) == 0 \
@@ -2296,7 +2078,7 @@ func _test_momentum_rescue_and_persistence() -> void:
 		and is_zero_approx(float(reset_state.get(
 			"yard_magnet_pulse_seconds_left", -1.0))) \
 		and (reset_state.get("periodic_seconds_left", {}) as Dictionary).is_empty(),
-		"run-power timers, magnet pulse phase, stacks, charges, and pending cuts pause/save/restore and reset exactly")
+		"run-power timers, magnet pulse phase, stacks, charges, and surviving roots pause/save/restore while destroyed roots leave no partial journal")
 
 
 func _fresh_power(id: StringName, rank: int, seed: int) -> void:
@@ -2465,7 +2247,7 @@ func _spawn_loose_body() -> LooseLogBody:
 
 func _set_runtime_bursts_visible(root: Node, visible: bool) -> void:
 	for child: Node in root.get_children():
-		if child is RunPowerBurst or child is LevelUpBurst or child is ProcBurst:
+		if child is RunPowerBurst or child is LevelUpBurst:
 			(child as Node3D).visible = visible
 		else:
 			_set_runtime_bursts_visible(child, visible)
@@ -2538,7 +2320,9 @@ func _cut_receipt_total(receipts: Array) -> int:
 	var total := 0
 	for raw_receipt: Variant in receipts:
 		if raw_receipt is Dictionary:
-			total += maxi(0, int((raw_receipt as Dictionary).get("cuts", 0)))
+			var receipt := raw_receipt as Dictionary
+			total += maxi(0, int(receipt.get("logs",
+				receipt.get("cuts", 0))))
 	return total
 
 
@@ -2703,17 +2487,13 @@ func _cleanup() -> void:
 	# The production burst classes intentionally keep prewarmed materials in
 	# process-wide caches. A standalone acceptance process must release those
 	# shared references explicitly before renderer shutdown.
-	_release_primitive_mesh_materials(ProcBurst._mesh_cache.values())
 	_release_primitive_mesh_materials(RunPowerBurst._mesh_cache.values())
-	_release_material_values(ProcBurst._material_cache.values())
 	_release_material_values(RunPowerBurst._material_cache.values())
 	_release_material_values(LevelUpBurst._material_cache.values())
 	_release_material_values(CoinRewardPool._materials)
 	_release_material_values(XPOrb._tier_materials)
 	_release_material_values(XPOrb._halo_materials)
-	ProcBurst._material_cache.clear()
 	RunPowerBurst._material_cache.clear()
-	ProcBurst._mesh_cache.clear()
 	RunPowerBurst._mesh_cache.clear()
 	LevelUpBurst._material_cache.clear()
 	CoinRewardPool._meshes.clear()
