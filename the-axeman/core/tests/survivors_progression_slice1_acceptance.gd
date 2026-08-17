@@ -34,32 +34,36 @@ const META_CAPS := {
 	&"banishes": 5,
 }
 
-## [pool, rarity, rank cap]. Rarity is identity, never a strength roll.
+## [pool, rank cap]. Every eligible identity has the same offer chance; rolled
+## upgrade quality is tested by the runtime suite.
 const POWER_RULES := {
-	&"deep_bite": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 8],
-	&"quick_hands": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 8],
-	&"scar_wisdom": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 5],
-	&"double_chop": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.RARE, 3],
-	&"follow_up": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.RARE, 5],
-	&"splinter_volley": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 8],
-	&"flying_wedge": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 8],
-	&"yard_magnet": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 8],
-	&"soft_landing": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 5],
-	&"ring_reinforcement": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.RARE, 5],
-	&"quick_study": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 5],
-	&"keen_appraisal": [RunPowerDef.Pool.CORE, RunPowerDef.Rarity.COMMON, 5],
-	&"grain_reader": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"earthshaker": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.EPIC, 3],
-	&"powder_keg": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.EPIC, 3],
-	&"kindling_chain": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"whirling_axe": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"crosscut_sweep": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"maul_drop": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.EPIC, 3],
-	&"splitter_rig": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"cant_hook": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"stump_pulse": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.RARE, 5],
-	&"last_ditch_rescue": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.EPIC, 3],
-	&"momentum": [RunPowerDef.Pool.BLUEPRINT, RunPowerDef.Rarity.COMMON, 8],
+	&"deep_bite": [RunPowerDef.Pool.CORE, 8],
+	&"quick_hands": [RunPowerDef.Pool.CORE, 8],
+	&"scar_wisdom": [RunPowerDef.Pool.CORE, 5],
+	&"double_chop": [RunPowerDef.Pool.CORE, 3],
+	&"follow_up": [RunPowerDef.Pool.CORE, 5],
+	&"splinter_volley": [RunPowerDef.Pool.CORE, 8],
+	&"flying_wedge": [RunPowerDef.Pool.CORE, 8],
+	&"yard_magnet": [RunPowerDef.Pool.CORE, 8],
+	&"soft_landing": [RunPowerDef.Pool.CORE, 5],
+	&"ring_reinforcement": [RunPowerDef.Pool.CORE, 5],
+	&"quick_study": [RunPowerDef.Pool.CORE, 5],
+	&"keen_appraisal": [RunPowerDef.Pool.CORE, 5],
+	&"area_size": [RunPowerDef.Pool.CORE, 5],
+	&"sawblade_halo": [RunPowerDef.Pool.CORE, 5],
+	&"grain_reader": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"earthshaker": [RunPowerDef.Pool.BLUEPRINT, 3],
+	&"powder_keg": [RunPowerDef.Pool.BLUEPRINT, 3],
+	&"kindling_chain": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"whirling_axe": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"crosscut_sweep": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"maul_drop": [RunPowerDef.Pool.BLUEPRINT, 3],
+	&"splitter_rig": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"cant_hook": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"stump_pulse": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"last_ditch_rescue": [RunPowerDef.Pool.BLUEPRINT, 3],
+	&"momentum": [RunPowerDef.Pool.BLUEPRINT, 8],
+	&"timber_burst": [RunPowerDef.Pool.BLUEPRINT, 5],
 }
 
 const YARD_ONE_SPECIES: Array[StringName] = [
@@ -131,7 +135,7 @@ func _test_shipping_catalogues() -> void:
 			continue
 		var rule: Array = POWER_RULES[raw_id]
 		power_shape_ok = power_shape_ok and definition.pool == int(rule[0]) \
-			and definition.rarity == int(rule[1]) and definition.rank_cap == int(rule[2]) \
+			and definition.rank_cap == int(rule[1]) \
 			and definition.tuning_status.begins_with("PLACEHOLDER")
 		for effect: ProgressionEffectDef in definition.effects:
 			power_shape_ok = power_shape_ok and effect != null \
@@ -141,8 +145,9 @@ func _test_shipping_catalogues() -> void:
 			core_count += 1
 		elif definition.pool == RunPowerDef.Pool.BLUEPRINT:
 			blueprint_count += 1
-	_check(power_shape_ok and core_count == 12 and blueprint_count == 12,
-		"all 24 powers retain fixed rarity/cap identity in 12 Core and 12 Blueprint rows")
+	_check(power_shape_ok and core_count == 14 and blueprint_count == 13 \
+		and powers.powers.size() <= RunPowerTable.MAX_POWER_COUNT,
+		"all 27 equally weighted identities retain pool/cap contracts below the 32-power ceiling")
 
 	var yard := yards.by_id(&"yard_one")
 	var timeline_ids: Array[StringName] = []
@@ -154,10 +159,42 @@ func _test_shipping_catalogues() -> void:
 	var expected_species := YARD_ONE_SPECIES.duplicate()
 	expected_species.sort()
 	_check(yards.yards.size() == 1 and yard != null \
-		and is_equal_approx(yard.stage_duration_seconds, 1200.0) \
-		and yard.starting_delivery_intervals.size() == 4 \
+		and yard.resource_path == "res://data/yards/yard_one_placeholder.tres" \
+		and is_equal_approx(yard.stage_duration_seconds, 900.0) \
+		and yard.delivery_tier_interval_scales.size() == 4 \
+		and yard.delivery_interval_seconds_by_level != null \
+		and yard.delivery_interval_seconds_by_level.point_count == 35 \
+		and yard.delivery_batch_size_by_level != null \
+		and yard.delivery_batch_size_by_level.point_count == 35 \
+		and is_equal_approx(yard.delivery_interval_seconds(1, 0), 6.5 / 3.0) \
+		and is_equal_approx(yard.delivery_interval_seconds(1, 1), 5.2 / 3.0) \
+		and is_equal_approx(yard.delivery_interval_seconds(1, 2), 4.1 / 3.0) \
+		and is_equal_approx(yard.delivery_interval_seconds(1, 3), 3.2 / 3.0) \
+		and is_equal_approx(yard.delivery_interval_floor, 0.2) \
+		and yard.force_curve_end_in_final_window \
+		and is_equal_approx(yard.final_pressure_remaining_seconds, 60.0) \
+		and yard.force_curve_end_in_endless \
+		and is_equal_approx(yard.delivery_interval_seconds(2), 1.906667) \
+		and is_equal_approx(yard.delivery_interval_seconds(10), 0.69333345) \
+		and is_equal_approx(yard.delivery_interval_seconds(15), 0.3683334) \
+		and is_equal_approx(yard.delivery_interval_seconds(20), 0.2) \
+		and yard.delivery_batch_size(19) == 1 \
+		and yard.delivery_batch_size(20) == 2 \
+		and yard.delivery_batch_size(21) == 3 \
+		and yard.delivery_batch_size(28) == 10 \
 		and yard.bosses.size() == 3 and timeline_ids == expected_species,
-		"yard one is the sole 20-minute row with six locked species and three bosses")
+		"yard one is a standalone level resource with editable interval/amount curves and ten-root final pressure")
+	var reward_pairs: Array[Vector2i] = []
+	for reward: YardSpeciesRewardDef in yard.species_rewards:
+		reward_pairs.append(Vector2i(reward.cash_reward, reward.xp_reward))
+	var boss_pairs: Array[Vector2i] = []
+	for boss: YardBossDef in yard.bosses:
+		boss_pairs.append(Vector2i(boss.cash_jackpot, boss.xp_jackpot))
+	_check(reward_pairs == [Vector2i(1, 3), Vector2i(2, 4), Vector2i(3, 5),
+		Vector2i(4, 6), Vector2i(6, 8), Vector2i(8, 9)] \
+		and boss_pairs == [Vector2i(13, 38), Vector2i(25, 75),
+			Vector2i(50, 150)],
+		"ordinary and boss rewards are nearest-whole 25% Cash / 50% XP values")
 
 	var duplicate_meta := MetaUpgradeTable.new()
 	duplicate_meta.upgrades = [meta.upgrades[0], meta.upgrades[0]]
@@ -166,6 +203,12 @@ func _test_shipping_catalogues() -> void:
 	_check(_contains_error(duplicate_meta.validate(), "duplicate meta upgrade id") \
 		and _contains_error(duplicate_power.validate(), "duplicate run-power id"),
 		"catalogue validators reject duplicate stable identities")
+	var oversized_power_table := RunPowerTable.new()
+	for _index: int in range(RunPowerTable.MAX_POWER_COUNT + 1):
+		oversized_power_table.powers.append(powers.powers[0])
+	_check(_contains_error(oversized_power_table.validate(),
+		"between 1 and 32 powers"),
+		"the run-power catalogue validator rejects a thirty-third identity")
 
 
 func _test_clean_profile() -> void:
@@ -185,8 +228,8 @@ func _test_clean_profile() -> void:
 		and GameState.get_meta_upgrade_ranks().is_empty() \
 		and GameState.get_meta_upgrade_spend_ledger().is_empty(),
 		"a clean profile starts with zero home cash, ranks, and spend ledger")
-	_check(owned.size() == 12 and core_owned == 12 and blueprint_owned == 0,
-		"a clean profile owns all twelve Core powers and no Blueprint powers")
+	_check(owned.size() == 14 and core_owned == 14 and blueprint_owned == 0,
+		"a clean profile owns all fourteen Core powers and no Blueprint powers")
 	_check(GameState.get_selected_yard() == &"yard_one" \
 		and GameState.get_selected_frequency_tier() == 0 \
 		and GameState.get_yard_records().is_empty() \
@@ -452,7 +495,7 @@ func _test_malformed_profile_sanitisation() -> void:
 		"malformed spend data is non-negative, rank-aligned, and drops unknown IDs")
 	_check(GameState.get_selected_yard() == &"yard_one" \
 		and GameState.get_selected_frequency_tier() == 3 \
-		and GameState.get_unlocked_run_powers().size() == 12 \
+		and GameState.get_unlocked_run_powers().size() == 14 \
 		and not GameState.is_run_power_unlocked(&"not_a_power"),
 		"invalid yard and power IDs fall back while all Core powers are restored")
 	_check(GameState.has_banked_run(&"known_run") and not GameState.has_banked_run(&""),

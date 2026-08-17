@@ -1,5 +1,7 @@
 extends RefCounted
 ## FILE: res://scenes/3d_action/wood_pile.gd
+## RETIRED 2026-08-14: preserved as historical packing/animation evidence only.
+## The production chopping scene no longer constructs or calls this helper.
 ## ATTACHES TO: nothing — a plain RefCounted helper owned by chopping_minigame.gd.
 ##
 ## Port of the reference firewood chopper's pile builder (minified three.js class

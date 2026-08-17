@@ -1,5 +1,5 @@
 extends Node
-## Production acceptance for the 20-minute stage decision and results HUD.
+## Production acceptance for the 15-minute stage decision and results HUD.
 ##
 ## This test deliberately boots the real Main scene twice around a persisted
 ## stage-clear snapshot. It advances RunDirector through its clock seam rather
@@ -50,10 +50,10 @@ func _run_scenario() -> void:
 		"StageAndRunTimer/StageCountdown") as Label
 	var cash_label := first_hud.get_node("CashCounter/CashLabel") as Label
 	var bank_label := first_hud.get_node("CashCounter/LockedHomeBank") as Label
-	_check(stage_label.is_visible_in_tree() and stage_label.text.contains("20:00") \
-		and first_run.stage_remaining_ms() > 1_199_000 \
-		and first_run.stage_remaining_ms() <= 1_200_000,
-		"StageCountdown begins at the authored 20:00 duration")
+	_check(stage_label.is_visible_in_tree() and stage_label.text.contains("15:00") \
+		and first_run.stage_remaining_ms() > 899_000 \
+		and first_run.stage_remaining_ms() <= 900_000,
+		"StageCountdown begins at the authored 15:00 duration")
 
 	var coin_target := first_hud.coin_target_normalized()
 	var cash_target := _normalized_center(cash_label)
@@ -83,13 +83,18 @@ func _run_scenario() -> void:
 		pause_button.pressed.emit()
 	await get_tree().process_frame
 	var pause_overlay := first_hud.get_node("ModalBackdrop") as Control
-	var close_button := _find_button_with_text(pause_overlay, "CLOSE")
+	var close_button := _find_button_with_text(pause_overlay, "RESUME RUN")
 	first_run.call("_process", 9.0)
 	_check(first_run.is_paused() and pause_overlay.visible \
 		and first_run.elapsed_ms() == before_menu_ms \
 		and stage_label.text == before_menu_countdown,
 		"opening a menu pauses the stage clock and countdown")
-	_check(close_button != null, "the paused menu exposes its Close control")
+	_check(close_button != null \
+		and get_viewport().gui_get_focus_owner() == close_button,
+		"the paused menu exposes and focuses its Resume control")
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		_capture_if_rendered("/private/tmp/axeman_pause_menu.png")
 	if close_button != null:
 		close_button.pressed.emit()
 	await get_tree().process_frame
@@ -111,6 +116,9 @@ func _run_scenario() -> void:
 	_check(first_continue != null and first_continue.visible \
 		and first_bank != null and first_bank.visible,
 		"stage clear offers CONTINUE ENDLESS and BANK & GO HOME")
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		_capture_if_rendered("/private/tmp/axeman_results_menu.png")
 
 	var decision_snapshot := first_run.suspend_attempt()
 	_check(not decision_snapshot.is_empty() \
@@ -244,6 +252,14 @@ func _normalized_center(control: Control) -> Vector2:
 func _wait_frames(count: int) -> void:
 	for _frame: int in range(count):
 		await get_tree().process_frame
+
+
+func _capture_if_rendered(path: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var image := get_viewport().get_texture().get_image()
+	var error := image.save_png(path)
+	_check(error == OK, "rendered in-run menu screenshot writes successfully")
 
 
 func _remove_save_files() -> void:

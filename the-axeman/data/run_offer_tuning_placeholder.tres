@@ -4,10 +4,15 @@
 
 [resource]
 script = ExtResource("1_offer")
-common_weight = 1.0
-rare_weight = 0.35
-epic_weight = 0.12
+common_quality_weight = 1.0
+rare_quality_weight = 0.2
+epic_quality_weight = 0.05
+legendary_quality_weight = 0.005
+common_quality_multiplier = 1.0
+rare_quality_multiplier = 2.0
+epic_quality_multiplier = 3.0
+legendary_quality_multiplier = 4.0
 payday_base_cash = 10
 payday_cash_per_level = 2
 payday_cash_per_pick = 5
-tuning_status = "PLACEHOLDER — offer rarity weights and Payday cash require measured tuning approval"
+tuning_status = "PLACEHOLDER — card-quality odds/value multipliers and Payday cash require measured tuning approval"

@@ -183,8 +183,8 @@ base_logs_per_split = 5
 ; APPROVED hard cap after Logs per Split upgrades. Raising it increases late-game
 ; cash/output and changes the signed-off upgrade band, but not XP per minute.
 maximum_logs_per_split = 12
-; APPROVED firewood units per represented log. Raising it multiplies inventory,
-; cash settlement and visible pile output.
+; APPROVED firewood units per represented log. Raising it multiplies inventory
+; and cash settlement; finished-piece farewell visuals are manual-play only.
 output_amount = 1
 ; APPROVED fraction of equivalent manual XP paid per active second. Raising it
 ; makes automated levelling compete more strongly with manual play; represented

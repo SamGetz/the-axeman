@@ -115,6 +115,25 @@ static func _process_surface(source: Mesh, si: int, plane: Plane,
 	var below_n := 0
 	for t in range(0, idx.size() - 2, 3):
 		var ia := idx[t]; var ib := idx[t + 1]; var ic := idx[t + 2]
+		var da := plane.distance_to(verts[ia])
+		var db := plane.distance_to(verts[ib])
+		var dc := plane.distance_to(verts[ic])
+		var side_count := (1 if da >= 0.0 else 0) \
+			+ (1 if db >= 0.0 else 0) + (1 if dc >= 0.0 else 0)
+		# Most triangles never cross the cut. Emit their packed attributes directly
+		# instead of allocating three vertex Dictionaries plus a temporary tri Array.
+		# Only the narrow ring intersected by the plane needs interpolation records.
+		if side_count == 3 or side_count == 0:
+			var target := above_st if side_count == 3 else below_st
+			var fallback_normal := Vector3.ZERO if has_n else _face_normal(
+				verts[ia], verts[ib], verts[ic])
+			_emit_indexed_tri(target, ia, ib, ic, fallback_normal,
+				verts, norms, has_n, uvs, has_uv, tans, has_t, cols, has_c)
+			if side_count == 3:
+				above_n += 1
+			else:
+				below_n += 1
+			continue
 		var fn := _face_normal(verts[ia], verts[ib], verts[ic])
 		var a := _vert(ia, plane, fn, verts, norms, has_n, uvs, has_uv, tans, has_t, cols, has_c)
 		var b := _vert(ib, plane, fn, verts, norms, has_n, uvs, has_uv, tans, has_t, cols, has_c)
@@ -123,6 +142,34 @@ static func _process_surface(source: Mesh, si: int, plane: Plane,
 		above_n += counts.x
 		below_n += counts.y
 	return Vector2i(above_n, below_n)
+
+
+static func _emit_indexed_tri(st: SurfaceTool, ia: int, ib: int, ic: int,
+		fallback_normal: Vector3, verts: PackedVector3Array,
+		norms: PackedVector3Array, has_n: bool, uvs: PackedVector2Array,
+		has_uv: bool, tans: PackedFloat32Array, has_t: bool,
+		cols: PackedColorArray, has_c: bool) -> void:
+	_emit_indexed_vertex(st, ia, fallback_normal, verts, norms, has_n,
+		uvs, has_uv, tans, has_t, cols, has_c)
+	_emit_indexed_vertex(st, ib, fallback_normal, verts, norms, has_n,
+		uvs, has_uv, tans, has_t, cols, has_c)
+	_emit_indexed_vertex(st, ic, fallback_normal, verts, norms, has_n,
+		uvs, has_uv, tans, has_t, cols, has_c)
+
+
+static func _emit_indexed_vertex(st: SurfaceTool, index: int,
+		fallback_normal: Vector3, verts: PackedVector3Array,
+		norms: PackedVector3Array, has_n: bool, uvs: PackedVector2Array,
+		has_uv: bool, tans: PackedFloat32Array, has_t: bool,
+		cols: PackedColorArray, has_c: bool) -> void:
+	st.set_normal(norms[index] if has_n else fallback_normal)
+	st.set_uv(uvs[index] if has_uv else Vector2.ZERO)
+	if has_t:
+		st.set_tangent(Plane(tans[index * 4], tans[index * 4 + 1],
+			tans[index * 4 + 2], tans[index * 4 + 3]))
+	if has_c:
+		st.set_color(cols[index])
+	st.add_vertex(verts[index])
 
 
 ## Gather vertex `i`'s attributes into the working dict the splitter passes around.

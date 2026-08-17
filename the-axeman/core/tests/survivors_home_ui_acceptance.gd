@@ -64,6 +64,23 @@ func _run_scenario() -> void:
 		"production Main opens the loaded profile at Home")
 	_check(_label_text(first_home, "HomeCashLabel") == "$10,000",
 		"Home displays the saved permanent bank")
+	var landing_start := _find_named(first_home, "YardTabButton") as Button
+	var landing_stage := _find_named(first_home, "LandingStage") as Control
+	var quick_start := _find_named(first_home, "QuickStartButton") as Button
+	_check(landing_start != null and landing_start.visible \
+		and landing_start.text == "START" \
+		and quick_start != null and quick_start.visible \
+		and landing_stage != null and landing_stage.visible \
+		and _find_named(first_home, "StartRunButton") == null,
+		"Home matches the landing hierarchy with START, Quick Start, and no run launch")
+	landing_start.pressed.emit()
+	await _wait_frames(2)
+	var level_launch := _find_named(first_home, "LevelLaunchPanel") as Control
+	var level_start := _find_named(first_home, "StartRunButton") as Button
+	_check(level_launch != null and level_launch.visible \
+		and level_start != null and level_start.visible \
+		and not first_main.has_started_session(),
+		"landing START opens Level Select and leaves the run dormant until START RUN")
 	_test_catalogue_surfaces(first_home)
 	_test_records(first_home)
 
@@ -74,6 +91,9 @@ func _run_scenario() -> void:
 	var frequency_cost := frequency.cost_for_rank(1) if frequency != null else -1
 	_click_nav(first_home, "UpgradesTabButton")
 	await _wait_frames(2)
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		_capture_if_rendered("/private/tmp/axeman_home_menu.png")
 	var axe_buy := _find_named(first_home, "Buy_axe_power") as Button
 	var frequency_buy := _find_named(
 		first_home, "Buy_fall_frequency_control") as Button
@@ -198,6 +218,13 @@ func _run_scenario() -> void:
 func _test_catalogue_surfaces(home: StartupMenu) -> void:
 	_click_nav(home, "UpgradesTabButton")
 	var meta := SurvivorsContent.meta_upgrades()
+	var upgrade_grid := _find_named(home, "PowerUpGrid") as GridContainer
+	var detail := _find_named(home, "SelectedUpgradeDetail") as Control
+	var back := _find_named(home, "BackButton") as Button
+	_check(upgrade_grid != null and upgrade_grid.columns == 4 \
+		and detail != null and detail.visible \
+		and back != null and back.visible,
+		"Power Up opens a four-column selection grid with fixed detail and Back controls")
 	var all_meta_rows := meta != null and meta.upgrades.size() == 18
 	if meta != null:
 		for definition: MetaUpgradeDef in meta.upgrades:
@@ -209,7 +236,8 @@ func _test_catalogue_surfaces(home: StartupMenu) -> void:
 
 	_click_nav(home, "PowerCatalogueTabButton")
 	var powers := SurvivorsContent.run_powers()
-	var all_power_rows := powers != null and powers.powers.size() == 24
+	var all_power_rows := powers != null and powers.powers.size() == 27 \
+		and powers.powers.size() <= RunPowerTable.MAX_POWER_COUNT
 	var presented_core := 0
 	var presented_blueprints := 0
 	if powers != null:
@@ -226,10 +254,10 @@ func _test_catalogue_surfaces(home: StartupMenu) -> void:
 					and not GameState.is_run_power_unlocked(definition.id) \
 					and _node_has_label(card, "BLUEPRINT LOCKED"):
 				presented_blueprints += 1
-	_check(all_power_rows and _nodes_with_prefix(home, "Power_").size() == 24 \
-		and presented_core == 12 and presented_blueprints == 12 \
-		and GameState.get_unlocked_run_powers().size() == 12,
-		"Power Catalogue presents all 24 powers with 12 Core unlocked")
+	_check(all_power_rows and _nodes_with_prefix(home, "Power_").size() == 27 \
+		and presented_core == 14 and presented_blueprints == 13 \
+		and GameState.get_unlocked_run_powers().size() == 14,
+		"Power Catalogue presents all 27 powers with 14 Core unlocked")
 
 
 func _test_records(home: StartupMenu) -> void:
@@ -418,6 +446,14 @@ func _format_number(value: int) -> String:
 func _wait_frames(count: int) -> void:
 	for _frame: int in range(count):
 		await get_tree().process_frame
+
+
+func _capture_if_rendered(path: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var image := get_viewport().get_texture().get_image()
+	var error := image.save_png(path)
+	_check(error == OK, "rendered Home menu screenshot writes successfully")
 
 
 func _on_watchdog() -> void:

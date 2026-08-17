@@ -17,6 +17,44 @@ extends RefCounted
 ##   * Only uniform scale + translation is offered, so normals stay valid
 ##     without re-deriving them.
 
+const _CONVEX_SHAPE_META := &"axeman_cached_convex_shape"
+const _BOX_SHAPE_META := &"axeman_cached_box_shape"
+static var _convex_shape_build_count := 0
+
+
+## Runtime slices frequently move the same mesh between visual owners and rebuild
+## compound bodies around unchanged descendants. QuickHull is synchronous and was
+## being rerun for those identical resources on every cut. Shape3D resources are
+## immutable/shareable here, so keep one beside the Mesh that owns its lifetime.
+static func convex_shape(mesh: Mesh) -> Shape3D:
+	if mesh == null:
+		return null
+	var cached := mesh.get_meta(_CONVEX_SHAPE_META) as Shape3D \
+		if mesh.has_meta(_CONVEX_SHAPE_META) else null
+	if cached != null:
+		return cached
+	var shape := mesh.create_convex_shape()
+	if shape != null:
+		_convex_shape_build_count += 1
+		mesh.set_meta(_CONVEX_SHAPE_META, shape)
+	return shape
+
+
+## Sliced descendants already form a compound body. Tight per-descendant AABB
+## primitives preserve that compound footprint while avoiding a synchronous
+## QuickHull build for every fresh half on the exact trigger frame.
+static func box_shape(mesh: Mesh) -> BoxShape3D:
+	if mesh == null:
+		return null
+	var cached := mesh.get_meta(_BOX_SHAPE_META) as BoxShape3D \
+		if mesh.has_meta(_BOX_SHAPE_META) else null
+	if cached != null:
+		return cached
+	var shape := BoxShape3D.new()
+	shape.size = mesh.get_aabb().size
+	mesh.set_meta(_BOX_SHAPE_META, shape)
+	return shape
+
 
 # ------------------------------------------------------------------ transforms
 ## Uniformly scale then translate every vertex, keeping all other arrays and the

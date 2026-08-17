@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://cxmnchopmg0a1"]
+[gd_scene format=3 uid="uid://cxmnchopmg0a1"]
 
 [ext_resource type="Script" uid="uid://d2xfogqelkaw3" path="res://scenes/3d_action/chopping_minigame.gd" id="1_mg"]
 [ext_resource type="PackedScene" uid="uid://bkjcipib43xh8" path="res://assets/models/forest_floor/forest_floor_a.fbx" id="2_30w1t"]
@@ -6,10 +6,15 @@
 [ext_resource type="Script" uid="uid://5fw56tr40cmk" path="res://scenes/3d_action/axe_viewmodel.gd" id="4_axevm"]
 [ext_resource type="PackedScene" uid="uid://ckgruj1y75quo" path="res://assets/models/axe_basic/axe_basic.fbx" id="5_axefbx"]
 [ext_resource type="AnimationLibrary" uid="uid://pyg4245tqpsu" path="res://data/axe_swing_lib.tres" id="6_axelib"]
-[ext_resource type="Script" path="res://scenes/3d_action/yard_equipment_presenter.gd" id="7_equipment"]
-[ext_resource type="Script" path="res://scenes/3d_action/loose_log_arena.gd" id="8_arena"]
-[ext_resource type="Script" path="res://scenes/3d_action/background_tree_line.gd" id="9_tree_line"]
+[ext_resource type="Script" uid="uid://c8v8q52uevsxv" path="res://scenes/3d_action/yard_equipment_presenter.gd" id="7_equipment"]
+[ext_resource type="Script" uid="uid://bwa2hua22xrgv" path="res://scenes/3d_action/loose_log_arena.gd" id="8_arena"]
+[ext_resource type="Script" uid="uid://bylvsrllo3vuh" path="res://scenes/3d_action/background_tree_line.gd" id="9_tree_line"]
 [ext_resource type="Material" path="res://assets/shaders/distance_pixel_grade_placeholder.tres" id="10_distance_pixels"]
+
+[sub_resource type="QuadMesh" id="Quad_distance_pixels"]
+material = ExtResource("10_distance_pixels")
+flip_faces = true
+size = Vector2(2, 2)
 
 [sub_resource type="Environment" id="Environment_mg"]
 background_mode = 1
@@ -21,11 +26,6 @@ ambient_light_energy = 0.6
 [sub_resource type="BoxShape3D" id="Shape_floor"]
 size = Vector3(60, 2, 60)
 
-[sub_resource type="QuadMesh" id="Quad_distance_pixels"]
-material = ExtResource("10_distance_pixels")
-flip_faces = true
-size = Vector2(2, 2)
-
 [node name="Chopping_Minigame" type="Node3D" unique_id=1574814684]
 script = ExtResource("1_mg")
 
@@ -36,7 +36,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
 transform = Transform3D(1, 0, 0, 0, 0.84165555, 0.5400148, 0, -0.5400148, 0.84165555, 0, 0.76330715, 1.0039457)
 current = true
 
-[node name="DistancePixelGrade" type="MeshInstance3D" parent="CameraPivot/Camera3D"]
+[node name="DistancePixelGrade" type="MeshInstance3D" parent="CameraPivot/Camera3D" unique_id=1080225635]
 visible = false
 extra_cull_margin = 16384.0
 mesh = SubResource("Quad_distance_pixels")
@@ -45,7 +45,7 @@ mesh = SubResource("Quad_distance_pixels")
 script = ExtResource("4_axevm")
 
 [node name="AxeAnimationRoot" type="Node3D" parent="CameraPivot/Camera3D/AxeViewmodelAnchor" unique_id=105540647]
-transform = Transform3D(-0.9538919, 0.30014986, -8.527564e-08, 0.29277867, 0.9304645, 0.22026055, 0.06611139, 0.21010485, -0.9754396, 0.66, -0.56, -0.45)
+transform = Transform3D(-0.9538919, 0.30014977, 1.4728728e-07, 0.29277867, 0.93046445, 0.22026055, 0.06611117, 0.21010493, -0.9754396, 0.66, -0.56, -0.45)
 
 [node name="axe_basic" parent="CameraPivot/Camera3D/AxeViewmodelAnchor/AxeAnimationRoot" unique_id=876170848 instance=ExtResource("5_axefbx")]
 transform = Transform3D(1.4, 0, 0, 0, 1.4, 0, 0, 0, 1.4, 0, 0, 0)
@@ -69,16 +69,16 @@ shape = SubResource("Shape_floor")
 
 [node name="Fallers" type="Node3D" parent="." unique_id=1262106074]
 
-[node name="LooseLogArena" type="Node3D" parent="."]
+[node name="LooseLogArena" type="Node3D" parent="." unique_id=379868504]
 script = ExtResource("8_arena")
 
-[node name="YardEquipment" type="Node3D" parent="."]
+[node name="YardEquipment" type="Node3D" parent="." unique_id=1757566673]
 script = ExtResource("7_equipment")
 
 [node name="forest_floor_a" parent="." unique_id=15056532 instance=ExtResource("2_30w1t")]
 transform = Transform3D(0.4, 0, 0, 0, 0.4, 0, 0, 0, 0.4, 0, 0.005, 0)
 
-[node name="BackgroundTreeLine" type="Node3D" parent="."]
+[node name="BackgroundTreeLine" type="Node3D" parent="." unique_id=473404807]
 script = ExtResource("9_tree_line")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=430022757]

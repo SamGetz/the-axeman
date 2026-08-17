@@ -20,10 +20,9 @@ extends Node
 ##     in compact icon buttons over the only production view
 ##   - panel Back buttons and outside clicks dismiss to chopping without emitting
 ##     a mode change or allowing a click through to the axe
-##   - the haul-away has no progress UI; the physical pile is its own cue
-##   - the YARD PILE is a view of GameState, survives a load that lands after the
-##     scene is built, and is HAULED AWAY when it fills
-##   - a piece PAYS FOR ITSELF as it lands on the pile — there is no manual selling
+##   - completed billets remain where they landed without a persistent pile or
+##     haul-away node, then leave through the shared immediate-sink path
+##   - completed-piece settlement is independent from that farewell presentation
 ##   - the 25-WOOD LADDER is monotonic in price, difficulty, hardness and unlock
 ##     cost, so a wood cannot ship as the most valuable AND the easiest
 ##   - a WOOD IS EARNED BY CHOPPING, derived from lifetime chopped rather than
@@ -69,8 +68,8 @@ func _ready() -> void:
 	_test_12_sell_everything_is_one_transaction()
 	await _test_13_yard_hud_is_live_and_shops()
 	await _test_14_hud_panels_dismiss_to_chopping()
-	await _test_15_the_pile_is_a_view_of_stock()
-	await _test_16_pieces_pay_as_they_land_and_the_load_is_hauled()
+	await _test_15_finished_firewood_replaces_the_pile()
+	await _test_16_finished_pieces_settle_in_place()
 	await _test_17_a_swing_can_fail_and_scars_the_log()
 	_test_18_tougher_wood_pays_better()
 	_test_21_experience_makes_levels()
@@ -632,96 +631,55 @@ func _test_14_hud_panels_dismiss_to_chopping() -> void:
 	await get_tree().process_frame
 
 
-# ------------------------------------------------------------- the stockpile
-## The yard's visible woodpile is a VIEW of GameState's yard pile, so it survives
-## a reload — including the one that matters, where the save lands AFTER this
-## scene has already built itself empty.
-##
-## Every check here counts pieces AND looks at where they are. A pile check that
-## only counted would pass just as well on a build that dropped every piece at the
-## origin inside the stump — this project has shipped that exact kind of empty
-## guard before.
-func _test_15_the_pile_is_a_view_of_stock() -> void:
+# ------------------------------------------------------ completed firewood
+## The retired pile/haul presentation must not come back through either the
+## production scene or a loaded legacy yard-pile record. FinishedFirewood is a
+## transient home for newly chopped, collisionless billets only.
+func _test_15_finished_firewood_replaces_the_pile() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 
 	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
 	add_child(game)
 	await get_tree().process_frame
-	var pile: Node3D = game.get_node("Pile")
-	_check(game.max_pile_pieces == GameState.get_yard_pile_capacity(),
-		"the production pile and HUD inherit one %d-piece capacity" % GameState.get_yard_pile_capacity())
-	_check(pile.get_child_count() == 0, "an empty yard shows an empty pile")
+	var finished := game.get_node_or_null("FinishedFirewood") as Node3D
+	_check(game.get_node_or_null("Pile") == null and game.get_node_or_null("Haul") == null,
+		"the production chopping scene has no retired Pile or Haul node")
+	_check(finished != null and finished.get_child_count() == 0,
+		"a fresh yard has one empty transient FinishedFirewood root")
 
-	# A save landing on a scene that is already running — the real boot order, since
-	# a child's _ready runs before its parent's and main.gd loads the save in its.
+	# Migration still preserves the old counters, but presentation must not rebuild
+	# them into a chopped stack when a save lands after scene construction.
 	GameState.apply_save_dict({"cash": 40, "yard_pile": {"oak_firewood": 5, "birch_firewood": 3}})
 	await get_tree().process_frame
-	_check(GameState.get_yard_pile_count() == 8, "the save restored a yard pile of 8")
-	_check(pile.get_child_count() == 8,
-		"...and the scene rebuilt it as exactly 8 stacked pieces (got %d)" % pile.get_child_count())
-
-	# ...and they are actually stacked somewhere, in two different woods.
-	var positions: Array[Vector3] = []
-	var meshes := {}
-	var highest := 0.0
-	for c in pile.get_children():
-		var m: MeshInstance3D = c
-		positions.append(m.position)
-		meshes[m.mesh] = true
-		highest = maxf(highest, m.position.y)
-	var distinct := 0
-	for i in range(positions.size()):
-		var unique := true
-		for j in range(i):
-			if positions[i].distance_to(positions[j]) < 0.001:
-				unique = false
-		if unique:
-			distinct += 1
-	_check(distinct == 8, "...each piece sits in its own slot (%d distinct positions)" % distinct)
-	_check(highest > 0.0, "...and the pile stacks upward (top piece at y=%.3f)" % highest)
-	_check(meshes.size() >= 2,
-		"...built from more than one billet mesh, so two woods are not one repeated block")
-
-	# The pile is NOT inventory: owning firewood puts nothing on it, because by the
-	# time a piece is stacked the yard has already bought it.
+	_check(GameState.get_yard_pile_count() == 8
+			and finished != null and finished.get_child_count() == 0,
+		"legacy yard-pile data remains readable without rebuilding a visible stack")
 	InventoryManager.apply_save_dict({"oak_firewood": 20})
 	await get_tree().process_frame
-	_check(pile.get_child_count() == 8,
-		"20 pieces of stock add nothing to the pile — it shows work done, not property")
+	_check(finished != null and finished.get_child_count() == 0,
+		"owned inventory never creates completed-piece farewell visuals")
 
 	game.queue_free()
 	await get_tree().process_frame
 	InventoryManager.apply_save_dict({})
 
 
-## The loop Sam asked for, end to end on the real scene: chop a log down, watch
-## each piece pay for itself as it lands, and watch the full load leave the yard.
-##
-## The pile's fly-in runs on a REAL-TIME clock, so the timings are turned right
-## down here rather than waited out — a headless frame loop outruns a real-time
-## animation, which is exactly why pile_smoke has to run non-headless.
-func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
+## One real chopped log settles into the transient root at the physics handoff.
+## The bodies are frozen and collisionless before the next log appears, while the
+## standalone gather receipt remains immediate and exact.
+func _test_16_finished_pieces_settle_in_place() -> void:
 	GameState.reset_to_defaults()
 	InventoryManager.apply_save_dict({})
 
-	# The wood is forced so the payout is a known price, and the price is READ
-	# FROM THE TABLE rather than spelled out — this test used to say "species 0 is
-	# oak", which stopped being true when Sam's 25 woods reordered the ladder by
-	# hardness on 2026-08-02.
 	var wood := SpeciesTable.at(0)
 	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
 	game.debug_forced_species = 0
-	game.pile_fly_ms = 20.0
-	game.pile_stagger_ms = 10.0
-	game.firewood_settle_timeout = 0.2
-	game.max_pile_pieces = 3             # a load small enough to fill in one log
-	game.haul_ms = 20.0
-	game.haul_stagger_ms = 10.0
+	game.auto_sell = false
 	add_child(game)
 	await get_tree().process_frame
 
-	var pile: Node3D = game.get_node("Pile")
+	var before := InventoryManager.get_count(wood.yield_item)
 	var safety := 0
 	while game.cuttable_count() > 0 and safety < 60:
 		game.debug_slice_world(Plane(Vector3.RIGHT if safety % 2 == 0 else Vector3.BACK, 0.0))
@@ -730,31 +688,37 @@ func _test_16_pieces_pay_as_they_land_and_the_load_is_hauled() -> void:
 	var pieces: int = game.piece_count()
 	_check(pieces > 0, "the log chopped down into %d pieces of firewood" % pieces)
 
-	await _wait(1.2)   # settle timeout, then the whole (shortened) fly-in
+	game.call("_settle_finished_firewood")
+	await get_tree().process_frame
+	var state: Dictionary = game.call("debug_finished_piece_state")
+	var visibility_state: Dictionary = game.call(
+		"debug_chopping_visibility_state")
+	var finished := game.get_node_or_null("FinishedFirewood") as Node3D
+	_check(int(state.get("count", 0)) == pieces
+			and int(state.get("geometry_count", 0)) >= pieces
+			and is_zero_approx(float(visibility_state.get(
+				"active_max_transparency", -1.0)))
+			and not bool(visibility_state.get("active_self_hidden", true))
+			and int(state.get("enabled_collision_count", -1)) == 0,
+		"all %d real billets retire physics while the active workpiece remains fully opaque" % pieces)
 
-	var unit := Market.get_price(wood.yield_item)
-	var craft_cash := GameState.get_craft_grade_count(Craftsmanship.Grade.CLEAN) \
-		* Craftsmanship.cash_bonus(wood.yield_item, Craftsmanship.Grade.CLEAN) \
-		+ GameState.get_craft_grade_count(Craftsmanship.Grade.EXCEPTIONAL) \
-		* Craftsmanship.cash_bonus(wood.yield_item, Craftsmanship.Grade.EXCEPTIONAL)
-	var expected_cash := unit * pieces + craft_cash
-	_check(unit > 0, "%s has a price to pay out (%d)" % [wood.id, unit])
-	_check(GameState.get_cash() == expected_cash,
-		"every piece paid base value plus its manual craft grade — %d pieces, %d cash" % [pieces, GameState.get_cash()])
-	_check(InventoryManager.get_count(wood.yield_item) == 0,
-		"...and none of it is left in stock: the yard bought it, the player never sold it")
-	_check(GameState.get_lifetime_wood_chopped() == pieces,
-		"...while lifetime chopped counts all %d" % pieces)
-
-	# The load filled the yard, so it was hauled off.
-	_check(pieces >= 3, "the load reached the %d-piece haul threshold" % 3)
-	_check(GameState.get_yard_pile_count() == 0,
-		"...so the yard pile emptied (got %d)" % GameState.get_yard_pile_count())
-	await _wait(1.0)
-	_check(pile.get_child_count() == 0,
-		"...and the pieces are gone from the pile, hauled off screen (got %d)" % pile.get_child_count())
-	_check(GameState.get_cash() == expected_cash,
-		"...and hauling paid nothing extra — the wood was already bought (%d)" % GameState.get_cash())
+	var all_inert := finished != null and finished.get_child_count() == pieces
+	if finished != null:
+		for child: Node in finished.get_children():
+			var body := child as RigidBody3D
+			all_inert = all_inert and body != null and body.freeze \
+				and body.collision_layer == 0 and body.collision_mask == 0 \
+				and not body.contact_monitor
+			for shape_node: Node in child.get_children():
+				if shape_node is CollisionShape3D:
+					all_inert = all_inert and (shape_node as CollisionShape3D).disabled
+	_check(all_inert,
+		"finished billets are frozen and collisionless before the next log arrives")
+	_check(InventoryManager.get_count(wood.yield_item) - before == pieces,
+		"standalone settlement gathers exactly one %s per finished billet" % wood.yield_item)
+	_check(GameState.get_yard_pile_count() == 0
+			and GameState.get_haul_aways_completed() == 0,
+		"completed billets never write a yard pile or synthetic haul-away record")
 
 	game.queue_free()
 	await get_tree().process_frame
@@ -1296,8 +1260,6 @@ func _test_27_a_finished_log_pays_experience() -> void:
 	var wood := SpeciesTable.at(0)
 	var game: Node3D = load("res://scenes/3d_action/chopping_minigame.tscn").instantiate()
 	game.debug_forced_species = 0
-	game.pile_fly_ms = 20.0
-	game.pile_stagger_ms = 10.0
 	game.firewood_settle_timeout = 0.2
 	add_child(game)
 	await get_tree().process_frame

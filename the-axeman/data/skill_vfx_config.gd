@@ -20,6 +20,12 @@ extends Resource
 @export var generic_speed_min := 0.65
 @export var generic_speed_max := 1.5
 
+@export_group("Splinter Volley projectile — PLACEHOLDER")
+@export var splinter_projectile_size := Vector3(0.055, 0.055, 0.34)
+@export var splinter_projectile_height := 0.14
+@export_range(0.0, 1.0, 0.01) var splinter_projectile_white_mix := 0.28
+@export var splinter_projectile_emission_energy := 1.6
+
 @export_group("Strength ember cloud — PLACEHOLDER")
 @export var strength_duration := 0.68
 @export_range(1, 160, 1) var strength_ember_count := 72
@@ -78,6 +84,18 @@ extends Resource
 @export var level_light_range_multiplier := 3.0
 @export_range(0.0, 1.0, 0.01) var level_overlay_strength := 0.03
 
+@export_group("Level-up offer rain — PLACEHOLDER")
+@export_range(3, 60, 1) var level_offer_rain_count := 27
+@export_range(8.0, 48.0, 1.0) var level_offer_rain_size_min := 14.0
+@export_range(8.0, 64.0, 1.0) var level_offer_rain_size_max := 28.0
+@export_range(10.0, 240.0, 1.0) var level_offer_rain_speed_min := 52.0
+@export_range(10.0, 300.0, 1.0) var level_offer_rain_speed_max := 105.0
+@export_range(-80.0, 80.0, 1.0) var level_offer_rain_drift_min := -20.0
+@export_range(-80.0, 80.0, 1.0) var level_offer_rain_drift_max := 20.0
+@export_range(0.0, 4.0, 0.05) var level_offer_rain_spin_min := 0.25
+@export_range(0.0, 6.0, 0.05) var level_offer_rain_spin_max := 1.25
+@export_range(0.0, 1.0, 0.01) var level_offer_rain_opacity := 0.18
+
 @export var tuning_status := "PLACEHOLDER — measured particle VFX feel pass required"
 
 
@@ -93,25 +111,36 @@ func validate() -> PackedStringArray:
 			speed_streak_count, speed_mote_count, speed_glow_particle_count,
 			mastery_green_mote_count, mastery_gold_mote_count,
 			mastery_glow_particle_count, level_ray_count, level_spark_count,
-			level_ember_count, level_glow_particle_count, level_pine_count]:
+			level_ember_count, level_glow_particle_count, level_pine_count,
+			level_offer_rain_count]:
 		if count <= 0:
 			errors.append("skill VFX particle counts must be positive")
 			break
 	if proc_core_size <= 0.0 or proc_light_range <= 0.0 \
 			or proc_log_base_clearance < 0.0 \
 			or proc_log_base_viewer_offset < 0.0 \
+			or splinter_projectile_size.x <= 0.0 \
+			or splinter_projectile_size.y <= 0.0 \
+			or splinter_projectile_size.z <= 0.0 \
+			or splinter_projectile_height < 0.0 \
+			or splinter_projectile_emission_energy <= 0.0 \
 			or strength_cloud_radius <= 0.0 or speed_emission_radius <= 0.0 \
 			or mastery_emission_radius <= 0.0 or level_cloud_radius <= 0.0 \
 			or level_ray_height <= 0.0 or level_ray_width <= 0.0 \
 			or level_pine_height <= 0.0 or level_pine_width <= 0.0 \
-			or level_crown_radius <= 0.0 or level_light_range_multiplier <= 0.0:
+			or level_crown_radius <= 0.0 or level_light_range_multiplier <= 0.0 \
+			or level_offer_rain_size_min <= 0.0 \
+			or level_offer_rain_size_min > level_offer_rain_size_max:
 		errors.append("skill VFX dimensions must be positive")
 	if generic_speed_min > generic_speed_max \
 			or strength_speed_min > strength_speed_max \
 			or speed_particle_speed_min > speed_particle_speed_max \
 			or mastery_particle_speed_min > mastery_particle_speed_max \
 			or level_particle_speed_min > level_particle_speed_max \
-			or level_spark_speed_min > level_spark_speed_max:
+			or level_spark_speed_min > level_spark_speed_max \
+			or level_offer_rain_speed_min > level_offer_rain_speed_max \
+			or level_offer_rain_drift_min > level_offer_rain_drift_max \
+			or level_offer_rain_spin_min > level_offer_rain_spin_max:
 		errors.append("skill VFX speed ranges must be ordered")
 	if particle_dither_pixel_size <= 0.0:
 		errors.append("skill VFX particle dither size must be positive")

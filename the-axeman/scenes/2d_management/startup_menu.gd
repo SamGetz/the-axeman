@@ -16,31 +16,50 @@ signal abandon_attempt_requested
 signal new_game_requested
 signal load_game_requested
 
+const TAB_HOME: StringName = &"home"
 const TAB_UPGRADES: StringName = &"upgrades"
 const TAB_YARD: StringName = &"yard"
 const TAB_POWERS: StringName = &"powers"
 const TAB_RECORDS: StringName = &"records"
 
-const INK := Color(0.94, 0.89, 0.76, 1.0)
-const MUTED := Color(0.64, 0.68, 0.59, 1.0)
-const DIM := Color(0.45, 0.49, 0.42, 1.0)
-const GOLD := Color(0.86, 0.67, 0.31, 1.0)
+const INK := Color(1.0, 0.89, 0.68, 1.0)
+const MUTED := Color(0.73, 0.67, 0.56, 1.0)
+const DIM := Color(0.47, 0.43, 0.37, 1.0)
+const GOLD := Color(0.96, 0.58, 0.19, 1.0)
 const GREEN := Color(0.55, 0.78, 0.48, 1.0)
 const RED := Color(0.94, 0.61, 0.51, 1.0)
 const BLUE := Color(0.48, 0.72, 0.90, 1.0)
 const PURPLE := Color(0.75, 0.55, 0.91, 1.0)
-const PANEL_DARK := Color(0.055, 0.069, 0.056, 0.98)
-const PANEL_MID := Color(0.085, 0.105, 0.079, 0.98)
-const PANEL_LIGHT := Color(0.115, 0.14, 0.103, 0.98)
-const BORDER := Color(0.38, 0.31, 0.19, 1.0)
+const PANEL_DARK := Color(0.045, 0.032, 0.024, 0.96)
+const PANEL_MID := Color(0.078, 0.052, 0.035, 0.97)
+const PANEL_LIGHT := Color(0.115, 0.074, 0.043, 0.98)
+const BORDER := Color(0.55, 0.28, 0.10, 1.0)
 
 var _has_save := false
 var _has_attempt := false
-var _current_tab: StringName = TAB_UPGRADES
+var _current_tab: StringName = TAB_HOME
 var _home_message_override := ""
 var _nav_buttons: Dictionary = {}
+var _pending_level_select_after_profile_create := false
+var _selected_upgrade_id: StringName = &"axe_power"
 
 var _home_root: MarginContainer
+var _home_header: PanelContainer
+var _home_brand_kicker: Label
+var _home_brand_title: Label
+var _home_brand_subtitle: Label
+var _home_profile_column: VBoxContainer
+var _home_bank_column: VBoxContainer
+var _home_back_button: Button
+var _home_landing_spacer: Control
+var _home_landing_lower_spacer: Control
+var _home_content_panel: PanelContainer
+var _home_action_panel: PanelContainer
+var _home_action_copy: HBoxContainer
+var _home_quick_start_button: Button
+var _home_nav_panel: PanelContainer
+var _home_nav_row: HBoxContainer
+var _home_detail_host: VBoxContainer
 var _home_cash_label: Label
 var _home_lock_banner: PanelContainer
 var _home_message_label: Label
@@ -50,6 +69,7 @@ var _home_scroll: ScrollContainer
 var _home_content: VBoxContainer
 var _home_selection_label: Label
 var _home_start_button: Button
+var _home_level_start_button: Button
 var _home_resume_button: Button
 var _home_abandon_button: Button
 var _home_new_profile_button: Button
@@ -74,6 +94,7 @@ func _ready() -> void:
 	_resume_attempt_button.pressed.connect(resume_attempt_requested.emit)
 	_abandon_attempt_button.pressed.connect(abandon_attempt_requested.emit)
 	_new_game_confirmation.confirmed.connect(_emit_new_profile)
+	_style_confirmation_dialog()
 	_build_home()
 	if not GameState.profile_changed.is_connected(_on_profile_changed):
 		GameState.profile_changed.connect(_on_profile_changed)
@@ -87,6 +108,14 @@ func _ready() -> void:
 func configure(has_save: bool, has_attempt: bool = false) -> void:
 	_has_save = has_save
 	_has_attempt = has_save and has_attempt
+	if _has_save:
+		if _pending_level_select_after_profile_create and not _has_attempt:
+			_current_tab = TAB_YARD
+		else:
+			_current_tab = TAB_HOME
+		_pending_level_select_after_profile_create = false
+	else:
+		_current_tab = TAB_HOME
 	## The public authority repeats the lock check inside every relevant write.
 	## Mirroring the suspended-attempt fact here keeps non-UI callers safe too.
 	GameState.set_permanent_controls_locked(_has_attempt)
@@ -107,131 +136,149 @@ func dismiss() -> void:
 func _apply_mode() -> void:
 	if not is_node_ready() or _home_root == null:
 		return
-	_intro_center.visible = not _has_save
-	_home_root.visible = _has_save
+	# The same authored landing is used before and after profile creation. The
+	# legacy scene nodes remain as signal/test adapters, but never become a
+	# second visually divergent title screen.
+	_intro_center.visible = false
+	_home_root.visible = true
 
 	_load_game_button.disabled = not _has_save
 	_load_game_button.visible = _has_save and not _has_attempt
-	_load_game_button.text = "Start Run"
+	_load_game_button.text = "START"
 	_resume_attempt_button.visible = _has_attempt
 	_abandon_attempt_button.visible = _has_attempt
 	_load_game_button.tooltip_text = (
 		"Keep your permanent yard and begin a fresh attempt."
 		if _has_save else "No saved yard was found."
 	)
-	_new_game_button.text = "Start Fresh Profile" if _has_save else "Create Profile"
+	_new_game_button.text = "START FRESH CAMP" if _has_save else "START"
 	_status_label.text = (
-		"A suspended attempt is ready."
+		"A suspended run is ready."
 		if _has_attempt
-		else "Your permanent yard is ready for another run."
-	) if _has_save else "No save found — begin a new yard."
+		else "Your permanent camp is ready for another run."
+	) if _has_save else "No save found — light a new campfire."
 
 	if _has_save:
 		_refresh_home(true)
 		if _has_attempt and _home_resume_button != null:
 			_home_resume_button.grab_focus()
+		elif _current_tab == TAB_YARD and _home_level_start_button != null:
+			_home_level_start_button.grab_focus()
 		elif _home_start_button != null:
 			_home_start_button.grab_focus()
 	else:
-		_new_game_button.grab_focus()
+		_refresh_home(false)
+		_home_start_button.grab_focus()
 
 
 func _build_home() -> void:
 	_home_root = MarginContainer.new()
 	_home_root.name = "HomeRoot"
 	_home_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_home_root.add_theme_constant_override("margin_left", 26)
-	_home_root.add_theme_constant_override("margin_top", 20)
-	_home_root.add_theme_constant_override("margin_right", 26)
-	_home_root.add_theme_constant_override("margin_bottom", 20)
+	_home_root.add_theme_constant_override("margin_left", 24)
+	_home_root.add_theme_constant_override("margin_top", 14)
+	_home_root.add_theme_constant_override("margin_right", 24)
+	_home_root.add_theme_constant_override("margin_bottom", 14)
 	add_child(_home_root)
 
 	var shell := VBoxContainer.new()
-	shell.add_theme_constant_override("separation", 12)
+	shell.add_theme_constant_override("separation", 9)
 	_home_root.add_child(shell)
 
-	var header := _make_panel(PANEL_DARK, BORDER, 11)
-	header.custom_minimum_size = Vector2(0, 82)
-	shell.add_child(header)
-	var header_margin := _make_margin(22, 12, 22, 12)
-	header.add_child(header_margin)
+	_home_header = _make_panel(Color(0.035, 0.024, 0.018, 0.82), BORDER, 8)
+	_home_header.custom_minimum_size = Vector2(0, 180)
+	shell.add_child(_home_header)
+	var header_margin := _make_margin(18, 10, 18, 10)
+	_home_header.add_child(header_margin)
 	var header_row := HBoxContainer.new()
-	header_row.add_theme_constant_override("separation", 18)
+	header_row.add_theme_constant_override("separation", 16)
 	header_margin.add_child(header_row)
+
+	_home_profile_column = VBoxContainer.new()
+	_home_profile_column.custom_minimum_size.x = 210
+	_home_profile_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	_home_profile_column.add_theme_constant_override("separation", 5)
+	header_row.add_child(_home_profile_column)
+	var profile_kicker := _make_label("CAMP PROFILE", 10, MUTED)
+	_home_profile_column.add_child(profile_kicker)
+	_home_new_profile_button = _make_button("NEW CAMP", false)
+	_home_new_profile_button.name = "NewProfileButton"
+	_home_new_profile_button.custom_minimum_size = Vector2(150, 40)
+	_home_new_profile_button.pressed.connect(_on_new_game_pressed)
+	_home_profile_column.add_child(_home_new_profile_button)
+	_home_back_button = _make_button("BACK", false)
+	_home_back_button.name = "BackButton"
+	_home_back_button.custom_minimum_size = Vector2(150, 40)
+	_home_back_button.visible = false
+	_home_back_button.pressed.connect(_select_home_tab.bind(TAB_HOME))
+	_home_profile_column.add_child(_home_back_button)
+
 	var title_column := VBoxContainer.new()
-	title_column.add_theme_constant_override("separation", 1)
+	title_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	title_column.add_theme_constant_override("separation", -2)
 	header_row.add_child(title_column)
-	var kicker := _make_label("PERMANENT HOME", 12, GOLD)
-	title_column.add_child(kicker)
-	var title := _make_label("THE AXEMAN", 29, INK)
-	title_column.add_child(title)
-	var header_spacer := Control.new()
-	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header_row.add_child(header_spacer)
-	var bank_column := VBoxContainer.new()
-	bank_column.alignment = BoxContainer.ALIGNMENT_CENTER
-	header_row.add_child(bank_column)
-	var bank_kicker := _make_label("HOME CASH", 11, MUTED)
+	_home_brand_kicker = _make_label(
+		"FIFTEEN MINUTES · ONE CHOPPING BLOCK", 12, GOLD)
+	_home_brand_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_column.add_child(_home_brand_kicker)
+	_home_brand_title = _make_label("CAMPFIRE\nSURVIVORS", 52, INK)
+	_home_brand_title.name = "GameTitle"
+	_home_brand_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_home_brand_title.add_theme_color_override(
+		"font_shadow_color", Color(0.18, 0.025, 0.006, 1.0))
+	_home_brand_title.add_theme_constant_override("line_spacing", -8)
+	_home_brand_title.add_theme_constant_override("shadow_offset_x", 3)
+	_home_brand_title.add_theme_constant_override("shadow_offset_y", 4)
+	title_column.add_child(_home_brand_title)
+	_home_brand_subtitle = _make_label("SPLIT · GROW · SURVIVE", 12, MUTED)
+	_home_brand_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_column.add_child(_home_brand_subtitle)
+
+	_home_bank_column = VBoxContainer.new()
+	_home_bank_column.custom_minimum_size.x = 210
+	_home_bank_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	header_row.add_child(_home_bank_column)
+	var bank_kicker := _make_label("CAMP FUNDS", 10, MUTED)
 	bank_kicker.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	bank_column.add_child(bank_kicker)
+	_home_bank_column.add_child(bank_kicker)
 	_home_cash_label = _make_label("$0", 27, GOLD)
 	_home_cash_label.name = "HomeCashLabel"
 	_home_cash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_home_cash_label.custom_minimum_size.x = 190
-	bank_column.add_child(_home_cash_label)
+	_home_cash_label.custom_minimum_size.x = 210
+	_home_bank_column.add_child(_home_cash_label)
 
-	_home_lock_banner = _make_panel(Color(0.18, 0.105, 0.065, 0.98), RED, 8)
+	_home_lock_banner = _make_panel(Color(0.18, 0.075, 0.035, 0.98), RED, 7)
 	_home_lock_banner.name = "SuspendedLockBanner"
 	shell.add_child(_home_lock_banner)
-	var lock_margin := _make_margin(14, 8, 14, 8)
+	var lock_margin := _make_margin(14, 6, 14, 6)
 	_home_lock_banner.add_child(lock_margin)
 	var lock_label := _make_label(
-		"SUSPENDED RUN · Permanent upgrades and yard controls are read-only until you Resume or Abandon.",
+		"SUSPENDED RUN · Camp upgrades and yard controls are read-only until you Resume or Abandon.",
 		14, Color(1.0, 0.79, 0.64, 1.0))
 	lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lock_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lock_margin.add_child(lock_label)
 
-	var body := HBoxContainer.new()
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 12)
-	shell.add_child(body)
+	_home_landing_spacer = Control.new()
+	_home_landing_spacer.name = "LandingStage"
+	_home_landing_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shell.add_child(_home_landing_spacer)
 
-	var nav_panel := _make_panel(PANEL_DARK, BORDER, 10)
-	nav_panel.custom_minimum_size.x = 218
-	body.add_child(nav_panel)
-	var nav_margin := _make_margin(14, 16, 14, 14)
-	nav_panel.add_child(nav_margin)
-	var nav_column := VBoxContainer.new()
-	nav_column.add_theme_constant_override("separation", 9)
-	nav_margin.add_child(nav_column)
-	var nav_heading := _make_label("HOME HUB", 12, MUTED)
-	nav_column.add_child(nav_heading)
-	_add_nav_button(nav_column, TAB_UPGRADES, "Upgrades", "18 permanent lines")
-	_add_nav_button(nav_column, TAB_YARD, "Yard", "Stage & frequency")
-	_add_nav_button(nav_column, TAB_POWERS, "Power Catalogue", "Run-only discoveries")
-	_add_nav_button(nav_column, TAB_RECORDS, "Records", "Career & yard history")
-	var nav_spacer := Control.new()
-	nav_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	nav_column.add_child(nav_spacer)
-	_home_new_profile_button = _make_button("Start Fresh Profile", false)
-	_home_new_profile_button.name = "NewProfileButton"
-	_home_new_profile_button.custom_minimum_size.y = 42
-	_home_new_profile_button.pressed.connect(_on_new_game_pressed)
-	nav_column.add_child(_home_new_profile_button)
-
-	var content_panel := _make_panel(PANEL_DARK, BORDER, 10)
-	content_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.add_child(content_panel)
-	var content_margin := _make_margin(20, 16, 20, 16)
-	content_panel.add_child(content_margin)
+	_home_content_panel = _make_panel(PANEL_DARK, BORDER, 8)
+	_home_content_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_home_content_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_home_content_panel.visible = false
+	shell.add_child(_home_content_panel)
+	var content_margin := _make_margin(20, 12, 20, 12)
+	_home_content_panel.add_child(content_margin)
 	var content_column := VBoxContainer.new()
-	content_column.add_theme_constant_override("separation", 7)
+	content_column.add_theme_constant_override("separation", 5)
 	content_margin.add_child(content_column)
-	_home_content_title = _make_label("UPGRADES", 23, INK)
+	_home_content_title = _make_label("POWER UP", 22, INK)
 	_home_content_title.name = "ContentTitle"
 	content_column.add_child(_home_content_title)
-	_home_content_subtitle = _make_label("", 13, MUTED)
+	_home_content_subtitle = _make_label("", 12, MUTED)
 	_home_content_subtitle.name = "ContentSubtitle"
 	_home_content_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content_column.add_child(_home_content_subtitle)
@@ -246,46 +293,96 @@ func _build_home() -> void:
 	_home_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_home_content.add_theme_constant_override("separation", 12)
 	_home_scroll.add_child(_home_content)
+	_home_detail_host = VBoxContainer.new()
+	_home_detail_host.name = "UpgradeDetailHost"
+	_home_detail_host.visible = false
+	content_column.add_child(_home_detail_host)
 
-	var action_panel := _make_panel(PANEL_DARK, BORDER, 10)
-	action_panel.custom_minimum_size.y = 62
-	shell.add_child(action_panel)
-	var action_margin := _make_margin(16, 8, 12, 8)
-	action_panel.add_child(action_margin)
+	_home_action_panel = _make_panel(
+		Color(0.055, 0.035, 0.024, 0.97), BORDER, 8)
+	_home_action_panel.custom_minimum_size.y = 94
+	shell.add_child(_home_action_panel)
+	var action_margin := _make_margin(14, 7, 14, 7)
+	_home_action_panel.add_child(action_margin)
+	var action_column := VBoxContainer.new()
+	action_column.add_theme_constant_override("separation", 3)
+	action_margin.add_child(action_column)
+	var action_center := CenterContainer.new()
+	action_column.add_child(action_center)
 	var action_row := HBoxContainer.new()
-	action_row.add_theme_constant_override("separation", 9)
-	action_margin.add_child(action_row)
-	var action_copy := VBoxContainer.new()
-	action_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	action_copy.alignment = BoxContainer.ALIGNMENT_CENTER
-	action_row.add_child(action_copy)
-	_home_message_label = _make_label("Cash is banked when a run settles.", 12, MUTED)
-	_home_message_label.name = "StatusLabel"
-	_home_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	action_copy.add_child(_home_message_label)
-	_home_selection_label = _make_label("", 12, DIM)
-	_home_selection_label.name = "SelectionLabel"
-	action_copy.add_child(_home_selection_label)
-	_home_abandon_button = _make_button("Abandon", false)
+	action_row.add_theme_constant_override("separation", 10)
+	action_center.add_child(action_row)
+	_home_abandon_button = _make_button("ABANDON", false)
 	_home_abandon_button.name = "AbandonAttemptButton"
-	_home_abandon_button.custom_minimum_size = Vector2(112, 44)
+	_home_abandon_button.custom_minimum_size = Vector2(132, 58)
 	_home_abandon_button.pressed.connect(abandon_attempt_requested.emit)
 	action_row.add_child(_home_abandon_button)
-	_home_resume_button = _make_button("Resume Run", true)
+	_home_resume_button = _make_button("RESUME RUN", true)
 	_home_resume_button.name = "ResumeAttemptButton"
-	_home_resume_button.custom_minimum_size = Vector2(154, 44)
+	_home_resume_button.custom_minimum_size = Vector2(260, 58)
+	_home_resume_button.add_theme_font_size_override("font_size", 20)
 	_home_resume_button.pressed.connect(resume_attempt_requested.emit)
 	action_row.add_child(_home_resume_button)
-	_home_start_button = _make_button("Start Run", true)
-	_home_start_button.name = "StartRunButton"
-	_home_start_button.custom_minimum_size = Vector2(154, 44)
-	_home_start_button.pressed.connect(_on_continue_pressed)
+	_home_start_button = _make_button("START", true)
+	_home_start_button.name = "YardTabButton"
+	_home_start_button.custom_minimum_size = Vector2(310, 70)
+	_home_start_button.add_theme_font_size_override("font_size", 26)
+	_home_start_button.tooltip_text = "Open Level Select."
+	_home_start_button.pressed.connect(_on_landing_start_pressed)
+	_apply_landing_button_style(_home_start_button, false)
 	action_row.add_child(_home_start_button)
+	_nav_buttons[TAB_YARD] = _home_start_button
+	_home_quick_start_button = _make_button("QUICK START", false)
+	_home_quick_start_button.name = "QuickStartButton"
+	_home_quick_start_button.custom_minimum_size = Vector2(145, 40)
+	_home_quick_start_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_home_quick_start_button.add_theme_font_size_override("font_size", 12)
+	_home_quick_start_button.tooltip_text = (
+		"Immediately begin the currently selected level and frequency."
+	)
+	_home_quick_start_button.pressed.connect(_on_continue_pressed)
+	_apply_landing_button_style(_home_quick_start_button, false)
+	action_row.add_child(_home_quick_start_button)
+	_home_action_copy = HBoxContainer.new()
+	_home_action_copy.alignment = BoxContainer.ALIGNMENT_CENTER
+	_home_action_copy.add_theme_constant_override("separation", 14)
+	action_column.add_child(_home_action_copy)
+	_home_message_label = _make_label("Cash is banked when a run settles.", 12, MUTED)
+	_home_message_label.name = "StatusLabel"
+	_home_message_label.custom_minimum_size.x = 390
+	_home_message_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_home_message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_home_action_copy.add_child(_home_message_label)
+	_home_selection_label = _make_label("", 12, DIM)
+	_home_selection_label.name = "SelectionLabel"
+	_home_selection_label.custom_minimum_size.x = 300
+	_home_selection_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_home_action_copy.add_child(_home_selection_label)
+
+	_home_landing_lower_spacer = Control.new()
+	_home_landing_lower_spacer.name = "LandingActionSpacer"
+	_home_landing_lower_spacer.custom_minimum_size.y = 58
+	shell.add_child(_home_landing_lower_spacer)
+
+	_home_nav_panel = _make_panel(
+		Color(0.035, 0.024, 0.018, 0.94), BORDER, 8)
+	_home_nav_panel.custom_minimum_size.y = 66
+	shell.add_child(_home_nav_panel)
+	var nav_margin := _make_margin(10, 7, 10, 7)
+	_home_nav_panel.add_child(nav_margin)
+	_home_nav_row = HBoxContainer.new()
+	_home_nav_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_home_nav_row.add_theme_constant_override("separation", 58)
+	nav_margin.add_child(_home_nav_row)
+	_add_nav_button(_home_nav_row, TAB_POWERS, "COLLECTION", "Run powers")
+	_add_nav_button(_home_nav_row, TAB_UPGRADES, "POWER UP", "Permanent ranks")
+	_add_nav_button(_home_nav_row, TAB_RECORDS, "UNLOCKS", "Records & progress")
 
 
-func _add_nav_button(parent: VBoxContainer, id: StringName, title: String,
+func _add_nav_button(parent: Container, id: StringName, title: String,
 		subtitle: String) -> void:
-	var button := _make_button("%s\n%s" % [title, subtitle], false)
+	var button := _make_button(title, false)
+	button.tooltip_text = subtitle
 	match id:
 		TAB_UPGRADES:
 			button.name = "UpgradesTabButton"
@@ -295,9 +392,11 @@ func _add_nav_button(parent: VBoxContainer, id: StringName, title: String,
 			button.name = "PowerCatalogueTabButton"
 		TAB_RECORDS:
 			button.name = "RecordsTabButton"
-	button.custom_minimum_size.y = 57
-	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.custom_minimum_size = Vector2(230, 58)
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.toggle_mode = true
+	_apply_landing_button_style(button, id == TAB_UPGRADES)
 	button.pressed.connect(_select_home_tab.bind(id))
 	parent.add_child(button)
 	_nav_buttons[id] = button
@@ -306,11 +405,23 @@ func _add_nav_button(parent: VBoxContainer, id: StringName, title: String,
 func _refresh_home(rebuild_content: bool) -> void:
 	if _home_root == null:
 		return
+	if rebuild_content and _has_save and _current_tab != TAB_HOME:
+		_render_current_tab(true)
+	_apply_home_screen_layout()
 	_home_cash_label.text = "$%s" % _format_number(GameState.get_home_cash())
 	var locked := _permanent_mutations_locked()
 	_home_lock_banner.visible = _has_attempt
 	_home_start_button.visible = not _has_attempt
 	_home_start_button.disabled = _has_attempt
+	_home_quick_start_button.visible = _has_save and not _has_attempt
+	_home_quick_start_button.disabled = not _has_save or _has_attempt
+	_home_start_button.tooltip_text = (
+		"Open Level Select."
+		if _has_save else "Create a camp, then open Level Select."
+	)
+	if _home_level_start_button != null:
+		_home_level_start_button.visible = _current_tab == TAB_YARD and not _has_attempt
+		_home_level_start_button.disabled = _has_attempt
 	_home_resume_button.visible = _has_attempt
 	_home_abandon_button.visible = _has_attempt
 	_home_new_profile_button.disabled = locked
@@ -330,19 +441,106 @@ func _refresh_home(rebuild_content: bool) -> void:
 	for raw_id: Variant in _nav_buttons:
 		var nav_button := _nav_buttons[raw_id] as Button
 		if nav_button != null:
+			if StringName(raw_id) != TAB_YARD:
+				nav_button.disabled = not _has_save
+				nav_button.tooltip_text = (
+					"Create a camp to open this section."
+					if not _has_save else _landing_nav_tooltip(StringName(raw_id))
+				)
 			nav_button.set_pressed_no_signal(StringName(raw_id) == _current_tab)
-	if rebuild_content and _has_save:
-		_render_current_tab(true)
+
+
+func _landing_nav_tooltip(id: StringName) -> String:
+	match id:
+		TAB_UPGRADES:
+			return "Open permanent Power Ups."
+		TAB_POWERS:
+			return "Open the run-power Collection."
+		TAB_RECORDS:
+			return "Open Unlocks and Records."
+	return "Open this section."
+
+
+func _apply_home_screen_layout() -> void:
+	var landing := _current_tab == TAB_HOME
+	_home_root.add_theme_constant_override("margin_left", 24 if landing else 170)
+	_home_root.add_theme_constant_override("margin_right", 24 if landing else 170)
+	_home_header.custom_minimum_size.y = 235 if landing else 88
+	_home_landing_spacer.visible = landing
+	_home_landing_lower_spacer.visible = landing
+	_home_content_panel.visible = not landing
+	_home_action_panel.visible = landing
+	_home_action_copy.visible = landing and not _home_message_override.is_empty()
+	_home_nav_panel.visible = landing
+	_home_profile_column.visible = not landing
+	_home_bank_column.visible = not landing
+	_home_new_profile_button.visible = false
+	_home_back_button.visible = not landing
+	if landing:
+		_home_header.add_theme_stylebox_override("panel",
+			_style_box(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0))
+		_home_action_panel.add_theme_stylebox_override("panel",
+			_style_box(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0))
+		_home_nav_panel.add_theme_stylebox_override("panel",
+			_style_box(Color.TRANSPARENT, Color.TRANSPARENT, 0, 0))
+		_home_brand_kicker.text = "FIFTEEN MINUTES · ONE CHOPPING BLOCK"
+		_home_brand_title.text = "CAMPFIRE\nSURVIVORS"
+		_home_brand_title.add_theme_font_size_override("font_size", 60)
+		_home_brand_subtitle.text = "SPLIT · GROW · SURVIVE"
+	else:
+		_home_header.add_theme_stylebox_override("panel", _style_box(
+			Color(0.035, 0.024, 0.018, 0.82), BORDER, 8))
+		_home_brand_kicker.text = "CAMPFIRE SURVIVORS"
+		_home_brand_title.text = _section_title(_current_tab)
+		_home_brand_title.add_theme_font_size_override("font_size", 30)
+		_home_brand_subtitle.text = _section_subtitle(_current_tab)
+
+
+func _section_title(id: StringName) -> String:
+	match id:
+		TAB_UPGRADES:
+			return "POWERUP SELECTION"
+		TAB_YARD:
+			return "LEVEL SELECT"
+		TAB_POWERS:
+			return "COLLECTION"
+		TAB_RECORDS:
+			return "UNLOCKS"
+	return "CAMPFIRE SURVIVORS"
+
+
+func _section_subtitle(id: StringName) -> String:
+	match id:
+		TAB_UPGRADES:
+			return "SPEND CAMP FUNDS · RANK UP PERMANENTLY"
+		TAB_YARD:
+			return "CHOOSE THE NEXT SURVIVAL RUN"
+		TAB_POWERS:
+			return "DISCOVERED RUN POWERS"
+		TAB_RECORDS:
+			return "PROGRESS, DISCOVERIES, AND RECORDS"
+	return "SPLIT · GROW · SURVIVE"
 
 
 func _select_home_tab(id: StringName) -> void:
-	if id not in [TAB_UPGRADES, TAB_YARD, TAB_POWERS, TAB_RECORDS]:
+	if id not in [TAB_HOME, TAB_UPGRADES, TAB_YARD, TAB_POWERS, TAB_RECORDS]:
 		return
 	_current_tab = id
 	_home_message_override = ""
-	_render_current_tab(false)
+	if id != TAB_HOME:
+		_render_current_tab(false)
 	_refresh_home(false)
-	_home_scroll.scroll_vertical = 0
+	if id != TAB_HOME:
+		_home_scroll.scroll_vertical = 0
+	if id == TAB_HOME:
+		if _has_attempt:
+			_home_resume_button.grab_focus()
+		else:
+			_home_start_button.grab_focus()
+	elif id == TAB_YARD and _home_level_start_button != null:
+		_home_level_start_button.grab_focus()
+	else:
+		_home_back_button.grab_focus()
 
 
 func _render_current_tab(preserve_scroll: bool) -> void:
@@ -350,6 +548,9 @@ func _render_current_tab(preserve_scroll: bool) -> void:
 		return
 	var previous_scroll := _home_scroll.scroll_vertical if preserve_scroll else 0
 	_clear_children(_home_content)
+	_clear_children(_home_detail_host)
+	_home_detail_host.visible = false
+	_home_level_start_button = null
 	match _current_tab:
 		TAB_UPGRADES:
 			_render_upgrades()
@@ -364,15 +565,16 @@ func _render_current_tab(preserve_scroll: bool) -> void:
 
 
 func _render_upgrades() -> void:
-	_home_content_title.text = "PERMANENT UPGRADES"
+	_home_content_title.text = "PERMANENT POWER UPS"
 	_home_content_subtitle.text = (
-		"Spend banked Home Cash between runs. Every line is visible, every rank is "
-		+ "authored explicitly, and a full refund returns exactly what you paid."
+		"Select a power up for details, then buy one permanent rank at a time."
 	)
 	var table := SurvivorsContent.meta_upgrades()
 	if table == null:
 		_add_empty_state("The permanent-upgrade catalogue could not be loaded.")
 		return
+	if table.by_id(_selected_upgrade_id) == null and not table.upgrades.is_empty():
+		_selected_upgrade_id = table.upgrades[0].id
 	var total_ranks := 0
 	var total_spent := 0
 	for definition: MetaUpgradeDef in table.upgrades:
@@ -380,15 +582,14 @@ func _render_upgrades() -> void:
 			continue
 		total_ranks += GameState.get_meta_upgrade_rank(definition.id)
 		total_spent += GameState.get_meta_upgrade_spend(definition.id)
-	var summary_row := HBoxContainer.new()
-	summary_row.add_theme_constant_override("separation", 12)
-	_home_content.add_child(summary_row)
-	var summary := _make_label("%d lines · %d ranks owned · $%s invested" % [
+	var summary := _make_label("%d power ups · %d ranks owned · $%s invested" % [
 		table.upgrades.size(), total_ranks, _format_number(total_spent)], 13, MUTED)
-	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	summary_row.add_child(summary)
-	var refund := _make_button("Refund All · $%s" % _format_number(total_spent), false)
-	refund.custom_minimum_size = Vector2(184, 40)
+	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_home_content.add_child(summary)
+	var refund := _make_button("Refund All Power Ups · $%s" %
+		_format_number(total_spent), false)
+	refund.name = "RefundAllUpgradesButton"
+	refund.custom_minimum_size = Vector2(0, 48)
 	refund.disabled = _permanent_mutations_locked() or total_spent <= 0
 	refund.tooltip_text = (
 		"Permanent controls are locked while a run is suspended."
@@ -396,78 +597,125 @@ func _render_upgrades() -> void:
 		else "Free full refund using the exact recorded amounts paid."
 	)
 	refund.pressed.connect(_refund_all_upgrades)
-	summary_row.add_child(refund)
+	_home_content.add_child(refund)
 
 	var grid := GridContainer.new()
-	grid.columns = 2
+	grid.name = "PowerUpGrid"
+	grid.columns = 4
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
 	_home_content.add_child(grid)
 	for definition: MetaUpgradeDef in table.upgrades:
 		if definition != null:
-			grid.add_child(_build_upgrade_card(definition, table))
+			grid.add_child(_build_upgrade_tile(definition, table))
+	_home_detail_host.visible = true
+	_render_upgrade_detail(table.by_id(_selected_upgrade_id))
 
 
-func _build_upgrade_card(definition: MetaUpgradeDef,
+func _build_upgrade_tile(definition: MetaUpgradeDef,
 		table: MetaUpgradeTable) -> PanelContainer:
-	var card := _make_panel(PANEL_MID, Color(0.27, 0.25, 0.17, 1.0), 8)
+	var selected := definition.id == _selected_upgrade_id
+	var card := _make_panel(PANEL_LIGHT if selected else PANEL_MID,
+		GOLD if selected else Color(0.38, 0.27, 0.12, 1.0), 6)
 	card.name = "Upgrade_%s" % definition.id
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.custom_minimum_size = Vector2(380, 238)
-	var margin := _make_margin(13, 12, 13, 12)
+	card.custom_minimum_size = Vector2(175, 158)
+	var margin := _make_margin(8, 7, 8, 7)
 	card.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 6)
+	column.add_theme_constant_override("separation", 4)
 	margin.add_child(column)
 
 	var rank := GameState.get_meta_upgrade_rank(definition.id)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 10)
-	column.add_child(top)
-	var icon := _make_icon(definition.icon_path, Vector2(42, 42))
-	top.add_child(icon)
-	var title_column := VBoxContainer.new()
-	title_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(title_column)
-	var title := _make_label(definition.display_name, 17, INK)
-	title_column.add_child(title)
-	var id_label := _make_label(String(definition.id), 10, DIM)
-	title_column.add_child(id_label)
-	var rank_label := _make_label("RANK %d / %d" % [rank, definition.max_rank], 12,
+	var title := _make_label(definition.display_name, 13, INK)
+	title.custom_minimum_size.y = 31
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(title)
+	var select := _make_button("", false)
+	select.name = "Select_%s" % definition.id
+	select.custom_minimum_size.y = 62
+	if ResourceLoader.exists(definition.icon_path):
+		select.icon = load(definition.icon_path) as Texture2D
+	select.expand_icon = true
+	select.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	select.add_theme_constant_override("icon_max_width", 52)
+	select.tooltip_text = "Show %s details." % definition.display_name
+	select.pressed.connect(_select_upgrade_detail.bind(definition.id))
+	column.add_child(select)
+	var rank_label := _make_label(_rank_markers(rank, definition.max_rank), 12,
 		GREEN if rank > 0 else MUTED)
-	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	top.add_child(rank_label)
-
-	var description := _make_label(definition.description, 12, MUTED)
-	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description.custom_minimum_size.y = 34
-	column.add_child(description)
-	var effects := _make_label(_meta_effect_summary(definition, rank), 11, BLUE)
-	effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(effects)
-	var limitation := _make_label(definition.limitation, 10, DIM)
-	limitation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(limitation)
-	var ladder := _make_label("COSTS · %s" % _cost_ladder(definition.costs_by_rank),
-		10, DIM)
-	ladder.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(ladder)
-
-	var bottom := HBoxContainer.new()
-	bottom.add_theme_constant_override("separation", 8)
-	column.add_child(bottom)
-	var tuning := _make_label("PLACEHOLDER TUNING", 10, GOLD)
-	tuning.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tuning.tooltip_text = definition.tuning_status
-	bottom.add_child(tuning)
+	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rank_label.tooltip_text = "Rank %d / %d" % [rank, definition.max_rank]
+	column.add_child(rank_label)
 	var buy := _make_button("", true)
 	buy.name = "Buy_%s" % definition.id
-	buy.custom_minimum_size = Vector2(142, 38)
+	buy.custom_minimum_size = Vector2(0, 32)
+	buy.add_theme_font_size_override("font_size", 12)
 	_configure_upgrade_buy_button(buy, definition, table, rank)
 	buy.pressed.connect(_purchase_upgrade.bind(definition.id))
-	bottom.add_child(buy)
+	column.add_child(buy)
 	return card
+
+
+func _render_upgrade_detail(definition: MetaUpgradeDef) -> void:
+	_clear_children(_home_detail_host)
+	if definition == null:
+		return
+	var rank := GameState.get_meta_upgrade_rank(definition.id)
+	var panel := _make_panel(PANEL_LIGHT, GOLD, 7)
+	panel.name = "SelectedUpgradeDetail"
+	panel.custom_minimum_size.y = 126
+	_home_detail_host.add_child(panel)
+	var margin := _make_margin(13, 10, 13, 10)
+	panel.add_child(margin)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	margin.add_child(row)
+	var icon := _make_icon(definition.icon_path, Vector2(72, 72))
+	row.add_child(icon)
+	var copy := VBoxContainer.new()
+	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	copy.add_theme_constant_override("separation", 3)
+	row.add_child(copy)
+	copy.add_child(_make_label(definition.display_name, 18, INK))
+	var description := _make_label(definition.description, 12, MUTED)
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	copy.add_child(description)
+	var effects := _make_label(_meta_effect_summary(definition, rank), 11, BLUE)
+	effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	copy.add_child(effects)
+	var state := VBoxContainer.new()
+	state.custom_minimum_size.x = 170
+	state.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(state)
+	var rank_label := _make_label("RANK %d / %d" % [rank, definition.max_rank],
+		13, GREEN if rank > 0 else MUTED)
+	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	state.add_child(rank_label)
+	var next_text := "MAXIMUM\nLEVEL REACHED" if definition.is_maxed(rank) \
+		else "NEXT RANK\n$%s" % _format_number(
+			definition.cost_for_rank(rank + 1))
+	var next := _make_label(next_text, 13, GOLD)
+	next.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	state.add_child(next)
+
+
+func _rank_markers(rank: int, maximum: int) -> String:
+	var markers := PackedStringArray()
+	for index: int in range(maximum):
+		markers.append("◆" if index < rank else "◇")
+	return " ".join(markers)
+
+
+func _select_upgrade_detail(id: StringName) -> void:
+	var table := SurvivorsContent.meta_upgrades()
+	if table == null or table.by_id(id) == null:
+		return
+	_selected_upgrade_id = id
+	_render_current_tab(true)
 
 
 func _configure_upgrade_buy_button(button: Button,
@@ -497,7 +745,7 @@ func _configure_upgrade_buy_button(button: Button,
 
 
 func _render_yard() -> void:
-	_home_content_title.text = "YARD & STARTING PRESSURE"
+	_home_content_title.text = "CHOOSE A LEVEL"
 	_home_content_subtitle.text = (
 		"Choose a stage and a starting delivery tier. Faster tiers add no cash or XP "
 		+ "multiplier; their extra log volume is the reward and the risk."
@@ -568,8 +816,8 @@ func _render_yard() -> void:
 	frequency_column.add_child(tier_row)
 	var max_tier := GameState.get_max_frequency_tier()
 	var current_tier := GameState.get_selected_frequency_tier()
-	for tier: int in range(yard.starting_delivery_intervals.size()):
-		var interval := float(yard.starting_delivery_intervals[tier])
+	for tier: int in range(yard.delivery_tier_interval_scales.size()):
+		var interval := yard.delivery_interval_seconds(1, tier)
 		var tier_button := _make_button(
 			"%s\n%.1fs" % ["DEFAULT" if tier == 0 else "TIER %d" % tier, interval],
 			tier == current_tier)
@@ -588,6 +836,33 @@ func _render_yard() -> void:
 			tier_button.tooltip_text = "Begin future deliveries at this authored interval."
 		tier_button.pressed.connect(_select_frequency_tier.bind(tier))
 		tier_row.add_child(tier_button)
+
+	var launch_panel := _make_panel(
+		Color(0.12, 0.055, 0.025, 0.98), GOLD, 7)
+	launch_panel.name = "LevelLaunchPanel"
+	_home_content.add_child(launch_panel)
+	var launch_margin := _make_margin(14, 10, 14, 10)
+	launch_panel.add_child(launch_margin)
+	var launch_column := VBoxContainer.new()
+	launch_column.add_theme_constant_override("separation", 5)
+	launch_margin.add_child(launch_column)
+	var selected_copy := _make_label("%s · %s · FREQUENCY TIER %d" % [
+		yard.display_name, _format_duration_seconds(yard.stage_duration_seconds),
+		GameState.get_selected_frequency_tier()], 12, MUTED)
+	selected_copy.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	launch_column.add_child(selected_copy)
+	_home_level_start_button = _make_button("START RUN", true)
+	_home_level_start_button.name = "StartRunButton"
+	_home_level_start_button.custom_minimum_size.y = 54
+	_home_level_start_button.add_theme_font_size_override("font_size", 20)
+	_home_level_start_button.visible = not _has_attempt
+	_home_level_start_button.disabled = _has_attempt
+	_home_level_start_button.tooltip_text = (
+		"Resolve the suspended run before starting another."
+		if _has_attempt else "Begin the selected 15-minute survival run."
+	)
+	_home_level_start_button.pressed.connect(_on_continue_pressed)
+	launch_column.add_child(_home_level_start_button)
 
 
 func _render_power_catalogue() -> void:
@@ -616,9 +891,9 @@ func _render_power_catalogue() -> void:
 
 func _build_power_card(definition: RunPowerDef) -> PanelContainer:
 	var unlocked := GameState.is_run_power_unlocked(definition.id)
-	var rarity_color := _rarity_color(definition.rarity)
+	var power_color := GREEN
 	var card := _make_panel(PANEL_MID if unlocked else PANEL_DARK,
-		rarity_color.darkened(0.42) if unlocked else Color(0.2, 0.21, 0.19, 1.0), 8)
+		power_color.darkened(0.42) if unlocked else Color(0.2, 0.21, 0.19, 1.0), 8)
 	card.name = "Power_%s" % definition.id
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.custom_minimum_size = Vector2(380, 176)
@@ -638,9 +913,9 @@ func _build_power_card(definition: RunPowerDef) -> PanelContainer:
 	top.add_child(title_column)
 	title_column.add_child(_make_label(definition.display_name, 17,
 		INK if unlocked else MUTED))
-	title_column.add_child(_make_label("%s · %s · CAP %d" % [
-		_rarity_name(definition.rarity), _pool_name(definition.pool),
-		definition.rank_cap], 10, rarity_color))
+	title_column.add_child(_make_label("%s · CAP %d" % [
+		_pool_name(definition.pool),
+		definition.rank_cap], 10, power_color))
 	var state := _make_label("UNLOCKED" if unlocked else "BLUEPRINT LOCKED", 10,
 		GREEN if unlocked else DIM)
 	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -650,7 +925,7 @@ func _build_power_card(definition: RunPowerDef) -> PanelContainer:
 	copy.custom_minimum_size.y = 34
 	column.add_child(copy)
 	var effects := _make_label(_power_effect_summary(definition), 10,
-		rarity_color if unlocked else DIM)
+		power_color if unlocked else DIM)
 	effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(effects)
 	var tuning := _make_label("PLACEHOLDER TUNING", 10, GOLD if unlocked else DIM)
@@ -660,11 +935,25 @@ func _build_power_card(definition: RunPowerDef) -> PanelContainer:
 
 
 func _render_records() -> void:
-	_home_content_title.text = "RECORDS"
+	_home_content_title.text = "UNLOCKS & RECORDS"
 	_home_content_subtitle.text = (
-		"Permanent career totals and independent yard records. Legacy values remain "
-		+ "read-only and never affect the survivors run."
+		"Review permanent discoveries, career totals, and independent level records."
 	)
+	var power_table := SurvivorsContent.run_powers()
+	if power_table != null:
+		var unlock_panel := _make_panel(PANEL_LIGHT, GOLD, 7)
+		_home_content.add_child(unlock_panel)
+		var unlock_margin := _make_margin(14, 10, 14, 10)
+		unlock_panel.add_child(unlock_margin)
+		var unlock_row := HBoxContainer.new()
+		unlock_margin.add_child(unlock_row)
+		var unlock_copy := _make_label("RUN POWER UNLOCKS", 14, INK)
+		unlock_copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		unlock_row.add_child(unlock_copy)
+		var unlock_count := _make_label("%d / %d" % [
+			GameState.get_unlocked_run_powers().size(), power_table.powers.size()],
+			16, GOLD)
+		unlock_row.add_child(unlock_count)
 	var notice := GameState.get_migration_notice()
 	if not notice.is_empty():
 		_render_migration_notice(notice)
@@ -685,6 +974,17 @@ func _render_records() -> void:
 	var legacy := GameState.get_legacy_records()
 	if not legacy.is_empty():
 		_render_legacy_records(legacy)
+	var profile_button := _make_button("START FRESH CAMP", false)
+	profile_button.name = "RecordsNewProfileButton"
+	profile_button.custom_minimum_size.y = 44
+	profile_button.disabled = _permanent_mutations_locked()
+	profile_button.tooltip_text = (
+		"Resolve the suspended run before replacing the profile."
+		if _permanent_mutations_locked()
+		else "Replace this profile after confirmation."
+	)
+	profile_button.pressed.connect(_on_new_game_pressed)
+	_home_content.add_child(profile_button)
 
 
 func _render_migration_notice(notice: Dictionary) -> void:
@@ -803,6 +1103,7 @@ func _add_record_row(parent: VBoxContainer, label_text: String,
 func _purchase_upgrade(id: StringName) -> void:
 	if _permanent_mutations_locked():
 		return
+	_selected_upgrade_id = id
 	var definition := SurvivorsContent.meta_upgrades().by_id(id) \
 		if SurvivorsContent.meta_upgrades() != null else null
 	if GameState.purchase_meta_upgrade(id):
@@ -870,7 +1171,15 @@ func _on_new_game_pressed() -> void:
 	_emit_new_profile()
 
 
+func _on_landing_start_pressed() -> void:
+	if _has_save:
+		_select_home_tab(TAB_YARD)
+	else:
+		_emit_new_profile()
+
+
 func _emit_new_profile() -> void:
+	_pending_level_select_after_profile_create = true
 	new_profile_requested.emit()
 	new_game_requested.emit()
 
@@ -947,8 +1256,8 @@ func _format_effect_value(effect: ProgressionEffectDef, value: float) -> String:
 		ProgressionEffectDef.Kind.SCAR_RELIABILITY,
 		ProgressionEffectDef.Kind.BOSS_CUT_EFFECTIVENESS,
 		ProgressionEffectDef.Kind.FOURTH_CARD_CHANCE,
-		ProgressionEffectDef.Kind.RARE_OFFER_WEIGHT,
-		ProgressionEffectDef.Kind.EPIC_OFFER_WEIGHT,
+		ProgressionEffectDef.Kind.RARE_QUALITY_WEIGHT,
+		ProgressionEffectDef.Kind.EPIC_QUALITY_WEIGHT,
 		ProgressionEffectDef.Kind.BLASTER_DROP_CHANCE,
 		ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE,
 	]:
@@ -988,26 +1297,6 @@ func _boss_roster(yard: YardDef) -> String:
 			names.append("%s at %s" % [boss.display_name,
 				_format_duration_seconds(boss.scheduled_seconds)])
 	return ", ".join(names) if not names.is_empty() else "None"
-
-
-func _rarity_name(rarity: RunPowerDef.Rarity) -> String:
-	match rarity:
-		RunPowerDef.Rarity.COMMON:
-			return "COMMON"
-		RunPowerDef.Rarity.RARE:
-			return "RARE"
-		RunPowerDef.Rarity.EPIC:
-			return "EPIC"
-	return "UNKNOWN"
-
-
-func _rarity_color(rarity: RunPowerDef.Rarity) -> Color:
-	match rarity:
-		RunPowerDef.Rarity.RARE:
-			return BLUE
-		RunPowerDef.Rarity.EPIC:
-			return PURPLE
-	return GREEN
 
 
 func _pool_name(pool: RunPowerDef.Pool) -> String:
@@ -1077,21 +1366,63 @@ func _make_icon(path: String, minimum_size: Vector2) -> TextureRect:
 func _make_button(text: String, accent: bool) -> Button:
 	var button := Button.new()
 	button.text = text
-	button.add_theme_font_size_override("font_size", 13)
+	_apply_button_style(button, accent)
+	return button
+
+
+func _apply_button_style(button: Button, accent: bool) -> void:
+	if button == null:
+		return
+	button.add_theme_font_size_override("font_size", 14)
 	button.add_theme_color_override("font_color", INK)
 	button.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.82, 1.0))
 	button.add_theme_color_override("font_disabled_color", DIM)
-	var normal_bg := Color(0.24, 0.285, 0.19, 1.0) if accent \
-		else Color(0.15, 0.18, 0.135, 1.0)
+	var normal_bg := Color(0.42, 0.13, 0.035, 1.0) if accent \
+		else Color(0.12, 0.075, 0.045, 1.0)
 	button.add_theme_stylebox_override("normal", _style_box(normal_bg, BORDER, 7))
 	button.add_theme_stylebox_override("hover", _style_box(
-		Color(0.30, 0.35, 0.23, 1.0), GOLD, 7))
+		Color(0.54, 0.19, 0.055, 1.0), GOLD, 7, 2))
 	button.add_theme_stylebox_override("pressed", _style_box(
-		Color(0.11, 0.14, 0.10, 1.0), GOLD.darkened(0.15), 7))
+		Color(0.23, 0.065, 0.025, 1.0), GOLD.darkened(0.08), 7, 2))
 	button.add_theme_stylebox_override("disabled", _style_box(
-		Color(0.09, 0.10, 0.085, 1.0), Color(0.19, 0.19, 0.16, 1.0), 7))
+		Color(0.07, 0.055, 0.045, 1.0), Color(0.19, 0.15, 0.12, 1.0), 7))
 	button.add_theme_stylebox_override("focus", _style_box(Color.TRANSPARENT, GOLD, 7, 3))
-	return button
+
+
+func _apply_landing_button_style(button: Button, green: bool) -> void:
+	if button == null:
+		return
+	var base := Color(0.10, 0.43, 0.18, 1.0) if green \
+		else Color(0.10, 0.19, 0.52, 1.0)
+	var hover := Color(0.15, 0.58, 0.24, 1.0) if green \
+		else Color(0.16, 0.29, 0.72, 1.0)
+	button.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82, 1.0))
+	button.add_theme_stylebox_override("normal", _style_box(base, GOLD, 7, 3))
+	button.add_theme_stylebox_override("hover", _style_box(hover,
+		Color(1.0, 0.78, 0.34, 1.0), 7, 3))
+	button.add_theme_stylebox_override("pressed", _style_box(
+		base.darkened(0.28), GOLD.darkened(0.05), 7, 3))
+	button.add_theme_stylebox_override("focus", _style_box(
+		Color.TRANSPARENT, Color(1.0, 0.86, 0.45, 1.0), 8, 4))
+
+
+func _style_confirmation_dialog() -> void:
+	_new_game_confirmation.add_theme_stylebox_override("panel",
+		_style_box(PANEL_DARK, BORDER, 8, 2))
+	_new_game_confirmation.add_theme_color_override("title_color", INK)
+	_new_game_confirmation.add_theme_font_size_override("title_font_size", 18)
+	var copy := _new_game_confirmation.get_label()
+	if copy != null:
+		copy.add_theme_color_override("font_color", INK)
+		copy.add_theme_font_size_override("font_size", 15)
+	var confirm := _new_game_confirmation.get_ok_button()
+	_apply_button_style(confirm, true)
+	confirm.add_theme_font_size_override("font_size", 16)
+	confirm.custom_minimum_size = Vector2(170, 42)
+	var cancel := _new_game_confirmation.get_cancel_button()
+	_apply_button_style(cancel, false)
+	cancel.add_theme_font_size_override("font_size", 16)
+	cancel.custom_minimum_size = Vector2(170, 42)
 
 
 func _make_panel(background: Color, border: Color,

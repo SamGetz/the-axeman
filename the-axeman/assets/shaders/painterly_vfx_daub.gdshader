@@ -9,6 +9,9 @@ uniform vec4 mid_color : source_color = vec4(0.82, 0.22, 0.05, 0.94);
 uniform vec4 light_color : source_color = vec4(1.0, 0.64, 0.18, 0.98);
 uniform int shape_mode : hint_range(0, 2, 1) = 0; // daub, dry slash, fleck
 uniform bool billboard_enabled = true;
+// Opt-in for real 3D tool meshes. The default keeps the existing painterly
+// cutout language for quads/particles; action silhouettes need coherent faces.
+uniform bool solid_geometry = false;
 uniform float dry_amount : hint_range(0.0, 1.0) = 0.16;
 uniform float opacity : hint_range(0.0, 1.0) = 1.0;
 uniform float seed = 0.0;
@@ -69,6 +72,10 @@ void fragment() {
 	float dry_gap = step(grain,
 		dry_amount * (1.0 - edge_distance) * 0.48) * step(0.36, bristle_band);
 	coverage *= 1.0 - dry_gap;
+	if (solid_geometry) {
+		coverage = 1.0;
+		edge_distance = 1.0;
+	}
 
 	float centre = smoothstep(0.02, 0.58, boundary);
 	float light_patch = smoothstep(0.38, 0.82,

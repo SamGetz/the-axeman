@@ -12,11 +12,12 @@ extends Node3D
 ## name on the live script). When a log is fully chopped and its firewood settles,
 ## each finished piece is deposited into InventoryManager as the log species'
 ## yield item (A7 resource_gathered — see res://data/species_table.tres and
-## _begin_stacking).
+## _settle_finished_firewood). Once their colliders retire, the pieces sink
+## immediately below the floor and despawn; there is no persistent chopped stack.
 ##
 ## Amendment-6 SLICING PROOF-OF-CONCEPT, re-architected (2026-07-19) to match the
 ## reference firewood chopper's FEEL, not just its fall rules. The reference is
-## an ANIMATION-DRIVEN game: only firewood thrown to the pile uses physics; every
+## an ANIMATION-DRIVEN game: only completed firewood uses physics; every
 ## piece that stays on the block, and every nearby piece a strike jostles, is
 ## moved by a scripted pop/tilt animator (see piece_animator.gd). The earlier POC
 ## made everything a RigidBody, which is why it felt floaty and needed a pile of
@@ -33,7 +34,7 @@ extends Node3D
 ##   3. On the split: camera shake + hit-pause fire via EventBus.action_hit_
 ##      registered (GameFeel owns both). Each half is judged independently:
 ##        * volume <= min_vol OR aspect > aspect_limit -> FIREWOOD (physics, thrown
-##          toward the pile) ;  otherwise -> STAYS on the block (script-animated).
+##          into the yard) ;  otherwise -> STAYS on the block (script-animated).
 ##   4. Every on-block piece pops away from the cut in a radial shockwave with
 ##      distance falloff + staggered delay; a hull-separation solver keeps them
 ##      from overlapping and inside the stump footprint.
@@ -46,12 +47,12 @@ extends Node3D
 ## as @export, never a hardcoded final — tune live with Sam in F6.
 
 const _PieceAnimator := preload("res://scenes/3d_action/piece_animator.gd")
-const _WoodPile := preload("res://scenes/3d_action/wood_pile.gd")
 const _ManualLogOutcome := preload("res://data/manual_log_outcome.gd")
 const _LevelUpBurst := preload("res://scenes/3d_action/level_up_burst.gd")
 const _CoinRewardPool := preload("res://scenes/3d_action/coin_reward_pool.gd")
 const _PainterlyVFXDaub := preload("res://assets/shaders/painterly_vfx_daub.gdshader")
 const _PainterlyVFXStyle := preload("res://data/painterly_vfx_style_placeholder.tres")
+const _SURVIVAL_TUNING := preload("res://data/survival_run_tuning_placeholder.tres")
 
 ## Local instrumentation seams. They do not cross the 2D/3D EventBus boundary:
 ## the pacing probe observes this scene directly while a measured play session
@@ -59,8 +60,8 @@ const _PainterlyVFXStyle := preload("res://data/painterly_vfx_style_placeholder.
 signal strike_resolved(did_split: bool)
 signal log_completed(species_id: StringName, piece_count: int)
 signal block_ready_for_log
-## RunDirector uses the end of the visible handoff, rather than its beginning,
-## to resume boundary countdowns after a completed log.
+## RunDirector resumes boundary countdowns once the next workpiece is genuinely
+## ready. Collisionless farewell pieces may still be fading around it.
 signal run_log_ready
 ## M7C instrumentation: a named proc completed. Presentation is the local
 ## ProcBurst spawned at the actual result; this signal never grows a second
@@ -168,44 +169,21 @@ signal coin_batch_finished
 @export var piece_angular_damp := 1.2
 @export var firewood_out := 1.6          # outward (from cut) launch speed (m/s)
 @export var firewood_up := 1.2           # upward launch speed (m/s)
-@export var firewood_toward_cam := 1.0   # bias toward the viewer so the pile forms in front (m/s)
+@export var firewood_toward_cam := 1.0   # bias toward the viewer so finished pieces land in view (m/s)
 @export var firewood_tumble := 3.0       # random spin (rad/s)
 @export var max_firewood := 40           # hard cap; oldest freed first
 @export var firewood_settle_speed := 0.05 # firewood counts as "settled" below this speed (m/s)
-@export var firewood_settle_timeout := 1.5  # force-stack after this long even if still drifting (s)
+@export var firewood_settle_timeout := 1.5  # force-settle after this long even if still drifting (s)
 @export var min_firewood_settle_timeout := 0.55 # PLACEHOLDER authored floor
 
-# --- pile (fully-chopped firewood is gathered into an arc pile; reference QC) --
-@export_group("Pile")
-@export var pile_radius := 1.524         # ref 60in: arc radius the pile sits on
-@export var pile_arc_span_deg := 230.0
-@export var pile_start_angle_deg := 320.0
-@export var pile_slot_spacing := 0.127   # ref XC = 5in
-@export var pile_tier_depth := 0.4572    # ref 18in: outward step per tier
-@export var pile_max_height := 0.4572    # ref 18in
-@export var pile_ground_y := 0.0         # world y the pile rests on (our floor top = 0)
-@export var pile_jitter := 0.0254        # ref 1in: random slide along the arc
-@export var pile_apex_extra := 0.3048    # ref 12in: arc height of a flung piece
-@export var pile_fly_ms := 500.0         # travel takes this * 1.6
-@export var pile_stagger_ms := 300.0     # cascade spread across the batch
-@export var min_pile_fly_ms := 220.0     # PLACEHOLDER authored turnaround floor
-@export var min_pile_stagger_ms := 90.0  # PLACEHOLDER authored turnaround floor
-## Creative Director call, 2026-08-01: the pile builds to 50 pieces and is then
-## HAULED AWAY — the whole load flies off screen and the yard starts a fresh
-## stack. It doubles as A12's ceiling on how many pile meshes exist at once.
-## The export remains as a TEST SEAM (the acceptance suite fills a three-piece
-## load), but production inherits the one capacity owned with the pile state.
-@export var max_pile_pieces := GameState.YARD_PILE_CAPACITY
-@export var haul_distance := 9.0         # how far a hauled piece flies before it is dropped (m)
-@export var haul_rise := 2.2             # how high it arcs on the way out (m)
-@export var haul_ms := 700.0             # travel time per piece
-@export var haul_stagger_ms := 600.0     # spread across the load, so it leaves as a wave
-
-## The yard buys every piece the moment it lands on the pile (Creative Director
-## call, 2026-08-01 — "as soon as the pieces enter the pile, they should be
-## converted to their cash value"). OFF for the M4 suite, which tests the chopping
-## game's yield contract — that a finished piece deposits stock — and would
-## otherwise be watching the economy sell that stock out from under it.
+# --- completed-piece rewards ---------------------------------------------
+@export_group("Completed piece rewards")
+## Reward particles land at the yard floor. This is presentation geometry, not
+## a persistent stockpile location.
+@export var reward_ground_y := 0.0
+## OFF for suites and presentation tools that exercise only the standalone
+## gather contract. Production settles each completed piece's prepared cash
+## share as soon as its physics handoff completes.
 @export var auto_sell := true
 
 # --- axe ------------------------------------------------------------------
@@ -308,6 +286,7 @@ const _LOG_END_SHADER := preload("res://assets/shaders/log_end_cap.gdshader")
 const _SCAR_NORMAL := preload("res://assets/generated/chopping/axe_scar_normal.png")
 const _SCAR_SHADER := preload("res://assets/shaders/axe_scar_projection.gdshader")
 const _STUMP_FBX := preload("res://assets/models/chopping_stump_a/chopping_stump_a.fbx")
+const _SKILL_VFX_CONFIG := preload("res://data/skill_vfx_config.tres")
 
 ## The generated map keeps neutral-normal padding around its damage. These are
 ## asset-layout facts, not feel tuning: the exports above still describe the
@@ -323,17 +302,17 @@ const _PICK_LAYER := 1 << 1              # on-block pieces sit on this layer for
 @onready var _fallers: Node3D = $Fallers
 
 var _animator := _PieceAnimator.new()
-var _pile := _WoodPile.new()
 var _pieces_root: Node3D                  # identity-transform parent so piece.position == world
-var _pile_root: Node3D                    # frozen stacked firewood proxies live here
-var _haul_root: Node3D                    # a load on its way out of the yard; NOT part of the pile any more
+var _finished_firewood_root: Node3D       # inert opaque pieces waiting to sink
 var _on_block: Array = []                 # Array[Area3D] — script-animated pieces on the block
 var _firewood: Array = []                 # Array[RigidBody3D] — the only physics pieces
+## Entries hold one frozen RigidBody3D, every visible GeometryInstance3D under
+## it (including projected scars), and age measured in active gameplay seconds.
+var _finished_firewood: Array[Dictionary] = []
 var _pending: Dictionary = {}             # strike in flight, waiting for the axe's contact key
 var _cooldown_left := 0.0                 # seconds until the axe can swing again (what coffee shortens)
-var _stacking := false                    # firewood is flying into the pile
-var _awaiting_stack := false              # log done; waiting for firewood to settle before stacking
-var _await_since := 0.0                   # sec timestamp the wait began
+var _awaiting_finished_settlement := false # log done; waiting for its firewood to settle
+var _finished_batch_age := 0.0            # active-play seconds since this log's final chop
 var _staged_log: Dictionary = {}          # Handcart's one prepared next log; never inventory or automation
 ## M7C precision guard: the player's own request to suppress bonus cuts on the
 ## current work, with no penalty and no fairness spend. Input binding is an
@@ -363,6 +342,28 @@ var _eureka_grain_pending := false
 ## flow, while the persisted fairness streak itself remains in GameState.
 var _express_handoff_pending := false
 var _last_log_arrival_ms := -1.0
+## Claimed loose roots use an explicit, generation-checked presentation handoff.
+## The authoritative on-block geometry stays hidden until the visual snapshot has
+## lifted, repositioned fully off-screen, and landed on the stump.
+var _run_handoff_tween: Tween
+var _run_handoff_visual: Node3D
+var _run_handoff_piece: Area3D
+var _run_handoff_target := Vector3.ZERO
+var _run_handoff_mesh: Mesh
+var _run_handoff_generation := 0
+var _run_handoff_active := false
+var _boss_stack_active := false
+var _boss_stack_visual_root: Node3D
+var _boss_stack_visuals: Dictionary = {}
+var _boss_stack_centers: Dictionary = {}
+var _boss_stack_drop_tween: Tween
+var _camera_base_transform := Transform3D.IDENTITY
+var _camera_base_fov := 75.0
+var _pivot_base_position := Vector3.ZERO
+var _boss_camera_tween: Tween
+var _boss_camera_target_y := 0.0
+var _chopping_visibility_occluder_count := 0
+var _chopping_visibility_hidden_geometry_count := 0
 
 ## Technique grain opportunity: one preflighted local cut plane tied to one
 ## current on-block piece, with the world mark owned here so every lifecycle
@@ -381,10 +382,13 @@ var _grain_glow_mat: ShaderMaterial = null
 var _grain_core_mat: ShaderMaterial = null
 ## Once-per-log latch: a mark is decided at most once per log, win or lose the
 ## roll, so it never relocates onto a "better" candidate and never stacks a
-## second one after the first is taken. Reset only in _spawn_fresh_log.
+## second one after the first is taken. Fresh standalone and run descriptors
+## reset it through their respective staging paths.
 var _grain_offered_this_log := false
 var _grain_offer_count_this_log := 0     # debug seam: how many marks actually landed this log
 var _last_grain_bonus := 0               # debug seam: XP paid by the most recent gold cut
+var _grain_offer_source: StringName = &""
+var _restoring_run_log := false
 
 var _source_mesh: Mesh
 var _yaw_steps := 0
@@ -394,7 +398,10 @@ var _audio: AudioStreamPlayer3D
 var _cut_mat: StandardMaterial3D          # cut-face material of the log CURRENTLY on the block
 var _cut_mats: Dictionary = {}            # species index -> StandardMaterial3D (built once, reused)
 var _bark_mats: Dictionary = {}           # "species index|source material id" -> procedural exterior material
-var _specimens: Dictionary = {}           # species index -> Array[ArrayMesh]: stand-in firewood for a REBUILT pile
+## Whole delivered roots are immutable until a slicer creates new descendants.
+## Cache the finite species/variant set so a 50-roots/s wave does not repeatedly
+## load, transform, upload, and redress identical imported geometry.
+var _run_log_mesh_cache: Dictionary = {}
 var _alien_band_mesh: ArrayMesh = null     # unit quad used only by the luminous alien weak-band cue
 var _scar_projection_mat: ShaderMaterial  # generated normal-map material shared by persistent scars
 var _smoke_root: Node3D                    # landing puff pool; built before play to keep allocations off impact
@@ -422,13 +429,28 @@ var _xp_orb_pool_root: Node3D
 var _xp_orb_pool: Array[XPOrb] = []
 var _queued_xp_bursts: Array[Dictionary] = []
 var _render_warmup_nodes: Array[Node] = []
+var _splinter_projectile_mesh: BoxMesh
 var _grain_cue_config: GrainCueDef
+## Disposable run-power presentation/runtime seams. Authoritative ranks, RNG,
+## timers, charges, and stacks remain in RunDirector; this scene only applies
+## power cuts to the real on-block geometry and renders the orbiting tool state.
+var _pending_descriptor_power_cuts := 0
+var _pending_descriptor_power_cut_sources: Array[StringName] = []
+var _power_cut_context: StringName = &""
+var _last_run_power_cuts: Dictionary = {}
+var _run_power_orbit_root: Node3D
+var _run_power_orbit_axes: Array[Node3D] = []
+var _run_power_orbit_angle := 0.0
 
 
 func _ready() -> void:
 	if xp_pacing_config == null:
 		xp_pacing_config = GameConfig.current().xp_pacing
 	_grain_cue_config = GameConfig.current().grain_cue
+	_camera_base_transform = _camera.transform
+	_camera_base_fov = _camera.fov
+	_pivot_base_position = _pivot.position
+	_boss_camera_target_y = _pivot_base_position.y
 	GameFeel.register_camera(_camera)
 	AudioDirector.register_world_root(self)
 	# A cut material must exist before anything can slice; _spawn_fresh_log swaps
@@ -442,16 +464,9 @@ func _ready() -> void:
 	_pieces_root.name = "OnBlock"
 	add_child(_pieces_root)
 
-	_pile_root = Node3D.new()
-	_pile_root.name = "Pile"
-	add_child(_pile_root)
-	# A hauled load is reparented out of the pile the instant it is handed over, so
-	# the next stack can start building underneath it without the two ever sharing
-	# a node or a slot.
-	_haul_root = Node3D.new()
-	_haul_root.name = "Haul"
-	add_child(_haul_root)
-	_configure_pile()
+	_finished_firewood_root = Node3D.new()
+	_finished_firewood_root.name = "FinishedFirewood"
+	add_child(_finished_firewood_root)
 
 	_audio = AudioStreamPlayer3D.new()
 	add_child(_audio)
@@ -468,15 +483,6 @@ func _ready() -> void:
 	$Floor.physics_material_override = _phys_mat
 	_build_axe()
 	_spawn_fresh_log()
-
-	# The pile on screen is a view of GameState's yard pile, so the yard you come
-	# back to is the yard you left.
-	#
-	# This connection is what makes a LOADED SAVE show its pile at all: a child's
-	# _ready runs before its parent's, so this scene is built before main.gd has
-	# read the save off disk, and the pile it builds in _spawn_fresh_log above is
-	# necessarily empty. The load lands moments later and this rebuilds on it.
-	GameState.yard_pile_changed.connect(_on_yard_pile_changed)
 
 
 ## Main binds this to the HUD's live progress-edge position. Harnesses and
@@ -498,10 +504,16 @@ func bind_run_director(run: RunDirector) -> void:
 	_external_log_flow = run != null
 	if _external_log_flow:
 		clear_run_log()
+	refresh_run_power_visuals()
 
 
-func clear_run_log() -> void:
+func clear_run_log(clear_finished := true) -> void:
+	_cancel_run_log_handoff()
+	_clear_boss_stack_presentation(true)
 	_clear_grain_cue(&"run_reset")
+	if not GameState.has_meta_capability(
+			MetaUpgradeDef.Capability.CONTINUOUS_HANDOFF):
+		_hold_chop_active = false
 	for piece: Area3D in _on_block:
 		if is_instance_valid(piece):
 			piece.queue_free()
@@ -510,13 +522,18 @@ func clear_run_log() -> void:
 		if is_instance_valid(body):
 			body.queue_free()
 	_firewood.clear()
+	if clear_finished:
+		_clear_finished_firewood()
 	_animator.clear()
 	_pending.clear()
-	_awaiting_stack = false
-	_stacking = false
+	_awaiting_finished_settlement = false
+	_finished_batch_age = 0.0
 	_current_descriptor = null
 	_current_species = null
 	_cut_journal.clear()
+	_pending_descriptor_power_cuts = 0
+	_pending_descriptor_power_cut_sources.clear()
+	_power_cut_context = &""
 
 
 func build_run_log_mesh(descriptor: LogDescriptor) -> Mesh:
@@ -527,14 +544,178 @@ func build_run_log_mesh(descriptor: LogDescriptor) -> Mesh:
 	if species == null or species.meshes.is_empty():
 		return null
 	var mesh_index := clampi(descriptor.mesh_index, 0, species.meshes.size() - 1)
-	return _apply_species_look(
+	var key := "%d|%d" % [species_index, mesh_index]
+	var cached := _run_log_mesh_cache.get(key) as Mesh
+	if cached != null:
+		return cached
+	var mesh := _apply_species_look(
 		_center_mesh(_build_split_log(species.meshes[mesh_index])), species_index)
+	_run_log_mesh_cache[key] = mesh
+	return mesh
+
+
+## Arena powers use the exact block slicer, material, rough-cut, sliver and
+## firewood rules. The plane normal is LOG-LOCAL X or Z. A loose root may have
+## rolled onto any face, but its physics pose must never rotate the cut through
+## its authored top/bottom axis and create a diagonal piece. Building the plane
+## in canonical mesh space makes the resulting wood identical to an upright
+## root receiving the same centred cut on the block.
+func slice_loose_run_piece(descriptor: LogDescriptor, mesh: Mesh,
+		_piece_global_transform: Transform3D, local_axis: Vector3,
+		_cut_serial: int) -> Dictionary:
+	if descriptor == null or mesh == null:
+		return {}
+	var axis := Vector3(local_axis.x, 0.0, local_axis.z).normalized()
+	if axis.length_squared() <= 0.0001:
+		return {}
+	# All run meshes and every descendant are recentered after slicing. Applying
+	# the block's footprint bias in this identity frame therefore reproduces the
+	# upright on-block result without allowing world rotation into the geometry.
+	var local_plane := _square_bias(mesh, Transform3D.IDENTITY,
+		Plane(axis, 0.0))
+	local_plane = _sliver_guard(mesh, local_plane)
+	var species_index := SpeciesTable.index_of(descriptor.species_id)
+	var cut_material := _cut_mat_for(species_index)
+	var result := MeshSlicer.slice(mesh, local_plane, cut_material)
+	if result.above == null or result.below == null:
+		return {}
+	var noise := FastNoiseLite.new()
+	noise.seed = descriptor.visual_seed
+	noise.frequency = cut_jag_freq
+	result.above = MeshUtils.jag_cut(result.above, local_plane, cut_material,
+		cut_jag_amount, noise)
+	result.below = MeshUtils.jag_cut(result.below, local_plane, cut_material,
+		cut_jag_amount, noise)
+	var halves: Array[Dictionary] = []
+	for half_index: int in range(2):
+		var half: ArrayMesh = result.above if half_index == 0 else result.below
+		var aabb := half.get_aabb()
+		var center := aabb.position + aabb.size * 0.5
+		var centered := _translate_mesh(half, -center)
+		# Match the block splitter's authored fresh-half push. Both descendants
+		# remain under the loose root's physics owner until the fifth slice.
+		var separation := local_plane.normal * half_push \
+			* (1.0 if half_index == 0 else -1.0)
+		halves.append({
+			"mesh": centered,
+			"center": center,
+			"separation": separation,
+			"is_firewood": _mesh_is_firewood(centered),
+			"suffix": "a" if half_index == 0 else "b",
+		})
+	return {"halves": halves, "local_plane": local_plane}
+
+
+## A loose root completes on its fifth successful power slice. Release its six
+## real descendants as individual physics bodies so they fall apart at the
+## completion location, present the already-authoritative cash/XP there, then
+## retire each settled piece through the normal opaque hold/sink lifecycle.
+func retire_off_block_finished_log(body: RigidBody3D,
+		completion_receipt: Dictionary = {},
+		world_position := Vector3.ZERO) -> void:
+	if body == null or not is_instance_valid(body):
+		return
+	var reward_position := body.global_position if world_position == Vector3.ZERO \
+		else world_position
+	var xp_total := maxi(0, int(completion_receipt.get("xp_total", 0)))
+	var cash_total := maxi(0, int(completion_receipt.get("cash_total", 0)))
+	if xp_total > 0:
+		_burst_xp_orbs(xp_total,
+			to_local(reward_position + Vector3.UP * 0.12), false)
+	if cash_total > 0 and _coin_reward_pool != null:
+		_coin_reward_pool.begin_burst(reward_position + Vector3.UP * 0.06,
+			1, to_global(Vector3(0.0, reward_ground_y, 0.0)).y,
+			orb_scatter_radius, orb_collect_at, orb_stagger)
+		_coin_reward_pool.queue_payout(cash_total)
+	var inherited_linear := body.linear_velocity
+	var inherited_angular := body.angular_velocity
+	var visuals: Array[MeshInstance3D] = []
+	var released_visual_ids: Array[int] = []
+	for child: Node in body.get_children():
+		if child is MeshInstance3D and (child as MeshInstance3D).mesh != null:
+			visuals.append(child as MeshInstance3D)
+	for visual: MeshInstance3D in visuals:
+		var fragment := RigidBody3D.new()
+		fragment.name = "OffBlockFinishedPiece"
+		fragment.contact_monitor = true
+		fragment.max_contacts_reported = 4
+		fragment.continuous_cd = true
+		fragment.physics_material_override = _phys_mat
+		fragment.linear_damp = piece_linear_damp
+		fragment.angular_damp = piece_angular_damp
+		var size := visual.mesh.get_aabb().size
+		fragment.mass = maxf(wood_density * size.x * size.y * size.z, min_mass)
+		_fallers.add_child(fragment)
+		fragment.global_transform = visual.global_transform
+		visual.reparent(fragment)
+		visual.transform = Transform3D.IDENTITY
+		visual.name = "Mesh"
+		released_visual_ids.append(visual.get_instance_id())
+		fragment.set_meta("mesh_ref", visual.mesh)
+		fragment.set_meta("projection_offset",
+			visual.get_meta("projection_offset", Vector3.ZERO))
+		var collision := CollisionShape3D.new()
+		collision.shape = MeshUtils.box_shape(visual.mesh)
+		fragment.add_child(collision)
+		fragment.body_entered.connect(_on_firewood_body_entered.bind(fragment))
+		var outward := fragment.global_position - reward_position
+		outward.y = 0.0
+		if outward.length_squared() <= 0.0001:
+			var angle := TAU * float(visual.get_instance_id() % 997) / 997.0
+			outward = Vector3(cos(angle), 0.0, sin(angle))
+		else:
+			outward = outward.normalized()
+		# These pieces are already on the yard floor. Give them only a restrained
+		# outward tip—never the block firewood's upward launch—so the root visibly
+		# falls apart in place instead of exploding across the ring.
+		fragment.linear_velocity = inherited_linear + outward \
+			* _SURVIVAL_TUNING.off_block_fragment_out_speed
+		fragment.angular_velocity = inherited_angular \
+			+ Vector3.UP.cross(outward) \
+			* _SURVIVAL_TUNING.off_block_fragment_tumble_speed
+		_finished_firewood.append({
+			"body": fragment,
+			"geometry": _finished_geometry(fragment),
+			"settling": true,
+			"settle_age": 0.0,
+			"age": 0.0,
+			"start_y": fragment.global_position.y,
+		})
+	# Keep the now-empty owner alive until the fifth-cut white flash finishes;
+	# its tween owns the shared overlay material used by the released fragments.
+	body.freeze = true
+	body.collision_layer = 0
+	body.collision_mask = 0
+	body.set_meta("released_visual_ids", released_visual_ids)
+	body.reparent(_finished_firewood_root, true)
+	var cleanup := create_tween()
+	cleanup.tween_interval(0.16)
+	cleanup.tween_callback(Callable(self,
+		"_free_finished_empty_root").bind(body.get_instance_id()))
+
+
+func _free_finished_empty_root(body_id: int) -> void:
+	var body := instance_from_id(body_id) as RigidBody3D
+	if body != null and is_instance_valid(body):
+		var raw_ids: Variant = body.get_meta("released_visual_ids", [])
+		if raw_ids is Array:
+			for raw_id: Variant in raw_ids:
+				var visual := instance_from_id(int(raw_id)) as MeshInstance3D
+				if visual != null and is_instance_valid(visual):
+					visual.material_overlay = null
+		body.queue_free()
 
 
 func stage_run_log(descriptor: LogDescriptor, hop_from_arena: bool) -> void:
 	if descriptor == null or not descriptor.is_valid():
 		return
-	clear_run_log()
+	# A new root may arrive while the previous root's landed billets are still in
+	# their floor-sink. Clear only the active workpiece, never that farewell.
+	clear_run_log(false)
+	# External run flow stages every descriptor here. The successful-offer latch
+	# belongs to one root and must never suppress Grain Reader on the next root.
+	_grain_offered_this_log = false
+	_grain_offer_count_this_log = 0
 	_current_descriptor = descriptor
 	_current_species = SpeciesTable.by_id(descriptor.species_id)
 	var species_index := SpeciesTable.index_of(descriptor.species_id)
@@ -545,76 +726,828 @@ func stage_run_log(descriptor: LogDescriptor, hop_from_arena: bool) -> void:
 	var rest_y := _stump_top_y + half_h
 	var node := _make_stay_piece(_source_mesh, Vector3(0.0, rest_y, 0.0),
 		0.0, true, Vector3.ZERO, &"root")
+	_pending_descriptor_power_cuts = maxi(0,
+		int(descriptor.get("pending_power_cuts")))
+	_pending_descriptor_power_cut_sources.clear()
+	var raw_cut_sources: Variant = descriptor.get("pending_power_cut_sources")
+	if raw_cut_sources is Array:
+		for raw_source: Variant in raw_cut_sources:
+			if _pending_descriptor_power_cut_sources.size() \
+					>= _pending_descriptor_power_cuts:
+				break
+			if raw_source is String or raw_source is StringName:
+				var source := StringName(raw_source)
+				if source != &"":
+					_pending_descriptor_power_cut_sources.append(source)
+	# Saves from before source attribution still contain valid deferred cuts.
+	# Those legacy cuts execute first under the neutral `precut` presentation.
+	while _pending_descriptor_power_cut_sources.size() \
+			< _pending_descriptor_power_cuts:
+		_pending_descriptor_power_cut_sources.push_front(&"precut")
+	var pending_scars := maxi(0, int(descriptor.get("pending_power_scars")))
+	for scar_index: int in range(pending_scars):
+		var scar_normal := Vector3.RIGHT.rotated(Vector3.UP,
+			TAU * float(scar_index) / maxf(1.0, float(pending_scars)))
+		node.set_meta("scars", _scars_on(node) + 1)
+		_add_scar(node, node.global_position, scar_normal)
+	descriptor.set("pending_power_cuts", 0)
+	descriptor.set("pending_power_cut_sources", [])
+	descriptor.set("pending_power_scars", 0)
 	var landed := Callable(self, "_on_log_landed").bind(_source_mesh)
 	if hop_from_arena and descriptor.has_transfer_pose():
-		node.global_position = descriptor.transfer_from
-		node.quaternion = descriptor.transfer_rotation
-		var handcart := clampf(Shop.total_effect(
-			UpgradeDef.Effect.DELIVERY_TIME), 0.0, 0.8)
-		var duration := _run_director.tuning.block_hop_seconds * (1.0 - handcart)
+		# The old arena body was hidden synchronously before queue_free. Keep this
+		# authoritative replacement hidden too and fly a visual snapshot instead;
+		# partially cut roots therefore do not turn whole during delivery.
+		node.visible = false
+		var handoff_visual := _build_run_handoff_visual(descriptor, _source_mesh)
+		handoff_visual.global_position = descriptor.transfer_from
+		handoff_visual.quaternion = descriptor.transfer_rotation
 		var target := to_global(Vector3(0.0, rest_y, 0.0))
-		var camera_origin := _camera.global_position
-		var tween := create_tween()
-		tween.tween_method(Callable(self, "_move_run_log_along_handoff").bind(
-			node, descriptor.transfer_from, target, camera_origin,
-			_run_director.tuning.block_hop_camera_clearance,
-			_run_director.tuning.block_hop_height), 0.0, 1.0, duration) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		tween.parallel().tween_property(node, "quaternion", Quaternion.IDENTITY,
-			duration)
-		tween.tween_callback(landed)
+		var offscreen_y := _vertical_handoff_offscreen_y(
+			descriptor.transfer_from, target, handoff_visual)
+		_start_run_log_handoff(node, handoff_visual, descriptor.transfer_from,
+			descriptor.transfer_rotation, target, offscreen_y, _source_mesh)
 	else:
 		_animator.animate_drop(node, rest_y + drop_height, rest_y, landed, 300.0)
+		_try_show_grain_cue(node)
+
+
+## A scheduled boss is presented as five real-sized roots already committed to
+## the chopping block. Only the top root enters `_on_block`; the lower four are
+## opaque, non-pickable stack geometry until promoted in place.
+func stage_boss_log_stack(raw_descriptors: Array) -> void:
+	var descriptors: Array[LogDescriptor] = []
+	for raw: Variant in raw_descriptors:
+		if raw is LogDescriptor and (raw as LogDescriptor).is_valid():
+			descriptors.append(raw as LogDescriptor)
+	if _run_director == null or descriptors.size() \
+			!= _run_director.tuning.boss_stack_log_count:
+		return
+	clear_run_log(false)
+	_boss_stack_active = true
+	_ensure_boss_stack_visual_root()
+	var stack_top := _stump_top_y
+	for index: int in range(descriptors.size()):
+		var descriptor := descriptors[index]
+		var mesh := build_run_log_mesh(descriptor)
+		if mesh == null:
+			continue
+		var height := mesh.get_aabb().size.y
+		var center_y := stack_top + height * 0.5
+		_boss_stack_centers[descriptor.id] = center_y
+		stack_top += height + _run_director.tuning.boss_stack_gap
+		if index < descriptors.size() - 1:
+			_add_boss_stack_visual(descriptor, mesh, center_y)
+	var active := descriptors[-1]
+	var active_mesh := build_run_log_mesh(active)
+	if active_mesh == null or not _boss_stack_centers.has(active.id):
+		clear_run_log(false)
+		return
+	_configure_boss_stack_descriptor(active, active_mesh)
+	var rest_y := float(_boss_stack_centers[active.id])
+	_track_boss_camera(rest_y)
+	var node := _make_stay_piece(active_mesh, Vector3(0.0, rest_y, 0.0),
+		0.0, true, Vector3.ZERO, &"root")
+	var drop_seconds := 0.3
+	_boss_stack_visual_root.position.y = drop_height
+	_boss_stack_drop_tween = create_tween()
+	_boss_stack_drop_tween.tween_property(_boss_stack_visual_root,
+		"position:y", 0.0, drop_seconds).set_trans(Tween.TRANS_QUAD) \
+		.set_ease(Tween.EASE_IN)
+	var landed := Callable(self, "_on_log_landed").bind(active_mesh)
+	_animator.animate_drop(node, rest_y + drop_height, rest_y, landed,
+		drop_seconds * 1000.0)
 	_try_show_grain_cue(node)
 
 
-func _move_run_log_along_handoff(progress: float, node: Node3D,
-		start: Vector3, target: Vector3, camera_origin: Vector3,
-		safe_radius: float, hop_height: float) -> void:
+func stage_next_boss_stack_log(descriptor: LogDescriptor) -> void:
+	if not _boss_stack_active or descriptor == null or not descriptor.is_valid():
+		return
+	_finish_boss_stack_drop()
+	var visual := _boss_stack_visuals.get(descriptor.id) as MeshInstance3D
+	var rest_y := float(_boss_stack_centers.get(descriptor.id, _stump_top_y))
+	if is_instance_valid(visual):
+		rest_y = visual.global_position.y
+		_boss_stack_visuals.erase(descriptor.id)
+		visual.queue_free()
+	var mesh := build_run_log_mesh(descriptor)
+	if mesh == null:
+		return
+	_configure_boss_stack_descriptor(descriptor, mesh)
+	_track_boss_camera(rest_y)
+	var node := _make_stay_piece(mesh, Vector3(0.0, rest_y, 0.0),
+		0.0, true, Vector3.ZERO, &"root")
+	_try_show_grain_cue(node)
+	# The root was visible in this exact slot throughout the previous chop. It is
+	# already landed, so promotion releases gameplay without replaying a drop.
+	if _external_log_flow:
+		run_log_ready.emit()
+
+
+func restore_boss_log_stack(raw_remaining: Array) -> void:
+	_clear_boss_stack_presentation(false)
+	_boss_stack_active = true
+	_ensure_boss_stack_visual_root()
+	var stack_top := _stump_top_y
+	for raw: Variant in raw_remaining:
+		if not (raw is LogDescriptor):
+			continue
+		var descriptor := raw as LogDescriptor
+		var mesh := build_run_log_mesh(descriptor)
+		if mesh == null:
+			continue
+		var height := mesh.get_aabb().size.y
+		var center_y := stack_top + height * 0.5
+		_boss_stack_centers[descriptor.id] = center_y
+		_add_boss_stack_visual(descriptor, mesh, center_y)
+		stack_top += height + _run_director.tuning.boss_stack_gap
+	if _current_descriptor != null and _source_mesh != null:
+		var active_center_y := stack_top + _source_mesh.get_aabb().size.y * 0.5
+		_boss_stack_centers[_current_descriptor.id] = active_center_y
+		_track_boss_camera(active_center_y)
+
+
+func end_boss_log_stack() -> void:
+	_clear_boss_stack_presentation(true)
+
+
+func _configure_boss_stack_descriptor(descriptor: LogDescriptor,
+		mesh: Mesh) -> void:
+	_clear_grain_cue(&"piece_changed")
+	_grain_offered_this_log = false
+	_grain_offer_count_this_log = 0
+	_current_descriptor = descriptor
+	_current_species = SpeciesTable.by_id(descriptor.species_id)
+	var species_index := SpeciesTable.index_of(descriptor.species_id)
+	_cut_mat = _cut_mat_for(species_index)
+	_source_mesh = mesh
+	_cut_noise.seed = descriptor.visual_seed
+	_cut_journal.clear()
+	_pending_descriptor_power_cuts = 0
+	_pending_descriptor_power_cut_sources.clear()
+	_power_cut_context = &""
+
+
+func _ensure_boss_stack_visual_root() -> void:
+	if is_instance_valid(_boss_stack_visual_root):
+		return
+	_boss_stack_visual_root = Node3D.new()
+	_boss_stack_visual_root.name = "BossLogStack"
+	add_child(_boss_stack_visual_root)
+
+
+func _add_boss_stack_visual(descriptor: LogDescriptor, mesh: Mesh,
+		center_y: float) -> void:
+	var visual := MeshInstance3D.new()
+	visual.name = "Stack_%s" % descriptor.id
+	visual.mesh = mesh
+	visual.position = Vector3(0.0, center_y, 0.0)
+	visual.set_meta("descriptor_id", descriptor.id)
+	_boss_stack_visual_root.add_child(visual)
+	_boss_stack_visuals[descriptor.id] = visual
+
+
+func _finish_boss_stack_drop() -> void:
+	if _boss_stack_drop_tween != null and _boss_stack_drop_tween.is_valid():
+		_boss_stack_drop_tween.custom_step(INF)
+	_boss_stack_drop_tween = null
+	if is_instance_valid(_boss_stack_visual_root):
+		_boss_stack_visual_root.position.y = 0.0
+
+
+func _clear_boss_stack_presentation(restore_camera: bool) -> void:
+	if _boss_stack_drop_tween != null and _boss_stack_drop_tween.is_valid():
+		_boss_stack_drop_tween.kill()
+	_boss_stack_drop_tween = null
+	if is_instance_valid(_boss_stack_visual_root):
+		_boss_stack_visual_root.queue_free()
+	_boss_stack_visual_root = null
+	_boss_stack_visuals.clear()
+	_boss_stack_centers.clear()
+	_boss_stack_active = false
+	if restore_camera:
+		# `_track_boss_camera` accepts the world height that should occupy the
+		# screen centre. Feed it the base camera's authored centre-line height so
+		# the resulting pivot returns exactly to `_pivot_base_position.y`.
+		_track_boss_camera(_pivot_base_position.y \
+			+ _camera_center_height_at_stump())
+
+
+## Boss framing follows only the currently exposed top root. Distance and FOV
+## stay at ordinary gameplay values; clearing a layer eases the pivot downward.
+func _track_boss_camera(root_center_y: float) -> void:
+	if _camera == null or _pivot == null:
+		return
+	if _boss_camera_tween != null and _boss_camera_tween.is_valid():
+		_boss_camera_tween.kill()
+	_camera.transform = _camera_base_transform
+	_camera.fov = _camera_base_fov
+	var lift_fraction := 0.0
+	var transition_seconds := 0.4
+	if _run_director != null and _run_director.tuning != null:
+		lift_fraction = _run_director.tuning.boss_stack_camera_lift_fraction
+		transition_seconds = _run_director.tuning.boss_stack_camera_transition_seconds
+	# The pivot's authored base height is not the camera's screen-centre height:
+	# the camera sits above and looks down at the stump. Remove that exact
+	# centre-line offset so a full 1.0 lock puts the exposed root's real centre in
+	# the viewport centre instead of leaving its top above the frame.
+	var fully_centered_y := root_center_y - _camera_center_height_at_stump()
+	_boss_camera_target_y = lerpf(_pivot_base_position.y, fully_centered_y,
+		clampf(lift_fraction, 0.0, 1.0))
+	var target_position := _pivot_base_position
+	target_position.y = _boss_camera_target_y
+	_boss_camera_tween = create_tween().set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS)
+	_boss_camera_tween.tween_property(_pivot, "position", target_position,
+		maxf(0.001, transition_seconds)).set_trans(Tween.TRANS_SINE) \
+		.set_ease(Tween.EASE_IN_OUT)
+
+
+func _camera_center_height_at_stump() -> float:
+	var origin := _camera_base_transform.origin
+	var forward := -_camera_base_transform.basis.z.normalized()
+	if absf(forward.z) <= 0.000001:
+		return 0.0
+	var distance_to_stump_plane := -origin.z / forward.z
+	return origin.y + forward.y * distance_to_stump_plane
+
+
+func _boss_active_log_is_visible() -> bool:
+	if _camera == null or _camera.get_viewport() == null or _on_block.is_empty():
+		return false
+	var visible := _camera.get_viewport().get_visible_rect().grow(-12.0)
+	for piece: Area3D in _on_block:
+		if not is_instance_valid(piece):
+			continue
+		var mesh := piece.get_meta("mesh_ref", null) as Mesh
+		if mesh == null:
+			return false
+		var bounds := mesh.get_aabb()
+		for x_side: int in range(2):
+			for y_side: int in range(2):
+				for z_side: int in range(2):
+					var point := piece.global_transform * (bounds.position + Vector3(
+						bounds.size.x * float(x_side),
+						bounds.size.y * float(y_side),
+						bounds.size.z * float(z_side)))
+					if _camera.is_position_behind(point) or not visible.has_point(
+							_camera.unproject_position(point)):
+						return false
+	return true
+
+
+func _build_run_handoff_visual(descriptor: LogDescriptor,
+		fallback_mesh: Mesh) -> Node3D:
+	var root := Node3D.new()
+	root.name = "RunLogHandoff"
+	_pieces_root.add_child(root)
+	if descriptor.has_transfer_visuals():
+		for index: int in range(descriptor.transfer_visual_meshes.size()):
+			var visual := MeshInstance3D.new()
+			visual.name = "HandoffPiece%d" % (index + 1)
+			visual.mesh = descriptor.transfer_visual_meshes[index]
+			visual.transform = descriptor.transfer_visual_transforms[index]
+			if index < descriptor.transfer_visual_projection_offsets.size():
+				var projection_offset := \
+					descriptor.transfer_visual_projection_offsets[index]
+				visual.set_meta("projection_offset", projection_offset)
+				visual.set_instance_shader_parameter(
+					&"projection_offset", projection_offset)
+			if index < descriptor.transfer_visual_overlays.size():
+				visual.material_overlay = descriptor.transfer_visual_overlays[index]
+			root.add_child(visual)
+	elif fallback_mesh != null:
+		var visual := MeshInstance3D.new()
+		visual.name = "HandoffPiece"
+		visual.mesh = fallback_mesh
+		root.add_child(visual)
+	return root
+
+
+func _start_run_log_handoff(piece: Area3D, visual: Node3D, start: Vector3,
+		start_rotation: Quaternion, target: Vector3, offscreen_y: float,
+		mesh: Mesh) -> void:
+	_cancel_run_log_handoff()
+	_run_handoff_generation += 1
+	var generation := _run_handoff_generation
+	_run_handoff_active = true
+	_run_handoff_visual = visual
+	_run_handoff_piece = piece
+	_run_handoff_target = target
+	_run_handoff_mesh = mesh
+	var timing := _vertical_handoff_timing(
+		_run_director.tuning.block_hop_seconds)
+	var lift_duration := timing.x * timing.y
+	var drop_duration := timing.x * (1.0 - timing.y)
+	_run_handoff_tween = create_tween()
+	_run_handoff_tween.tween_method(
+		Callable(self, "_move_run_log_handoff_lift").bind(
+			visual, start, offscreen_y, start_rotation),
+		0.0, 1.0, lift_duration).set_trans(Tween.TRANS_CUBIC) \
+		.set_ease(Tween.EASE_OUT)
+	_run_handoff_tween.tween_callback(
+		Callable(self, "_reposition_run_log_handoff").bind(
+			generation, visual, target, offscreen_y))
+	_run_handoff_tween.tween_interval(
+		_run_director.tuning.block_handoff_hidden_hold_seconds)
+	_run_handoff_tween.tween_method(
+		Callable(self, "_move_run_log_handoff_drop").bind(
+			visual, target, offscreen_y),
+		0.0, 1.0, drop_duration).set_trans(Tween.TRANS_SINE) \
+		.set_ease(Tween.EASE_IN_OUT)
+	_run_handoff_tween.tween_callback(
+		Callable(self, "_complete_run_log_handoff").bind(
+			generation, piece, visual, target, mesh))
+
+
+func _move_run_log_handoff_lift(progress: float, visual: Node3D,
+		start: Vector3, offscreen_y: float,
+		start_rotation: Quaternion) -> void:
+	if not is_instance_valid(visual):
+		return
+	visual.global_position = Vector3(start.x,
+		lerpf(start.y, offscreen_y, clampf(progress, 0.0, 1.0)), start.z)
+	visual.quaternion = start_rotation.slerp(
+		Quaternion.IDENTITY, clampf(progress, 0.0, 1.0))
+
+
+func _reposition_run_log_handoff(generation: int, visual: Node3D,
+		target: Vector3, offscreen_y: float) -> void:
+	if generation != _run_handoff_generation \
+			or not _run_handoff_active or not is_instance_valid(visual):
+		return
+	visual.global_position = Vector3(target.x, offscreen_y, target.z)
+	visual.quaternion = Quaternion.IDENTITY
+
+
+func _move_run_log_handoff_drop(progress: float, visual: Node3D,
+		target: Vector3, offscreen_y: float) -> void:
+	if not is_instance_valid(visual):
+		return
+	visual.global_position = Vector3(target.x,
+		lerpf(offscreen_y, target.y, clampf(progress, 0.0, 1.0)), target.z)
+	visual.quaternion = Quaternion.IDENTITY
+
+
+func _complete_run_log_handoff(generation: int, piece: Area3D,
+		visual: Node3D, target: Vector3, mesh: Mesh) -> void:
+	if generation != _run_handoff_generation or not _run_handoff_active:
+		return
+	_run_handoff_active = false
+	_run_handoff_tween = null
+	if is_instance_valid(visual):
+		visual.visible = false
+		visual.queue_free()
+	if not is_instance_valid(piece) or piece not in _on_block:
+		_clear_run_handoff_refs()
+		return
+	piece.global_position = target
+	piece.quaternion = Quaternion.IDENTITY
+	piece.visible = false
+	_on_log_landed(mesh)
+	# Pending arrival cuts can synchronously complete this root and stage another
+	# one. That replacement owns a newer generation; never reveal or clear its
+	# nodes from the stale completion frame.
+	if generation != _run_handoff_generation:
+		return
+	# Deferred splits can replace `piece` synchronously. Reveal the surviving
+	# authoritative descendants only after the handoff snapshot is gone.
+	for landed_piece: Area3D in _on_block:
+		if is_instance_valid(landed_piece):
+			landed_piece.visible = true
+	if not _on_block.is_empty():
+		_try_show_grain_cue(_on_block[0])
+	_clear_run_handoff_refs()
+
+
+func _finish_active_run_handoff() -> void:
+	if not _run_handoff_active:
+		return
+	var generation := _run_handoff_generation
+	var piece := _run_handoff_piece
+	var visual := _run_handoff_visual
+	var target := _run_handoff_target
+	var mesh := _run_handoff_mesh
+	if _run_handoff_tween != null and _run_handoff_tween.is_valid():
+		_run_handoff_tween.kill()
+	_complete_run_log_handoff(generation, piece, visual, target, mesh)
+
+
+func _cancel_run_log_handoff() -> void:
+	_run_handoff_generation += 1
+	_run_handoff_active = false
+	if _run_handoff_tween != null and _run_handoff_tween.is_valid():
+		_run_handoff_tween.kill()
+	if is_instance_valid(_run_handoff_visual):
+		_run_handoff_visual.visible = false
+		_run_handoff_visual.queue_free()
+	_clear_run_handoff_refs()
+
+
+func _clear_run_handoff_refs() -> void:
+	_run_handoff_tween = null
+	_run_handoff_visual = null
+	_run_handoff_piece = null
+	_run_handoff_target = Vector3.ZERO
+	_run_handoff_mesh = null
+
+
+## Lengthen the source-side rise without speeding up or otherwise altering the
+## already-authored drop. Returns (total duration, effective lift fraction).
+func _vertical_handoff_timing(base_duration: float) -> Vector2:
+	var authored_fraction := clampf(
+		_run_director.tuning.block_handoff_lift_fraction, 0.001, 0.999)
+	var lift_duration := base_duration * authored_fraction \
+		* _run_director.tuning.block_handoff_lift_time_multiplier
+	var drop_duration := base_duration * (1.0 - authored_fraction)
+	var total_duration := maxf(0.001, lift_duration + drop_duration)
+	return Vector2(total_duration, lift_duration / total_duration)
+
+
+func _move_run_log_vertical_handoff(progress: float, node: Node3D,
+		start: Vector3, target: Vector3, offscreen_y: float,
+		lift_fraction: float, start_rotation: Quaternion) -> void:
 	if not is_instance_valid(node):
 		return
-	node.global_position = _camera_safe_handoff_position(progress, start, target,
-		camera_origin, safe_radius, hop_height)
+	node.global_position = _vertical_handoff_position(progress, start, target,
+		offscreen_y, lift_fraction)
+	var rotation_progress := clampf(progress / maxf(0.001, lift_fraction),
+		0.0, 1.0)
+	node.quaternion = start_rotation.slerp(Quaternion.IDENTITY,
+		rotation_progress)
 
 
-## Three-part path: approach a clearance orbit, travel around the camera, then
-## leave that orbit radially toward the stump. Every authored segment stays at
-## or beyond safe_radius unless the log was already inside it when claimed.
-func _camera_safe_handoff_position(progress: float, start: Vector3,
-		target: Vector3, camera_origin: Vector3, safe_radius: float,
-		hop_height: float) -> Vector3:
+## Two visible vertical legs with one hidden reposition. The source X/Z remains
+## exact throughout the lift. Once the log is above frame, it snaps horizontally
+## over the block while still invisible, then keeps the target X/Z for its drop.
+func _vertical_handoff_position(progress: float, start: Vector3,
+		target: Vector3, offscreen_y: float, lift_fraction: float) -> Vector3:
 	var t := clampf(progress, 0.0, 1.0)
-	var camera_flat := Vector2(camera_origin.x, camera_origin.z)
-	var start_flat := Vector2(start.x, start.z)
-	var target_flat := Vector2(target.x, target.z)
-	var start_delta := start_flat - camera_flat
-	var target_delta := target_flat - camera_flat
-	if start_delta.length_squared() < 0.000001:
-		start_delta = target_delta.rotated(PI * 0.5)
-	if target_delta.length_squared() < 0.000001:
-		target_delta = start_delta.rotated(PI * 0.5)
-	var start_distance := start_delta.length()
-	var target_distance := target_delta.length()
-	var orbit_limit := safe_radius * 1.30
-	var entry_radius := maxf(safe_radius, minf(start_distance, orbit_limit))
-	var exit_radius := maxf(safe_radius, minf(target_distance, orbit_limit))
-	var start_angle := start_delta.angle()
-	var target_angle := target_delta.angle()
-	var angle_delta := wrapf(target_angle - start_angle, -PI, PI)
-	var entry := camera_flat + Vector2.from_angle(start_angle) * entry_radius
-	var exit := camera_flat + Vector2.from_angle(target_angle) * exit_radius
-	var flat: Vector2
-	if t < 0.22:
-		flat = start_flat.lerp(entry, t / 0.22)
-	elif t < 0.78:
-		var orbit_t := (t - 0.22) / 0.56
-		var radius := lerpf(entry_radius, exit_radius, orbit_t)
-		flat = camera_flat + Vector2.from_angle(
-			start_angle + angle_delta * orbit_t) * radius
-	else:
-		flat = exit.lerp(target_flat, (t - 0.78) / 0.22)
-	var base_y := lerpf(start.y, target.y, t)
-	return Vector3(flat.x, base_y + sin(t * PI) * hop_height, flat.y)
+	var split := clampf(lift_fraction, 0.001, 0.999)
+	if t < split:
+		var lift_t := t / split
+		return Vector3(start.x,
+			lerpf(start.y, offscreen_y, 1.0 - pow(1.0 - lift_t, 2.0)),
+			start.z)
+	var drop_t := (t - split) / (1.0 - split)
+	return Vector3(target.x,
+		lerpf(offscreen_y, target.y, drop_t * drop_t), target.z)
+
+
+func _vertical_handoff_offscreen_y(start: Vector3, target: Vector3,
+		visual: Node3D = null) -> float:
+	var step := maxf(0.5, _run_director.tuning.arrival_height)
+	var height := maxf(start.y, target.y) + step
+	# The camera and viewport are live production authorities here. Walk upward
+	# until the complete upright silhouette—not merely its pivot—clears both ends
+	# of the hidden reposition.
+	for _sample: int in range(64):
+		var source_top := Vector3(start.x, height, start.z)
+		var target_top := Vector3(target.x, height, target.z)
+		var source_clear := _handoff_point_is_above_frame(source_top) \
+			if visual == null else _handoff_visual_is_above_frame(
+				visual, source_top, Quaternion.IDENTITY)
+		var target_clear := _handoff_point_is_above_frame(target_top) \
+			if visual == null else _handoff_visual_is_above_frame(
+				visual, target_top, Quaternion.IDENTITY)
+		if source_clear and target_clear:
+			return height
+		height += step
+	push_warning("Run-log handoff could not prove full silhouette clearance; " \
+		+ "using the highest bounded sample")
+	return height
+
+
+func _handoff_visual_is_above_frame(visual_root: Node3D,
+		root_position: Vector3, root_rotation: Quaternion) -> bool:
+	if visual_root == null or not is_instance_valid(visual_root):
+		return false
+	var root_inverse := visual_root.global_transform.affine_inverse()
+	var root_basis := Basis(root_rotation)
+	var found_mesh := false
+	for raw_node: Node in visual_root.find_children(
+			"*", "MeshInstance3D", true, false):
+		var mesh_visual := raw_node as MeshInstance3D
+		if mesh_visual == null or mesh_visual.mesh == null:
+			continue
+		found_mesh = true
+		var visual_in_root := root_inverse * mesh_visual.global_transform
+		var aabb := mesh_visual.mesh.get_aabb()
+		for corner_index: int in range(8):
+			var corner := Vector3(
+				aabb.end.x if (corner_index & 1) != 0 else aabb.position.x,
+				aabb.end.y if (corner_index & 2) != 0 else aabb.position.y,
+				aabb.end.z if (corner_index & 4) != 0 else aabb.position.z)
+			var world_corner := root_position \
+				+ root_basis * (visual_in_root * corner)
+			if not _handoff_point_is_above_frame(world_corner):
+				return false
+	return found_mesh
+
+
+func _handoff_point_is_above_frame(point: Vector3) -> bool:
+	if _camera == null or _camera.get_viewport() == null:
+		return false
+	if _camera.is_position_behind(point):
+		return true
+	var screen := _camera.unproject_position(point)
+	var margin := float(
+		_run_director.tuning.block_handoff_offscreen_margin_pixels)
+	return screen.y <= -margin
+
+
+## Execute authored run-power cuts through the same MeshSlicer path as a manual
+## swing. Automatic cuts never roll reliability and never recursively start a
+## second power chain; they are already the resolved effect of a chosen power.
+func apply_run_power_cuts(power_id: StringName, count: int,
+		mode: StringName = &"largest", present_each_cut := true) -> int:
+	if count == 0 or _on_block.is_empty():
+		_last_run_power_cuts[power_id] = 0
+		return 0
+	var targets: Array[Area3D] = []
+	if mode in [&"sweep", &"all"]:
+		for piece: Area3D in _on_block:
+			if is_instance_valid(piece):
+				targets.append(piece)
+	var limit := count if count > 0 else maxi(1, targets.size())
+	var executed := 0
+	var previous_context := _power_cut_context
+	_power_cut_context = power_id
+	while executed < limit and not _on_block.is_empty():
+		var target: Area3D = null
+		if not targets.is_empty():
+			while not targets.is_empty() and (not is_instance_valid(targets[0]) \
+					or targets[0] not in _on_block):
+				targets.pop_front()
+			if not targets.is_empty():
+				target = targets.pop_front()
+		else:
+			target = _pick_double_strike_target()
+		if target == null:
+			break
+		var normal := _camera.global_transform.basis.x
+		normal.y = 0.0
+		if normal.length_squared() < 0.0001:
+			normal = Vector3.RIGHT
+		normal = normal.normalized()
+		var point := target.global_position
+		if not _bonus_cut_preflight(target, point, normal):
+			var cross := Vector3(-normal.z, 0.0, normal.x)
+			if not _bonus_cut_preflight(target, point, cross):
+				if mode in [&"sweep", &"all"]:
+					continue
+				break
+			normal = cross
+		var mesh: Mesh = target.get_meta("mesh_ref")
+		var burst_height := mesh.get_aabb().size.y if mesh != null else 0.2
+		var burst_point := point + Vector3.UP * (burst_height * 0.5 + 0.05)
+		if not _perform_split(target, point, normal, _dir_from_normal(normal)):
+			break
+		executed += 1
+		if present_each_cut:
+			present_run_power_trigger(power_id, burst_point, executed)
+	_power_cut_context = previous_context
+	_last_run_power_cuts[power_id] = executed
+	return executed
+
+
+## Finish the current block root through repeated real MeshSlicer cuts. This is
+## intentionally progress-driven instead of a guessed cut count: each successful
+## cut advances the production geometry, and an unsliceable target stops cleanly.
+func complete_run_power_log(power_id: StringName,
+		mode: StringName = &"largest", present_each_cut := true) -> int:
+	var executed := 0
+	while not _on_block.is_empty():
+		var applied := apply_run_power_cuts(power_id, 1, mode,
+			present_each_cut)
+		if applied <= 0:
+			break
+		executed += applied
+	_last_run_power_cuts[power_id] = executed
+	return executed
+
+
+func _apply_pending_descriptor_power_cuts() -> void:
+	var cuts := _pending_descriptor_power_cuts
+	var sources := _pending_descriptor_power_cut_sources.duplicate()
+	_pending_descriptor_power_cuts = 0
+	_pending_descriptor_power_cut_sources.clear()
+	while sources.size() < cuts:
+		sources.push_front(&"precut")
+	for index: int in range(mini(cuts, sources.size())):
+		if _on_block.is_empty():
+			break
+		apply_run_power_cuts(sources[index], 1, &"largest")
+
+
+func present_run_power_trigger(power_id: StringName, world_position: Vector3,
+		amount: int = 1) -> void:
+	var event_name := "" if amount <= 1 else "×%d" % amount
+	var action_value := 0.0
+	var action_travel_value := 0.0
+	var action_variant := 0
+	if power_id == &"crosscut_sweep":
+		action_value = _scaled_power_area(_run_power_effect(
+			ProgressionEffectDef.Kind.CROSSCUT_SWEEP_WIDTH))
+		if _run_director != null:
+			var state := _run_director.get_run_power_runtime_state()
+			action_travel_value = maxf(action_value,
+				float(state.get("effective_boundary_radius", 0.0)) * 2.0)
+			var counts: Variant = state.get("trigger_counts", {})
+			if counts is Dictionary:
+				var completed := int((counts as Dictionary).get(
+					String(power_id), (counts as Dictionary).get(power_id, 1)))
+				action_variant = maxi(0, completed - 1) % 2
+	elif power_id in [&"earthshaker", &"powder_keg", &"kindling_chain",
+			&"stump_pulse", &"sawblade_halo", &"timber_burst"]:
+		var area_kind := ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS
+		match power_id:
+			&"powder_keg":
+				area_kind = ProgressionEffectDef.Kind.POWDER_KEG_RADIUS
+			&"kindling_chain":
+				area_kind = ProgressionEffectDef.Kind.KINDLING_CHAIN_RANGE
+			&"sawblade_halo":
+				area_kind = ProgressionEffectDef.Kind.SAWBLADE_HALO_RADIUS
+			&"timber_burst":
+				area_kind = ProgressionEffectDef.Kind.TIMBER_BURST_RADIUS
+			&"stump_pulse":
+				if _run_director != null:
+					action_value = _scaled_power_area(float(
+						_run_director.get_run_power_runtime_state().get(
+							"effective_boundary_radius", 0.0)))
+		if action_value <= 0.0:
+			action_value = _scaled_power_area(_run_power_effect(area_kind))
+	RunPowerBurst.spawn_for_id(self, world_position, power_id, event_name,
+		null, true, action_value, action_variant, action_travel_value)
+	if amount > 0:
+		AudioDirector.play_world(&"proc_mastery", world_position)
+
+
+## One readable splinter leaves the successful block strike and lands at the
+## selected loose root. The gameplay cuts have already resolved atomically; this
+## short flight only makes their source-to-target relationship visible.
+func present_splinter_volley(source_position: Vector3,
+		target_position: Vector3, amount: int) -> void:
+	var projectile := MeshInstance3D.new()
+	projectile.name = "SplinterProjectile"
+	var vfx := _SKILL_VFX_CONFIG as SkillVfxConfig
+	projectile.mesh = _shared_splinter_projectile_mesh()
+	projectile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	projectile.set_meta("splinter_source", source_position)
+	projectile.set_meta("splinter_target", target_position)
+	projectile.set_meta("splinter_count", amount)
+	add_child(projectile)
+	var raised_source := source_position + Vector3.UP \
+		* vfx.splinter_projectile_height
+	var raised_target := target_position + Vector3.UP \
+		* vfx.splinter_projectile_height
+	projectile.global_position = raised_source
+	if raised_source.distance_squared_to(raised_target) > 0.000001:
+		projectile.look_at(raised_target, Vector3.UP)
+	var travel_seconds := maxf(0.05, vfx.generic_duration)
+	var tween := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tween.tween_property(projectile, "global_position", raised_target,
+		travel_seconds).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_callback(Callable(self, "_finish_splinter_projectile").bind(
+		projectile, target_position, amount))
+
+
+func _shared_splinter_projectile_mesh() -> BoxMesh:
+	if _splinter_projectile_mesh != null:
+		return _splinter_projectile_mesh
+	var vfx := _SKILL_VFX_CONFIG as SkillVfxConfig
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = _run_power_color(&"splinter_volley").lerp(
+		Color.WHITE, vfx.splinter_projectile_white_mix)
+	material.emission_enabled = true
+	material.emission = material.albedo_color
+	material.emission_energy_multiplier = vfx.splinter_projectile_emission_energy
+	_splinter_projectile_mesh = BoxMesh.new()
+	_splinter_projectile_mesh.size = vfx.splinter_projectile_size
+	_splinter_projectile_mesh.material = material
+	return _splinter_projectile_mesh
+
+
+func _finish_splinter_projectile(projectile: MeshInstance3D,
+		target_position: Vector3, amount: int) -> void:
+	if is_instance_valid(projectile):
+		projectile.queue_free()
+	present_run_power_trigger(&"splinter_volley", target_position, amount)
+
+
+func present_run_power_acquisition(power_id: StringName,
+		world_position: Vector3, rank: int, quality: int) -> void:
+	var quality_name := RunOfferTuning.quality_display_name(quality)
+	var event_name := "R%d" % maxi(1, rank)
+	if not quality_name.is_empty():
+		event_name += " · %s" % quality_name.to_upper()
+	RunPowerBurst.spawn_for_id(self, world_position, power_id, event_name,
+		RunOfferTuning.color_for_quality(quality))
+	AudioDirector.play_world(&"proc_mastery", world_position)
+
+
+func _run_power_color(power_id: StringName) -> Color:
+	# Runtime proc color is a neutral power-system accent. Rare/Epic color now
+	# belongs exclusively to the rolled quality of an acquisition card.
+	return Color(0.42, 0.88, 0.34, 1.0)
+
+
+func refresh_run_power_visuals(suppress_grain_roll := false) -> void:
+	if not suppress_grain_roll:
+		_refresh_grain_availability()
+	var desired := maxi(0, int(round(_run_power_effect(
+		ProgressionEffectDef.Kind.ORBITING_AXE_COUNT))))
+	if _run_power_orbit_root == null:
+		_run_power_orbit_root = Node3D.new()
+		_run_power_orbit_root.name = "RunPowerOrbitingAxes"
+		add_child(_run_power_orbit_root)
+	while _run_power_orbit_axes.size() > desired:
+		var old: Node3D = _run_power_orbit_axes.pop_back()
+		if is_instance_valid(old):
+			old.queue_free()
+	while _run_power_orbit_axes.size() < desired:
+		var axe := _build_run_power_orbiting_axe(
+			_run_power_orbit_axes.size())
+		_run_power_orbit_root.add_child(axe)
+		_run_power_orbit_axes.append(axe)
+
+
+func _build_run_power_orbiting_axe(index: int) -> Node3D:
+	var root := Node3D.new()
+	root.name = "WhirlingAxe%d" % (index + 1)
+	var handle := MeshInstance3D.new()
+	var handle_mesh := BoxMesh.new()
+	handle_mesh.size = Vector3(0.045, 0.34, 0.045)
+	handle.mesh = handle_mesh
+	handle.position.y = -0.10
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.30, 0.12, 0.045, 1.0)
+	handle.material_override = wood
+	root.add_child(handle)
+	var head := MeshInstance3D.new()
+	var head_mesh := BoxMesh.new()
+	head_mesh.size = Vector3(0.28, 0.12, 0.055)
+	head.mesh = head_mesh
+	head.position = Vector3(0.08, 0.08, 0.0)
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.34, 0.64, 0.88, 1.0)
+	steel.metallic = 0.55
+	steel.roughness = 0.34
+	head.material_override = steel
+	root.add_child(head)
+	return root
+
+
+func _update_run_power_orbits(delta: float) -> void:
+	if _run_power_orbit_axes.is_empty():
+		return
+	_run_power_orbit_angle = fmod(_run_power_orbit_angle + delta * 2.4, TAU)
+	var count := _run_power_orbit_axes.size()
+	for index: int in range(count):
+		var axe := _run_power_orbit_axes[index]
+		if not is_instance_valid(axe):
+			continue
+		var angle := _run_power_orbit_angle + TAU * float(index) / float(count)
+		var orbit_radius := _scaled_power_area(0.82)
+		axe.position = Vector3(cos(angle) * orbit_radius,
+			_stump_top_y + 0.48 + sin(angle * 2.0) * 0.06,
+			sin(angle) * orbit_radius)
+		axe.rotation = Vector3(0.0, -angle, angle * 1.7)
+
+
+func _run_power_effect(kind: ProgressionEffectDef.Kind) -> float:
+	return 0.0 if _run_director == null else _run_director.get_effect(kind)
+
+
+func _scaled_power_area(base_size: float) -> float:
+	if _run_director != null and _run_director.has_method("scale_power_area"):
+		return float(_run_director.call("scale_power_area", base_size))
+	return maxf(0.0, base_size)
+
+
+func _momentum_stacks() -> int:
+	if _run_director == null or not _run_director.has_method(
+			"get_run_power_runtime_state"):
+		return 0
+	var state: Dictionary = _run_director.call("get_run_power_runtime_state")
+	return maxi(0, int(state.get("momentum_stacks", 0)))
+
+
+func debug_last_run_power_cuts(power_id: StringName) -> int:
+	return maxi(0, int(_last_run_power_cuts.get(power_id, 0)))
+
+
+func debug_orbiting_axe_count() -> int:
+	return _run_power_orbit_axes.size()
+
+
+func debug_pending_power_cuts() -> int:
+	return _pending_descriptor_power_cuts
+
+
+func debug_pending_power_cut_sources() -> Array[StringName]:
+	return _pending_descriptor_power_cut_sources.duplicate()
 
 
 ## Freeze the run at a canonical transaction boundary before a disk snapshot.
@@ -622,22 +1555,23 @@ func _camera_safe_handoff_position(progress: float, start: Vector3,
 ## a completed log finishes its authoritative inventory/cash/Earth settlement so
 ## restoring cannot duplicate or lose rewards.
 func prepare_for_suspend() -> void:
+	# A tween cannot be serialized. Canonicalize the claimed root onto the block
+	# before the save is assembled so restore never strands an airborne pose.
+	_finish_active_run_handoff()
+	_finish_boss_stack_drop()
 	_settle_xp_presentations()
 	_pending.clear()
 	if _axe != null and _axe.is_swinging():
 		if _axe.has_method("cancel_swing"):
 			_axe.call("cancel_swing")
 	_animator.finish_for(_on_block)
-	if _awaiting_stack:
-		_begin_stacking()
-	if _stacking:
-		var item_id: StringName = &"" if _current_species == null \
-			else _current_species.yield_item
-		while not _pending_manual_piece_receipts.is_empty() and item_id != &"":
-			_on_piece_landed(item_id)
-		_stacking = false
-		_pile.reset()
-		_current_descriptor = null
+	_apply_pending_descriptor_power_cuts()
+	if _awaiting_finished_settlement:
+		_settle_finished_firewood(false)
+	# Completed-piece visuals are intentionally not persisted. Their rewards are
+	# canonical now, so a restore starts visually clean rather than replaying an
+	# already-paid farewell.
+	_clear_finished_firewood()
 	if _coin_reward_pool != null and _coin_reward_pool.has_method("settle_all"):
 		_coin_reward_pool.settle_all()
 
@@ -677,6 +1611,11 @@ func cancel_reward_presentations() -> void:
 
 
 func to_run_save_dict() -> Dictionary:
+	# Autosave is observational. The authoritative root already waits, hidden, at
+	# its exact landing transform while the separate presentation snapshot flies;
+	# serialize that canonical root without touching the live tween or emitting
+	# run_log_ready. Explicit suspend calls prepare_for_suspend() first when it
+	# intentionally needs to finish all presentation before leaving the scene.
 	if _current_descriptor == null or _on_block.is_empty():
 		return {"transitioning": true}
 	var pieces: Array[Dictionary] = []
@@ -689,10 +1628,16 @@ func to_run_save_dict() -> Dictionary:
 		})
 	return {
 		"transitioning": false,
+		"handoff_active": _run_handoff_active,
 		"descriptor": _current_descriptor.to_dict(),
 		"cut_journal": _cut_journal.duplicate(true),
 		"pieces": pieces,
 		"grain_offered": _grain_offered_this_log,
+		"grain_offer_count": _grain_offer_count_this_log,
+		"grain_cue": _grain_cue_save_dict(),
+		"pending_power_cuts": _pending_descriptor_power_cuts,
+		"pending_power_cut_sources": _serialized_power_cut_sources(
+			_pending_descriptor_power_cut_sources),
 	}
 
 
@@ -706,6 +1651,10 @@ func restore_run_save_dict(data: Dictionary) -> void:
 		call_deferred("_emit_block_ready")
 		return
 	var descriptor := LogDescriptor.from_save_dict(descriptor_data)
+	var restored_handoff := bool(data.get("handoff_active", false))
+	# Staging and journal replay normally probe Grain Reader on fresh pieces.
+	# Restore reconstructs the saved mark and must not spend another RNG roll.
+	_restoring_run_log = true
 	stage_run_log(descriptor, false)
 	_animator.finish_for(_on_block)
 	_cut_journal.clear()
@@ -727,7 +1676,97 @@ func restore_run_save_dict(data: Dictionary) -> void:
 				raw.get("projection_offset", Vector3.ZERO))
 			_restore_scar_records(piece, raw.get("scar_records", []), Vector3.ZERO)
 	_grain_offered_this_log = bool(data.get("grain_offered", false))
+	_grain_offer_count_this_log = maxi(0,
+		int(data.get("grain_offer_count", 1 if _grain_offered_this_log else 0)))
+	_pending_descriptor_power_cuts = maxi(0,
+		int(data.get("pending_power_cuts", 0)))
+	_pending_descriptor_power_cut_sources.clear()
+	var raw_cut_sources: Variant = data.get("pending_power_cut_sources", [])
+	if raw_cut_sources is Array:
+		for raw_source: Variant in raw_cut_sources:
+			if _pending_descriptor_power_cut_sources.size() \
+					>= _pending_descriptor_power_cuts:
+				break
+			if raw_source is String or raw_source is StringName:
+				var source := StringName(raw_source)
+				if source != &"":
+					_pending_descriptor_power_cut_sources.append(source)
+	while _pending_descriptor_power_cut_sources.size() \
+			< _pending_descriptor_power_cuts:
+		_pending_descriptor_power_cut_sources.push_front(&"precut")
 	_clear_grain_cue(&"restored")
+	_restore_grain_cue(data.get("grain_cue", {}))
+	_restoring_run_log = false
+	if _pending_descriptor_power_cuts > 0 or restored_handoff:
+		call_deferred("_finish_restored_run_log", restored_handoff)
+
+
+## An autosave may observe a claimed root while only its presentation snapshot is
+## airborne. Restore canonicalizes that unpersistable flight to the already-saved
+## landing transform, applies the exact pending cuts once, then releases boundary
+## timers only if a choppable root survived those arrival cuts.
+func _finish_restored_run_log(restored_handoff: bool) -> void:
+	_apply_pending_descriptor_power_cuts()
+	if restored_handoff and not _on_block.is_empty() \
+			and not _awaiting_finished_settlement:
+		run_log_ready.emit()
+
+
+func _serialized_power_cut_sources(sources: Array[StringName]) -> Array[String]:
+	var out: Array[String] = []
+	for source: StringName in sources:
+		out.append(String(source))
+	return out
+
+
+func _grain_cue_save_dict() -> Dictionary:
+	if _grain_target == null or not is_instance_valid(_grain_target) \
+			or _grain_target not in _on_block or _grain_target_mesh == null:
+		return {}
+	var stable_piece_id := StringName(
+		_grain_target.get_meta("stable_piece_id", &""))
+	if stable_piece_id == &"" or _grain_offer_source not in [
+			&"grain_read", &"grain_reader"]:
+		return {}
+	return {
+		"target_piece_id": String(stable_piece_id),
+		"local_plane": _grain_local_plane,
+		"local_anchor": _grain_local_anchor,
+		"source": String(_grain_offer_source),
+	}
+
+
+func _restore_grain_cue(raw: Variant) -> void:
+	if not (raw is Dictionary) or not _grain_offered_this_log:
+		return
+	var saved := raw as Dictionary
+	var raw_plane: Variant = saved.get("local_plane", null)
+	var raw_anchor: Variant = saved.get("local_anchor", null)
+	if not (raw_plane is Plane) or not (raw_anchor is Vector3):
+		return
+	var source := StringName(saved.get("source", ""))
+	if source not in [&"grain_read", &"grain_reader"]:
+		return
+	var target := _piece_by_stable_id(StringName(
+		saved.get("target_piece_id", "")))
+	if target == null:
+		return
+	var mesh: Mesh = target.get_meta("mesh_ref")
+	if mesh == null:
+		return
+	_grain_target = target
+	_grain_target_mesh = mesh
+	_grain_local_plane = raw_plane as Plane
+	_grain_local_anchor = raw_anchor as Vector3
+	_grain_offer_source = source
+	_grain_candidate_dirty = false
+	if not _grain_plane_is_valid():
+		_clear_grain_cue(&"invalid_restore")
+		return
+	var world_plane := MeshUtils.plane_to_world(
+		_grain_local_plane, target.global_transform)
+	_build_grain_top_mark(target, target.to_global(_grain_local_anchor),
+		world_plane.normal)
 
 
 func _emit_block_ready() -> void:
@@ -814,6 +1853,7 @@ func _prewarm_vfx_geometry() -> void:
 			if branch != null and not proc_colors.has(branch.color):
 				proc_colors.append(branch.color)
 	ProcBurst.prewarm(proc_colors)
+	_shared_splinter_projectile_mesh().get_rid()
 	_grain_unit_line_mesh().get_rid()
 	for material: Material in _grain_mark_materials():
 		material.get_rid()
@@ -846,6 +1886,26 @@ func begin_initial_vfx_render_warmup() -> void:
 				branch.color, branch.id)
 			_render_warmup_nodes.append(node)
 			color_index += 1
+
+	# Run powers can each carry a distinct shader and several use a solid action
+	# silhouette. Submit every variant once behind the opaque startup screen so a
+	# first in-run trigger never pays renderer pipeline compilation.
+	var power_table := SurvivorsContent.run_powers()
+	if power_table != null:
+		var power_index := 0
+		for definition: RunPowerDef in power_table.powers:
+			if definition == null:
+				continue
+			var action := definition.id in [&"flying_wedge", &"crosscut_sweep",
+				&"maul_drop", &"earthshaker", &"powder_keg",
+				&"kindling_chain", &"stump_pulse", &"sawblade_halo",
+				&"timber_burst"]
+			var node := RunPowerBurst.spawn(self,
+				warm_position + Vector3(float(power_index % 9) * 0.02,
+					float(power_index / 9) * 0.02, 0.0), definition, "", null,
+				action, 2.0, 0, 4.0)
+			_render_warmup_nodes.append(node)
+			power_index += 1
 
 
 func end_initial_vfx_render_warmup() -> void:
@@ -885,7 +1945,6 @@ func _spawn_level_up_vfx() -> void:
 
 func _on_grain_progression_changed(_skill_id: StringName, _new_level: int) -> void:
 	_refresh_grain_availability()
-	_configure_pile()
 
 
 ## Only ever CLEARS. A live mark is a rolled, once-per-log event, not a display
@@ -896,6 +1955,9 @@ func _on_grain_progression_changed(_skill_id: StringName, _new_level: int) -> vo
 func _refresh_grain_availability() -> void:
 	if not _grain_cue_enabled():
 		_clear_grain_cue(&"skill_unavailable")
+	elif _run_power_effect(ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE) > 0.0 \
+			and _grain_target == null and not _grain_offered_this_log:
+		_try_show_grain_cue(_pick_grain_target(_on_block))
 
 
 func _exit_tree() -> void:
@@ -904,15 +1966,310 @@ func _exit_tree() -> void:
 	GameFeel.unregister_camera()
 
 
+func _visibility_tuning() -> SurvivalRunTuning:
+	if _run_director != null and _run_director.tuning != null:
+		return _run_director.tuning
+	return _SURVIVAL_TUNING as SurvivalRunTuning
+
+
+## Open an invisible camera tunnel through loose roots and finished billets. The
+## active Area3D pieces are never candidates and are force-restored to opaque on
+## every pass, so their own split geometry cannot make itself disappear.
+func _update_active_log_visibility_guard(delta: float = 0.0,
+		snap := false) -> void:
+	_force_active_log_opaque()
+	var active_bounds := _active_log_screen_bounds()
+	var count := 0
+	var hidden_geometry_count := 0
+	var arena := get_node_or_null("LooseLogArena")
+	if arena != null:
+		for candidate: Node in arena.get_children():
+			if not (candidate is LooseLogBody):
+				continue
+			var body := candidate as Node3D
+			var occludes := not active_bounds.is_empty() \
+				and _node_occludes_active_log(body, active_bounds)
+			if occludes:
+				count += 1
+			hidden_geometry_count += _set_visibility_tunnel_state(
+				body, occludes, delta, snap)
+	for raw_body: Variant in _firewood:
+		var body := raw_body as RigidBody3D
+		if not is_instance_valid(body):
+			continue
+		var occludes := not active_bounds.is_empty() \
+			and _node_occludes_active_log(body, active_bounds)
+		if occludes:
+			count += 1
+		hidden_geometry_count += _set_visibility_tunnel_state(
+			body, occludes, delta, snap)
+	for entry: Dictionary in _finished_firewood:
+		var body := entry.get("body") as RigidBody3D
+		if not is_instance_valid(body):
+			continue
+		var occludes := not active_bounds.is_empty() \
+			and _node_occludes_active_log(body, active_bounds)
+		if occludes:
+			count += 1
+		hidden_geometry_count += _set_visibility_tunnel_state(
+			body, occludes, delta, snap)
+	_chopping_visibility_occluder_count = count
+	_chopping_visibility_hidden_geometry_count = hidden_geometry_count
+	# A defensive second pass makes the invariant independent of future candidate
+	# list changes or parent relationships.
+	_force_active_log_opaque()
+
+
+func _set_visibility_tunnel_state(root: Node3D, occludes: bool,
+		delta: float, snap: bool) -> int:
+	if root == null or not is_instance_valid(root) \
+			or _root_contains_active_piece(root):
+		return 0
+	var arena := get_node_or_null("LooseLogArena")
+	var loose_body := root as LooseLogBody
+	if loose_body != null and arena != null:
+		if occludes and arena.has_method(&"ensure_individual_visual"):
+			arena.call(&"ensure_individual_visual", loose_body)
+		elif not occludes and loose_body.batched_visual:
+			return 0
+	var tuning := _visibility_tuning()
+	var hidden_value := tuning.chopping_visibility_tunnel_transparency \
+		if tuning != null else 1.0
+	var restore_speed := tuning.chopping_visibility_tunnel_restore_speed \
+		if tuning != null else 10.0
+	var meshes := _cached_visibility_meshes(root)
+	var hidden_count := 0
+	for mesh_instance: MeshInstance3D in meshes:
+		if occludes:
+			# The tunnel opens in the same frame as the obstruction. A fade-in could
+			# still cover the block during the exact high-pressure moment it protects.
+			mesh_instance.transparency = hidden_value
+		else:
+			mesh_instance.transparency = 0.0 if snap else move_toward(
+				mesh_instance.transparency, 0.0,
+				restore_speed * maxf(0.0, delta))
+		if mesh_instance.transparency >= hidden_value - 0.001:
+			hidden_count += 1
+	if not occludes and loose_body != null and hidden_count == 0 \
+			and arena != null and arena.has_method(&"try_batch_visual"):
+		arena.call(&"try_batch_visual", loose_body)
+	return hidden_count
+
+
+func _root_contains_active_piece(root: Node) -> bool:
+	for raw_piece: Variant in _on_block:
+		var piece := raw_piece as Node
+		if piece == null or not is_instance_valid(piece):
+			continue
+		if root == piece or root.is_ancestor_of(piece) \
+				or piece.is_ancestor_of(root):
+			return true
+	return false
+
+
+func _force_active_log_opaque() -> void:
+	for raw_piece: Variant in _on_block:
+		var piece := raw_piece as Node
+		if piece == null or not is_instance_valid(piece):
+			continue
+		var meshes: Array[MeshInstance3D] = []
+		_collect_visibility_meshes(piece, meshes)
+		for mesh_instance: MeshInstance3D in meshes:
+			mesh_instance.transparency = 0.0
+
+
+func _active_log_screen_bounds() -> Dictionary:
+	var roots: Array[Node3D] = []
+	for raw_piece: Variant in _on_block:
+		var piece := raw_piece as Node3D
+		if is_instance_valid(piece) and piece.visible:
+			roots.append(piece)
+	var bounds := _screen_bounds_for_roots(roots)
+	if bounds.is_empty():
+		return bounds
+	var tuning := _visibility_tuning()
+	var margin := tuning.chopping_visibility_screen_margin \
+		if tuning != null else 8.0
+	bounds["rect"] = (bounds.get("rect") as Rect2).grow(margin)
+	return bounds
+
+
+func _node_occludes_active_log(root: Node3D,
+		active_bounds: Dictionary) -> bool:
+	if root == null or not is_instance_valid(root) or not root.visible:
+		return false
+	var local_bounds := _visibility_local_bounds(root)
+	if local_bounds.size.length_squared() <= 0.000001:
+		return false
+	var centre := root.global_transform * (local_bounds.position \
+		+ local_bounds.size * 0.5)
+	if _camera.is_position_behind(centre):
+		return false
+	var basis := root.global_transform.basis
+	var scale_max := maxf(basis.x.length(),
+		maxf(basis.y.length(), basis.z.length()))
+	var radius := local_bounds.size.length() * 0.5 * scale_max
+	var centre_distance := _camera.global_position.distance_to(centre)
+	# A candidate whose nearest corner is behind the active log's farthest corner
+	# cannot hide any part of it. Using the far edge here deliberately favours a
+	# harmless tunnel false-positive over losing even a sliver of the workpiece.
+	if centre_distance - radius \
+			>= float(active_bounds.get("far_distance", 0.0)) - 0.01:
+		return false
+	# A conservative projected bounding sphere needs three projections instead of
+	# recursively projecting eight corners for every mesh of every loose root.
+	var screen_centre := _camera.unproject_position(centre)
+	var camera_basis := _camera.global_transform.basis
+	var screen_right := _camera.unproject_position(
+		centre + camera_basis.x.normalized() * radius)
+	var screen_up := _camera.unproject_position(
+		centre + camera_basis.y.normalized() * radius)
+	var pixel_radius := maxf(screen_centre.distance_to(screen_right),
+		screen_centre.distance_to(screen_up)) * 1.05
+	var candidate_rect := Rect2(screen_centre - Vector2.ONE * pixel_radius,
+		Vector2.ONE * pixel_radius * 2.0)
+	var active_rect := active_bounds.get("rect") as Rect2
+	return candidate_rect.intersects(active_rect, true)
+
+
+func _cached_visibility_meshes(root: Node3D) -> Array[MeshInstance3D]:
+	var cached: Variant = root.get_meta(&"visibility_meshes") \
+		if root.has_meta(&"visibility_meshes") else null
+	if cached is Array:
+		var valid := true
+		for raw_mesh: Variant in cached:
+			if not is_instance_valid(raw_mesh):
+				valid = false
+				break
+		if valid:
+			return cached as Array[MeshInstance3D]
+	var meshes: Array[MeshInstance3D] = []
+	_collect_visibility_meshes(root, meshes)
+	root.set_meta(&"visibility_meshes", meshes)
+	return meshes
+
+
+func _visibility_local_bounds(root: Node3D) -> AABB:
+	var cached: Variant = root.get_meta(&"visibility_local_bounds") \
+		if root.has_meta(&"visibility_local_bounds") else null
+	if cached is AABB:
+		return cached as AABB
+	var found := false
+	var bounds := AABB()
+	var root_inverse := root.global_transform.affine_inverse()
+	for instance: MeshInstance3D in _cached_visibility_meshes(root):
+		if instance.mesh == null:
+			continue
+		var mesh_bounds := instance.mesh.get_aabb()
+		var to_root := root_inverse * instance.global_transform
+		for corner_index: int in range(8):
+			var corner := to_root * Vector3(
+				mesh_bounds.end.x if (corner_index & 1) != 0 else mesh_bounds.position.x,
+				mesh_bounds.end.y if (corner_index & 2) != 0 else mesh_bounds.position.y,
+				mesh_bounds.end.z if (corner_index & 4) != 0 else mesh_bounds.position.z)
+			if not found:
+				bounds = AABB(corner, Vector3.ZERO)
+				found = true
+			else:
+				bounds = bounds.expand(corner)
+	if found:
+		root.set_meta(&"visibility_local_bounds", bounds)
+	return bounds
+
+
+func _screen_bounds_for_roots(roots: Array) -> Dictionary:
+	if _camera == null or _camera.get_viewport() == null:
+		return {}
+	var min_screen := Vector2(INF, INF)
+	var max_screen := Vector2(-INF, -INF)
+	var near_distance := INF
+	var far_distance := 0.0
+	var found := false
+	for raw_root: Variant in roots:
+		var root := raw_root as Node
+		if root == null or not is_instance_valid(root):
+			continue
+		var meshes: Array[MeshInstance3D] = []
+		_collect_visibility_meshes(root, meshes)
+		for mesh_instance: MeshInstance3D in meshes:
+			if mesh_instance.mesh == null or not mesh_instance.is_visible_in_tree():
+				continue
+			var aabb := mesh_instance.mesh.get_aabb()
+			for corner_index: int in range(8):
+				var corner := Vector3(
+					aabb.end.x if (corner_index & 1) != 0 else aabb.position.x,
+					aabb.end.y if (corner_index & 2) != 0 else aabb.position.y,
+					aabb.end.z if (corner_index & 4) != 0 else aabb.position.z)
+				var world_corner := mesh_instance.global_transform * corner
+				if _camera.is_position_behind(world_corner):
+					continue
+				var screen := _camera.unproject_position(world_corner)
+				min_screen.x = minf(min_screen.x, screen.x)
+				min_screen.y = minf(min_screen.y, screen.y)
+				max_screen.x = maxf(max_screen.x, screen.x)
+				max_screen.y = maxf(max_screen.y, screen.y)
+				var corner_distance := _camera.global_position.distance_to(
+					world_corner)
+				near_distance = minf(near_distance, corner_distance)
+				far_distance = maxf(far_distance, corner_distance)
+				found = true
+	if not found:
+		return {}
+	return {
+		"rect": Rect2(min_screen, max_screen - min_screen),
+		"near_distance": near_distance,
+		"far_distance": far_distance,
+	}
+
+
+func _collect_visibility_meshes(node: Node,
+		out: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D:
+		out.append(node as MeshInstance3D)
+	for child: Node in node.get_children():
+		_collect_visibility_meshes(child, out)
+
+
+func debug_chopping_visibility_state() -> Dictionary:
+	_update_active_log_visibility_guard(0.0, true)
+	var active_max_transparency := 0.0
+	for raw_piece: Variant in _on_block:
+		var piece := raw_piece as Node
+		if piece == null or not is_instance_valid(piece):
+			continue
+		var meshes: Array[MeshInstance3D] = []
+		_collect_visibility_meshes(piece, meshes)
+		for mesh_instance: MeshInstance3D in meshes:
+			active_max_transparency = maxf(active_max_transparency,
+				mesh_instance.transparency)
+	var dome_state: Dictionary = {}
+	var arena := get_node_or_null("LooseLogArena")
+	if arena != null and arena.has_method(
+			&"debug_chopping_visibility_dome_state"):
+		dome_state = arena.call("debug_chopping_visibility_dome_state")
+	return {
+		"occluder_count": _chopping_visibility_occluder_count,
+		"tunnel_hidden_geometry_count": \
+			_chopping_visibility_hidden_geometry_count,
+		"active_max_transparency": active_max_transparency,
+		"active_self_hidden": active_max_transparency > 0.001,
+		"active_piece_count": _on_block.size(),
+		"dome": dome_state,
+	}
+
+
 func _process(delta: float) -> void:
 	_animator.update()
+	_update_active_log_visibility_guard(delta)
 	_update_grain_cue()
 	_update_log_smoke(delta)
+	_update_run_power_orbits(delta)
+	_update_finished_piece_sink(delta)
 
 	if _cooldown_left > 0.0:
 		_cooldown_left -= delta
-	if _hold_chop_active and SkillTree.owns_modifier(
-			GameplayModifierDef.Kind.HOLD_TO_CHOP) and _pending.is_empty() \
+	if _hold_chop_active and GameState.has_meta_capability(
+			MetaUpgradeDef.Capability.HOLD_TO_CHOP) and _pending.is_empty() \
 			and (_axe == null or not _axe.is_swinging()) and _cooldown_left <= 0.0:
 		_on_click(_hold_screen_pos)
 
@@ -925,244 +2282,21 @@ func _process(delta: float) -> void:
 		if _pending.timer <= 0.0:
 			_resolve_pending()
 
-	if _awaiting_stack and _firewood_settled():
-		_begin_stacking()
-
-	# The load on its way out is animated independently of the stack coming in, so
-	# the player can chop through a haul-away instead of waiting for it.
-	if _pile.is_hauling:
-		_pile.update_haul()
-
-	if _stacking:
-		_pile.update()
-		if not _pile.is_animating:
-			_stacking = false
-			# The last piece of the load has landed and been paid for. If that
-			# filled the yard, the whole pile leaves now — before the next log
-			# drops, so the fresh stack starts on clear ground.
-			if GameState.get_yard_pile_count() >= max_pile_pieces:
-				_haul_away()
-			if _external_log_flow:
-				block_ready_for_log.emit()
-			else:
-				_spawn_fresh_log(false)   # standalone harness flow
+	if _awaiting_finished_settlement:
+		_finished_batch_age += delta
+		if _firewood_settled():
+			_settle_finished_firewood()
 
 
-func _configure_pile() -> void:
-	var turnaround := clampf(SkillTree.total_modifier(
-		GameplayModifierDef.Kind.LOG_TURNAROUND), 0.0, 0.75)
-	_pile.radius = pile_radius
-	_pile.arc_span = deg_to_rad(pile_arc_span_deg)
-	_pile.start_angle = deg_to_rad(pile_start_angle_deg)
-	_pile.slot_spacing = pile_slot_spacing
-	_pile.tier_depth_spacing = pile_tier_depth
-	_pile.max_height = pile_max_height
-	_pile.ground_y = pile_ground_y
-	_pile.jitter = pile_jitter
-	_pile.apex_extra = pile_apex_extra
-	_pile.fly_duration = maxf(min_pile_fly_ms, pile_fly_ms * (1.0 - turnaround))
-	_pile.stagger = maxf(min_pile_stagger_ms, pile_stagger_ms * (1.0 - turnaround))
-	_pile.haul_distance = haul_distance
-	_pile.haul_rise = haul_rise
-	_pile.haul_duration = haul_ms
-	_pile.haul_stagger = haul_stagger_ms
-
-
-# ------------------------------------------------- the yard's stockpile (M7A)
-## The pile the player can SEE is the work they have done since the last load left
-## the yard — GameState's yard pile, one mesh per piece.
-##
-## The firewood itself is NOT in it: the yard buys each piece the moment it lands
-## (Creative Director call, 2026-08-01), so by the time a piece is stacked it has
-## already been paid for. The pile is therefore a record of work, not of property,
-## which is why it lives in GameState next to the lifetime counter rather than
-## being derived from InventoryManager.
-##
-## REBUILT, not maintained. A rebuild is instant and total: the arc packing in
-## wood_pile.gd is deterministic and has no notion of removing one piece from the
-## middle of a stack, and faking one would leave pieces resting on nothing.
-##
-## Deliberately NOT called while a batch is flying in. Freshly cut pieces are the
-## real sliced meshes and they animate into the pile; rebuilding on top of that
-## would swap them for stand-ins mid-flight and throw away the best moment in the
-## game.
-func _rebuild_pile_from_yard() -> void:
-	if _stacking or _awaiting_stack:
-		return
-	for c in _pile_root.get_children():
-		_pile_root.remove_child(c)
-		c.queue_free()
-	_pile.reset()
-
-	for species_index: int in _interleave(_pile_plan()):
-		var meshes: Array = _specimens_for(species_index)
-		if meshes.is_empty():
-			continue
-		var node := MeshInstance3D.new()
-		node.mesh = meshes[randi() % meshes.size()]
-		_set_log_projection_offset(node, Vector3.ZERO)
-		_pile_root.add_child(node)
-		_pile.place_settled(node)
-
-
-## How many pieces of each species to stack, from GameState's yard pile. Capped at
-## `max_pile_pieces`, scaled down together so the mix on show still reflects the
-## mix that was cut — the cap only bites on a save written before it was lowered,
-## since a live pile is hauled away the moment it reaches it.
-func _pile_plan() -> Dictionary:
-	var yard := GameState.get_yard_pile()
-	var counts: Dictionary = {}
-	var total := 0
-	var list := WoodCatalogue.all()
-	for i in range(list.size()):
-		var item: StringName = &"" if list[i] == null else list[i].yield_item
-		if item == &"":
-			continue
-		var n := int(yard.get(item, 0))
-		if n <= 0:
-			continue
-		counts[i] = n
-		total += n
-	if total <= max_pile_pieces:
-		return counts
-	var scaled: Dictionary = {}
-	for i: int in counts:
-		scaled[i] = maxi(1, int(floor(float(counts[i]) * float(max_pile_pieces) / float(total))))
-	return scaled
-
-
-## Round-robin the plan into one sequence, so a yard holding two species stacks as
-## a mixed pile rather than as two solid blocks. Which piece went on the pile first
-## is not recoverable from a count, and a blended pile reads as wood accumulated
-## over many logs, which is what it is.
-func _interleave(plan: Dictionary) -> Array[int]:
-	var out: Array[int] = []
-	var left := plan.duplicate()
-	while not left.is_empty():
-		for i: int in left.keys():
-			out.append(i)
-			left[i] = int(left[i]) - 1
-			if int(left[i]) <= 0:
-				left.erase(i)
-	return out
-
-
-## Stand-in firewood for a species, built once and cached.
-##
-## Built by SLICING that species' own log exactly the way the first two clicks on
-## it would — two centre cuts into a quarter column, jagged cut faces, the
-## species' own bark and inside grain. A box would have been cheaper and would
-## have looked like a box next to the real pieces; this way a restored pile and a
-## chopped one are made of the same thing. Lazy, so a species the player owns none
-## of never loads its FBX at all.
-func _specimens_for(species_index: int) -> Array:
-	if _specimens.has(species_index):
-		return _specimens[species_index]
-	var out: Array = []
-	var row := WoodCatalogue.at(species_index)
-	var paths := PackedStringArray() if row == null else row.meshes
-	var mat := _cut_mat_for(species_index)
-	# Two shapes is enough variety for a pile; six would be six FBX loads for
-	# pieces that are mostly buried in the stack.
-	for p_idx in range(mini(2, paths.size())):
-		# Tinted like the log it came off, or a stand-in species' pile would be
-		# oak-coloured next to the oak-coloured billets it just chopped.
-		var whole := _apply_species_look(
-			MeshUtils.centered(_build_split_log(paths[p_idx])), species_index)
-		var billet := _quarter(whole, mat)
-		if billet != null:
-			out.append(billet)
-	_specimens[species_index] = out
-	return out
-
-
-## Two centre cuts through a standing log -> a quarter column, which is what the
-## chopping game's own early splits produce. Returns null if either cut degenerates
-## (a mesh the plane misses), rather than a half-cut lump.
-## NOTE it calls MeshUtils.jag_cut with the SPECIMEN'S material rather than going
-## through _jag_cut(): that helper roughens whatever surface matches `_cut_mat`, the
-## material of the log currently ON THE BLOCK, and a specimen for any other species
-## would come back perfectly smooth (see the caching note on _cut_mat_for).
-func _quarter(whole: ArrayMesh, mat: StandardMaterial3D) -> ArrayMesh:
-	_cut_noise.frequency = cut_jag_freq
-	var plane_x := Plane(Vector3.RIGHT, 0.0)
-	var first := MeshSlicer.slice(whole, plane_x, mat)
-	if first.below == null:
-		return null
-	var half := MeshUtils.jag_cut(first.below, plane_x, mat, cut_jag_amount, _cut_noise)
-	var plane_z := Plane(Vector3.FORWARD, 0.0)
-	var second := MeshSlicer.slice(half, plane_z, mat)
-	if second.below == null:
-		return null
-	return MeshUtils.centered(
-		MeshUtils.jag_cut(second.below, plane_z, mat, cut_jag_amount, _cut_noise))
-
-
-## The yard pile changed under us — a save loaded, or a haul-away emptied it.
-##
-## The pieces THIS scene adds one at a time as they land also come through here,
-## and must not trigger anything: the count check below is what tells the two
-## apart. If the pile on screen already shows what GameState says it holds, there
-## is nothing to rebuild, and a landing piece is by definition already shown.
-func _on_yard_pile_changed(total: int) -> void:
-	if _stacking or _awaiting_stack:
-		return
-	if _pile_root.get_child_count() == mini(total, max_pile_pieces):
-		return
-	_rebuild_pile_from_yard()
-
-
-## A piece has come to rest on the pile. This is the moment the yard pays for it
-## (Sam's call: converted to cash on entering the pile, never sold by hand), and
-## the moment it starts counting toward the load that gets hauled away.
-##
-## The sale goes through Market like any other, so the price table stays the one
-## place a piece's worth is decided and Directive 6 still holds — the stock leaves
-## through InventoryManager and the cash arrives through GameState.
-func _on_piece_landed(item_id: StringName) -> void:
-	AudioDirector.play_world(&"wood_stack", Vector3(-0.55, 0.12, -0.35))
-	GameState.add_to_yard_pile(item_id, 1)
-	if not auto_sell:
-		return
-	if not _pending_manual_piece_receipts.is_empty():
-		_pending_manual_piece_receipts.pop_front()
-	var payout := _run_director.settle_completed_piece(item_id) \
-		if _run_director != null else 0
-	if payout > 0 and _coin_reward_pool != null:
-		_coin_reward_pool.queue_payout(payout)
-	if payout <= 0:
-		if _coin_reward_pool != null:
-			_coin_reward_pool.cancel_next_unpaid()
-		# Priced at nothing, or nothing in stock to sell: the piece still stacks,
-		# so the yard never eats wood it did not pay for.
-		push_warning("chopping_minigame: '%s' landed on the pile but could not be sold." % item_id)
-
-
-## The load is full: the whole pile leaves the yard in a staggered wave while the
-## player carries on chopping into the empty space it left.
-func _haul_away() -> void:
-	if _pile.is_hauling:
-		return
-	var load_out: Array = []
-	for c in _pile_root.get_children():
-		_pile_root.remove_child(c)
-		_haul_root.add_child(c)
-		load_out.append(c)
-	if not load_out.is_empty():
-		GameState.record_haul_away()
-		AudioDirector.play_world(&"haul_away", Vector3(-0.6, 0.2, -0.4))
-	_pile.reset()
-	GameState.clear_yard_pile()
-	_pile.start_hauling(load_out)
-
-
-## True once every live firewood body has (nearly) stopped, or the wait times out.
 func _firewood_settled() -> bool:
 	var turnaround := clampf(SkillTree.total_modifier(
 		GameplayModifierDef.Kind.LOG_TURNAROUND), 0.0, 0.75)
 	var settle_limit := maxf(min_firewood_settle_timeout,
 		firewood_settle_timeout * (1.0 - turnaround))
-	if Time.get_ticks_msec() / 1000.0 - _await_since >= settle_limit:
+	# This clock advances only from _process while chopping is enabled. A pause or
+	# title-screen suspension therefore cannot consume the landing window and
+	# freeze billets in mid-air on the first resumed frame.
+	if _finished_batch_age >= settle_limit:
 		return true
 	for f in _firewood:
 		if is_instance_valid(f) and (f as RigidBody3D).linear_velocity.length() > firewood_settle_speed:
@@ -1170,80 +2304,290 @@ func _firewood_settled() -> bool:
 	return true
 
 
-## Gather the settled firewood into script-animated proxies and fly them into the
-## pile (reference _startStacking): each physics body is baked to a frozen proxy at
-## its landed transform, then the pile animates it into its arc slot.
-func _begin_stacking() -> void:
-	_awaiting_stack = false
+## Retire a completed log's physics pieces in place. Rewards settle immediately,
+## and the same sliced meshes (including scar projections) start their slow
+## floor-sink on the next gameplay frame. The latch is cleared before any
+## inventory/cash call so process and suspend cannot settle the batch twice.
+func _settle_finished_firewood(emit_handoff := true) -> void:
+	if not _awaiting_finished_settlement:
+		return
+	_awaiting_finished_settlement = false
 	if not _external_log_flow:
 		_stage_next_log()
-	var proxies: Array = []
-	for f in _firewood:
-		if not is_instance_valid(f):
+
+	var finished_bodies: Array[RigidBody3D] = []
+	for raw_body: Variant in _firewood:
+		if not is_instance_valid(raw_body) or not (raw_body is RigidBody3D):
 			continue
-		var body := f as RigidBody3D
-		var src: MeshInstance3D = body.get_node_or_null("Mesh")
-		if src == null or src.mesh == null:
+		var body := raw_body as RigidBody3D
+		var source_mesh := body.get_node_or_null("Mesh") as MeshInstance3D
+		if source_mesh == null or source_mesh.mesh == null:
 			body.queue_free()
 			continue
-		var proxy := MeshInstance3D.new()
-		proxy.mesh = src.mesh
-		_set_log_projection_offset(
-			proxy, body.get_meta("projection_offset", Vector3.ZERO))
-		_pile_root.add_child(proxy)
-		proxy.global_transform = body.global_transform
-		# A piece can finish resting on another billet without ever touching Floor.
-		# Give that settled piece its one landing cue before physics hands it to the
-		# pile; the latch keeps real floor contacts from playing twice.
+		# A billet can finish resting on another billet without touching Floor.
+		# Give it its one impact cue before retiring physics; the metadata latch
+		# keeps real floor contacts from playing twice.
 		_play_firewood_impact_sfx(body)
-		proxies.append(proxy)
-		body.queue_free()
+		_retire_finished_body(body)
+		finished_bodies.append(body)
 	_firewood.clear()
 	if _coin_reward_pool != null:
-		_coin_reward_pool.trim_unpaid_to_count(proxies.size())
+		_coin_reward_pool.trim_unpaid_to_count(finished_bodies.size())
 
-	if proxies.is_empty():
-		if _external_log_flow:
-			block_ready_for_log.emit()
-		else:
-			_spawn_fresh_log(false)
-		return
-
-	# COLLECT (A7): the log is fully chopped and its firewood has settled, so
-	# each finished piece deposits one unit of the log's species into inventory.
-	# This is the single batch-collect point (it mirrors the retired authored
-	# block's collect semantics); unregistered ids are errored+ignored by
-	# InventoryManager, so an empty/typo yield is safe.
+	var species_id: StringName = &"" if _current_species == null else _current_species.id
 	var yield_item: StringName = &"" if _current_species == null else _current_species.yield_item
 	_pending_manual_piece_receipts.clear()
 	if yield_item != &"":
-		for proxy: MeshInstance3D in proxies:
-			# Standalone chopping harnesses retain the original gather contract;
-			# production deposits atomically through RunDirector when the visual
-			# piece actually lands and is sold.
+		for body: RigidBody3D in finished_bodies:
+			# Standalone chopping retains the original gather contract. Production
+			# already has one root receipt in RunDirector and settles its prepared
+			# per-piece cash shares below.
 			if _run_director == null:
 				EventBus.resource_gathered.emit(yield_item, 1)
-			var fraction := 1.0
-			if proxy.mesh != null and _source_mesh != null:
-				var piece_size := proxy.mesh.get_aabb().size
-				var source_size := _source_mesh.get_aabb().size
-				var source_volume := source_size.x * source_size.y * source_size.z
-				if source_volume > 0.0001:
-					fraction = clampf(
-						(piece_size.x * piece_size.y * piece_size.z) / source_volume,
-						0.0, 1.0)
+			var fraction := _finished_piece_fraction(body)
 			_pending_manual_piece_receipts.append(ManualPieceReceipt.new(
-				yield_item, _current_species.id, fraction, 0,
-				_current_manual_log_root_id))
-	log_completed.emit(&"" if _current_species == null else _current_species.id, proxies.size())
+				yield_item, species_id, fraction, 0, _current_manual_log_root_id))
 
-	# NOTE the experience is NOT awarded here. It is per log, not per piece, and it
-	# is paid at the final split — see the tail of _perform_split.
+	# Reward settlement is intentionally independent from the visual sink. Each
+	# body carries its own exact-once latch before the authority call.
+	for body: RigidBody3D in finished_bodies:
+		_settle_finished_piece(body, yield_item)
+		var geometry := _finished_geometry(body)
+		_finished_firewood.append({
+			"body": body,
+			"geometry": geometry,
+			"top_offset": _finished_geometry_top_offset(body, geometry),
+			"age": _finished_batch_age,
+			"start_y": body.global_position.y,
+		})
+	log_completed.emit(species_id, finished_bodies.size())
 
-	_stacking = true
-	# Each piece pays out as it comes to rest, so the cash ticks up in the same
-	# cascade the player is watching land.
-	_pile.start_stacking(proxies, Callable(), _on_piece_landed.bind(yield_item))
+	# XP was awarded at the final split. The block may accept the next root now;
+	# sinking pieces are collisionless presentation and never delay gameplay.
+	if not emit_handoff:
+		_current_descriptor = null
+		return
+	if _external_log_flow:
+		block_ready_for_log.emit()
+	else:
+		_spawn_fresh_log(false)
+
+
+func _retire_finished_body(body: RigidBody3D) -> void:
+	body.freeze = true
+	body.sleeping = true
+	body.linear_velocity = Vector3.ZERO
+	body.angular_velocity = Vector3.ZERO
+	body.collision_layer = 0
+	body.collision_mask = 0
+	body.contact_monitor = false
+	body.max_contacts_reported = 0
+	for child: Node in body.get_children():
+		if child is CollisionShape3D:
+			(child as CollisionShape3D).disabled = true
+	if body.get_parent() != _finished_firewood_root:
+		body.reparent(_finished_firewood_root, true)
+	for geometry: GeometryInstance3D in _finished_geometry(body):
+		geometry.transparency = 0.0
+		geometry.visible = true
+
+
+func _finished_piece_fraction(body: RigidBody3D) -> float:
+	var source := body.get_node_or_null("Mesh") as MeshInstance3D
+	if source == null or source.mesh == null or _source_mesh == null:
+		return 1.0
+	var piece_size := source.mesh.get_aabb().size
+	var source_size := _source_mesh.get_aabb().size
+	var source_volume := source_size.x * source_size.y * source_size.z
+	if source_volume <= 0.0001:
+		return 1.0
+	return clampf(
+		(piece_size.x * piece_size.y * piece_size.z) / source_volume,
+		0.0, 1.0)
+
+
+func _settle_finished_piece(body: RigidBody3D, item_id: StringName) -> void:
+	if not is_instance_valid(body) \
+			or bool(body.get_meta("finished_piece_settled", false)):
+		return
+	# Latch before any signal or inventory call: a zero payout is valid and must
+	# never be mistaken for evidence that settlement did not happen.
+	body.set_meta("finished_piece_settled", true)
+	if not auto_sell:
+		return
+	if not _pending_manual_piece_receipts.is_empty():
+		_pending_manual_piece_receipts.pop_front()
+	var payout := _run_director.settle_completed_piece(item_id) \
+		if _run_director != null and item_id != &"" else 0
+	if payout > 0 and _coin_reward_pool != null:
+		_coin_reward_pool.queue_payout(payout)
+	elif _coin_reward_pool != null:
+		_coin_reward_pool.cancel_next_unpaid()
+
+
+func _finished_geometry(root: Node) -> Array[GeometryInstance3D]:
+	var out: Array[GeometryInstance3D] = []
+	_collect_finished_geometry(root, out)
+	return out
+
+
+func _collect_finished_geometry(node: Node,
+		out: Array[GeometryInstance3D]) -> void:
+	if node is GeometryInstance3D:
+		out.append(node as GeometryInstance3D)
+	for child: Node in node.get_children():
+		_collect_finished_geometry(child, out)
+
+
+## Once physics retires, the collisionless rigid-body owner immediately moves
+## downward at a data-backed rate until every visible vertex is below the yard
+## floor. Camera-tunnel transparency remains an independent presentation layer.
+func _update_finished_piece_sink(delta: float) -> void:
+	var hold_seconds := float(_SURVIVAL_TUNING.finished_piece_hold_seconds)
+	var sink_speed := maxf(0.001,
+		float(_SURVIVAL_TUNING.finished_piece_sink_speed))
+	for index in range(_finished_firewood.size() - 1, -1, -1):
+		var entry: Dictionary = _finished_firewood[index]
+		var body := entry.get("body") as RigidBody3D
+		if not is_instance_valid(body):
+			_finished_firewood.remove_at(index)
+			continue
+		if bool(entry.get("settling", false)):
+			var settle_age := float(entry.get("settle_age", 0.0)) \
+				+ maxf(0.0, delta)
+			if settle_age >= firewood_settle_timeout \
+					or (settle_age >= min_firewood_settle_timeout \
+					and body.linear_velocity.length() <= firewood_settle_speed):
+				_play_firewood_impact_sfx(body)
+				_retire_finished_body(body)
+				entry["settling"] = false
+				entry["settle_age"] = settle_age
+				entry["age"] = 0.0
+				entry["start_y"] = body.global_position.y
+				var geometry := _finished_geometry(body)
+				entry["geometry"] = geometry
+				entry["top_offset"] = _finished_geometry_top_offset(body, geometry)
+			else:
+				entry["settle_age"] = settle_age
+			_finished_firewood[index] = entry
+			continue
+		var age := float(entry.get("age", 0.0)) + maxf(0.0, delta)
+		var previous_age := float(entry.get("age", 0.0))
+		var sink_delta := maxf(0.0, age - maxf(previous_age, hold_seconds))
+		if sink_delta > 0.0:
+			body.global_position.y -= sink_speed * sink_delta
+		var top_offset := float(entry.get("top_offset", INF))
+		if not is_finite(top_offset):
+			var geometry: Array = entry.get("geometry", []) as Array
+			top_offset = _finished_geometry_top_offset(body, geometry)
+			entry["top_offset"] = top_offset
+		if age > hold_seconds \
+				and body.global_position.y + top_offset < reward_ground_y:
+			body.queue_free()
+			_finished_firewood.remove_at(index)
+		else:
+			entry["age"] = age
+			_finished_firewood[index] = entry
+
+
+func _finished_body_is_below_floor(body: RigidBody3D) -> bool:
+	var found_geometry := false
+	for geometry: GeometryInstance3D in _finished_geometry(body):
+		if not (geometry is MeshInstance3D):
+			continue
+		var instance := geometry as MeshInstance3D
+		if instance.mesh == null:
+			continue
+		found_geometry = true
+		var aabb := instance.mesh.get_aabb()
+		for corner_index: int in range(8):
+			var corner := Vector3(
+				aabb.end.x if (corner_index & 1) != 0 else aabb.position.x,
+				aabb.end.y if (corner_index & 2) != 0 else aabb.position.y,
+				aabb.end.z if (corner_index & 4) != 0 else aabb.position.z)
+			if (instance.global_transform * corner).y >= reward_ground_y:
+				return false
+	return found_geometry
+
+
+## Finished bodies only translate while sinking. Cache their highest vertex once
+## when physics retires instead of recursively walking geometry and transforming
+## every AABB corner on every frame of the sink.
+func _finished_geometry_top_offset(body: RigidBody3D,
+		geometry: Array) -> float:
+	if body == null or not is_instance_valid(body):
+		return 0.0
+	var top_y := body.global_position.y
+	for raw_geometry: Variant in geometry:
+		var instance := raw_geometry as MeshInstance3D
+		if instance == null or not is_instance_valid(instance) \
+				or instance.mesh == null:
+			continue
+		var aabb := instance.mesh.get_aabb()
+		for corner_index: int in range(8):
+			var corner := Vector3(
+				aabb.end.x if (corner_index & 1) != 0 else aabb.position.x,
+				aabb.end.y if (corner_index & 2) != 0 else aabb.position.y,
+				aabb.end.z if (corner_index & 4) != 0 else aabb.position.z)
+			top_y = maxf(top_y, (instance.global_transform * corner).y)
+	return top_y - body.global_position.y
+
+
+func _clear_finished_firewood() -> void:
+	for entry: Dictionary in _finished_firewood:
+		var body := entry.get("body") as RigidBody3D
+		if is_instance_valid(body):
+			body.queue_free()
+	_finished_firewood.clear()
+	if _finished_firewood_root != null:
+		for child: Node in _finished_firewood_root.get_children():
+			if is_instance_valid(child) and not child.is_queued_for_deletion():
+				child.queue_free()
+
+
+func debug_finished_piece_state() -> Dictionary:
+	var min_age := INF
+	var max_age := 0.0
+	var max_sink_distance := 0.0
+	var max_transparency := 0.0
+	var geometry_count := 0
+	var collision_shape_count := 0
+	var enabled_collision_count := 0
+	var settling_count := 0
+	for entry: Dictionary in _finished_firewood:
+		if bool(entry.get("settling", false)):
+			settling_count += 1
+		var age := float(entry.get("age", 0.0))
+		min_age = minf(min_age, age)
+		max_age = maxf(max_age, age)
+		var body := entry.get("body") as RigidBody3D
+		if is_instance_valid(body):
+			max_sink_distance = maxf(max_sink_distance,
+				float(entry.get("start_y", body.global_position.y))
+					- body.global_position.y)
+			for child: Node in body.get_children():
+				if child is CollisionShape3D:
+					collision_shape_count += 1
+					if not (child as CollisionShape3D).disabled:
+						enabled_collision_count += 1
+		var geometry_nodes: Array = entry.get("geometry", [])
+		for raw_geometry: Variant in geometry_nodes:
+			var geometry := raw_geometry as GeometryInstance3D
+			if is_instance_valid(geometry):
+				geometry_count += 1
+				max_transparency = maxf(max_transparency,
+					geometry.transparency)
+	return {
+		"count": _finished_firewood.size(),
+		"geometry_count": geometry_count,
+		"collision_shape_count": collision_shape_count,
+		"enabled_collision_count": enabled_collision_count,
+		"settling_count": settling_count,
+		"min_age": 0.0 if _finished_firewood.is_empty() else min_age,
+		"max_age": max_age,
+		"max_sink_distance": max_sink_distance,
+		"max_transparency": max_transparency,
+	}
 
 
 ## The finished MANUAL log's one root XP transaction. Quick Study is resolved
@@ -1258,7 +2602,7 @@ func _begin_stacking() -> void:
 ## Gated on `auto_sell` with the cash payout: that flag means "the yard's payouts
 ## are live", and M4's suite switches it off because it is testing the YIELD
 ## contract and must not have the economy moving underneath it.
-func _award_log_xp() -> void:
+func _award_log_xp(source: int = _ManualLogOutcome.Source.MANUAL) -> void:
 	if not auto_sell or _current_species == null:
 		return
 	_manual_log_serial += 1
@@ -1270,8 +2614,18 @@ func _award_log_xp() -> void:
 	var base_xp := _current_species.xp_reward
 	if _run_director != null and _current_descriptor != null:
 		base_xp = _run_director.xp_reward_for(_current_descriptor)
+	if source == _ManualLogOutcome.Source.AUTOMATION:
+		# A power cut owns this completion. Commit the same exact root receipt and
+		# presentation, but never route through manual-only procs/signals.
+		var automatic_xp := _run_director.award_root_xp(
+			_current_descriptor, base_xp) if _run_director != null \
+				and _current_descriptor != null else 0
+		if automatic_xp > 0:
+			_burst_xp_orbs(automatic_xp,
+				Vector3(0.0, _stump_top_y + 0.12, 0.0), false)
+		return
 	_resolve_log_xp(_ManualLogOutcome.new(
-		root_id, _ManualLogOutcome.Source.MANUAL, true, false, base_xp))
+		root_id, source, true, false, base_xp))
 
 
 func _resolve_log_xp(outcome: RefCounted) -> int:
@@ -1419,7 +2773,7 @@ func _launch_xp_orb_burst(amount: int, from: Vector3,
 		var orb := acquired[i]
 		var token: Dictionary = tokens[i]
 		orb.setup(from, _camera, float(i) * orb_stagger, orb_scatter_radius,
-			pile_ground_y, _stump_radius, orb_collect_at,
+			reward_ground_y, _stump_radius, orb_collect_at,
 			int(token.amount), _xp_screen_target,
 			visual_scale, halo_scale, int(token.tier))
 	return true
@@ -1605,15 +2959,23 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 		local_override: Variant = null, is_bonus: bool = false) -> bool:
 	var split: bool
 	var strike_chain_fired := false
+	var run_sequence_cuts := 0
 	if _roll_splits(piece):
 		split = _perform_split(piece, world_point, normal, dir_enum, local_override)
 		strike_resolved.emit(split)
 		if split and not is_bonus:
+			run_sequence_cuts = 1
+			run_sequence_cuts += _attempt_run_double_chop()
+			if _run_director != null and _run_director.has_method(
+					"trigger_splinter_volley"):
+				_run_director.call("trigger_splinter_volley", world_point)
 			# M7C: the ONLY call site. A continuation cut lands through
 			# _perform_split directly, never back through _resolve_strike, so a
 			# root swing can never spawn a second root event — see
 			# _attempt_double_strike.
 			strike_chain_fired = _attempt_double_strike(normal, dir_enum)
+			if strike_chain_fired:
+				run_sequence_cuts += _last_double_strike_cuts
 	else:
 		# It bit, it did not go through. Mark the wood and make the next swing
 		# into this piece more likely — the pity bonus, worn where the player
@@ -1633,8 +2995,83 @@ func _resolve_strike(piece: Area3D, world_point: Vector3, normal: Vector3, dir_e
 	# resolved. Never for a bonus swing itself, so a fired Follow-Up can only
 	# ever be one swing deep from a root event — see the doc comment above.
 	if not is_bonus and not strike_chain_fired:
-		_attempt_follow_up(piece, normal, dir_enum)
+		run_sequence_cuts += _attempt_follow_up(piece, normal, dir_enum)
+	if not is_bonus:
+		run_sequence_cuts += _attempt_run_follow_up(piece, normal, dir_enum)
+		if _run_director != null and _run_director.has_method(
+				"on_manual_strike_resolved"):
+			_run_director.call("on_manual_strike_resolved", split, world_point,
+				run_sequence_cuts)
 	return split
+
+
+## Deep Bite and the other passive reliability powers alter the root swing;
+## Double Chop is different: its SET count is a guaranteed number of additional
+## real MeshSlicer cuts after a successful manual strike, from rank one onward.
+func _attempt_run_double_chop() -> int:
+	var count := maxi(0, int(round(_run_power_effect(
+		ProgressionEffectDef.Kind.GUARANTEED_EXTRA_CUTS))))
+	if count <= 0:
+		return 0
+	var block_cuts := apply_run_power_cuts(&"double_chop", count, &"largest")
+	var spilled_cuts := 0
+	var remaining := maxi(0, count - block_cuts)
+	if remaining > 0 and _run_director != null and _run_director.has_method(
+			"queue_run_power_cuts"):
+		spilled_cuts = maxi(0, int(_run_director.call("queue_run_power_cuts",
+			&"double_chop", remaining, Vector3.ZERO, &"endangered")))
+	var total_cuts := block_cuts + spilled_cuts
+	if total_cuts > 0 and _run_director != null and _run_director.has_method(
+			"record_run_power_trigger"):
+		_run_director.call("record_run_power_trigger", &"double_chop",
+			Vector3(0.0, _stump_top_y, 0.0), total_cuts, block_cuts <= 0)
+	# Only immediate cuts belong to this manual sequence for Earthshaker. Spilled
+	# work becomes a real cut when that loose descriptor reaches the block.
+	return block_cuts
+
+
+## Follow-Up is one saved-RNG roll per landed manual swing. When it fires, the
+## authored depth is the number of repeat swings; each repeat rolls ordinary
+## reliability and may scar instead of cleave, but cannot recurse into another
+## run-power chain because `is_bonus` is true.
+func _attempt_run_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> int:
+	var chance := clampf(_run_power_effect(
+		ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE), 0.0, 1.0)
+	var depth := maxi(0, int(round(_run_power_effect(
+		ProgressionEffectDef.Kind.FOLLOW_UP_DEPTH))))
+	if chance <= 0.0 or depth <= 0 or _precision_guard or _run_director == null:
+		return 0
+	var fires := debug_force_proc == 1
+	if debug_force_proc < 0 and _run_director.has_method("roll_run_power_chance"):
+		fires = bool(_run_director.call(
+			"roll_run_power_chance", &"follow_up", chance))
+	if not fires:
+		return 0
+	var split_count := 0
+	var repeat_count := 0
+	var preferred := piece
+	for repeat_index: int in range(depth):
+		var target := _pick_bonus_target(preferred)
+		preferred = null
+		if target == null:
+			break
+		var point := target.global_position
+		if not _bonus_cut_preflight(target, point, normal):
+			break
+		var mesh: Mesh = target.get_meta("mesh_ref")
+		var height := mesh.get_aabb().size.y if mesh != null else 0.2
+		var burst_point := point + Vector3.UP * (height * 0.5 + 0.05)
+		_swing_axe(point, normal)
+		repeat_count += 1
+		if _resolve_strike(target, point, normal, dir_enum, null, true):
+			split_count += 1
+		present_run_power_trigger(&"follow_up", burst_point, repeat_index + 1)
+	if repeat_count > 0 and _run_director.has_method(
+			"record_run_power_trigger"):
+		_run_director.call("record_run_power_trigger", &"follow_up",
+			piece.global_position if is_instance_valid(piece) else Vector3.ZERO,
+			repeat_count, false)
+	return split_count
 
 
 # ------------------------------------------------------- M7C: Double Strike
@@ -1721,31 +3158,32 @@ func _attempt_double_strike(normal: Vector3, dir_enum: int) -> bool:
 ## a scar becomes a second real chance at the SAME wood) and falls back to the
 ## largest remaining piece otherwise, exactly like Double Strike's own target
 ## rule — see _pick_bonus_target().
-func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> void:
+func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> int:
 	_last_follow_up_swings = 0
 	if _precision_guard:
 		# Suppressed with no escape: no owned modifier grants Follow-Up an
 		# exception the way Steady Continuation does for Double Strike (no such
 		# Speed node exists yet — a Directive 3 authoring call for Sam).
-		return   # no target lookup, no roll, no fairness spend
+		return 0   # no target lookup, no roll, no fairness spend
 	if not ProgressionProcs.is_available(&"follow_up"):
-		return
+		return 0
 	var proc_def: ProcDef = M7CContent.procs().by_id(&"follow_up") if M7CContent.procs() != null else null
 	if proc_def == null:
-		return
+		return 0
 	var cap := mini(ProgressionProcs.effective_chain_cap(&"follow_up"),
 		global_proc_chain_cap)
 	if cap <= 0:
-		return
+		return 0
 	var swings := 0
+	var cuts := 0
 	var preferred := piece
 	var first_target := _pick_bonus_target(preferred)
 	if first_target == null or not _bonus_cut_preflight(first_target,
 			first_target.global_position, normal):
-		return   # ineligible geometry never spends fairness
+		return 0   # ineligible geometry never spends fairness
 	if not ProcResolver.should_proc_with_chance(proc_def,
 			ProgressionProcs.effective_chance(&"follow_up"), debug_force_proc):
-		return
+		return 0
 	while swings < cap:
 		var target := first_target if swings == 0 else _pick_bonus_target(preferred)
 		preferred = null   # only the root's own piece gets first refusal
@@ -1773,7 +3211,8 @@ func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> void:
 		# Double Strike is deliberately left alone: its own flavour text is
 		# "one good swing... a second real cut", not a second swing.
 		_swing_axe(point, normal)
-		_resolve_strike(target, point, normal, dir_enum, null, true)
+		if _resolve_strike(target, point, normal, dir_enum, null, true):
+			cuts += 1
 		swings += 1
 		var branch := ProgressionProcs.branch_for_proc(proc_def.id)
 		_last_proc_burst_color = branch.color if branch != null else Color.WHITE
@@ -1784,6 +3223,7 @@ func _attempt_follow_up(piece: Area3D, normal: Vector3, dir_enum: int) -> void:
 	_last_follow_up_swings = swings
 	if swings > 0:
 		bonus_proc_announced.emit(&"follow_up", swings)
+	return cuts
 
 
 ## Shared by Double Strike and Follow-Up: `preferred`, when it is still a live
@@ -1805,9 +3245,8 @@ func _double_strike_safe_in_precision() -> bool:
 
 ## Deterministic continuation target: the largest on-block piece by measured
 ## volume. `_on_block` only ever holds live, script-animated stays — never a
-## settling firewood piece, a frozen pile piece, or an unrelated pile mesh —
-## so any entry here already satisfies the fairness contract's "does not
-## select settling, frozen, already-consumed, or unrelated pile pieces".
+## settling or fading firewood piece — so any entry here already satisfies the
+## fairness contract's "does not select settling, frozen, or consumed pieces".
 func _pick_double_strike_target() -> Area3D:
 	var best: Area3D = null
 	var best_vol := -1.0
@@ -1913,7 +3352,8 @@ func debug_award_log_xp_event(source_id: StringName, root_id: StringName,
 ## moment one placement succeeds — a mark neither relocates to a new "current"
 ## piece nor stacks a second one onto the same log.
 func _grain_cue_enabled() -> bool:
-	return ProgressionProcs.is_available(&"grain_read")
+	return _run_power_effect(ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE) > 0.0 \
+		or ProgressionProcs.is_available(&"grain_read")
 
 
 func _grain_proc_def() -> ProcDef:
@@ -1921,6 +3361,8 @@ func _grain_proc_def() -> ProcDef:
 
 
 func _try_show_grain_cue(target: Area3D) -> void:
+	if _restoring_run_log:
+		return
 	if not _grain_cue_enabled() or target == null or not is_instance_valid(target):
 		return
 	if _grain_target != null or _grain_offered_this_log:
@@ -1942,14 +3384,37 @@ func _try_show_grain_cue(target: Area3D) -> void:
 	# offer is never spent on a piece too small to actually carry the mark.
 	if not _slice_preflight_ok(mesh, local_plane):
 		return
+	var run_chance := clampf(_run_power_effect(
+		ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE), 0.0, 1.0)
 	var proc_def := _grain_proc_def()
-	if proc_def == null:
+	var permanent_available := proc_def != null \
+		and ProgressionProcs.is_available(&"grain_read")
+	if not permanent_available and run_chance <= 0.0:
 		return
 	var guaranteed := _eureka_grain_pending and SkillTree.owns_modifier(
 		GameplayModifierDef.Kind.GRAIN_GUARANTEE)
-	if not guaranteed and not ProcResolver.should_proc_with_chance(proc_def,
-			ProgressionProcs.effective_chance(&"grain_read"), debug_force_grain):
-		return
+	var offer_source: StringName = &"grain_read" if guaranteed else &""
+	if not guaranteed:
+		var offered := debug_force_grain == 1
+		if offered:
+			offer_source = &"grain_read" if permanent_available else &"grain_reader"
+		if debug_force_grain < 0:
+			# Preserve the retired/permanent proc's own fairness authority, then
+			# independently roll the run power only when that first source misses.
+			# This composes their chances without allowing Grain Reader to replace
+			# or downgrade an already-earned permanent mark.
+			if permanent_available and ProcResolver.should_proc_with_chance(proc_def,
+					ProgressionProcs.effective_chance(&"grain_read"), -1):
+				offered = true
+				offer_source = &"grain_read"
+			elif run_chance > 0.0 and _run_director != null \
+					and _run_director.has_method("roll_run_power_chance"):
+				offered = bool(_run_director.call(
+					"roll_run_power_chance", &"grain_reader", run_chance))
+				if offered:
+					offer_source = &"grain_reader"
+		if not offered:
+			return
 
 	_grain_target = target
 	_grain_target_mesh = mesh
@@ -1957,6 +3422,7 @@ func _try_show_grain_cue(target: Area3D) -> void:
 	_grain_candidate_dirty = false
 	_grain_offered_this_log = true
 	_grain_offer_count_this_log += 1
+	_grain_offer_source = offer_source
 	if guaranteed:
 		_eureka_grain_pending = false
 
@@ -2119,6 +3585,7 @@ func _clear_grain_cue(reason: StringName) -> void:
 	_grain_target_mesh = null
 	_grain_local_anchor = Vector3.ZERO
 	_grain_candidate_dirty = false
+	_grain_offer_source = &""
 	if had_cue:
 		_grain_last_clear_reason = reason
 
@@ -2156,24 +3623,47 @@ func _award_grain_bonus(burst_point: Vector3) -> void:
 	if _current_species == null:
 		return
 	var proc_def := _grain_proc_def()
-	if proc_def == null:
+	var run_multiplier := _run_power_effect(
+		ProgressionEffectDef.Kind.GRAIN_BONUS_XP_MULTIPLIER)
+	if proc_def == null and run_multiplier <= 0.0:
 		return
 	# The multiplier is authored data on the proc (proc_table.tres), read through
 	# the same generic helper Quick Study's log-completion bonus uses — never a
 	# literal "3.0" in code.
-	var multiplier := _manual_xp_multiplier(proc_def)
-	var bonus := maxi(1, int(round(float(_current_species.xp_reward) * multiplier)))
+	var permanent_multiplier := _manual_xp_multiplier(proc_def) \
+		if proc_def != null else 0.0
+	var multiplier := run_multiplier if _grain_offer_source == &"grain_reader" \
+		else permanent_multiplier
+	if multiplier <= 0.0:
+		multiplier = maxf(run_multiplier, permanent_multiplier)
+	var base_xp := _current_species.xp_reward
+	if _current_descriptor != null:
+		var yards := SurvivorsContent.yards()
+		var yard := yards.by_id(_current_descriptor.yard_id) \
+			if yards != null else null
+		var reward := yard.reward_for_species(_current_descriptor.species_id) \
+			if yard != null else null
+		if reward != null:
+			base_xp = reward.xp_reward
+	var bonus := maxi(1, int(round(float(base_xp) * multiplier)))
 	_last_grain_bonus = bonus
 	bonus = _run_director.award_xp(bonus) if _run_director != null \
 		else GameState.award_xp(bonus, GameState.XP_ORIGIN_GRAIN)
 	_last_grain_bonus = bonus
 	_burst_xp_orbs(bonus, burst_point)
 
-	var branch := ProgressionProcs.branch_for_proc(&"grain_read")
-	var color := branch.color if branch != null else Color.WHITE
-	_last_proc_burst_color = color
-	ProcBurst.spawn(self, burst_point, color,
-		branch.id if branch != null else &"")
+	if _grain_offer_source == &"grain_reader" and _run_director != null \
+			and _run_director.has_method("record_run_power_trigger"):
+		_run_director.call("record_run_power_trigger", &"grain_reader",
+			burst_point, 1, true)
+		_last_proc_burst_color = _run_power_color(&"grain_reader")
+	else:
+		var branch := ProgressionProcs.branch_for_proc(&"grain_read")
+		var color := branch.color if branch != null \
+			else _run_power_color(&"grain_reader")
+		_last_proc_burst_color = color
+		ProcBurst.spawn(self, burst_point, color,
+			branch.id if branch != null else &"")
 	AudioDirector.play_world(&"precision_success", burst_point)
 	grain_read_awarded.emit(bonus)
 
@@ -2212,6 +3702,10 @@ func debug_grain_clear_reason() -> StringName:
 
 func debug_last_grain_bonus() -> int:
 	return _last_grain_bonus
+
+
+func debug_grain_offer_source() -> StringName:
+	return _grain_offer_source
 
 
 ## How many times a gold mark has actually been PLACED on the current log (not
@@ -2257,10 +3751,14 @@ func split_chance_for(piece: Area3D) -> float:
 
 	var profile_scar_bonus := 1.0 if handling == null else handling.scar_bonus_multiplier
 	base += float(_scars_on(piece)) * (scar_bonus * profile_scar_bonus \
-		+ SkillTree.total_modifier(GameplayModifierDef.Kind.SCAR_RELIABILITY))
+		+ SkillTree.total_modifier(GameplayModifierDef.Kind.SCAR_RELIABILITY) \
+		+ _run_power_effect(ProgressionEffectDef.Kind.SCAR_RELIABILITY))
 	# Strength owns player capability; the cash axe only weights ordinary
 	# reliability. Separate queries prevent equipment from granting a skill id.
 	base += SkillTree.total_modifier(GameplayModifierDef.Kind.SPLIT_RELIABILITY)
+	base += _run_power_effect(ProgressionEffectDef.Kind.SPLIT_RELIABILITY)
+	base += float(_momentum_stacks()) * _run_power_effect(
+		ProgressionEffectDef.Kind.MOMENTUM_RELIABILITY_PER_STACK)
 	base += Shop.total_effect(UpgradeDef.Effect.SPLIT_RELIABILITY)
 	return clampf(base, 0.0, max_split_chance)
 
@@ -2554,8 +4052,12 @@ func current_swing_cooldown() -> float:
 	# COMPOUNDING, which is why this asks the tree for LEVELS rather than for a
 	# summed magnitude: ten levels of 5% off is 40% of the original wait, not
 	# zero. Only the caller knows what its number means.
-	var recovery := clampf(SkillTree.total_modifier(
-		GameplayModifierDef.Kind.SWING_RECOVERY), 0.0, 0.8)
+	var recovery := SkillTree.total_modifier(
+		GameplayModifierDef.Kind.SWING_RECOVERY)
+	recovery += _run_power_effect(ProgressionEffectDef.Kind.SWING_RECOVERY)
+	recovery += float(_momentum_stacks()) * _run_power_effect(
+		ProgressionEffectDef.Kind.MOMENTUM_SPEED_PER_STACK)
+	recovery = clampf(recovery, 0.0, 0.8)
 	var after_skill := swing_cooldown * (1.0 - recovery)
 	var equipment := clampf(Shop.total_effect(UpgradeDef.Effect.SWING_RECOVERY), 0.0, 0.9)
 	return maxf(min_swing_cooldown, after_skill * (1.0 - equipment))
@@ -2668,30 +4170,42 @@ func _perform_split(piece: Area3D, world_point: Vector3, normal: Vector3, dir_en
 		_try_show_grain_cue(_pick_grain_target(new_stays))
 
 	# Log fully chopped (nothing choppable left): wait for the firewood to settle,
-	# then gather it into the pile and spawn a fresh log.
+	# settle its rewards, then leave the landed pieces in place for their farewell.
 	if _on_block.is_empty():
-		_awaiting_stack = true
-		_await_since = Time.get_ticks_msec() / 1000.0
+		_awaiting_finished_settlement = true
+		_finished_batch_age = 0.0
 		if auto_sell and _coin_reward_pool != null and not _firewood.is_empty():
 			# Coins erupt from the same final cut as XP, then wait near the stump
 			# until the shared XP/coin collection beat calls both reward waves home.
 			_coin_reward_pool.begin_burst(
-				world_point + Vector3.UP * 0.06, _firewood.size(), pile_ground_y,
+				world_point + Vector3.UP * 0.06, _firewood.size(), reward_ground_y,
 				_stump_radius, orb_collect_at, orb_stagger)
 		# THE XP LANDS ON THE SPLIT ITSELF, not when the firewood has settled
 		# (Creative Director call, 2026-08-02: *"pop out the moment the final piece
 		# is split, so all the collecting happens at once"*). The settle wait is up
-		# to `firewood_settle_timeout` long, so awarding at _begin_stacking put the
+		# to `firewood_settle_timeout` long, so awarding during piece settlement put the
 		# reward a beat behind the swing that earned it, and the orbs then arrived
 		# on their own instead of inside the same burst of activity as the pieces
-		# flying to the pile.
-		_award_log_xp()
+		# landing around the block.
+		_award_log_xp(_ManualLogOutcome.Source.AUTOMATION \
+			if _power_cut_context != &"" else _ManualLogOutcome.Source.MANUAL)
 		# Commit the root's fixed purse after its coin batch and exact XP receipt are
 		# registered. The HUD trails authority until those tokens arrive, while a
 		# stage clear or suspend can never lose part of a completed root payout.
 		if auto_sell and _run_director != null and _current_descriptor != null:
-			_run_director.complete_manual_log(_current_descriptor,
-				mini(_firewood.size(), _CoinRewardPool.CAPACITY))
+			var completed_descriptor := _current_descriptor
+			var reward_piece_count := mini(_firewood.size(),
+				_CoinRewardPool.CAPACITY)
+			if _power_cut_context != &"" and _run_director.has_method(
+					"complete_automatic_active_log"):
+				_run_director.call("complete_automatic_active_log",
+					completed_descriptor, reward_piece_count, _power_cut_context)
+			else:
+				_run_director.complete_manual_log(completed_descriptor,
+					reward_piece_count)
+			if _run_director.has_method("on_root_completed"):
+				_run_director.call("on_root_completed",
+					completed_descriptor, world_point)
 	return true
 
 
@@ -2878,6 +4392,23 @@ func debug_has_staged_log() -> bool:
 	return not _staged_log.is_empty()
 
 
+## World-space centre of the actual chopping block. LooseLogArena must not
+## assume the whole minigame lives at world origin when steering Yard Magnet.
+func yard_magnet_target_world_position() -> Vector3:
+	return to_global(Vector3.ZERO)
+
+
+## Floor-level origin used by LooseLogArena's full-height protection capsule.
+func chopping_visibility_dome_base_world_position() -> Vector3:
+	return to_global(Vector3.ZERO)
+
+
+## The centre remains the visual destination, but a physical loose body must
+## stop outside this solid cylinder before its vertical handoff begins.
+func yard_magnet_stump_collision_radius() -> float:
+	return current_work_radius()
+
+
 # ------------------------------------------------------- piece factories
 ## Object-space bark must survive MeshSlicer's descendant recentering. Both live
 ## exterior shaders declare this per-instance value at the same explicit index,
@@ -2901,7 +4432,7 @@ func _make_stay_piece(centered_mesh: Mesh, world_pos: Vector3, yaw: float,
 	_set_log_projection_offset(mi, projection_offset)
 	piece.add_child(mi)
 	var cs := CollisionShape3D.new()
-	cs.shape = centered_mesh.create_convex_shape()
+	cs.shape = MeshUtils.box_shape(centered_mesh)
 	piece.add_child(cs)
 	_pieces_root.add_child(piece)
 	piece.position = world_pos
@@ -2936,7 +4467,7 @@ func _spawn_firewood(centered_mesh: Mesh, world_pos: Vector3, out_dir: Vector3,
 	_set_log_projection_offset(mi, projection_offset)
 	body.add_child(mi)
 	var cs := CollisionShape3D.new()
-	cs.shape = centered_mesh.create_convex_shape()
+	cs.shape = MeshUtils.box_shape(centered_mesh)
 	body.add_child(cs)
 	_fallers.add_child(body)
 	body.global_position = world_pos
@@ -3088,16 +4619,17 @@ func _dir_from_normal(normal: Vector3) -> int:
 
 
 # ----------------------------------------------------------------- setup
-## Spawn a fresh log. `reset_pile` = true clears the accumulated pile too (the R
-## debug key); the auto-respawn after stacking keeps the pile so it grows.
-func _spawn_fresh_log(reset_pile := true) -> void:
+## Spawn a fresh log. `clear_finished` = true also clears earlier farewell pieces
+## (the standalone R debug key); ordinary auto-respawn leaves them to finish.
+func _spawn_fresh_log(clear_finished := true) -> void:
 	_clear_grain_cue(&"piece_changed")
 	_alien_assist_target = null
 	# A brand new log is a brand new roll — the once-per-log latch belongs to
 	# THIS log, never the one that just left the block.
 	_grain_offered_this_log = false
 	_grain_offer_count_this_log = 0
-	if not SkillTree.owns_modifier(GameplayModifierDef.Kind.CONTINUOUS_HANDOFF):
+	if not GameState.has_meta_capability(
+			MetaUpgradeDef.Capability.CONTINUOUS_HANDOFF):
 		_hold_chop_active = false
 	for p in _on_block:
 		if is_instance_valid(p):
@@ -3109,19 +4641,12 @@ func _spawn_fresh_log(reset_pile := true) -> void:
 	_firewood.clear()
 	_animator.clear()
 	_pending = {}
-	if reset_pile:
+	if clear_finished:
 		_staged_log = {}
-	_awaiting_stack = false
-	_stacking = false
-
-	if reset_pile:
-		for c in _pile_root.get_children():
-			c.queue_free()
-		_pile.reset()
-		# The pile is a view of the yard, not of the log on the block (see
-		# _rebuild_pile_from_yard), so clearing it means rebuilding it — otherwise
-		# an R-key reset would look like the yard had been robbed.
-		_rebuild_pile_from_yard()
+	_awaiting_finished_settlement = false
+	_finished_batch_age = 0.0
+	if clear_finished:
+		_clear_finished_firewood()
 
 	# Select the next log's species — the species is what this log will yield,
 	# and what its exposed end-grain looks like when it is cut.
@@ -3169,7 +4694,12 @@ func _on_log_landed(mesh: Mesh) -> void:
 	_play_drop_sfx()
 	AudioDirector.play_world(&"log_drop", Vector3(0.0, _stump_top_y, 0.0))
 	_spawn_log_smoke(mesh)
-	if _external_log_flow:
+	_apply_pending_descriptor_power_cuts()
+	# Deferred power cuts can finish the descriptor the instant it lands. That
+	# completion deliberately pauses boundary danger through settlement/handoff;
+	# do not immediately undo it with a stale "ready" signal for an empty block.
+	if _external_log_flow and not _on_block.is_empty() \
+			and not _awaiting_finished_settlement:
 		run_log_ready.emit()
 
 
@@ -3262,7 +4792,7 @@ func _update_log_smoke(delta: float) -> void:
 			_smoke_age[i] = -1.0
 
 
-## Prepare one mesh while the completed log is already waiting/stacking. It is
+## Prepare one mesh while the completed log is already waiting to settle. It is
 ## not placed, counted, paid or interactable until _spawn_fresh_log consumes it.
 func _stage_next_log() -> void:
 	if Shop.get_level(GameState.UPGRADE_HANDCART) <= 0 or not _staged_log.is_empty():
@@ -3571,8 +5101,8 @@ func _build_split_log(variant_path := "") -> ArrayMesh:
 ##
 ## This used to be a bare `log_scale` multiplier (13.0), which only meant
 ## anything against the raw units the FBX happened to be modelled in — log_01
-## imports at 0.032 m tall, so 13x gave the ~0.42 m round the block, the cut
-## thresholds and the pile spacing are all sized for. Then MeshUtils.mesh_from_
+## imports at 0.032 m tall, so 13x gave the ~0.42 m round the block and the cut
+## thresholds are sized for. Then MeshUtils.mesh_from_
 ## scene started BAKING the transform authored on the FBX's MeshInstance3D
 ## (2026-07-27, for tree_02's 180x node scale) — and these logs carry ~33.9x
 ## (log_01) and ~31.6x (log_02) of their own. The same 13.0 then produced a
@@ -3718,3 +5248,34 @@ func piece_count() -> int:
 
 func cuttable_count() -> int:
 	return _on_block.size()
+
+
+func debug_boss_stack_state() -> Dictionary:
+	var visual_positions: Dictionary = {}
+	for raw_id: Variant in _boss_stack_visuals:
+		var visual := _boss_stack_visuals[raw_id] as MeshInstance3D
+		if is_instance_valid(visual):
+			visual_positions[String(raw_id)] = visual.global_position
+	return {
+		"active": _boss_stack_active,
+		"pending_visual_count": _boss_stack_visuals.size(),
+		"visual_positions": visual_positions,
+		"camera_fov": _camera.fov if _camera != null else 0.0,
+		"camera_base_fov": _camera_base_fov,
+		"camera_position": _camera.global_position if _camera != null else Vector3.ZERO,
+		"camera_local_position": _camera.position if _camera != null else Vector3.ZERO,
+		"camera_pivot_y": _pivot.position.y if _pivot != null else 0.0,
+		"camera_base_pivot_y": _pivot_base_position.y,
+		"camera_base_local_position": _camera_base_transform.origin,
+		"camera_target_pivot_y": _boss_camera_target_y,
+		"camera_transition_seconds": \
+			_run_director.tuning.boss_stack_camera_transition_seconds \
+			if _run_director != null else 0.0,
+		"camera_tracking": _boss_camera_tween != null \
+			and _boss_camera_tween.is_valid(),
+		"active_log_visible": _boss_active_log_is_visible() \
+			if _boss_stack_active else true,
+		"cuttable_count": _on_block.size(),
+		"current_descriptor_id": String(
+			_current_descriptor.id if _current_descriptor != null else &""),
+	}

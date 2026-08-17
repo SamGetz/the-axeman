@@ -321,7 +321,8 @@ func get_selected_frequency_tier() -> int:
 
 func get_max_frequency_tier() -> int:
 	var yard := _yard_definition(get_selected_yard())
-	var yard_max := 0 if yard == null else maxi(0, yard.starting_delivery_intervals.size() - 1)
+	var yard_max := 0 if yard == null else maxi(0,
+		yard.delivery_tier_interval_scales.size() - 1)
 	return mini(get_meta_upgrade_rank(META_FREQUENCY_CONTROL), yard_max)
 
 

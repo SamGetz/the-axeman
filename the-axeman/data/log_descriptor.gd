@@ -19,10 +19,23 @@ var hardness_snapshot := 1.0
 var cash_reward_snapshot := 0
 var xp_reward_snapshot := 0
 var original_mass := 0.0
+## Deferred run-power work accumulated while this root is loose in the arena.
+## Chopping consumes these bounded counts when the root is claimed for the block.
+var pending_power_cuts := 0
+var pending_power_cut_sources: Array[StringName] = []
+var pending_power_scars := 0
 ## Transient/snapshotted handoff pose populated when a physical loose body is
 ## claimed. New deliveries leave it at the sentinel and use the normal drop.
 var transfer_from := Vector3(INF, INF, INF)
 var transfer_rotation := Quaternion.IDENTITY
+## Live-only presentation snapshot for an arena claim. These references are
+## deliberately excluded from save dictionaries: suspension canonicalizes an
+## active handoff before serializing, while restored waiting roots rebuild their
+## deterministic descendant geometry from pending cut receipts.
+var transfer_visual_meshes: Array[Mesh] = []
+var transfer_visual_transforms: Array[Transform3D] = []
+var transfer_visual_projection_offsets: Array[Vector3] = []
+var transfer_visual_overlays: Array[Material] = []
 var _decoded_types_valid := true
 
 
@@ -68,7 +81,8 @@ static func from_dict(data: Dictionary) -> LogDescriptor:
 			value = ""
 		descriptor.set(key, StringName(value))
 	for key: String in ["mesh_index", "spawn_serial", "visual_seed", "boss_tier",
-			"cash_reward_snapshot", "xp_reward_snapshot"]:
+			"cash_reward_snapshot", "xp_reward_snapshot", "pending_power_cuts",
+			"pending_power_scars"]:
 		var value: Variant = data.get(key, 0)
 		if not (value is int):
 			descriptor._decoded_types_valid = false
@@ -81,6 +95,17 @@ static func from_dict(data: Dictionary) -> LogDescriptor:
 			descriptor._decoded_types_valid = false
 			value = NAN
 		descriptor.set(key, float(value))
+	var raw_cut_sources: Variant = data.get("pending_power_cut_sources", [])
+	if raw_cut_sources is Array:
+		for raw_source: Variant in raw_cut_sources:
+			if raw_source is String or raw_source is StringName:
+				var source := StringName(raw_source)
+				if source != &"":
+					descriptor.pending_power_cut_sources.append(source)
+					continue
+			descriptor._decoded_types_valid = false
+	else:
+		descriptor._decoded_types_valid = false
 	return descriptor
 
 
@@ -114,15 +139,27 @@ func to_dict() -> Dictionary:
 		"cash_reward_snapshot": cash_reward_snapshot,
 		"xp_reward_snapshot": xp_reward_snapshot,
 		"original_mass": original_mass,
+		"pending_power_cuts": pending_power_cuts,
+		"pending_power_cut_sources": _serialized_pending_power_cut_sources(),
+		"pending_power_scars": pending_power_scars,
 		"transfer_from": transfer_from,
 		"transfer_rotation": transfer_rotation,
 	}
 
 
+func _serialized_pending_power_cut_sources() -> Array[String]:
+	var out: Array[String] = []
+	for source: StringName in pending_power_cut_sources:
+		out.append(String(source))
+	return out
+
+
 func is_valid() -> bool:
 	return _decoded_types_valid and id != &"" \
 		and SpeciesTable.by_id(species_id) != null \
-		and mesh_index >= 0 and spawn_serial >= 0
+		and mesh_index >= 0 and spawn_serial >= 0 \
+		and pending_power_cuts >= 0 and pending_power_scars >= 0 \
+		and pending_power_cut_sources.size() <= pending_power_cuts
 
 
 ## Strict validator for descriptors produced by the v19 run loop. The existing
@@ -143,3 +180,8 @@ func has_transfer_pose() -> bool:
 		and is_finite(transfer_from.z) and is_finite(transfer_rotation.x) \
 		and is_finite(transfer_rotation.y) and is_finite(transfer_rotation.z) \
 		and is_finite(transfer_rotation.w)
+
+
+func has_transfer_visuals() -> bool:
+	return not transfer_visual_meshes.is_empty() \
+		and transfer_visual_meshes.size() == transfer_visual_transforms.size()

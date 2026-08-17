@@ -1,6 +1,8 @@
 class_name RunPowerTable
 extends Resource
 
+const MAX_POWER_COUNT := 32
+
 @export var powers: Array[RunPowerDef] = []
 
 
@@ -21,6 +23,9 @@ func from_pool(pool: RunPowerDef.Pool) -> Array[RunPowerDef]:
 
 func validate() -> PackedStringArray:
 	var errors := PackedStringArray()
+	if powers.is_empty() or powers.size() > MAX_POWER_COUNT:
+		errors.append("run-power table must contain between 1 and %d powers" \
+			% MAX_POWER_COUNT)
 	var ids: Dictionary = {}
 	for power: RunPowerDef in powers:
 		if power == null:

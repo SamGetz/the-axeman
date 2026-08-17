@@ -42,7 +42,20 @@ func _ready() -> void:
 	GameState.profile_changed.connect(_on_profile_changed)
 	_run.attempt_finished.connect(_on_attempt_finished)
 	_show_startup()
+	_warm_initial_vfx.call_deferred()
 	get_tree().auto_accept_quit = false
+
+
+func _warm_initial_vfx() -> void:
+	if DisplayServer.get_name() == "headless" \
+			or not _chopping.has_method(&"begin_initial_vfx_render_warmup"):
+		return
+	_chopping.call(&"begin_initial_vfx_render_warmup")
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	if is_instance_valid(_chopping) \
+			and _chopping.has_method(&"end_initial_vfx_render_warmup"):
+		_chopping.call(&"end_initial_vfx_render_warmup")
 
 
 func start_new_game() -> bool:

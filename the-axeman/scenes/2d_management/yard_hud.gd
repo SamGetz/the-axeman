@@ -12,12 +12,21 @@ const _CREAM := Color(0.965, 0.925, 0.82, 0.97)
 const _INK := Color(0.13, 0.105, 0.075, 1.0)
 const _RUST := Color(0.58, 0.12, 0.07, 1.0)
 const _FOREST := Color(0.10, 0.25, 0.14, 1.0)
+const _MENU_PANEL := Color(0.045, 0.052, 0.038, 0.985)
+const _MENU_SURFACE := Color(0.105, 0.115, 0.078, 0.99)
+const _MENU_INK := Color(0.96, 0.91, 0.78, 1.0)
+const _MENU_MUTED := Color(0.70, 0.68, 0.57, 1.0)
+const _MENU_GOLD := Color(0.86, 0.66, 0.28, 1.0)
 const _COIN := preload("res://assets/ui/coin.png")
+const _LevelUpOfferRain := preload(
+	"res://scenes/2d_management/level_up_offer_rain.gd")
 
 var _run: RunDirector
 var _xp_source: Node
 var _panel_kind := &""
 var _warning_times: Dictionary = {}
+var _earliest_warning_id: StringName = &""
+var _earliest_warning_seconds := INF
 var _displayed_level := 1
 var _displayed_xp_total := 0
 var _pending_orb_xp := 0
@@ -32,6 +41,14 @@ var _pending_coin_count := 0
 var _splitter_installed_shown := false
 var _splitter_rank_shown := -1
 var _power_slot_labels: Array[Label] = []
+var _power_slot_panels: Array[PanelContainer] = []
+var _power_slot_icons: Array[TextureRect] = []
+var _power_slot_rank_labels: Array[Label] = []
+var _power_slot_status_labels: Array[Label] = []
+var _power_slots_snapshot: Array = []
+var _power_ranks_snapshot: Dictionary = {}
+var _power_runtime_state: Dictionary = {}
+var _power_runtime_available := false
 
 var _earth_label: Label
 var _cash_label: Label
@@ -42,18 +59,28 @@ var _delivery_label: Label
 var _xp_label: Label
 var _xp_progress: ProgressBar
 var _danger_label: Label
+var _boss_stack_label: Label
 var _modal_backdrop: ColorRect
 var _modal: PanelContainer
 var _modal_title: Label
 var _modal_list: VBoxContainer
+var _modal_resume: Button
 var _result_backdrop: ColorRect
 var _result_title: Label
 var _result_stats: Label
 var _result_primary: Button
 var _result_secondary: Button
 var _offer_backdrop: ColorRect
+var _offer_panel: PanelContainer
+var _offer_content: VBoxContainer
+var _offer_rain_layer: Control
+var _offer_rain_clip: Control
+var _offer_rain: LevelUpOfferRain
+var _offer_rain_serial := -1
 var _offer_title: Label
-var _offer_cards: HBoxContainer
+var _offer_cards: VBoxContainer
+var _offer_retired_cards: Array[Control] = []
+var _offer_choose_buttons: Array[Button] = []
 var _offer_reroll: Button
 var _offer_charges: Label
 
@@ -66,6 +93,7 @@ func _ready() -> void:
 	_build_modal()
 	_build_results()
 	_build_power_offer()
+	visibility_changed.connect(_on_hud_visibility_changed)
 	GameState.skill_points_changed.connect(_on_profile_ui_changed.unbind(1))
 	GameState.skill_level_changed.connect(_on_profile_ui_changed.unbind(2))
 	GameState.selected_species_changed.connect(_on_profile_ui_changed.unbind(1))
@@ -74,6 +102,30 @@ func _ready() -> void:
 	GameState.home_cash_changed.connect(_on_home_cash_changed)
 	_displayed_level = 1
 	_refresh_profile()
+
+
+## Vampire-Survivors-style menu flow: one Cancel action always backs out of an
+## ordinary pause, while mandatory level choices and run results remain modal.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"ui_cancel") \
+			and _modal_backdrop != null and _modal_backdrop.visible \
+			and (_offer_backdrop == null or not _offer_backdrop.visible) \
+			and (_result_backdrop == null or not _result_backdrop.visible):
+		get_viewport().set_input_as_handled()
+		_close_panel()
+
+
+func _exit_tree() -> void:
+	if _offer_rain != null:
+		_offer_rain.stop()
+	_free_retired_offer_cards()
+
+
+func _free_retired_offer_cards() -> void:
+	for retired: Control in _offer_retired_cards:
+		if is_instance_valid(retired):
+			retired.free()
+	_offer_retired_cards.clear()
 
 
 func bind_run_director(run: RunDirector) -> void:
@@ -85,6 +137,11 @@ func bind_run_director(run: RunDirector) -> void:
 	_run.xp_changed.connect(_on_run_xp_changed)
 	_run.level_choice_changed.connect(_on_level_choice_changed)
 	_run.power_slots_changed.connect(_on_power_slots_changed)
+	if _run.has_signal(&"run_power_runtime_changed"):
+		var runtime_callback := Callable(self, "_on_run_power_runtime_changed")
+		if not _run.is_connected(&"run_power_runtime_changed", runtime_callback):
+			_run.connect(&"run_power_runtime_changed", runtime_callback)
+		_power_runtime_available = true
 	_run.utility_charges_changed.connect(_on_utility_charges_changed)
 	_run.earth_changed.connect(_on_earth_changed)
 	_run.run_clock_changed.connect(_on_run_clock_changed)
@@ -95,6 +152,8 @@ func bind_run_director(run: RunDirector) -> void:
 	_run.powerups_changed.connect(_on_powerups_changed)
 	_run.phase_changed.connect(_on_phase_changed)
 	_run.stage_cleared.connect(_on_stage_cleared)
+	if _run.has_signal(&"boss_stack_changed"):
+		_run.boss_stack_changed.connect(_on_boss_stack_changed)
 	_run.attempt_finished.connect(_on_attempt_finished)
 	_run.settlement_failed.connect(show_error)
 	_run.splitter_changed.connect(_on_splitter_changed)
@@ -105,6 +164,11 @@ func bind_run_director(run: RunDirector) -> void:
 	_pending_coin_count = 0
 	_reset_xp_presentation(_run.get_xp())
 	_refresh_run()
+	if _run.has_method("get_run_power_runtime_state"):
+		var runtime_state: Variant = _run.call("get_run_power_runtime_state")
+		if runtime_state is Dictionary:
+			_power_runtime_state = (runtime_state as Dictionary).duplicate(true)
+			_power_runtime_available = true
 	_on_power_slots_changed(_run.get_power_slots(), _run.get_run_power_ranks())
 	_on_utility_charges_changed(int(_run.get_utility_charges().get("rerolls", 0)),
 		int(_run.get_utility_charges().get("banishes", 0)))
@@ -163,7 +227,7 @@ func show_error(message: String) -> void:
 	if _result_backdrop != null:
 		_result_backdrop.hide()
 	if _offer_backdrop != null:
-		_offer_backdrop.hide()
+		_set_offer_presentation_active(false)
 	_panel_kind = &"pause"
 	_modal_backdrop.show()
 	move_child(_modal_backdrop, get_child_count() - 1)
@@ -255,7 +319,7 @@ func _build_always_on_hud() -> void:
 	lower_left.add_theme_constant_override("separation", 16)
 	lower_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(lower_left)
-	_earth_label = _label("YARD ONE · 20:00", 13,
+	_earth_label = _label("YARD ONE · 15:00", 13,
 		Color(0.82, 0.82, 0.77, 0.96))
 	_clock_label = _label("RUN  00:00.000", 13, Color(0.90, 0.82, 0.64, 0.96))
 	_earth_label.name = "StageCountdown"
@@ -267,36 +331,90 @@ func _build_always_on_hud() -> void:
 
 	_danger_label = _label("", 28, Color.WHITE)
 	_danger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_danger_label.position = Vector2(440, 26)
-	_danger_label.size = Vector2(400, 54)
+	_danger_label.position = Vector2(440, 82)
+	_danger_label.size = Vector2(400, 46)
 	_danger_label.add_theme_color_override("font_outline_color", Color(0.25, 0, 0, 1))
 	_danger_label.add_theme_constant_override("outline_size", 8)
 	_danger_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_danger_label)
 
+	_boss_stack_label = _label("", 18, Color(1.0, 0.86, 0.48, 1.0))
+	_boss_stack_label.name = "BossStackStatus"
+	_boss_stack_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_boss_stack_label.position = Vector2(900, 42)
+	_boss_stack_label.size = Vector2(350, 44)
+	_boss_stack_label.add_theme_color_override(
+		"font_outline_color", Color(0.12, 0.035, 0.01, 1.0))
+	_boss_stack_label.add_theme_constant_override("outline_size", 6)
+	_boss_stack_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boss_stack_label.hide()
+	add_child(_boss_stack_label)
+
 	var power_slots := HBoxContainer.new()
 	power_slots.name = "RunPowerSlots"
-	power_slots.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	power_slots.position = Vector2(-300, -132)
-	power_slots.size = Vector2(600, 52)
-	power_slots.add_theme_constant_override("separation", 6)
+	# Icon-first active loadout: compact enough to stay out of the playfield and
+	# anchored immediately under the full-width XP bar at every viewport size.
+	power_slots.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	power_slots.position = Vector2(-178, 30)
+	power_slots.size = Vector2(356, 42)
+	power_slots.add_theme_constant_override("separation", 4)
 	power_slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(power_slots)
 	for index: int in range(RunDirector.MAX_RUN_POWER_SLOTS):
 		var slot := PanelContainer.new()
 		slot.name = "PowerSlot%d" % (index + 1)
-		slot.custom_minimum_size = Vector2(95, 50)
-		slot.add_theme_stylebox_override("panel", _panel_style(
-			Color(0.12, 0.09, 0.055, 0.80), 5, 1,
+		slot.custom_minimum_size = Vector2(56, 40)
+		slot.add_theme_stylebox_override("panel", _power_slot_style(
+			Color(0.12, 0.09, 0.055, 0.86),
 			Color(0.65, 0.52, 0.30, 0.75)))
 		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		power_slots.add_child(slot)
-		var slot_label := _label("EMPTY", 11, Color(0.72, 0.66, 0.55, 0.95))
-		slot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_power_slot_panels.append(slot)
+		var column := VBoxContainer.new()
+		column.alignment = BoxContainer.ALIGNMENT_CENTER
+		column.add_theme_constant_override("separation", 0)
+		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(column)
+		var top := HBoxContainer.new()
+		top.alignment = BoxContainer.ALIGNMENT_CENTER
+		top.add_theme_constant_override("separation", 3)
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		column.add_child(top)
+		var icon := TextureRect.new()
+		icon.name = "Icon"
+		icon.custom_minimum_size = Vector2(24, 24)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.add_child(icon)
+		_power_slot_icons.append(icon)
+		var slot_label := _label("EMPTY", 8, Color(0.72, 0.66, 0.55, 0.95))
+		slot_label.name = "Name"
+		slot_label.custom_minimum_size = Vector2(0, 18)
+		slot_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slot_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		slot_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		slot.add_child(slot_label)
+		slot_label.clip_text = true
+		slot_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		top.add_child(slot_label)
+		slot_label.hide()
 		_power_slot_labels.append(slot_label)
+		var footer := HBoxContainer.new()
+		footer.alignment = BoxContainer.ALIGNMENT_CENTER
+		footer.add_theme_constant_override("separation", 2)
+		footer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		column.add_child(footer)
+		var rank_label := _label("", 9, Color(0.94, 0.79, 0.47, 1.0))
+		rank_label.name = "Rank"
+		footer.add_child(rank_label)
+		_power_slot_rank_labels.append(rank_label)
+		var status_label := _label("", 8, Color(0.76, 0.90, 0.70, 1.0))
+		status_label.name = "Status"
+		status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		footer.add_child(status_label)
+		status_label.hide()
+		_power_slot_status_labels.append(status_label)
 
 
 func _build_quick_menu() -> void:
@@ -318,7 +436,7 @@ func _build_quick_menu() -> void:
 func _build_modal() -> void:
 	_modal_backdrop = ColorRect.new()
 	_modal_backdrop.name = "ModalBackdrop"
-	_modal_backdrop.color = Color(0.035, 0.025, 0.02, 0.72)
+	_modal_backdrop.color = Color(0.012, 0.014, 0.010, 0.82)
 	_modal_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_modal_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	_modal_backdrop.gui_input.connect(_on_backdrop_input)
@@ -326,21 +444,20 @@ func _build_modal() -> void:
 	_modal = PanelContainer.new()
 	_modal.name = "ManagementPanel"
 	_modal.set_anchors_preset(Control.PRESET_CENTER)
-	_modal.position = Vector2(-330, -275)
-	_modal.size = Vector2(660, 550)
-	_modal.add_theme_stylebox_override("panel", _panel_style(_CREAM, 16, 3, _INK))
+	_modal.position = Vector2(-380, -215)
+	_modal.size = Vector2(760, 430)
+	_modal.add_theme_stylebox_override("panel", _panel_style(
+		_MENU_PANEL, 8, 4, _MENU_GOLD))
 	_modal_backdrop.add_child(_modal)
 	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 10)
+	outer.add_theme_constant_override("separation", 14)
 	_modal.add_child(outer)
 	var header := HBoxContainer.new()
 	outer.add_child(header)
-	_modal_title = _label("", 26, _INK)
+	_modal_title = _label("", 34, _MENU_INK)
+	_modal_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_modal_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_modal_title)
-	var close := _button("CLOSE")
-	close.pressed.connect(_close_panel)
-	header.add_child(close)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	outer.add_child(scroll)
@@ -354,31 +471,32 @@ func _build_modal() -> void:
 func _build_results() -> void:
 	_result_backdrop = ColorRect.new()
 	_result_backdrop.name = "ResultOverlay"
-	_result_backdrop.color = Color(0.035, 0.018, 0.012, 0.86)
+	_result_backdrop.color = Color(0.012, 0.014, 0.010, 0.88)
 	_result_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_result_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_result_backdrop)
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-290, -220)
-	panel.size = Vector2(580, 440)
-	panel.add_theme_stylebox_override("panel", _panel_style(_CREAM, 18, 4, _RUST))
+	panel.position = Vector2(-340, -250)
+	panel.size = Vector2(680, 500)
+	panel.add_theme_stylebox_override("panel", _panel_style(
+		_MENU_PANEL, 8, 4, _MENU_GOLD))
 	_result_backdrop.add_child(panel)
 	var column := VBoxContainer.new()
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	column.add_theme_constant_override("separation", 18)
+	column.add_theme_constant_override("separation", 20)
 	panel.add_child(column)
-	_result_title = _label("", 34, _INK)
+	_result_title = _label("", 38, _MENU_INK)
 	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_result_title)
-	_result_stats = _label("", 18, _INK)
+	_result_stats = _label("", 18, _MENU_MUTED)
 	_result_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_result_stats)
 	_result_primary = _button("GO HOME")
-	_result_primary.custom_minimum_size.y = 52
+	_result_primary.custom_minimum_size = Vector2(420, 58)
 	column.add_child(_result_primary)
 	_result_secondary = _button("CONTINUE ENDLESS")
-	_result_secondary.custom_minimum_size.y = 48
+	_result_secondary.custom_minimum_size = Vector2(420, 54)
 	column.add_child(_result_secondary)
 	_result_backdrop.hide()
 
@@ -386,109 +504,299 @@ func _build_results() -> void:
 func _build_power_offer() -> void:
 	_offer_backdrop = ColorRect.new()
 	_offer_backdrop.name = "RunPowerOffer"
-	_offer_backdrop.color = Color(0.025, 0.018, 0.012, 0.86)
+	_offer_backdrop.color = Color(0.012, 0.014, 0.010, 0.86)
 	_offer_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_offer_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_offer_backdrop)
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-590, -285)
-	panel.size = Vector2(1180, 570)
-	panel.add_theme_stylebox_override("panel", _panel_style(
-		Color(0.94, 0.88, 0.74, 0.985), 18, 4, Color(0.30, 0.19, 0.09, 1.0)))
-	_offer_backdrop.add_child(panel)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
-	panel.add_child(column)
-	_offer_title = _label("LEVEL UP — CHOOSE ONE", 30, _INK)
+	_offer_panel = PanelContainer.new()
+	_offer_panel.name = "OfferPanel"
+	_offer_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_offer_panel.position = Vector2(-500, -330)
+	_offer_panel.size = Vector2(1000, 660)
+	_offer_panel.add_theme_stylebox_override("panel", _panel_style(
+		_MENU_PANEL, 8, 4, _MENU_GOLD))
+	_offer_backdrop.add_child(_offer_panel)
+	_offer_content = VBoxContainer.new()
+	_offer_content.name = "OfferContent"
+	_offer_content.add_theme_constant_override("separation", 10)
+	_offer_panel.add_child(_offer_content)
+	_offer_title = _label("LEVEL UP — CHOOSE ONE", 32, _MENU_INK)
 	_offer_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(_offer_title)
+	_offer_content.add_child(_offer_title)
 	var subtitle := _label(
-		"A temporary power for this attempt. You can carry six.", 15, _INK)
+		"Choose one power · six slots maximum", 14, _MENU_MUTED)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(subtitle)
-	_offer_cards = HBoxContainer.new()
-	_offer_cards.name = "Cards"
-	_offer_cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_offer_cards.alignment = BoxContainer.ALIGNMENT_CENTER
-	_offer_cards.add_theme_constant_override("separation", 10)
-	column.add_child(_offer_cards)
+	_offer_content.add_child(subtitle)
+	_offer_cards = _new_offer_cards_container()
+	_offer_content.add_child(_offer_cards)
 	var utilities := HBoxContainer.new()
 	utilities.alignment = BoxContainer.ALIGNMENT_CENTER
 	utilities.add_theme_constant_override("separation", 12)
-	column.add_child(utilities)
+	_offer_content.add_child(utilities)
 	_offer_reroll = _button("REROLL")
-	_offer_reroll.custom_minimum_size = Vector2(180, 44)
+	_offer_reroll.custom_minimum_size = Vector2(220, 48)
 	_offer_reroll.pressed.connect(_on_offer_reroll_pressed)
 	utilities.add_child(_offer_reroll)
-	_offer_charges = _label("Rerolls 0 · Banishes 0", 14, _INK)
+	_offer_charges = _label("Rerolls 0 · Banishes 0", 14, _MENU_MUTED)
 	utilities.add_child(_offer_charges)
-	_offer_backdrop.hide()
+	# One batched, input-transparent overlay sits above the opaque card panels but
+	# is clipped to their band and kept deliberately faint. The full-panel layer
+	# lets PanelContainer lay out normal content independently; the manually sized
+	# child provides the real CanvasItem clip for the rain's custom drawing.
+	_offer_rain_layer = Control.new()
+	_offer_rain_layer.name = "LevelChoiceDecorLayer"
+	_offer_rain_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_offer_rain_layer.z_index = 5
+	_offer_panel.add_child(_offer_rain_layer)
+	_offer_rain_clip = Control.new()
+	_offer_rain_clip.name = "CardBandClip"
+	_offer_rain_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_offer_rain_clip.clip_contents = true
+	_offer_rain_layer.add_child(_offer_rain_clip)
+	_offer_rain = _LevelUpOfferRain.new()
+	_offer_rain.name = "LevelChoiceDecor"
+	_offer_rain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_offer_rain_clip.add_child(_offer_rain)
+	_set_offer_presentation_active(false)
 
 
 func _on_level_choice_changed(offer: Dictionary) -> void:
 	if _offer_backdrop == null:
 		return
 	if offer.is_empty():
-		_offer_backdrop.hide()
+		_set_offer_presentation_active(false)
+		# The wider Luck row leaves a stale Compatibility canvas/layout RID when
+		# its children alone are removed. Replace that row as a unit before the next
+		# narrower offer; same-width rows retain a bounded off-tree resource pool.
+		if _offer_cards.get_child_count() >= RunDirector.LUCK_OFFER_CARD_COUNT:
+			_replace_offer_cards_container()
+		else:
+			_clear_offer_cards()
 		return
 	_offer_title.text = "LEVEL %d — CHOOSE ONE" % int(offer.get("level", 1))
-	for child: Node in _offer_cards.get_children():
-		child.queue_free()
+	# Compatibility can recycle shaped-text and SVG render resources one frame too
+	# early when a choice row is destroyed and rebuilt. Retire the hidden controls
+	# outside the layout row so their render resources remain alive while the next
+	# card set is shaped; the bounded pool below prevents unbounded accumulation.
+	_clear_offer_cards()
 	var raw_cards: Variant = offer.get("cards", [])
 	if raw_cards is Array:
 		for raw_card: Variant in raw_cards:
 			if raw_card is Dictionary:
 				_offer_cards.add_child(_build_power_card(raw_card as Dictionary))
-	_offer_backdrop.show()
+	_set_offer_presentation_active(true, offer)
+	_sync_offer_rain_rect.call_deferred()
+	_focus_first_offer_choice.call_deferred()
+
+
+func _focus_first_offer_choice() -> void:
+	if _offer_backdrop == null or not _offer_backdrop.visible:
+		return
+	for button: Button in _offer_choose_buttons:
+		if is_instance_valid(button) and not button.disabled and button.is_visible_in_tree():
+			button.grab_focus()
+			return
+
+
+func _set_offer_presentation_active(active: bool,
+		offer: Dictionary = {}) -> void:
+	if _offer_backdrop == null:
+		return
+	_offer_backdrop.visible = active
+	if _offer_rain == null:
+		return
+	if not active:
+		_offer_rain_serial = -1
+		_offer_rain.stop()
+		return
+	var serial := int(offer.get("offer_id", 0))
+	var level := int(offer.get("level", 1))
+	var seed := maxi(1, serial * 1009 + level * 97)
+	var effect_rect := _layout_offer_rain()
+	if not _offer_rain.is_active() or serial != _offer_rain_serial:
+		_offer_rain_serial = serial
+		_offer_rain.restart(seed, effect_rect)
+	else:
+		_offer_rain.set_effect_rect(effect_rect)
+
+
+func _sync_offer_rain_rect() -> void:
+	if _offer_rain == null or not _offer_rain.is_active() \
+			or _offer_backdrop == null or not _offer_backdrop.visible:
+		return
+	_offer_rain.set_effect_rect(_layout_offer_rain())
+
+
+func _layout_offer_rain() -> Rect2:
+	if _offer_rain == null or _offer_rain_layer == null \
+			or _offer_rain_clip == null or _offer_cards == null:
+		return Rect2()
+	var cards_global := _offer_cards.get_global_rect()
+	var local_origin := _offer_rain_layer.get_global_transform().affine_inverse() \
+		* cards_global.position
+	_offer_rain_clip.position = local_origin
+	_offer_rain_clip.size = cards_global.size
+	_offer_rain.position = Vector2.ZERO
+	_offer_rain.size = cards_global.size
+	return Rect2(Vector2.ZERO, cards_global.size)
+
+
+func _on_hud_visibility_changed() -> void:
+	if not is_visible_in_tree():
+		_set_offer_presentation_active(false)
+		return
+	if _run == null:
+		return
+	var offer := _run.get_current_offer()
+	if not offer.is_empty():
+		# Hidden HUDs do no ALWAYS-mode presentation work. Rebuild from the exact
+		# authoritative offer when returning from title without consuming or rerolling.
+		_on_level_choice_changed(offer)
+
+
+func _new_offer_cards_container() -> VBoxContainer:
+	var cards := VBoxContainer.new()
+	cards.name = "Cards"
+	cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cards.alignment = BoxContainer.ALIGNMENT_CENTER
+	cards.add_theme_constant_override("separation", 7)
+	cards.resized.connect(_sync_offer_rain_rect)
+	return cards
+
+
+func _replace_offer_cards_container() -> void:
+	if _offer_cards == null or _offer_cards.get_parent() == null:
+		return
+	var old_cards := _offer_cards
+	var parent := old_cards.get_parent()
+	var child_index := old_cards.get_index()
+	parent.remove_child(old_cards)
+	old_cards.free()
+	_offer_cards = _new_offer_cards_container()
+	parent.add_child(_offer_cards)
+	parent.move_child(_offer_cards, child_index)
+
+
+func _clear_offer_cards(retain_render_resources: bool = true) -> void:
+	if _offer_cards == null:
+		return
+	_offer_choose_buttons.clear()
+	for child: Node in _offer_cards.get_children():
+		child.hide()
+		_offer_cards.remove_child(child)
+		if retain_render_resources and child is Control:
+			_offer_retired_cards.append(child as Control)
+		else:
+			child.free()
+	while _offer_retired_cards.size() > 12:
+		var oldest := _offer_retired_cards.pop_front() as Control
+		if is_instance_valid(oldest):
+			oldest.free()
 
 
 func _build_power_card(card: Dictionary) -> Control:
-	var rarity := int(card.get("rarity", RunPowerDef.Rarity.COMMON))
+	var quality := int(card.get("quality", RunOfferTuning.Quality.COMMON))
+	var quality_multiplier := maxf(1.0, float(card.get(
+		"quality_multiplier", 1.0)))
 	var card_panel := PanelContainer.new()
-	card_panel.custom_minimum_size = Vector2(265, 365)
+	card_panel.custom_minimum_size = Vector2(0, 106)
 	card_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card_panel.add_theme_stylebox_override("panel", _panel_style(
-		Color(0.985, 0.95, 0.85, 1.0), 12, 3, _rarity_color(rarity)))
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 8)
-	card_panel.add_child(column)
+	card_panel.add_theme_stylebox_override("panel", _quality_card_style(quality))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	card_panel.add_child(row)
+
+	var icon_frame := PanelContainer.new()
+	icon_frame.custom_minimum_size = Vector2(92, 86)
+	icon_frame.add_theme_stylebox_override("panel", _panel_style(
+		Color(0.035, 0.042, 0.03, 0.96), 4, 2, _quality_color(quality)))
+	row.add_child(icon_frame)
 	var icon_path := String(card.get("icon_path", ""))
 	if not icon_path.is_empty():
 		var texture := load(icon_path) as Texture2D
 		if texture != null:
 			var icon := TextureRect.new()
-			icon.custom_minimum_size = Vector2(76, 76)
+			icon.custom_minimum_size = Vector2(78, 72)
 			icon.texture = texture
 			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			column.add_child(icon)
-	var rarity_label := _label(_rarity_name(rarity), 13, _rarity_color(rarity))
-	rarity_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(rarity_label)
-	var name_label := _label(String(card.get("display_name", "Power")), 21, _INK)
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon_frame.add_child(icon)
+
+	var details := VBoxContainer.new()
+	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_theme_constant_override("separation", 3)
+	row.add_child(details)
+	var quality_row := HBoxContainer.new()
+	quality_row.name = "QualityRow"
+	quality_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	quality_row.add_theme_constant_override("separation", 7)
+	details.add_child(quality_row)
+	var quality_badge := PanelContainer.new()
+	quality_badge.name = "QualityBadge"
+	quality_badge.add_theme_stylebox_override("panel",
+		_quality_badge_style(quality))
+	quality_row.add_child(quality_badge)
+	var quality_text := "%s QUALITY · ×%s" % [
+		_quality_name(quality), _quality_multiplier_text(quality_multiplier)]
+	var quality_label := _label(quality_text, 12,
+		_quality_badge_text_color(quality))
+	quality_label.name = "QualityLabel"
+	quality_badge.add_child(quality_label)
+	var name_label := _label(String(card.get("display_name", "Power")), 22,
+		_MENU_INK)
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(name_label)
+	details.add_child(name_label)
 	var rank_cap := int(card.get("rank_cap", 1))
 	var rank_text := "Cash +%s" % _format_grouped_number(int(card.get("cash", 0))) \
 		if StringName(card.get("id", "")) == RunDirector.PAYDAY_POWER_ID \
 		else "Rank %d / %d" % [int(card.get("next_rank", 1)), rank_cap]
-	var rank_label := _label(rank_text, 14, _RUST)
-	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(rank_label)
+	var summary_row := HBoxContainer.new()
+	summary_row.add_theme_constant_override("separation", 10)
+	details.add_child(summary_row)
+	var rank_label := _label(rank_text, 14, _MENU_GOLD)
+	summary_row.add_child(rank_label)
+	var power_id := StringName(card.get("id", ""))
+	if power_id != RunDirector.PAYDAY_POWER_ID:
+		var table := SurvivorsContent.run_powers()
+		var definition := table.by_id(power_id) if table != null else null
+		if definition != null:
+			var summary := String(card.get("effect_summary", ""))
+			if summary.is_empty() and card.has("quality_multiplier"):
+				summary = definition.effect_summary_for_pick_multipliers(
+					_pick_multipliers(card.get("pick_multipliers", [])),
+					quality_multiplier)
+			if summary.is_empty():
+				summary = definition.effect_summary_for_rank(
+					int(card.get("next_rank", 1)),
+					int(card.get("current_rank", 0)))
+			var effects := _label(summary, 13, _quality_color(quality).lightened(0.22))
+			effects.name = "EffectSummary"
+			effects.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			effects.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			summary_row.add_child(effects)
 	var description := _body(String(card.get("description", "")))
-	description.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(description)
+	description.add_theme_color_override("font_color", _MENU_MUTED)
+	description.max_lines_visible = 2
+	description.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	details.add_child(description)
+
+	var actions := VBoxContainer.new()
+	actions.custom_minimum_size.x = 150
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 6)
+	row.add_child(actions)
 	var choose := _button("CHOOSE")
-	choose.custom_minimum_size.y = 46
+	choose.name = "ChooseButton"
+	choose.custom_minimum_size = Vector2(150, 46)
 	choose.pressed.connect(_on_offer_choose_pressed.bind(
 		StringName(card.get("id", ""))))
-	column.add_child(choose)
+	actions.add_child(choose)
+	_offer_choose_buttons.append(choose)
 	var banish := _button("BANISH")
 	banish.name = "BanishButton"
-	banish.custom_minimum_size.y = 34
+	banish.custom_minimum_size = Vector2(150, 32)
 	var current_cards: Array = [] if _run == null \
 		else _run.get_current_offer().get("cards", [])
 	var cannot_banish := StringName(card.get("id", "")) \
@@ -498,7 +806,7 @@ func _build_power_card(card: Dictionary) -> Control:
 	banish.disabled = cannot_banish or int(charges.get("banishes", 0)) <= 0
 	banish.pressed.connect(_on_offer_banish_pressed.bind(
 		StringName(card.get("id", ""))))
-	column.add_child(banish)
+	actions.add_child(banish)
 	return card_panel
 
 
@@ -533,36 +841,212 @@ func _on_utility_charges_changed(rerolls: int, banishes: int) -> void:
 
 
 func _on_power_slots_changed(slots: Array, ranks: Dictionary) -> void:
+	_power_slots_snapshot = slots.duplicate()
+	_power_ranks_snapshot = ranks.duplicate(true)
+	_refresh_power_slots()
+
+
+func _on_run_power_runtime_changed(state: Dictionary) -> void:
+	_power_runtime_state = state.duplicate(true)
+	_power_runtime_available = true
+	_refresh_power_slot_statuses()
+
+
+func _refresh_power_slot_statuses() -> void:
+	for index: int in range(_power_slot_status_labels.size()):
+		var status_label := _power_slot_status_labels[index]
+		if index >= _power_slots_snapshot.size():
+			status_label.text = ""
+			continue
+		var power_id := StringName(_power_slots_snapshot[index])
+		var table := SurvivorsContent.run_powers()
+		var definition := table.by_id(power_id) if table != null else null
+		var rank := int(_power_ranks_snapshot.get(
+			String(power_id), _power_ranks_snapshot.get(power_id, 0)))
+		status_label.text = _power_runtime_status(power_id, definition, rank)
+
+
+func _refresh_power_slots() -> void:
 	for index: int in range(_power_slot_labels.size()):
 		var label := _power_slot_labels[index]
-		if index >= slots.size():
-			label.text = "EMPTY"
-			label.tooltip_text = "Empty run-power slot"
+		var panel := _power_slot_panels[index]
+		var icon := _power_slot_icons[index]
+		var rank_label := _power_slot_rank_labels[index]
+		var status_label := _power_slot_status_labels[index]
+		if index >= _power_slots_snapshot.size():
+			label.text = ""
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			icon.texture = null
+			icon.hide()
+			rank_label.text = ""
+			status_label.text = ""
+			panel.tooltip_text = "Empty run-power slot"
+			panel.add_theme_stylebox_override("panel", _power_slot_style(
+				Color(0.12, 0.09, 0.055, 0.86),
+				Color(0.65, 0.52, 0.30, 0.75)))
 			continue
-		var power_id := StringName(slots[index])
-		var definition := SurvivorsContent.run_powers().by_id(power_id)
-		var rank := int(ranks.get(String(power_id), ranks.get(power_id, 0)))
-		label.text = "%s\nR%d" % [
-			String(power_id) if definition == null else definition.display_name, rank]
-		label.tooltip_text = "" if definition == null else definition.description
+		var power_id := StringName(_power_slots_snapshot[index])
+		var table := SurvivorsContent.run_powers()
+		var definition := table.by_id(power_id) if table != null else null
+		var rank := int(_power_ranks_snapshot.get(
+			String(power_id), _power_ranks_snapshot.get(power_id, 0)))
+		label.text = String(power_id) if definition == null else definition.display_name
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		rank_label.text = "R%d" % rank
+		status_label.text = _power_runtime_status(power_id, definition, rank)
+		if definition == null:
+			icon.texture = null
+			icon.hide()
+			panel.tooltip_text = String(power_id)
+			continue
+		var texture := load(definition.icon_path) as Texture2D
+		icon.texture = texture
+		icon.visible = texture != null
+		var current_picks := _power_pick_multipliers(power_id)
+		var exact_summary := definition.effect_summary_for_rank(rank)
+		if not current_picks.is_empty():
+			exact_summary = definition.effect_summary_for_owned_pick_multipliers(
+				current_picks)
+		panel.tooltip_text = "%s\nRank %d · %s\n%s" % [definition.display_name,
+			rank, exact_summary, definition.description]
+		panel.add_theme_stylebox_override("panel", _power_slot_style(
+			Color(0.10, 0.075, 0.045, 0.90), _MENU_GOLD))
 
 
-func _rarity_name(rarity: int) -> String:
-	match rarity:
-		RunPowerDef.Rarity.RARE:
+func _power_runtime_status(power_id: StringName, definition: RunPowerDef,
+		rank: int) -> String:
+	if definition == null:
+		return ""
+	if power_id == &"momentum":
+		var stacks := maxi(0, int(_power_runtime_state.get("momentum_stacks", 0)))
+		var picks := _power_pick_multipliers(power_id)
+		var cap_value := definition.effect_value(
+			ProgressionEffectDef.Kind.MOMENTUM_MAX_STACKS, rank) \
+			if picks.is_empty() else definition.effect_value_for_pick_multipliers(
+				ProgressionEffectDef.Kind.MOMENTUM_MAX_STACKS, picks)
+		var cap := maxi(0, int(round(cap_value)))
+		return "Stacks %d/%d" % [mini(stacks, cap), cap] if _power_runtime_available \
+			else "ACTIVE"
+	if power_id == &"last_ditch_rescue":
+		var rescue_charges: Variant = _power_runtime_state.get("rescue_charges",
+			_power_runtime_state.get("rescue_charges_remaining", 0))
+		return "Rescue %d" % maxi(0, int(rescue_charges)) \
+			if _power_runtime_available else "ACTIVE"
+	if power_id == &"yard_magnet":
+		if bool(_power_runtime_state.get("yard_magnet_active", false)):
+			return "PULL %.1fs" % maxf(0.0, float(_power_runtime_state.get(
+				"yard_magnet_pulse_seconds_left", 0.0)))
+		return "Pulse %.1fs" % maxf(0.0, float(_power_runtime_state.get(
+			"yard_magnet_cycle_seconds_left", 0.0)))
+	var timers: Variant = _power_runtime_state.get("timers",
+		_power_runtime_state.get("periodic_seconds_left", {}))
+	if timers is Dictionary:
+		var timer_value: Variant = (timers as Dictionary).get(String(power_id),
+			(timers as Dictionary).get(power_id, null))
+		if timer_value != null:
+			var seconds := _runtime_seconds(timer_value)
+			return "READY" if seconds <= 0.05 else "%.1fs" % seconds
+	var trigger_counts: Variant = _power_runtime_state.get("trigger_counts", {})
+	if trigger_counts is Dictionary:
+		var raw_count: Variant = (trigger_counts as Dictionary).get(String(power_id),
+			(trigger_counts as Dictionary).get(power_id, null))
+		if raw_count != null:
+			var count := maxi(0, int(raw_count))
+			return "Trigger %d" % count
+	return "ACTIVE"
+
+
+func _power_pick_multipliers(power_id: StringName) -> Array[float]:
+	var all_picks: Variant = _power_runtime_state.get("pick_multipliers", {})
+	if all_picks is Dictionary:
+		var raw: Variant = (all_picks as Dictionary).get(String(power_id),
+			(all_picks as Dictionary).get(power_id, []))
+		var picks := _pick_multipliers(raw)
+		if not picks.is_empty():
+			return picks
+	if _run != null and _run.has_method("get_run_power_pick_multipliers"):
+		var queried: Variant = _run.call("get_run_power_pick_multipliers")
+		if queried is Dictionary:
+			return _pick_multipliers((queried as Dictionary).get(String(power_id),
+				(queried as Dictionary).get(power_id, [])))
+	return []
+
+
+func _runtime_seconds(value: Variant) -> float:
+	if value is Dictionary:
+		for key: String in ["remaining", "seconds_left", "seconds"]:
+			if (value as Dictionary).has(key):
+				return maxf(0.0, float((value as Dictionary)[key]))
+		return 0.0
+	return maxf(0.0, float(value))
+
+
+func _pick_multipliers(raw_values: Variant) -> Array[float]:
+	var values: Array[float] = []
+	if raw_values is Array:
+		for raw_value: Variant in raw_values:
+			values.append(maxf(1.0, float(raw_value)))
+	return values
+
+
+func _quality_multiplier_text(value: float) -> String:
+	var result := "%.2f" % value
+	while result.contains(".") and result.ends_with("0"):
+		result = result.substr(0, result.length() - 1)
+	if result.ends_with("."):
+		result = result.substr(0, result.length() - 1)
+	return result
+
+
+func _quality_name(quality: int) -> String:
+	match quality:
+		RunOfferTuning.Quality.RARE:
 			return "RARE"
-		RunPowerDef.Rarity.EPIC:
+		RunOfferTuning.Quality.EPIC:
 			return "EPIC"
+		RunOfferTuning.Quality.LEGENDARY:
+			return "LEGENDARY"
 	return "COMMON"
 
 
-func _rarity_color(rarity: int) -> Color:
-	match rarity:
-		RunPowerDef.Rarity.RARE:
-			return Color(0.18, 0.43, 0.72, 1.0)
-		RunPowerDef.Rarity.EPIC:
-			return Color(0.55, 0.22, 0.67, 1.0)
-	return Color(0.34, 0.48, 0.24, 1.0)
+func _quality_color(quality: int) -> Color:
+	return RunOfferTuning.color_for_quality(quality)
+
+
+func _quality_badge_text_color(quality: int) -> Color:
+	return Color(1.0, 0.92, 0.62, 1.0) \
+		if quality == RunOfferTuning.Quality.LEGENDARY else _CREAM
+
+
+func _quality_card_style(quality: int) -> StyleBoxFlat:
+	var background := _MENU_SURFACE
+	if quality == RunOfferTuning.Quality.RARE:
+		background = Color(0.075, 0.105, 0.105, 0.99)
+	elif quality == RunOfferTuning.Quality.EPIC:
+		background = Color(0.105, 0.072, 0.115, 0.99)
+	elif quality == RunOfferTuning.Quality.LEGENDARY:
+		background = Color(0.145, 0.090, 0.030, 0.995)
+	var legendary := quality == RunOfferTuning.Quality.LEGENDARY
+	var style := _panel_style(background, 12, 5 if legendary else 3,
+		_quality_color(quality))
+	if legendary:
+		style.shadow_color = Color(0.98, 0.66, 0.10, 0.48)
+		style.shadow_size = 7
+		style.shadow_offset = Vector2.ZERO
+	return style
+
+
+func _quality_badge_style(quality: int) -> StyleBoxFlat:
+	var color := _quality_color(quality)
+	var background := color.darkened(0.44)
+	if quality == RunOfferTuning.Quality.LEGENDARY:
+		background = Color(0.25, 0.105, 0.018, 1.0)
+	var style := _panel_style(background, 5, 1, color.lightened(0.20))
+	style.content_margin_left = 7
+	style.content_margin_top = 2
+	style.content_margin_right = 7
+	style.content_margin_bottom = 2
+	return style
 
 
 func _open_panel(kind: StringName) -> void:
@@ -572,11 +1056,13 @@ func _open_panel(kind: StringName) -> void:
 	_panel_kind = kind
 	_modal_backdrop.show()
 	_rebuild_panel()
+	_focus_pause_primary.call_deferred()
 
 
 func _close_panel() -> void:
 	_modal_backdrop.hide()
 	_panel_kind = &""
+	_modal_resume = null
 	if _run != null:
 		_run.resume_attempt()
 
@@ -584,7 +1070,7 @@ func _close_panel() -> void:
 func _rebuild_panel() -> void:
 	for child: Node in _modal_list.get_children():
 		child.queue_free()
-	_modal_title.text = "ATTEMPT PAUSED"
+	_modal_title.text = "PAUSED"
 	_build_pause_panel()
 
 
@@ -607,18 +1093,39 @@ func _build_woods_panel() -> void:
 
 
 func _build_pause_panel() -> void:
-	_modal_list.add_child(_body("All hazards, physics, chopping, and the run clock are paused while a menu is open."))
-	_modal_list.add_child(_body(
-		"Starting fall frequency is selected at Home and is locked for this run."))
-	_modal_list.add_child(_section("SAVE & EXIT"))
+	var status := _label(
+		"The run clock, chopping, and physics are frozen.", 16, _MENU_MUTED)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_modal_list.add_child(status)
+	_modal_resume = _button("RESUME RUN")
+	_modal_resume.custom_minimum_size.y = 58
+	_modal_resume.pressed.connect(_close_panel)
+	_modal_list.add_child(_modal_resume)
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 16
+	_modal_list.add_child(spacer)
+	var section := _label("RUN OPTIONS", 15, _MENU_GOLD)
+	section.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_modal_list.add_child(section)
 	var suspend := _button("SUSPEND THIS ATTEMPT")
+	suspend.custom_minimum_size.y = 54
 	suspend.tooltip_text = "Normalises active animations, saves the exact cut journal, and returns to the title."
 	suspend.pressed.connect(suspend_requested.emit)
 	_modal_list.add_child(suspend)
 	var abandon := _button("ABANDON ATTEMPT")
+	abandon.custom_minimum_size.y = 54
 	abandon.add_theme_color_override("font_color", _RUST)
 	abandon.pressed.connect(abandon_requested.emit)
 	_modal_list.add_child(abandon)
+	var hint := _label("Esc / B  Back", 13, _MENU_MUTED)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_modal_list.add_child(hint)
+
+
+func _focus_pause_primary() -> void:
+	if _modal_backdrop != null and _modal_backdrop.visible \
+			and is_instance_valid(_modal_resume):
+		_modal_resume.grab_focus()
 
 
 func _on_backdrop_input(event: InputEvent) -> void:
@@ -714,23 +1221,55 @@ func _on_stage_time_changed(remaining_ms: int) -> void:
 
 
 func _on_delivery_changed(seconds_left: float, tier: int) -> void:
-	_delivery_label.text = "Next %.1fs · T%d" % [maxf(0.0, seconds_left), tier + 1]
+	var batch_size := 1
+	if _run != null and _run.has_method("delivery_batch_size"):
+		batch_size = maxi(1, int(_run.call("delivery_batch_size")))
+	_delivery_label.text = "Next %.1fs%s · T%d" % [maxf(0.0, seconds_left),
+		" ×%d" % batch_size if batch_size > 1 else "", tier + 1]
 
 
 func _on_loose_logs_changed(count: int) -> void:
 	_loose_label.text = "Loose %d" % count
 
 
+func _on_boss_stack_changed(display_name: String, remaining_logs: int) -> void:
+	if _boss_stack_label == null:
+		return
+	_boss_stack_label.visible = remaining_logs > 0
+	_boss_stack_label.text = "%s · %d LOG%s" % [
+		display_name.to_upper(), remaining_logs,
+		"" if remaining_logs == 1 else "S"] if remaining_logs > 0 else ""
+
+
 func _on_boundary_warning_changed(log_id: StringName, seconds_left: float) -> void:
 	if seconds_left < 0.0:
 		_warning_times.erase(log_id)
+		if log_id == _earliest_warning_id:
+			_recalculate_earliest_warning()
 	else:
 		_warning_times[log_id] = seconds_left
-	var earliest := INF
-	for value: Variant in _warning_times.values():
-		earliest = minf(earliest, float(value))
-	_danger_label.text = "" if is_inf(earliest) else "BOUNDARY  %.1f" % earliest
-	_danger_label.modulate = Color.WHITE if is_inf(earliest) else Color(1.0, 0.25, 0.18, 1.0)
+		if _earliest_warning_id == &"" or log_id == _earliest_warning_id \
+				or seconds_left < _earliest_warning_seconds:
+			_earliest_warning_id = log_id
+			_earliest_warning_seconds = seconds_left
+	_refresh_boundary_warning_label()
+
+
+func _recalculate_earliest_warning() -> void:
+	_earliest_warning_id = &""
+	_earliest_warning_seconds = INF
+	for raw_id: Variant in _warning_times:
+		var seconds := float(_warning_times[raw_id])
+		if seconds < _earliest_warning_seconds:
+			_earliest_warning_id = StringName(raw_id)
+			_earliest_warning_seconds = seconds
+
+
+func _refresh_boundary_warning_label() -> void:
+	_danger_label.text = "" if is_inf(_earliest_warning_seconds) \
+		else "BOUNDARY  %.1f" % _earliest_warning_seconds
+	_danger_label.modulate = Color.WHITE if is_inf(_earliest_warning_seconds) \
+		else Color(1.0, 0.25, 0.18, 1.0)
 
 
 func _on_powerups_changed(_slow_charges: int, _blaster_ammo: int,
@@ -755,6 +1294,8 @@ func _on_phase_changed(phase: RunDirector.Phase) -> void:
 		_modal_backdrop.hide()
 		_panel_kind = &""
 		_warning_times.clear()
+		_earliest_warning_id = &""
+		_earliest_warning_seconds = INF
 		_danger_label.text = ""
 		_on_stage_time_changed(0 if phase == RunDirector.Phase.OVERFLOW \
 			else (_run.stage_remaining_ms() if _run != null else 0))
@@ -772,6 +1313,7 @@ func _on_stage_cleared(clear_ms: int) -> void:
 	_clear_button_connections(_result_secondary)
 	_result_primary.pressed.connect(_continue_overflow)
 	_result_secondary.pressed.connect(_cash_out_stage)
+	_result_primary.grab_focus.call_deferred()
 
 
 func _on_attempt_finished(results: Dictionary) -> void:
@@ -796,6 +1338,7 @@ func _on_attempt_finished(results: Dictionary) -> void:
 	_clear_button_connections(_result_primary)
 	_clear_button_connections(_result_secondary)
 	_result_primary.pressed.connect(home_requested.emit)
+	_result_primary.grab_focus.call_deferred()
 
 
 func _continue_overflow() -> void:
@@ -828,12 +1371,14 @@ func _on_run_xp_changed(total: int) -> void:
 	_settle_unbatched_xp.call_deferred()
 
 
-func _on_run_identity_changed(_run_id: StringName) -> void:
+func _on_run_identity_changed(run_id: StringName) -> void:
 	_pending_coin_count = 0
 	_displayed_cash = 0 if _run == null else _run.get_cash()
 	if _cash_label != null:
 		_cash_label.text = _format_grouped_number(_displayed_cash)
 	_reset_xp_presentation(0 if _run == null else _run.get_xp())
+	if run_id == &"":
+		_set_offer_presentation_active(false)
 
 
 func _on_xp_orb_batch_started(amount: int) -> void:
@@ -1017,6 +1562,7 @@ func _button(text: String) -> Button:
 	button.add_theme_font_size_override("font_size", 14)
 	button.add_theme_color_override("font_color", _INK)
 	button.add_theme_color_override("font_hover_color", Color(0.08, 0.055, 0.03, 1.0))
+	button.add_theme_color_override("font_focus_color", Color(0.08, 0.055, 0.03, 1.0))
 	button.add_theme_color_override("font_disabled_color", Color(0.24, 0.21, 0.17, 0.86))
 	button.add_theme_stylebox_override("normal",
 		_panel_style(Color(0.86, 0.76, 0.58, 0.96), 6, 1, Color(0.32, 0.22, 0.12, 1.0)))
@@ -1024,6 +1570,12 @@ func _button(text: String) -> Button:
 		_panel_style(Color(0.96, 0.84, 0.61, 1.0), 6, 2, _RUST))
 	button.add_theme_stylebox_override("pressed",
 		_panel_style(Color(0.70, 0.56, 0.36, 1.0), 6, 2, _INK))
+	var focus := _panel_style(Color.TRANSPARENT, 6, 3, _MENU_GOLD)
+	focus.content_margin_left = 0
+	focus.content_margin_top = 0
+	focus.content_margin_right = 0
+	focus.content_margin_bottom = 0
+	button.add_theme_stylebox_override("focus", focus)
 	button.add_theme_stylebox_override("disabled",
 		_panel_style(Color(0.62, 0.58, 0.49, 0.78), 6, 1, Color(0.35, 0.31, 0.25, 0.72)))
 	return button
@@ -1046,6 +1598,15 @@ func _panel_style(color: Color, radius: int, border: int,
 	style.content_margin_top = 10
 	style.content_margin_right = 14
 	style.content_margin_bottom = 10
+	return style
+
+
+func _power_slot_style(color: Color, border_color: Color) -> StyleBoxFlat:
+	var style := _panel_style(color, 5, 2, border_color)
+	style.content_margin_left = 4
+	style.content_margin_top = 2
+	style.content_margin_right = 4
+	style.content_margin_bottom = 2
 	return style
 
 

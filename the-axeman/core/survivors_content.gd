@@ -43,6 +43,8 @@ const CORE_POWER_CAPS := {
 	&"ring_reinforcement": 5,
 	&"quick_study": 5,
 	&"keen_appraisal": 5,
+	&"area_size": 5,
+	&"sawblade_halo": 5,
 }
 
 const BLUEPRINT_POWER_CAPS := {
@@ -58,16 +60,9 @@ const BLUEPRINT_POWER_CAPS := {
 	&"stump_pulse": 5,
 	&"last_ditch_rescue": 3,
 	&"momentum": 8,
+	&"timber_burst": 5,
 }
 
-const RARE_POWER_IDS: Array[StringName] = [
-	&"double_chop", &"follow_up", &"ring_reinforcement", &"grain_reader",
-	&"kindling_chain", &"whirling_axe", &"crosscut_sweep", &"splitter_rig",
-	&"cant_hook", &"stump_pulse",
-]
-const EPIC_POWER_IDS: Array[StringName] = [
-	&"earthshaker", &"powder_keg", &"maul_drop", &"last_ditch_rescue",
-]
 const YARD_ONE_SPECIES: Array[StringName] = [
 	&"quaking_aspen", &"eastern_white_pine", &"norway_spruce",
 	&"balsam_fir", &"lodgepole_pine", &"white_spruce",
@@ -201,7 +196,9 @@ static func _validate_locked_power_contract() -> PackedStringArray:
 	var errors := PackedStringArray()
 	var table := run_powers()
 	if table.powers.size() != CORE_POWER_CAPS.size() + BLUEPRINT_POWER_CAPS.size():
-		errors.append("run-power catalogue must contain exactly 24 locked powers")
+		errors.append("run-power catalogue must match the locked power roster")
+	if table.powers.size() > RunPowerTable.MAX_POWER_COUNT:
+		errors.append("run-power catalogue exceeds its 32-power cap")
 	for raw_id: Variant in CORE_POWER_CAPS:
 		_validate_power_row(errors, table, StringName(raw_id),
 			RunPowerDef.Pool.CORE, int(CORE_POWER_CAPS[raw_id]))
@@ -219,13 +216,6 @@ static func _validate_power_row(errors: PackedStringArray, table: RunPowerTable,
 		return
 	if definition.pool != expected_pool or definition.rank_cap != expected_cap:
 		errors.append("run power %s has the wrong locked pool or cap" % id)
-	var expected_rarity := RunPowerDef.Rarity.COMMON
-	if id in RARE_POWER_IDS:
-		expected_rarity = RunPowerDef.Rarity.RARE
-	elif id in EPIC_POWER_IDS:
-		expected_rarity = RunPowerDef.Rarity.EPIC
-	if definition.rarity != expected_rarity:
-		errors.append("run power %s has the wrong locked rarity" % id)
 
 
 static func _validate_locked_yard_contract() -> PackedStringArray:
@@ -235,9 +225,9 @@ static func _validate_locked_yard_contract() -> PackedStringArray:
 		errors.append("yard one must be the only playable yard in this milestone")
 		return errors
 	var yard := table.by_id(&"yard_one")
-	if not is_equal_approx(yard.stage_duration_seconds, 1200.0):
-		errors.append("yard one must last exactly 1,200 gameplay seconds")
-	if yard.starting_delivery_intervals.size() != 4:
+	if not is_equal_approx(yard.stage_duration_seconds, 900.0):
+		errors.append("yard one must last exactly 900 gameplay seconds")
+	if yard.delivery_tier_interval_scales.size() != 4:
 		errors.append("yard one must expose default plus three starting tiers")
 	if yard.bosses.size() != 3:
 		errors.append("yard one must schedule exactly three bosses")

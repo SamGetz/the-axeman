@@ -1,0 +1,9 @@
+[gd_resource type="Curve" format=3]
+
+; PLACEHOLDER — X is run level 1..35; Y is whole logs in each falling wave.
+; Runtime rounds sampled values and the rightmost point owns final pressure.
+[resource]
+resource_name = "Yard One — Logs per Wave by Run Level"
+_limits = [0.99, 100.0, 0.99, 35.0]
+_data = [Vector2(1, 1), 0.0, 0.0, 1, 1, Vector2(2, 1), 0.0, 0.0, 1, 1, Vector2(3, 1), 0.0, 0.0, 1, 1, Vector2(4, 1), 0.0, 0.0, 1, 1, Vector2(5, 1), 0.0, 0.0, 1, 1, Vector2(6, 1), 0.0, 0.0, 1, 1, Vector2(7, 1), 0.0, 0.0, 1, 1, Vector2(8, 1), 0.0, 0.0, 1, 1, Vector2(9, 1), 0.0, 0.0, 1, 1, Vector2(10, 1), 0.0, 0.0, 1, 1, Vector2(11, 1), 0.0, 0.0, 1, 1, Vector2(12, 1), 0.0, 0.0, 1, 1, Vector2(13, 1), 0.0, 0.0, 1, 1, Vector2(14, 1), 0.0, 0.0, 1, 1, Vector2(15, 1), 0.0, 0.0, 1, 1, Vector2(16, 1), 0.0, 0.0, 1, 1, Vector2(17, 1), 0.0, 0.0, 1, 1, Vector2(18, 1), 0.0, 0.0, 1, 1, Vector2(19, 1), 0.0, 1.0, 1, 1, Vector2(20, 2), 1.0, 1.0, 1, 1, Vector2(21, 3), 1.0, 1.0, 1, 1, Vector2(22, 4), 1.0, 1.0, 1, 1, Vector2(23, 5), 1.0, 1.0, 1, 1, Vector2(24, 6), 1.0, 1.0, 1, 1, Vector2(25, 7), 1.0, 1.0, 1, 1, Vector2(26, 8), 1.0, 1.0, 1, 1, Vector2(27, 9), 1.0, 1.0, 1, 1, Vector2(28, 10), 1.0, 0.0, 1, 1, Vector2(29, 10), 0.0, 0.0, 1, 1, Vector2(30, 10), 0.0, 0.0, 1, 1, Vector2(31, 10), 0.0, 0.0, 1, 1, Vector2(32, 10), 0.0, 0.0, 1, 1, Vector2(33, 10), 0.0, 0.0, 1, 1, Vector2(34, 10), 0.0, 0.0, 1, 1, Vector2(35, 10), 0.0, 0.0, 1, 1]
+point_count = 35

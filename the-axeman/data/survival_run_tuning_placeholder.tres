@@ -1,38 +1,17 @@
-[gd_resource type="Resource" script_class="SurvivalRunTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SurvivalRunTuning" format=3 uid="uid://cyxtwfvqxowy8"]
 
-[ext_resource type="Script" path="res://data/survival_run_tuning.gd" id="1"]
+[ext_resource type="Script" uid="uid://cclv4ao3m2478" path="res://data/survival_run_tuning.gd" id="1"]
 
 [resource]
 script = ExtResource("1")
-boundary_radius = 2.35
-boundary_grace_seconds = 5.0
-arrival_height = 3.4
-arrival_lateral_speed = 0.45
-spawn_inner_radius = 0.85
-spawn_outer_radius = 1.85
-spawn_sample_count = 12
-delivery_intervals = PackedFloat32Array(6.5, 5.2, 4.1, 3.2)
+delivery_intervals = PackedFloat32Array(2.166667, 1.7333335, 1.3666666, 1.0666665)
 earth_batch_sizes = PackedInt64Array(1000000, 10000000, 100000000, 500000000, 1000000000, 3000000000, 7500000000)
 harvest_capacity_costs = PackedInt64Array(250, 2500, 25000, 250000, 2500000, 25000000)
-powerup_drop_chance = 0.16
-slow_time_weight = 0.45
-slow_time_charge_cap = 3
-blaster_ammo_cap = 12
-blaster_ammo_per_drop = 3
-slow_hazard_multiplier = 0.45
-slow_time_duration = 6.0
-blaster_impulse = 7.0
-splitter_purchase_cost = 150
 splitter_reliability_costs = PackedInt64Array(250, 650, 1600, 4000)
-splitter_cycle_seconds = 8.0
-splitter_base_chance = 0.12
-splitter_chance_per_rank = 0.14
-block_hop_seconds = 0.38
-block_hop_height = 0.75
-block_hop_camera_clearance = 0.72
-yard_prop_clearance = 1.35
-boundary_core_half_width = 0.025
-boundary_gradient_width = 0.18
-boundary_peak_alpha = 0.55
-loose_log_soft_cap = 28
-tuning_status = "PLACEHOLDER — survival pacing, boundary, powerup, splitter and presentation values require measured playtest approval from Sam"
+chopping_visibility_dome_radius = 0.75
+chopping_visibility_dome_height = 5.0
+chopping_visibility_dome_friction = 0.35
+chopping_visibility_tunnel_transparency = 1.0
+chopping_visibility_tunnel_restore_speed = 10.0
+chopping_visibility_screen_margin = 8.0
+finished_piece_hold_seconds = 0.0

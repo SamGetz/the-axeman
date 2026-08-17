@@ -100,7 +100,7 @@ func _build_yard_sign() -> void:
 	var root := _root("YardSign", Vector3(1.38, 0.0, -1.42))
 	_box(root, "Post", Vector3(0.08, 0.72, 0.08), Vector3(0, 0.36, 0), _DARK_WOOD)
 	_box(root, "Board", Vector3(0.92, 0.38, 0.07), Vector3(0, 0.70, 0), _WOOD)
-	_label(root, "THE AXEMAN\nEARTH YARD", Vector3(0, 0.70, 0.045), 18)
+	_label(root, "CAMPFIRE SURVIVORS\nEARTH YARD", Vector3(0, 0.70, 0.045), 18)
 
 
 func _build_equipment_rack() -> void:

@@ -13,6 +13,7 @@ const _PARTICLE_SHADER = preload("res://assets/shaders/painterly_vfx_daub.gdshad
 const _MAX_REAL_DELTA := 0.05
 
 static var _material_cache: Dictionary = {}
+static var _mesh_cache: Dictionary = {}
 
 var _style := Style.GENERIC
 var _duration := 0.58
@@ -180,19 +181,30 @@ func _new_emitter(node_name: String, count: int, lifetime: float,
 		direction: Vector3, spread: float, speed_min: float, speed_max: float,
 		gravity: Vector3, emission_radius: float, scale_min: float,
 		scale_max: float) -> void:
-	var process := ParticleProcessMaterial.new()
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process.emission_sphere_radius = emission_radius
-	process.direction = direction.normalized()
-	process.spread = spread
-	process.initial_velocity_min = speed_min
-	process.initial_velocity_max = speed_max
-	process.gravity = gravity
-	process.damping_min = 0.15
-	process.damping_max = 0.55
-	process.scale_min = scale_min
-	process.scale_max = scale_max
-	process.color_ramp = _particle_fade_ramp()
+	var draw_material := _sprite_material(color, shape, smooth)
+	var process_key := "particle_process|%s|%s|%.4f|%.4f|%.4f|%s|%.4f|%.4f|%.4f" % [
+		str(direction.normalized()), spread, speed_min, speed_max,
+		emission_radius, str(gravity), scale_min, scale_max, lifetime]
+	var process_cache: Dictionary = draw_material.get_meta(
+		&"particle_process_cache") if draw_material.has_meta(
+			&"particle_process_cache") else {}
+	var process := process_cache.get(process_key) as ParticleProcessMaterial
+	if process == null:
+		process = ParticleProcessMaterial.new()
+		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		process.emission_sphere_radius = emission_radius
+		process.direction = direction.normalized()
+		process.spread = spread
+		process.initial_velocity_min = speed_min
+		process.initial_velocity_max = speed_max
+		process.gravity = gravity
+		process.damping_min = 0.15
+		process.damping_max = 0.55
+		process.scale_min = scale_min
+		process.scale_max = scale_max
+		process.color_ramp = _particle_fade_ramp()
+		process_cache[process_key] = process
+		draw_material.set_meta(&"particle_process_cache", process_cache)
 
 	var particles := GPUParticles3D.new()
 	particles.name = node_name
@@ -203,7 +215,7 @@ func _new_emitter(node_name: String, count: int, lifetime: float,
 	particles.randomness = 0.34
 	particles.visibility_aabb = AABB(Vector3(-3.0, -1.0, -3.0), Vector3(6.0, 5.0, 6.0))
 	particles.process_material = process
-	particles.draw_pass_1 = _draw_mesh(_sprite_material(color, shape, smooth), mesh_size)
+	particles.draw_pass_1 = _draw_mesh(draw_material, mesh_size)
 	add_child(particles)
 	_emitters.append(particles)
 	particles.emitting = true
@@ -260,9 +272,15 @@ static func _sprite_material(color: Color, shape: int,
 
 
 static func _draw_mesh(material: ShaderMaterial, size: Vector2) -> QuadMesh:
+	var cache_key := "%d|%.4f|%.4f" % [
+		material.get_instance_id(), size.x, size.y]
+	var cached := _mesh_cache.get(cache_key) as QuadMesh
+	if cached != null:
+		return cached
 	var mesh := QuadMesh.new()
 	mesh.size = size
 	mesh.material = material
+	_mesh_cache[cache_key] = mesh
 	return mesh
 
 

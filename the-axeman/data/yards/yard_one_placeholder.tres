@@ -1,0 +1,143 @@
+[gd_resource type="Resource" script_class="YardDef" format=3 uid="uid://ueafbybb8wsj"]
+
+[ext_resource type="Script" uid="uid://doh27vcjec2bb" path="res://data/yard_def.gd" id="1_yard"]
+[ext_resource type="Script" uid="uid://bq1n4p0nggcij" path="res://data/yard_timeline_entry_def.gd" id="2_timeline"]
+[ext_resource type="Script" uid="uid://ch1aluaj8bgn5" path="res://data/yard_species_reward_def.gd" id="3_reward"]
+[ext_resource type="Script" uid="uid://1cxfoveilaf6" path="res://data/yard_boss_def.gd" id="4_boss"]
+[ext_resource type="Curve" uid="uid://crayt0yh7pih" path="res://data/yards/yard_one_delivery_interval_curve.tres" id="5_interval"]
+[ext_resource type="Curve" path="res://data/yards/yard_one_delivery_amount_curve.tres" id="6_amount"]
+
+[sub_resource type="Resource" id="Boss_early"]
+script = ExtResource("4_boss")
+id = &"knotted_norway"
+display_name = "The Knotted Norway"
+species_id = &"norway_spruce"
+scheduled_seconds = 225.0
+hardness_multiplier = 2.5
+cash_jackpot = 13
+xp_jackpot = 38
+tuning_status = "PLACEHOLDER — early boss schedule, identity and rewards require approval; legacy hardness/mass metadata is unused"
+
+[sub_resource type="Resource" id="Boss_middle"]
+script = ExtResource("4_boss")
+id = &"lodgepole_bull"
+display_name = "The Lodgepole Bull"
+species_id = &"lodgepole_pine"
+scheduled_seconds = 450.0
+boss_tier = 2
+hardness_multiplier = 3.5
+mass_multiplier = 2.75
+cash_jackpot = 25
+xp_jackpot = 75
+tuning_status = "PLACEHOLDER — middle boss schedule, identity and rewards require approval; legacy hardness/mass metadata is unused"
+
+[sub_resource type="Resource" id="Boss_late"]
+script = ExtResource("4_boss")
+id = &"white_spruce_colossus"
+display_name = "The White Spruce Colossus"
+species_id = &"white_spruce"
+scheduled_seconds = 675.0
+boss_tier = 3
+hardness_multiplier = 5.0
+mass_multiplier = 4.0
+cash_jackpot = 50
+xp_jackpot = 150
+tuning_status = "PLACEHOLDER — late boss schedule, identity and rewards require approval; legacy hardness/mass metadata is unused"
+
+[sub_resource type="Resource" id="Reward_aspen"]
+script = ExtResource("3_reward")
+species_id = &"quaking_aspen"
+xp_reward = 3
+
+[sub_resource type="Resource" id="Reward_white_pine"]
+script = ExtResource("3_reward")
+species_id = &"eastern_white_pine"
+cash_reward = 2
+xp_reward = 4
+
+[sub_resource type="Resource" id="Reward_norway"]
+script = ExtResource("3_reward")
+species_id = &"norway_spruce"
+cash_reward = 3
+xp_reward = 5
+
+[sub_resource type="Resource" id="Reward_balsam"]
+script = ExtResource("3_reward")
+species_id = &"balsam_fir"
+cash_reward = 4
+xp_reward = 6
+
+[sub_resource type="Resource" id="Reward_lodgepole"]
+script = ExtResource("3_reward")
+species_id = &"lodgepole_pine"
+cash_reward = 6
+xp_reward = 8
+
+[sub_resource type="Resource" id="Reward_white_spruce"]
+script = ExtResource("3_reward")
+species_id = &"white_spruce"
+cash_reward = 8
+xp_reward = 9
+
+[sub_resource type="Resource" id="Timeline_aspen"]
+script = ExtResource("2_timeline")
+species_id = &"quaking_aspen"
+end_seconds = 540.0
+weight = 6.0
+
+[sub_resource type="Resource" id="Timeline_white_pine"]
+script = ExtResource("2_timeline")
+species_id = &"eastern_white_pine"
+start_seconds = 90.0
+end_seconds = 630.0
+weight = 5.0
+
+[sub_resource type="Resource" id="Timeline_norway"]
+script = ExtResource("2_timeline")
+species_id = &"norway_spruce"
+start_seconds = 225.0
+end_seconds = 720.0
+weight = 5.0
+
+[sub_resource type="Resource" id="Timeline_balsam"]
+script = ExtResource("2_timeline")
+species_id = &"balsam_fir"
+start_seconds = 360.0
+end_seconds = 810.0
+weight = 5.0
+
+[sub_resource type="Resource" id="Timeline_lodgepole"]
+script = ExtResource("2_timeline")
+species_id = &"lodgepole_pine"
+start_seconds = 495.0
+end_seconds = 900.0
+weight = 6.0
+
+[sub_resource type="Resource" id="Timeline_white_spruce"]
+script = ExtResource("2_timeline")
+species_id = &"white_spruce"
+start_seconds = 630.0
+end_seconds = 900.0
+weight = 7.0
+
+[resource]
+resource_name = "Yard One — Complete Level Settings"
+script = ExtResource("1_yard")
+id = &"yard_one"
+display_name = "Home Lumberyard"
+description = "Hold the single block for fifteen gameplay minutes as falling roots accelerate and harden."
+scene_path = "res://scenes/3d_action/chopping_minigame.tscn"
+species_timeline = Array[ExtResource("2_timeline")]([SubResource("Timeline_aspen"), SubResource("Timeline_white_pine"), SubResource("Timeline_norway"), SubResource("Timeline_balsam"), SubResource("Timeline_lodgepole"), SubResource("Timeline_white_spruce")])
+species_rewards = Array[ExtResource("3_reward")]([SubResource("Reward_aspen"), SubResource("Reward_white_pine"), SubResource("Reward_norway"), SubResource("Reward_balsam"), SubResource("Reward_lodgepole"), SubResource("Reward_white_spruce")])
+delivery_tier_interval_scales = PackedFloat64Array(1, 0.8, 0.6307692308, 0.4923076923)
+delivery_interval_seconds_by_level = ExtResource("5_interval")
+delivery_batch_size_by_level = ExtResource("6_amount")
+delivery_interval_floor = 0.2
+xp_to_next_by_level = PackedInt64Array(12, 15, 18, 21, 24, 27, 30, 34, 38, 42, 46, 50, 55, 60, 65, 70, 76, 82, 88, 94, 100, 108, 116, 124, 132, 140, 150, 160, 170, 180, 190, 205, 220, 235, 250)
+hardness_multiplier_by_level = PackedFloat64Array(1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7, 1.75, 1.8, 1.85, 1.9, 1.95, 2, 2.05, 2.1, 2.15, 2.2, 2.25, 2.3, 2.35, 2.4, 2.45, 2.5, 2.55, 2.6, 2.65, 2.7)
+endless_xp_growth = 10.0
+endless_delivery_multiplier_per_level = 0.9
+endless_hardness_multiplier_per_level = 1.05
+bosses = Array[ExtResource("4_boss")]([SubResource("Boss_early"), SubResource("Boss_middle"), SubResource("Boss_late")])
+future_unlock_rule_id = &"starting_yard"
+tuning_status = "PLACEHOLDER — yard-one roster, XP, pressure, frequency and boss values require measured approval"

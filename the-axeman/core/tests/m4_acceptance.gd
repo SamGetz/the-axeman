@@ -32,6 +32,7 @@ var _gathered: Dictionary = {}   # item_id -> total amount gathered since last c
 const _MINIGAME := preload("res://scenes/3d_action/chopping_minigame.tscn")
 const _FRAGMENT_PIECE := preload("res://scenes/3d_action/fragment_piece.tscn")
 const _BUDGET_SCRIPT := preload("res://scenes/3d_action/fragment_physics_budget.gd")
+const _SURVIVAL_TUNING := preload("res://data/survival_run_tuning_placeholder.tres")
 
 
 func _ready() -> void:
@@ -46,6 +47,7 @@ func _ready() -> void:
 	await _test_6_species_table_integrity()
 	await _test_7_axe_viewmodel_drives_the_strike()
 	await _test_8_failed_strike_schedules_thud()
+	await _test_9_unlocked_hold_to_chop_repeats_input()
 	print("=== M4 RESULT: %d passed, %d failed ===" % [_passes, _fails])
 	if _fails == 0:
 		print("=== ALL M4 ACCEPTANCE CRITERIA PASS ===")
@@ -88,10 +90,9 @@ func _on_gathered(item: StringName, amount: int) -> void:
 func _make_minigame(forced_species: int) -> Node3D:
 	var mg: Node3D = _MINIGAME.instantiate()
 	mg.debug_forced_species = forced_species
-	# M4 tests the YIELD contract: a finished piece deposits stock. Since
-	# 2026-08-01 the yard buys that stock back the moment the piece lands on the
-	# pile, which would empty the very inventory these tests are counting — so the
-	# economy layer is switched off here. Its own behaviour is m7a_acceptance's.
+	# M4 tests the YIELD contract: a finished piece deposits stock. Production
+	# validates and sells that stock when landed physics is retired, which would
+	# empty the inventory these tests count, so the economy layer is disabled here.
 	mg.auto_sell = false
 	add_child(mg)
 	await get_tree().process_frame   # let _ready() build the stump + drop the first log
@@ -105,8 +106,8 @@ func _drop(mg: Node) -> void:
 
 ## Cut the on-block pieces (always _on_block[0], through its centre, alternating
 ## horizontal axes) until nothing is cuttable. Returns the firewood produced —
-## captured immediately, before any of it has settled/stacked, so on-block == 0
-## means piece_count() is exactly the live firewood count.
+## captured immediately, before any of it has settled and become an inert
+## finished piece, so on-block == 0 means piece_count() is the live firewood count.
 func _drive_to_completion(mg) -> int:
 	var safety := 0
 	while mg.cuttable_count() > 0 and safety < 60:
@@ -117,11 +118,56 @@ func _drive_to_completion(mg) -> int:
 	return mg.piece_count()
 
 
+## Advance only the finished-piece presentation clock. The public snapshot and
+## production updater prove that sinking begins on the first positive delta.
+func _check_finished_piece_sink_lifecycle(mg: Node, expected_count: int) -> void:
+	var hold_seconds := float(_SURVIVAL_TUNING.finished_piece_hold_seconds)
+	var sink_speed := float(_SURVIVAL_TUNING.finished_piece_sink_speed)
+	var initial := mg.debug_finished_piece_state() as Dictionary
+	_check(is_zero_approx(hold_seconds),
+		"finished firewood has no pre-sink hold")
+	_check(int(initial.get("count", 0)) == expected_count \
+			and int(initial.get("geometry_count", 0)) >= expected_count \
+			and int(initial.get("collision_shape_count", 0)) >= expected_count \
+			and int(initial.get("enabled_collision_count", -1)) == 0 \
+			and is_zero_approx(float(initial.get("max_sink_distance", -1.0))),
+		"every settled piece is visible and already non-colliding before its first sink frame (%d pieces)" % expected_count)
+
+	var first_sink_delta := 0.05
+	mg.call("_update_finished_piece_sink", first_sink_delta)
+	var sinking := mg.debug_finished_piece_state() as Dictionary
+	_check(int(sinking.get("count", 0)) > 0 \
+			and int(sinking.get("count", 0)) <= expected_count \
+			and is_equal_approx(float(sinking.get("max_sink_distance", 0.0)),
+				sink_speed * first_sink_delta) \
+			and int(sinking.get("enabled_collision_count", -1)) == 0,
+		"finished pieces sink on their first frame while remaining non-colliding [state=%s expected_sink=%.3f]" % [
+			sinking, sink_speed * first_sink_delta])
+
+	for _step: int in range(30):
+		if int((mg.debug_finished_piece_state() as Dictionary).get(
+				"count", 0)) == 0:
+			break
+		mg.call("_update_finished_piece_sink", 1.0)
+	var gone := mg.debug_finished_piece_state() as Dictionary
+	_check(int(gone.get("count", -1)) == 0 \
+			and int(gone.get("geometry_count", -1)) == 0,
+		"finished pieces despawn only after sinking fully below the floor")
+
+
 # ----------------------------------------------------------------- tests
 func _test_1_fresh_log() -> void:
-	var mg := await _make_minigame(0)
+	var mg: Node3D = await _make_minigame(0)
 	_check(mg.piece_count() == 1, "fresh log spawns exactly one piece")
 	_check(mg.cuttable_count() == 1, "fresh log is cuttable (sitting on the block)")
+	var live_bark := load(
+		"res://assets/shaders/log_bark_triplanar.gdshader") as Shader
+	var live_end := load(
+		"res://assets/shaders/log_end_cap.gdshader") as Shader
+	_check(live_bark != null and live_end != null
+			and not live_bark.code.contains("ALPHA")
+			and not live_end.code.contains("ALPHA"),
+		"active bark and end grain stay in the opaque pipeline until retirement")
 	await _drop(mg)
 
 
@@ -153,8 +199,22 @@ func _test_3_chopdown_stocks_inventory() -> void:
 	var impacts_before := AudioDirector.debug_started_event_count(&"piece_land")
 	var firewood := await _drive_to_completion(mg)
 	_check(firewood > 0, "chop-down produced firewood (%d pieces)" % firewood)
+	var landing_bodies: Array = mg.get("_firewood")
+	for raw_body: Variant in landing_bodies:
+		if raw_body is RigidBody3D:
+			(raw_body as RigidBody3D).linear_velocity = Vector3(10.0, 0.0, 0.0)
+	mg.set("_finished_batch_age", 0.0)
+	_check(not bool(mg.call("_firewood_settled")),
+		"finished firewood cannot exhaust its settle timeout while active play is paused")
+	mg.set("_finished_batch_age", 99.0)
+	_check(bool(mg.call("_firewood_settled")),
+		"finished firewood settle timeout is driven by active gameplay seconds")
+	# Retire synchronously so the zero-hold sink can be inspected before normal
+	# process frames legitimately carry every small billet below the floor.
+	mg.call("_settle_finished_firewood")
+	_check_finished_piece_sink_lifecycle(mg, firewood)
 
-	await _wait(2.2)   # settle-timeout (1.5s) + margin, so _begin_stacking runs and collects
+	await _wait(2.2)   # settle-timeout (1.5s) + margin, so finished pieces settle and collect
 	var ground_impacts := AudioDirector.debug_started_event_count(&"piece_land") - impacts_before
 	AudioDirector.end_session()
 	_check(ground_impacts == firewood,
@@ -429,3 +489,75 @@ func _test_8_failed_strike_schedules_thud() -> void:
 	_check(not split and thuds == 1,
 		"one failed strike schedules exactly one wood thud")
 	await _drop(mg)
+
+
+func _test_9_unlocked_hold_to_chop_repeats_input() -> void:
+	GameState.reset_to_defaults()
+	var profile := GameState.to_save_dict()
+	profile["meta_upgrade_ranks"] = {"hold_to_chop": 1}
+	profile["meta_upgrade_spend_ledger"] = {"hold_to_chop": [0]}
+	GameState.apply_save_dict(profile)
+	var mg: Node3D = await _make_minigame(0)
+	mg.set("debug_split_roll", 1)
+	# This case isolates held-input repetition. Cross-axis camera correction has
+	# its own contract and can intentionally consume a request before the next
+	# swing, so keep the target-facing axis stable for this input regression.
+	mg.set("long_axis_bias", 999.0)
+	await _wait(0.6)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var camera := mg.get_node("CameraPivot/Camera3D") as Camera3D
+	var pieces: Array = mg.get("_on_block")
+	var first_piece := pieces[0] as Area3D if not pieces.is_empty() else null
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = camera.unproject_position(first_piece.global_position) \
+		if first_piece != null else get_viewport().get_visible_rect().size * 0.5
+	mg.call("_unhandled_input", press)
+	var first_armed := not (mg.get("_pending") as Dictionary).is_empty()
+	var player := mg.get_node(
+		"CameraPivot/Camera3D/AxeViewmodelAnchor/AnimationPlayer") \
+		as AnimationPlayer
+	mg.call("_on_axe_contact")
+	player.stop()
+	var after_first: int = int(mg.call("piece_count"))
+	pieces = mg.get("_on_block")
+	# A production hold reaches its next legal swing after the first split's
+	# authored hop has settled. Snap that presentation to the same final pose so
+	# this test can exercise the input/cooldown contract without sleeping in real
+	# time while the PieceAnimator follows its wall clock.
+	var animator := mg.get("_animator") as RefCounted
+	animator.call("finish_for", pieces)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var next_piece := pieces[0] as Area3D if not pieces.is_empty() else null
+	var motion := InputEventMouseMotion.new()
+	motion.position = camera.unproject_position(next_piece.global_position) \
+		if next_piece != null else press.position
+	mg.call("_unhandled_input", motion)
+	# Advance in frame-sized phases rather than one artificial long frame: the
+	# latter can both arm and consume the strike failsafe in the same call.
+	var cooldown: float = float(mg.call("current_swing_cooldown"))
+	mg.call("_process", cooldown * 0.5)
+	mg.call("_process", cooldown * 0.5 + 0.01)
+	var second_armed := not (mg.get("_pending") as Dictionary).is_empty()
+	mg.call("_on_axe_contact")
+	player.stop()
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = motion.position
+	mg.call("_unhandled_input", release)
+	_check(GameState.has_meta_capability(
+			MetaUpgradeDef.Capability.HOLD_TO_CHOP) \
+		and first_armed and after_first >= 2 and second_armed \
+		and int(mg.call("piece_count")) > after_first \
+		and not bool(mg.get("_hold_chop_active")),
+		"unlocked Hold-to-Chop consumes one press, repeats the next legal swing while held, and stops on release [owned=%s first=%s after_first=%d second=%s final=%d held=%s]" % [
+			GameState.has_meta_capability(
+				MetaUpgradeDef.Capability.HOLD_TO_CHOP), first_armed,
+			after_first, second_armed, int(mg.call("piece_count")),
+			bool(mg.get("_hold_chop_active"))])
+	await _drop(mg)
+	GameState.reset_to_defaults()

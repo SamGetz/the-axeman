@@ -1,26 +1,44 @@
 class_name YardDef
 extends Resource
 ## Immutable stage catalogue row. Yard one is the only live row in this slice;
-## the schema deliberately carries future scene/unlock identities.
+## each selectable level owns one standalone YardDef `.tres`, and the schema
+## deliberately carries future scene/unlock identities.
 
+const MAX_DELIVERY_BATCH_SIZE := 100
+
+@export_category("SELECTABLE LEVEL SETTINGS")
 @export_group("Identity")
 @export var id: StringName = &""
 @export var display_name := ""
 @export_multiline var description := ""
 @export var scene_path := ""
-@export_range(1.0, 86400.0, 1.0) var stage_duration_seconds := 1200.0
+@export_range(1.0, 86400.0, 1.0) var stage_duration_seconds := 900.0
 
 @export_group("Timeline and ordinary rewards")
 @export var species_timeline: Array[YardTimelineEntryDef] = []
 @export var species_rewards: Array[YardSpeciesRewardDef] = []
 
-@export_group("Starting frequency and level pressure — PLACEHOLDER")
-## Default plus the three tiers unlocked by Fall Frequency Control.
-@export var starting_delivery_intervals := PackedFloat64Array()
+@export_group("Log delivery curves by run level — PLACEHOLDER")
+## Default plus the three tiers unlocked by Fall Frequency Control. These scale
+## the interval curve: 1.0 is the authored curve, lower values fall faster.
+@export var delivery_tier_interval_scales := PackedFloat64Array()
+## X is the player's run level; Y is seconds between falling-log waves at the
+## default frequency tier. Edit this native Curve directly in the Inspector.
+@export var delivery_interval_seconds_by_level: Curve
+## X is the player's run level; Y is logs spawned by each wave. Runtime samples
+## whole levels and rounds Y to the nearest whole log.
+@export var delivery_batch_size_by_level: Curve
+## Safety floor after the selected frequency-tier scale is applied.
 @export_range(0.05, 60.0, 0.05) var delivery_interval_floor := 0.5
+## The final stage window and Endless can deliberately read the rightmost curve
+## points, so their interval and amount remain curve-authored rather than code.
+@export var force_curve_end_in_final_window := true
+@export_range(1.0, 3600.0, 1.0) var final_pressure_remaining_seconds := 60.0
+@export var force_curve_end_in_endless := true
+
+@export_group("XP and hardness by run level — PLACEHOLDER")
 ## Index zero describes Level 1. The last authored row rolls into the endless tail.
 @export var xp_to_next_by_level := PackedInt64Array()
-@export var delivery_multiplier_by_level := PackedFloat64Array()
 @export var hardness_multiplier_by_level := PackedFloat64Array()
 @export_range(1.0, 10.0, 0.01) var endless_xp_growth := 1.1
 @export_range(0.01, 1.0, 0.001) var endless_delivery_multiplier_per_level := 0.98
@@ -125,15 +143,35 @@ func xp_remaining_for_xp(total_xp: int) -> int:
 	return maxi(1, total_xp_for_level(level) + xp_to_next(level) - safe_xp)
 
 
-func delivery_multiplier(level: int) -> float:
-	if delivery_multiplier_by_level.is_empty():
+func delivery_interval_seconds(level: int, tier: int = 0,
+		force_curve_end := false) -> float:
+	if delivery_interval_seconds_by_level == null:
 		return 1.0
-	var index := maxi(0, level - 1)
-	if index < delivery_multiplier_by_level.size():
-		return maxf(0.0001, float(delivery_multiplier_by_level[index]))
-	var tail_levels := index - (delivery_multiplier_by_level.size() - 1)
-	return maxf(0.0001, float(delivery_multiplier_by_level[-1]) \
-		* pow(endless_delivery_multiplier_per_level, tail_levels))
+	var curve := delivery_interval_seconds_by_level
+	var safe_level := maxi(1, level)
+	var sample_level := curve.max_domain if force_curve_end else clampf(
+		float(safe_level), curve.min_domain, curve.max_domain)
+	var seconds := maxf(0.0001, curve.sample(sample_level))
+	if not force_curve_end and float(safe_level) > curve.max_domain:
+		var tail_levels := safe_level - int(floor(curve.max_domain))
+		seconds *= pow(endless_delivery_multiplier_per_level, tail_levels)
+	var scale := 1.0
+	if not delivery_tier_interval_scales.is_empty():
+		var safe_tier := clampi(tier, 0,
+			delivery_tier_interval_scales.size() - 1)
+		scale = maxf(0.0001,
+			float(delivery_tier_interval_scales[safe_tier]))
+	return maxf(delivery_interval_floor, seconds * scale)
+
+
+func delivery_batch_size(level: int, force_curve_end := false) -> int:
+	if delivery_batch_size_by_level == null:
+		return 1
+	var curve := delivery_batch_size_by_level
+	var sample_level := curve.max_domain if force_curve_end else clampf(
+		float(maxi(1, level)), curve.min_domain, curve.max_domain)
+	return clampi(int(round(curve.sample(sample_level))), 1,
+		MAX_DELIVERY_BATCH_SIZE)
 
 
 func hardness_multiplier(level: int) -> float:
@@ -175,34 +213,56 @@ func validate() -> PackedStringArray:
 	for raw_species: Variant in timeline_species:
 		if not reward_species.has(raw_species):
 			errors.append("yard timeline species has no fixed reward:%s" % raw_species)
-	if starting_delivery_intervals.is_empty():
+	if delivery_tier_interval_scales.is_empty():
 		errors.append("yard has no starting delivery tiers")
-	var previous_interval := INF
-	for interval: float in starting_delivery_intervals:
-		if interval <= 0.0 or interval >= previous_interval:
-			errors.append("yard delivery tiers must be positive and strictly faster")
-		previous_interval = interval
-	if delivery_interval_floor <= 0.0 \
-			or (not starting_delivery_intervals.is_empty() \
-			and delivery_interval_floor >= starting_delivery_intervals[-1]):
-		errors.append("yard delivery floor must be below its fastest starting tier")
+	var previous_scale := INF
+	for scale: float in delivery_tier_interval_scales:
+		if scale <= 0.0 or scale >= previous_scale:
+			errors.append("yard delivery-tier scales must be positive and strictly faster")
+		previous_scale = scale
+	if delivery_interval_floor <= 0.0:
+		errors.append("yard delivery interval floor must be positive")
+	if delivery_interval_seconds_by_level == null \
+			or delivery_interval_seconds_by_level.point_count < 2:
+		errors.append("yard requires an editable delivery-interval curve")
+	if delivery_batch_size_by_level == null \
+			or delivery_batch_size_by_level.point_count < 2:
+		errors.append("yard requires an editable delivery-amount curve")
+	if force_curve_end_in_final_window \
+			and (final_pressure_remaining_seconds <= 0.0 \
+			or final_pressure_remaining_seconds >= stage_duration_seconds):
+		errors.append("yard final-pressure curve window is invalid")
 	var level_rows := xp_to_next_by_level.size()
-	if level_rows <= 0 or delivery_multiplier_by_level.size() != level_rows \
-			or hardness_multiplier_by_level.size() != level_rows:
-		errors.append("yard XP and pressure curves must have matching authored rows")
-	var previous_delivery := INF
+	if level_rows <= 0 or hardness_multiplier_by_level.size() != level_rows:
+		errors.append("yard XP and hardness rows must match")
+	if delivery_interval_seconds_by_level != null \
+			and (delivery_interval_seconds_by_level.min_domain > 1.0 \
+			or delivery_interval_seconds_by_level.max_domain < float(level_rows)):
+		errors.append("yard delivery-interval curve must cover every authored run level")
+	if delivery_batch_size_by_level != null \
+			and (delivery_batch_size_by_level.min_domain > 1.0 \
+			or delivery_batch_size_by_level.max_domain < float(level_rows)):
+		errors.append("yard delivery-amount curve must cover every authored run level")
+	var previous_interval := INF
+	var previous_batch := 0
 	var previous_hardness := 0.0
 	for index: int in range(level_rows):
 		var xp := int(xp_to_next_by_level[index])
-		var delivery := float(delivery_multiplier_by_level[index])
+		var interval := delivery_interval_seconds(index + 1) \
+			if delivery_interval_seconds_by_level != null else 1.0
+		var batch := delivery_batch_size(index + 1) \
+			if delivery_batch_size_by_level != null else 1
 		var hardness := float(hardness_multiplier_by_level[index])
 		if xp <= 0:
 			errors.append("yard XP curve must remain positive")
-		if delivery <= 0.0 or delivery > previous_delivery:
-			errors.append("yard delivery pressure must not get slower at later levels")
+		if interval <= 0.0 or interval > previous_interval:
+			errors.append("yard delivery interval curve must not get slower at later levels")
+		if batch <= 0 or batch < previous_batch:
+			errors.append("yard delivery amount curve must not fall at later levels")
 		if hardness <= 0.0 or hardness < previous_hardness:
 			errors.append("yard hardness pressure must not fall at later levels")
-		previous_delivery = delivery
+		previous_interval = interval
+		previous_batch = batch
 		previous_hardness = hardness
 	if endless_xp_growth < 1.0 or endless_delivery_multiplier_per_level <= 0.0 \
 			or endless_delivery_multiplier_per_level > 1.0 \

@@ -1,0 +1,7 @@
+[gd_resource type="Curve" format=3 uid="uid://crayt0yh7pih"]
+
+[resource]
+resource_name = "Yard One — Delivery Interval by Run Level"
+_limits = [0.05, 3.0, 0.99, 35.0]
+_data = [Vector2(1, 2.166667), 0.0, -0.095219, 1, 1, Vector2(15.200196, 0.8145385), -0.06095948, -0.06095948, 0, 0, Vector2(35, 0.2), -0.0039788247, 0.0, 0, 1]
+point_count = 3

@@ -140,6 +140,8 @@ func _test_descriptor_and_real_arena() -> void:
 		"all survival values remain valid, data-backed, and explicitly provisional")
 	_check(is_equal_approx(tuning.boundary_grace_seconds, 5.0),
 		"the proposed outside-boundary grace is five continuous seconds")
+	_check(is_equal_approx(tuning.global_xp_gain_multiplier, 1.30),
+		"all disposable run XP sources carry the directed global 30% gain increase")
 	var descriptor := _descriptor(&"arena_log", 1)
 	var saved := descriptor.to_dict()
 	var restored := LogDescriptor.from_save_dict(saved)
@@ -152,8 +154,11 @@ func _test_descriptor_and_real_arena() -> void:
 	add_child(arena)
 	arena.bind_run(null, chopping, tuning)
 	var body := arena.spawn_loose_log(descriptor, 12345)
-	_check(body != null and body.global_position.y >= tuning.arrival_height,
-		"whole logs spawn physically above the circular arena")
+	_check(body != null and body.global_position.y >= tuning.arrival_height \
+		and is_equal_approx(tuning.arrival_fall_speed_multiplier, 2.0) \
+		and is_equal_approx(body.arrival_gravity_scale, 4.0) \
+		and is_equal_approx(body.gravity_scale, 4.0),
+		"whole logs spawn above the arena and fall at exactly twice the prior speed")
 	_check(arena.get_node_or_null("RedBoundary") != null and body.freeze,
 		"a visible red boundary exists and menu-time bodies are frozen")
 	var boundary := arena.get_node("RedBoundary") as MeshInstance3D
@@ -217,7 +222,7 @@ func _test_migration_contract() -> void:
 		"v19 migration converts retired progression into the permanent Home Cash profile")
 	_check(GameState.get_home_cash() > 999999
 		and GameState.get_meta_upgrade_ranks().is_empty()
-		and GameState.get_unlocked_run_powers().size() == 12,
+		and GameState.get_unlocked_run_powers().size() == 14,
 		"v17 cash and recognised progression refund without inventing paid meta ranks")
 	var legacy_records := GameState.get_legacy_records()
 	_check(not migrated.has("building_tiers") and not migrated.has("owned_species")
@@ -246,16 +251,73 @@ func _test_run_lifecycle() -> void:
 	run.set_process(false)
 	run.bind_runtime(chopping, arena)
 	run.start_attempt(424242)
+	var yard := SurvivorsContent.yards().by_id(&"yard_one")
+	var staged_reward := yard.reward_for_species(
+		chopping.staged.species_id)
 	_check(run.phase == RunDirector.Phase.ACTIVE and not run.is_paused()
 		and chopping.staged != null and not arena.paused,
 		"a seeded attempt begins active with one whole log on the block")
+	_check(staged_reward != null and chopping.staged.xp_reward_snapshot \
+		== int(round(float(staged_reward.xp_reward) \
+			* tuning.global_xp_gain_multiplier)),
+		"delivered root snapshots include the global XP gain exactly once")
 	_check(run.get_cash() == 0 and run.get_xp() == 0 and run.get_level() == 1
 		and run.stage_remaining_ms() == int(run.stage_duration_seconds() * 1000.0),
 		"attempt cash, XP, level, and stage clock reset at the full-run boundary")
+	var original_interval_point := yard.delivery_interval_seconds_by_level.get_point_position(0)
+	var original_amount_point := yard.delivery_batch_size_by_level.get_point_position(0)
+	yard.delivery_interval_seconds_by_level.set_point_value(0, 0.75)
+	yard.delivery_batch_size_by_level.set_point_value(0, 4.0)
+	var curves_drive_runtime := is_equal_approx(run.delivery_interval(), 0.75) \
+		and run.delivery_batch_size() == 4
+	yard.delivery_interval_seconds_by_level.set_point_value(0,
+		original_interval_point.y)
+	yard.delivery_batch_size_by_level.set_point_value(0,
+		original_amount_point.y)
+	_check(curves_drive_runtime \
+		and is_equal_approx(run.delivery_interval(), original_interval_point.y) \
+		and run.delivery_batch_size() == int(round(original_amount_point.y)),
+		"editing the selected level's interval and amount curves changes production delivery directly")
+	chopping.staged = null
+	chopping.block_ready_for_log.emit()
+	var loose_before_direct_delivery := arena.loose_log_count()
+	run.call("_spawn_timed_log")
+	_check(chopping.staged != null and not chopping.staged_with_hop
+			and arena.loose_log_count() == loose_before_direct_delivery,
+		"a due delivery goes straight above an empty chopping block without landing in the yard")
 
 	run._process(run.delivery_interval() + 0.1)
 	_check(arena.loose_log_count() == 1,
 		"the delivery timer adds waiting logs independently of chopping")
+	var first_floor_level := int(run.call("_first_delivery_floor_level"))
+	var original_xp := run.get_xp()
+	var original_elapsed := float(run.get("_elapsed_seconds"))
+	arena.clear_all()
+	run.set("_xp", yard.total_xp_for_level(first_floor_level))
+	run.set("_elapsed_seconds", 100.0)
+	var first_floor_batch := run.delivery_batch_size()
+	var spawned_at_floor := int(run.call("_spawn_delivery_batch"))
+	arena.clear_all()
+	run.set("_xp", yard.total_xp_for_level(first_floor_level + 1))
+	var next_floor_batch := run.delivery_batch_size()
+	var spawned_after_rank := int(run.call("_spawn_delivery_batch"))
+	arena.clear_all()
+	run.set("_xp", 0)
+	run.set("_elapsed_seconds", yard.stage_duration_seconds - 60.0)
+	var final_minute_batch := run.delivery_batch_size()
+	var final_minute_interval := run.delivery_interval()
+	var spawned_final_minute := int(run.call("_spawn_delivery_batch"))
+	_check(first_floor_batch == 2 and spawned_at_floor == 2 \
+		and next_floor_batch == 3 and spawned_after_rank == 3 \
+		and final_minute_batch == 10 \
+		and is_equal_approx(final_minute_interval, 0.2) \
+		and spawned_final_minute == 10 \
+		and arena.loose_log_count() == 10,
+		"the amount curve authors 2 then 3 roots by level, while the final window reads its 10-log/0.2-second endpoints even at Level 1")
+	arena.clear_all()
+	run.set("_xp", original_xp)
+	run.set("_elapsed_seconds", original_elapsed)
+	run.call("_spawn_timed_log")
 	var first := chopping.staged
 	var first_result := run.complete_manual_log(first, 4)
 	_check(int(first_result.get("cash_total", 0)) > 0
@@ -334,7 +396,7 @@ func _test_run_lifecycle() -> void:
 		and int(run.get_powerup_state().slow_charges) == 0
 		and run.get_xp() == 0 and run.get_level() == 1
 		and GameState.get_home_cash() == purse_before_failure
-		and GameState.get_unlocked_run_powers().size() == 12,
+		and GameState.get_unlocked_run_powers().size() == 14,
 		"death restart resets disposable state while the settled home profile survives")
 
 	var near_clear := run.to_save_dict()
@@ -346,7 +408,7 @@ func _test_run_lifecycle() -> void:
 	run._process(0.1)
 	_check(run.phase == RunDirector.Phase.EARTH_CLEAR and run.is_paused()
 		and int(clear_events[0]) == 1 and run.earth_clear_ms() >= 0,
-		"the 20-minute stage boundary pauses once for the cash-out decision")
+		"the 15-minute stage boundary pauses once for the cash-out decision")
 	run.resume_attempt()
 	_check(run.phase == RunDirector.Phase.EARTH_CLEAR and run.is_paused(),
 		"generic resume cannot silently choose endless at stage clear")
@@ -378,6 +440,18 @@ func _test_run_lifecycle() -> void:
 	_check(restored_run.restore_attempt(suspended) and restored_run.get_cash() == 321
 		and restored_run.is_paused(),
 		"a suspended attempt restores once, paused, without inventing rewards")
+	var transitioning := suspended.duplicate(true)
+	transitioning["chopping"] = {"transitioning": true}
+	transitioning["pending_piece_cash"] = [2, 3]
+	transitioning["active_log_id"] = ""
+	transitioning["boundary_timers_paused"] = true
+	var transition_restored := restored_run.restore_attempt(transitioning)
+	var transition_round_trip := restored_run.to_save_dict()
+	var restored_shares: Variant = transition_round_trip.get("pending_piece_cash", null)
+	_check(transition_restored and restored_run.get_cash() == 321 \
+		and restored_shares is Array and (restored_shares as Array).is_empty() \
+		and restored_chopping.staged == null,
+		"a crash-window transition keeps credited cash but discards unpersisted coin-only shares")
 
 	run.queue_free()
 	arena.queue_free()

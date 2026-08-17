@@ -16,8 +16,8 @@ enum Kind {
 	RUN_XP_MULTIPLIER,
 	SESSION_CASH_MULTIPLIER,
 	FOURTH_CARD_CHANCE,
-	RARE_OFFER_WEIGHT,
-	EPIC_OFFER_WEIGHT,
+	RARE_QUALITY_WEIGHT,
+	EPIC_QUALITY_WEIGHT,
 	BLASTER_DROP_CHANCE,
 	BOUNDARY_RADIUS,
 	BOUNDARY_GRACE,
@@ -62,6 +62,11 @@ enum Kind {
 	MOMENTUM_MAX_STACKS,
 	MOMENTUM_SPEED_PER_STACK,
 	MOMENTUM_RELIABILITY_PER_STACK,
+	YARD_MAGNET_PULSE_INTERVAL,
+	AREA_SIZE_MULTIPLIER,
+	SAWBLADE_HALO_INTERVAL,
+	SAWBLADE_HALO_RADIUS,
+	TIMBER_BURST_RADIUS,
 }
 
 enum Operation { ADD, MULTIPLY, ENABLE, SET }
@@ -82,7 +87,7 @@ func value_at_rank(rank: int) -> float:
 
 func validate(expected_rank_cap: int) -> PackedStringArray:
 	var errors := PackedStringArray()
-	if kind <= Kind.INVALID or kind > Kind.MOMENTUM_RELIABILITY_PER_STACK:
+	if kind <= Kind.INVALID or kind > Kind.TIMBER_BURST_RADIUS:
 		errors.append("progression effect has an invalid kind")
 	if operation < Operation.ADD or operation > Operation.SET:
 		errors.append("progression effect has an invalid operation")
