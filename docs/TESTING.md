@@ -35,12 +35,12 @@ python3 tools/audio/validate_sfx.py
 
 | Gate | Result |
 |---|---:|
-| Profile, catalogues, banking, saves, migration, and retired-row refunds | 102/102 |
+| Profile, catalogues, banking, saves, migration, tuning isolation, and retired-row refunds | 103/103 |
 | Home, Level Select, Power Up grid, persistence, and attempt locks | 26/26 |
 | Run XP and reward-flight authority | 21/21 |
 | Power offers, utility actions, quality, slots, and deterministic restore | 42/42 |
 | Distinct 27-power icon catalogue | 2/2 |
-| All powers, whole-log destruction, fragments, magnet, handoff, and restore | 57/57 |
+| All powers, whole-log destruction, fragments, magnet, handoff, restore, and prop geometry | 61/61 |
 | Five-root boss stack, rewards, order, counter, camera, and restore | 18/18 |
 | Stage pause, Endless/cash-out, and results | 25/25 |
 | Survival ownership, curve sampling, and lifecycle | 45/45 |
@@ -54,7 +54,7 @@ python3 tools/audio/validate_sfx.py
 | Editor import and script parse | PASS |
 
 The progression suite intentionally prints one forced-backup failure while
-testing the negative path; it still must finish 102/102. Godot may report
+testing the negative path; it still must finish 103/103. Godot may report
 engine RID/ObjectDB residue at process exit in several headless scenes; use the
 explicit pass/fail totals as the suite result.
 
@@ -71,6 +71,9 @@ The profile gate owns current-version validation plus v18/v17/v16/v14/v1
 migration fixtures. These are the only retained historical fixtures because
 they protect value-bearing compatibility. Retired milestone acceptance suites
 must not be restored to make removed gameplay behavior live again.
+The gate also deliberately invalidates one power curve and proves that profile
+purchases plus save writes/loads remain available; balance authoring errors may
+be reported, but can never make a valid profile unreadable.
 
 ## Visual verification
 
@@ -80,3 +83,33 @@ and inspect their `/private/tmp/axeman_*.png` outputs at 1280×720. Relevant
 checkpoints include startup/Home, level offers, the six-slot HUD, boss stack,
 Sawblade/Area Size, Splinter Volley, final-minute pressure, and finished billet
 hold/sink/gone states.
+
+Run-power props have their own tool. It writes catalogue pages, count ladders,
+span ladders, and whole live bursts at the chopping camera's distance to
+`user://run_power_props_*.png` (macOS:
+`~/Library/Application Support/the-axeman/`):
+
+```bash
+"$GODOT" --path . --rendering-method gl_compatibility core/tools/run_power_prop_shot.tscn
+```
+
+A second tool captures every power triggering inside the real production
+composition — Main, the yard, the stump, live loose roots, the production camera
+and the HUD — one 1280x720 page per power at
+`user://run_power_action_<index>_<power>.png`:
+
+```bash
+"$GODOT" --path . --rendering-method gl_compatibility core/tools/run_power_action_shot.tscn
+```
+
+Use both on any change to `run_power_prop_library.gd`, `run_power_burst.gd`, or
+`assets/shaders/power_prop.gdshader`. The grid tool answers "is this prop
+modelled right"; only the action tool answers "does it read at the production
+camera", which is where prop scale was wrong in both directions before it existed. Numeric checks alone do not catch
+polygonal rings, props authored at the wrong world scale, or emblems that are
+unreadable at play distance — all three shipped through a green suite and were
+only visible in a render.
+
+Note: `run_power_runtime_acceptance` intermittently fails its Yard Magnet check
+when run non-headless. This reproduces on an unmodified checkout and is a
+timing flake in that test, not a regression signal; the headless run is stable.

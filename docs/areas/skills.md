@@ -13,15 +13,19 @@ The immutable `RunPowerTable` contract contains:
 
 - fourteen Core powers owned by every fresh/migrated profile;
 - thirteen Blueprint powers unlocked only through settled boss rolls;
-- authored rank caps, typed effect ladders, and explicit `PLACEHOLDER` tuning
+- curve-derived rank caps, typed effect ladders, and explicit `PLACEHOLDER` tuning
   on every row, with a hard catalogue ceiling of 32 powers.
 
-Power identity, copy, pool, cap, and presentation live in
+Power identity, copy, pool, and presentation live in
 `data/run_power_catalogue_placeholder.tres`. All temporary power rank ladders
-live in the single balance file `data/run_power_curves_placeholder.tres`. Its
-arrays are cumulative totals: entry one is Rank 1, entry two is Rank 2, and so
-on. Chance values use `0.0-1.0`, intervals use seconds, distances use metres,
-and destructive payload counts are whole logs.
+and their caps live in the single balance file
+`data/run_power_curves_placeholder.tres`. Its arrays are cumulative totals:
+entry one is Rank 1, entry two is Rank 2, and so on. The longest effect array
+for a power defines its rank cap; a shorter companion array holds its final
+value through the remaining ranks. Chance values use `0.0-1.0`, intervals use
+seconds, distances use metres, and destructive payload counts are whole logs.
+Curve validation remains diagnostic and cannot block profile loading, save
+writes, permanent purchases, banking, or Blueprint unlocks.
 
 Slice 2 now runs from Level 1 with a fresh XP curve. Authoritative XP queues
 levels immediately, while the choice pause waits until the matching orb fills
@@ -58,9 +62,9 @@ All 27 powers are live from their first owned rank:
   Axe, Crosscut Sweep, Maul Drop, Splitter Rig, Cant Hook, Stump Pulse,
   Last-Ditch Rescue, Momentum, and Timber Burst.
 
-Area Size is a shared multiplicative stat for power geometry. Its provisional
-rank ladder is `1.1× / 1.2× / 1.3× / 1.4× / 1.5×`, with card quality scaling
-the increment rather than adding ranks. It currently scales Earthshaker,
+Area Size is a shared multiplicative stat for power geometry. Its editable
+ladder lives in the central power-curve resource, with card quality scaling the
+increment rather than adding ranks. It currently scales Earthshaker,
 Powder Keg, Kindling Chain, Whirling Axe's orbit, Crosscut Sweep, Stump Pulse,
 Sawblade Halo, and Timber Burst in both gameplay and their matching area
 presentation. It does not resize the yard boundary itself. Sawblade Halo
@@ -86,18 +90,55 @@ restore, or hand to the block.
 
 All off-block destructive count values now mean distinct logs destroyed. Every
 successful primary manual strike fires visible Splinter Volley feedback and
-immediately destroys its nearest ordered targets. Its explicitly provisional
-rank ladder is `1 / 2 / 3 / 4 / 5 / 6 / 7 / 8` logs; card quality strengthens
-that one selected rank's value and never grants extra ranks. Flying Wedge keeps
-one fixed endangered-log payload, while rank and card quality improve only its
-interval. Powder Keg, Kindling Chain, Maul Drop, and spilled Double Chop work use
-their displayed count as the maximum distinct loose logs destroyed. Radius,
-contact, and sweep powers immediately destroy every affected loose root.
+immediately destroys its nearest ordered targets. Its count ladder comes from
+the central power-curve resource; card quality strengthens that selected
+rank's value and never grants extra ranks. Flying Wedge's rank can tune both its
+endangered-log payload and interval, while card quality improves its interval
+without silently multiplying the payload. Powder Keg, Kindling Chain, Maul
+Drop, and spilled Double Chop work use their displayed count as the maximum
+distinct loose logs destroyed. Radius, contact, and sweep powers immediately
+destroy every affected loose root.
 
-The Splinter Volley projectile uses labelled placeholder size, height, colour
-mix, glow, and shared travel-duration values in
-`data/run_vfx_config_placeholder.tres`;
-these remain inspector-tunable pending a measured feel pass.
+## Run-power geometry
+
+Run powers are announced with real 3D geometry, not particles. The billboard
+core quad and the GPU particle cloud are retired; `RunPowerBurst` now composes
+three geometric parts, all built by `scenes/3d_action/run_power_prop_library.gd`:
+
+- a **`PowerProp` emblem** — one distinct code-native prop per power, all 27
+  authored, built from primitive meshes;
+- a **`LogTally`** of exactly one real billet per destroyed loose root, so a ×4
+  receipt puts four logs on screen. Acquisitions carry no payload and show the
+  emblem alone;
+- the existing **`ActionSilhouette`** for the periodic tools and area effects,
+  now carrying saw teeth and radial ring ticks.
+
+Two live gameplay quantities reach the meshes directly. The destroyed-log count
+becomes that many billets. A power's own count stat — orbiting axes, Momentum
+stacks, Follow-Up repeats, Area Size ranks — is read from the authoritative
+runtime by `_run_power_identity_count` and becomes that many emblem pieces.
+The already Area-Size-scaled effective radius sets the `AreaRing`'s true world
+radius, and also scales the emblem through `RunPowerPropLibrary.badge_radius`,
+which is deliberately bounded: the literal radius belongs to the ground ring,
+while the emblem stays a readable badge held above the trigger point. The live
+Whirling Axe tools orbiting the stump are the same authored axe as its emblem.
+
+Props use `assets/shaders/power_prop.gdshader`, not the flat daub shader: the
+daub is unshaded with `depth_draw_never`, which is correct for cutout marks and
+wrong for solid geometry, whose own back faces would show through. Emblem
+meshes and materials are cached by dimensions **and** material, so two powers
+can never share and overwrite one pigment.
+
+`core/tools/run_power_prop_shot.tscn` is the visual review tool: catalogue
+pages, count ladders, span ladders, and whole live bursts at the chopping
+camera's distance. Run it non-headless on any prop or shader change — the first
+pass passed every numeric check while rendering polygonal rings, world-scale
+props that swallowed the yard, and emblems too small to see in play.
+
+All prop scale, clearance, spin, and tally values in
+`data/run_vfx_config_placeholder.tres` remain labelled PLACEHOLDER, as does the
+Splinter Volley projectile's size, height, colour mix, glow, and shared
+travel-duration; these remain inspector-tunable pending a measured feel pass.
 
 Each destroyed loose root synchronously becomes a deterministic-random `2–6`
 real-fragment batch using the provisional survival-tuning range. The descendants
@@ -110,20 +151,19 @@ cut journal.
 The production HUD renders the three/four-card modal, visibly distinct quality
 badges and effect deltas, input-transparent falling tree/log/leaf accents, the
 six-slot strip, automatic cooldown/ready state, charges/stacks, and acquisition/
-trigger feedback. All 27 powers have distinct vector emblems with a neutral,
+trigger feedback. All 27 powers have distinct vector icons with a neutral,
 equal-identity background; the same icon is used by Home, offers, and
 the live loadout. The active strip is a `356×42` row centered at the top
 immediately below the XP bar. Each active slot shows only its icon and `R#`—no
 name or runtime-status copy—while full details stay on Home and level-up cards,
 so the strip no longer blocks the lower chopping view. Flying Wedge, Crosscut
-Sweep, and Maul Drop have distinct
-code-native proc silhouettes; Whirling Axe renders its orbiting tools, and
-Splitter Rig visibly claims and transfers its target. Other triggers use
-power-colored burst feedback. Yard Magnet applies its deliberately gentler Rank
-1 pull only while a loose root is in live contact with the yard floor. It fires
-an immediate `0.5`-second pulse on acquisition, then repeats every `5` seconds at
-Rank 1. Its explicitly provisional interval ladder is `5 / 4.5 / 4 / 3.5 / 3 /
-2.5 / 2 / 1.5` seconds; rank force still uses the separate `0.1`–`0.8` ladder.
+Sweep, and Maul Drop have distinct code-native proc silhouettes; Whirling Axe
+renders its orbiting tools, and Splitter Rig visibly claims and transfers its
+target. Every trigger additionally shows its own 3D prop and destroyed-log
+tally, as described under "Run-power geometry". Yard Magnet applies its editable Rank 1 pull only
+while a loose root is in live contact with the yard floor. It fires an immediate
+`0.5`-second pulse on acquisition, then repeats at the cadence in the central
+curve resource; force has its own ladder there.
 During a pulse, planar motion is updated on physics ticks toward one fixed,
 reachable approach dock outside the actual block collider, immediately enters
 the authored capped speed, and eases down before contact. The clearance includes

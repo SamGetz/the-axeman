@@ -26,38 +26,19 @@ const META_CAPS := {
 	&"banishes": 5,
 }
 
-const CORE_POWER_CAPS := {
-	&"deep_bite": 8,
-	&"quick_hands": 8,
-	&"scar_wisdom": 5,
-	&"double_chop": 3,
-	&"follow_up": 5,
-	&"splinter_volley": 8,
-	&"flying_wedge": 8,
-	&"yard_magnet": 8,
-	&"soft_landing": 5,
-	&"ring_reinforcement": 5,
-	&"quick_study": 5,
-	&"keen_appraisal": 5,
-	&"area_size": 5,
-	&"sawblade_halo": 5,
-}
+const CORE_POWER_IDS: Array[StringName] = [
+	&"deep_bite", &"quick_hands", &"scar_wisdom", &"double_chop",
+	&"follow_up", &"splinter_volley", &"flying_wedge", &"yard_magnet",
+	&"soft_landing", &"ring_reinforcement", &"quick_study",
+	&"keen_appraisal", &"area_size", &"sawblade_halo",
+]
 
-const BLUEPRINT_POWER_CAPS := {
-	&"grain_reader": 5,
-	&"earthshaker": 3,
-	&"powder_keg": 3,
-	&"kindling_chain": 5,
-	&"whirling_axe": 5,
-	&"crosscut_sweep": 5,
-	&"maul_drop": 3,
-	&"splitter_rig": 5,
-	&"cant_hook": 5,
-	&"stump_pulse": 5,
-	&"last_ditch_rescue": 3,
-	&"momentum": 8,
-	&"timber_burst": 5,
-}
+const BLUEPRINT_POWER_IDS: Array[StringName] = [
+	&"grain_reader", &"earthshaker", &"powder_keg", &"kindling_chain",
+	&"whirling_axe", &"crosscut_sweep", &"maul_drop", &"splitter_rig",
+	&"cant_hook", &"stump_pulse", &"last_ditch_rescue", &"momentum",
+	&"timber_burst",
+]
 
 const YARD_ONE_SPECIES: Array[StringName] = [
 	&"quaking_aspen", &"eastern_white_pine", &"norway_spruce",
@@ -108,7 +89,9 @@ static func wood_handling() -> WoodHandlingProfileTable:
 
 
 static func core_power_ids() -> Array[StringName]:
-	return _dictionary_ids(CORE_POWER_CAPS)
+	var out: Array[StringName] = []
+	out.assign(CORE_POWER_IDS)
+	return out
 
 
 static func clear_cache() -> void:
@@ -172,27 +155,25 @@ static func _validate_locked_meta_contract() -> PackedStringArray:
 static func _validate_locked_power_contract() -> PackedStringArray:
 	var errors := PackedStringArray()
 	var table := run_powers()
-	if table.powers.size() != CORE_POWER_CAPS.size() + BLUEPRINT_POWER_CAPS.size():
+	if table.powers.size() != CORE_POWER_IDS.size() + BLUEPRINT_POWER_IDS.size():
 		errors.append("run-power catalogue must match the locked power roster")
 	if table.powers.size() > RunPowerTable.MAX_POWER_COUNT:
 		errors.append("run-power catalogue exceeds its 32-power cap")
-	for raw_id: Variant in CORE_POWER_CAPS:
-		_validate_power_row(errors, table, StringName(raw_id),
-			RunPowerDef.Pool.CORE, int(CORE_POWER_CAPS[raw_id]))
-	for raw_id: Variant in BLUEPRINT_POWER_CAPS:
-		_validate_power_row(errors, table, StringName(raw_id),
-			RunPowerDef.Pool.BLUEPRINT, int(BLUEPRINT_POWER_CAPS[raw_id]))
+	for id: StringName in CORE_POWER_IDS:
+		_validate_power_row(errors, table, id, RunPowerDef.Pool.CORE)
+	for id: StringName in BLUEPRINT_POWER_IDS:
+		_validate_power_row(errors, table, id, RunPowerDef.Pool.BLUEPRINT)
 	return errors
 
 
 static func _validate_power_row(errors: PackedStringArray, table: RunPowerTable,
-		id: StringName, expected_pool: RunPowerDef.Pool, expected_cap: int) -> void:
+		id: StringName, expected_pool: RunPowerDef.Pool) -> void:
 	var definition := table.by_id(id)
 	if definition == null:
 		errors.append("run-power catalogue is missing locked power:%s" % id)
 		return
-	if definition.pool != expected_pool or definition.rank_cap != expected_cap:
-		errors.append("run power %s has the wrong locked pool or cap" % id)
+	if definition.pool != expected_pool:
+		errors.append("run power %s has the wrong locked pool" % id)
 
 
 static func _validate_locked_yard_contract() -> PackedStringArray:

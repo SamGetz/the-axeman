@@ -77,17 +77,17 @@ func _ready() -> void:
 
 	var definition := SurvivorsContent.run_powers().by_id(&"double_chop")
 	RunPowerBurst.spawn(game, Vector3.ZERO, definition)
-	var power_materials := RunPowerBurst._material_cache.size()
-	var power_meshes := RunPowerBurst._mesh_cache.size()
+	var power_materials := RunPowerPropLibrary._material_cache.size()
+	var power_meshes := RunPowerPropLibrary._mesh_cache.size()
 	var vfx_started := Time.get_ticks_usec()
 	for index: int in range(VFX_TRIGGER_COUNT):
 		var offset := Vector3(float(index % 10) * 0.01, 0.0,
 			float(index / 10) * 0.01)
 		RunPowerBurst.spawn(game, offset, definition)
 	var vfx_ms := float(Time.get_ticks_usec() - vfx_started) / 1000.0
-	_check(RunPowerBurst._material_cache.size() == power_materials \
-			and RunPowerBurst._mesh_cache.size() == power_meshes,
-		"repeat trigger VFX reuse their warmed material, process, and draw resources")
+	_check(RunPowerPropLibrary._material_cache.size() == power_materials \
+			and RunPowerPropLibrary._mesh_cache.size() == power_meshes,
+		"repeat trigger props reuse their warmed prop meshes and materials")
 
 	print(("SURVIVAL PERFORMANCE: roots=%d spawn=%.2fms (%.3fms/root) " \
 		+ "hazards=%d×%.3fms cuts=%.2fms (%.2fms/cut) vfx=%d %.2fms") \

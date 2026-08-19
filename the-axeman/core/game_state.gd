@@ -107,7 +107,7 @@ func issue_run_id() -> StringName:
 
 
 func can_purchase_meta_upgrade(id: StringName) -> bool:
-	if _permanent_controls_locked or not SurvivorsContent.validate_all().is_empty():
+	if _permanent_controls_locked:
 		return false
 	var definition := _meta_definition(id)
 	if definition == null:
@@ -146,7 +146,7 @@ func purchase_meta_upgrade(id: StringName) -> bool:
 
 
 func refund_all_meta_upgrades() -> int:
-	if _permanent_controls_locked or not SurvivorsContent.validate_all().is_empty():
+	if _permanent_controls_locked:
 		return 0
 	var refund := 0
 	for raw_ledger: Variant in _meta_upgrade_spend_ledger.values():
@@ -253,8 +253,7 @@ func is_run_power_unlocked(id: StringName) -> bool:
 
 
 func unlock_run_power(id: StringName) -> bool:
-	if _permanent_controls_locked or not SurvivorsContent.validate_all().is_empty() \
-			or _power_definition(id) == null \
+	if _permanent_controls_locked or _power_definition(id) == null \
 			or is_run_power_unlocked(id):
 		return false
 	_unlocked_run_powers[id] = true
@@ -306,8 +305,7 @@ func has_banked_run(run_id: StringName) -> bool:
 
 
 func bank_run(settlement: Dictionary) -> Dictionary:
-	if not SurvivorsContent.validate_all().is_empty() \
-			or not _is_valid_bank_settlement(settlement):
+	if not _is_valid_bank_settlement(settlement):
 		return {}
 	var run_id := StringName(settlement.get("run_id", ""))
 	var session_cash := int(settlement.get("session_cash", 0))

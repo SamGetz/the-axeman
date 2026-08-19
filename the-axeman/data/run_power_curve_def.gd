@@ -6,6 +6,17 @@ extends Resource
 @export var effects: Array[ProgressionEffectDef] = []
 
 
+## A run power's ladder length is balance data. The longest authored effect
+## defines the number of ranks; shorter companion effects hold their final
+## value through the remaining ranks via ProgressionEffectDef.value_at_rank().
+func rank_cap() -> int:
+	var cap := 0
+	for effect: ProgressionEffectDef in effects:
+		if effect != null:
+			cap = maxi(cap, effect.cumulative_values_by_rank.size())
+	return cap
+
+
 func validate() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if power_id == &"":
@@ -21,4 +32,7 @@ func validate() -> PackedStringArray:
 			errors.append("run-power curve %s contains duplicate effect kind:%d" % [
 				power_id, effect.kind])
 		kinds[effect.kind] = true
+		errors.append_array(effect.validate())
+	if rank_cap() <= 0:
+		errors.append("run-power curve %s has no authored ranks" % power_id)
 	return errors

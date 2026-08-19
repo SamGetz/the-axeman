@@ -1,6 +1,6 @@
 class_name RunPowerDef
 extends Resource
-## Immutable identity and fixed authored rank ladder for one temporary power.
+## Immutable identity and a curve-bound rank ladder for one temporary power.
 ## Power identities have no rarity or offer-frequency tier. Upgrade quality is
 ## rolled separately for each offered rank.
 
@@ -11,7 +11,8 @@ enum Pool { INVALID, CORE, BLUEPRINT }
 @export var display_name := ""
 @export_multiline var description := ""
 @export var pool: Pool = Pool.INVALID
-@export_range(1, 99, 1) var rank_cap := 1
+## Derived from the longest ladder in run_power_curves_placeholder.tres.
+var rank_cap := 0
 
 @export_group("Presentation")
 @export var icon_path := ""
@@ -27,6 +28,11 @@ var effects: Array[ProgressionEffectDef] = []
 
 func bind_effects(authored_effects: Array[ProgressionEffectDef]) -> void:
 	effects = authored_effects
+	rank_cap = 0
+	for effect: ProgressionEffectDef in effects:
+		if effect != null:
+			rank_cap = maxi(rank_cap,
+				effect.cumulative_values_by_rank.size())
 
 
 func effect_value(effect_kind: ProgressionEffectDef.Kind, rank: int) -> float:
@@ -321,7 +327,7 @@ func validate() -> PackedStringArray:
 		if kinds.has(effect.kind):
 			errors.append("run power contains a duplicate effect kind:%d" % effect.kind)
 		kinds[effect.kind] = true
-		errors.append_array(effect.validate(rank_cap))
+		errors.append_array(effect.validate())
 	if icon_path.strip_edges().is_empty() or vfx_path.strip_edges().is_empty():
 		errors.append("run power is missing provisional icon or VFX paths")
 	if not tuning_status.begins_with("PLACEHOLDER"):

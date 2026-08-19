@@ -13,6 +13,7 @@ const V17_WRONG_TYPES_FIXTURE := \
 const V16_FIXTURE := "res://core/tests/fixtures/survivors_v16_alien_mastery.cfg"
 const V14_FIXTURE := "res://core/tests/fixtures/survivors_v14_records.cfg"
 const V1_FIXTURE := "res://core/tests/fixtures/survivors_v1_alias.cfg"
+const TUNING_ISOLATION_SAVE := "user://power_tuning_isolation_acceptance.cfg"
 
 const META_CAPS := {
 	&"axe_power": 8,
@@ -30,36 +31,35 @@ const META_CAPS := {
 	&"banishes": 5,
 }
 
-## [pool, rank cap]. Every eligible identity has the same offer chance; rolled
-## upgrade quality is tested by the runtime suite.
+## Pools are identity data. Rank caps come from the editable curve lengths.
 const POWER_RULES := {
-	&"deep_bite": [RunPowerDef.Pool.CORE, 8],
-	&"quick_hands": [RunPowerDef.Pool.CORE, 8],
-	&"scar_wisdom": [RunPowerDef.Pool.CORE, 5],
-	&"double_chop": [RunPowerDef.Pool.CORE, 3],
-	&"follow_up": [RunPowerDef.Pool.CORE, 5],
-	&"splinter_volley": [RunPowerDef.Pool.CORE, 8],
-	&"flying_wedge": [RunPowerDef.Pool.CORE, 8],
-	&"yard_magnet": [RunPowerDef.Pool.CORE, 8],
-	&"soft_landing": [RunPowerDef.Pool.CORE, 5],
-	&"ring_reinforcement": [RunPowerDef.Pool.CORE, 5],
-	&"quick_study": [RunPowerDef.Pool.CORE, 5],
-	&"keen_appraisal": [RunPowerDef.Pool.CORE, 5],
-	&"area_size": [RunPowerDef.Pool.CORE, 5],
-	&"sawblade_halo": [RunPowerDef.Pool.CORE, 5],
-	&"grain_reader": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"earthshaker": [RunPowerDef.Pool.BLUEPRINT, 3],
-	&"powder_keg": [RunPowerDef.Pool.BLUEPRINT, 3],
-	&"kindling_chain": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"whirling_axe": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"crosscut_sweep": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"maul_drop": [RunPowerDef.Pool.BLUEPRINT, 3],
-	&"splitter_rig": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"cant_hook": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"stump_pulse": [RunPowerDef.Pool.BLUEPRINT, 5],
-	&"last_ditch_rescue": [RunPowerDef.Pool.BLUEPRINT, 3],
-	&"momentum": [RunPowerDef.Pool.BLUEPRINT, 8],
-	&"timber_burst": [RunPowerDef.Pool.BLUEPRINT, 5],
+	&"deep_bite": RunPowerDef.Pool.CORE,
+	&"quick_hands": RunPowerDef.Pool.CORE,
+	&"scar_wisdom": RunPowerDef.Pool.CORE,
+	&"double_chop": RunPowerDef.Pool.CORE,
+	&"follow_up": RunPowerDef.Pool.CORE,
+	&"splinter_volley": RunPowerDef.Pool.CORE,
+	&"flying_wedge": RunPowerDef.Pool.CORE,
+	&"yard_magnet": RunPowerDef.Pool.CORE,
+	&"soft_landing": RunPowerDef.Pool.CORE,
+	&"ring_reinforcement": RunPowerDef.Pool.CORE,
+	&"quick_study": RunPowerDef.Pool.CORE,
+	&"keen_appraisal": RunPowerDef.Pool.CORE,
+	&"area_size": RunPowerDef.Pool.CORE,
+	&"sawblade_halo": RunPowerDef.Pool.CORE,
+	&"grain_reader": RunPowerDef.Pool.BLUEPRINT,
+	&"earthshaker": RunPowerDef.Pool.BLUEPRINT,
+	&"powder_keg": RunPowerDef.Pool.BLUEPRINT,
+	&"kindling_chain": RunPowerDef.Pool.BLUEPRINT,
+	&"whirling_axe": RunPowerDef.Pool.BLUEPRINT,
+	&"crosscut_sweep": RunPowerDef.Pool.BLUEPRINT,
+	&"maul_drop": RunPowerDef.Pool.BLUEPRINT,
+	&"splitter_rig": RunPowerDef.Pool.BLUEPRINT,
+	&"cant_hook": RunPowerDef.Pool.BLUEPRINT,
+	&"stump_pulse": RunPowerDef.Pool.BLUEPRINT,
+	&"last_ditch_rescue": RunPowerDef.Pool.BLUEPRINT,
+	&"momentum": RunPowerDef.Pool.BLUEPRINT,
+	&"timber_burst": RunPowerDef.Pool.BLUEPRINT,
 }
 
 const YARD_ONE_SPECIES: Array[StringName] = [
@@ -74,6 +74,7 @@ var _failed := 0
 func _ready() -> void:
 	print("=== SURVIVORS PROGRESSION SLICE 1 ACCEPTANCE ===")
 	_test_shipping_catalogues()
+	_test_power_tuning_isolation()
 	_test_clean_profile()
 	_test_atomic_meta_transactions()
 	_test_exact_ledger_refund_and_tier_clamp()
@@ -135,13 +136,16 @@ func _test_shipping_catalogues() -> void:
 		power_shape_ok = power_shape_ok and definition != null
 		if definition == null:
 			continue
-		var rule: Array = POWER_RULES[raw_id]
-		power_shape_ok = power_shape_ok and definition.pool == int(rule[0]) \
-			and definition.rank_cap == int(rule[1]) \
+		var curve := power_curves.by_id(StringName(raw_id))
+		power_shape_ok = power_shape_ok \
+			and definition.pool == int(POWER_RULES[raw_id]) \
+			and curve != null and definition.rank_cap == curve.rank_cap() \
+			and definition.rank_cap > 0 \
 			and definition.tuning_status.begins_with("PLACEHOLDER")
 		for effect: ProgressionEffectDef in definition.effects:
 			power_shape_ok = power_shape_ok and effect != null \
-				and effect.cumulative_values_by_rank.size() == definition.rank_cap \
+				and not effect.cumulative_values_by_rank.is_empty() \
+				and effect.cumulative_values_by_rank.size() <= definition.rank_cap \
 				and effect.tuning_status.begins_with("PLACEHOLDER")
 		if definition.pool == RunPowerDef.Pool.CORE:
 			core_count += 1
@@ -149,7 +153,7 @@ func _test_shipping_catalogues() -> void:
 			blueprint_count += 1
 	_check(power_shape_ok and core_count == 14 and blueprint_count == 13 \
 		and powers.powers.size() <= RunPowerTable.MAX_POWER_COUNT,
-		"all 27 equally weighted identities retain pool/cap contracts below the 32-power ceiling")
+		"all 27 identities retain their pools and derive rank caps from editable curves")
 
 	var yard := yards.by_id(&"yard_one")
 	var timeline_ids: Array[StringName] = []
@@ -213,6 +217,41 @@ func _test_shipping_catalogues() -> void:
 	_check(_contains_error(oversized_power_table.validate(),
 		"between 1 and 32 powers"),
 		"the run-power catalogue validator rejects a thirty-third identity")
+
+
+func _test_power_tuning_isolation() -> void:
+	var powers := SurvivorsContent.run_powers()
+	var deep_bite := powers.by_id(&"deep_bite") if powers != null else null
+	var effect := deep_bite.effects[0] as ProgressionEffectDef \
+		if deep_bite != null and not deep_bite.effects.is_empty() else null
+	if effect == null:
+		_check(false, "editable run-power tuning is isolated from profile authority")
+		return
+	var original_values := effect.cumulative_values_by_rank.duplicate()
+	effect.cumulative_values_by_rank = PackedFloat64Array()
+	# Rebind after the in-memory edit exactly as a resource reload would.
+	powers.validate()
+	var tuning_is_invalid := not SurvivorsContent.validate_all().is_empty()
+	_cleanup_isolated_save(TUNING_ISOLATION_SAVE)
+	var isolated := SaveSystem.set_save_path_for_tests(TUNING_ISOLATION_SAVE)
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var axe := SurvivorsContent.meta_upgrades().by_id(&"axe_power")
+	var profile := GameState.to_save_dict()
+	profile["home_cash"] = axe.cost_for_rank(1) if axe != null else 0
+	GameState.apply_save_dict(profile)
+	var purchased := GameState.purchase_meta_upgrade(&"axe_power")
+	var saved := SaveSystem.clear_attempt_and_save()
+	GameState.reset_to_defaults()
+	InventoryManager.apply_save_dict({})
+	var loaded := SaveSystem.load_game() == SaveSystem.LoadResult.OK
+	_check(tuning_is_invalid and isolated and purchased and saved and loaded \
+		and GameState.get_meta_upgrade_rank(&"axe_power") == 1,
+		"editable run-power tuning cannot block profile load, run-start saves, or Home upgrades")
+	effect.cumulative_values_by_rank = original_values
+	powers.validate()
+	_cleanup_isolated_save(TUNING_ISOLATION_SAVE)
+	SaveSystem.reset_save_path_after_tests()
 
 
 func _test_clean_profile() -> void:

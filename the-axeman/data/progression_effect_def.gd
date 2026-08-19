@@ -85,14 +85,16 @@ func value_at_rank(rank: int) -> float:
 		rank - 1, 0, cumulative_values_by_rank.size() - 1)])
 
 
-func validate(expected_rank_cap: int) -> PackedStringArray:
+func validate(expected_rank_cap: int = 0) -> PackedStringArray:
 	var errors := PackedStringArray()
 	if kind <= Kind.INVALID or kind > Kind.TIMBER_BURST_RADIUS:
 		errors.append("progression effect has an invalid kind")
 	if operation < Operation.ADD or operation > Operation.SET:
 		errors.append("progression effect has an invalid operation")
-	if expected_rank_cap <= 0 \
-			or cumulative_values_by_rank.size() != expected_rank_cap:
+	if cumulative_values_by_rank.is_empty():
+		errors.append("progression effect has no authored rank values")
+	elif expected_rank_cap > 0 \
+			and cumulative_values_by_rank.size() != expected_rank_cap:
 		errors.append("progression effect rank array does not match its owner cap")
 	for value: float in cumulative_values_by_rank:
 		if not is_finite(value):

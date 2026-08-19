@@ -30,110 +30,56 @@ const _BLUEPRINT_IDS: Array[StringName] = [
 	&"timber_burst",
 ]
 
-## Exact first authored values. Keeping the effect kind beside every value
-## catches the easy-to-miss failure where a valid ladder is wired to the wrong
-## gameplay consumer.
-const _RANK_ONE_EFFECTS := {
-	&"deep_bite": {
-		ProgressionEffectDef.Kind.SPLIT_RELIABILITY: 0.04,
-	},
-	&"quick_hands": {
-		ProgressionEffectDef.Kind.SWING_RECOVERY: 0.04,
-	},
-	&"scar_wisdom": {
-		ProgressionEffectDef.Kind.SCAR_RELIABILITY: 0.05,
-	},
-	&"double_chop": {
-		ProgressionEffectDef.Kind.GUARANTEED_EXTRA_CUTS: 1.0,
-	},
-	&"follow_up": {
-		ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE: 0.15,
-		ProgressionEffectDef.Kind.FOLLOW_UP_DEPTH: 1.0,
-	},
-	&"splinter_volley": {
-		ProgressionEffectDef.Kind.SPLINTER_COUNT: 1.0,
-	},
-	&"flying_wedge": {
-		ProgressionEffectDef.Kind.FLYING_WEDGE_INTERVAL: 12.0,
-		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT: 1.0,
-	},
-	&"yard_magnet": {
-		ProgressionEffectDef.Kind.YARD_MAGNET_FORCE: 0.1,
-		ProgressionEffectDef.Kind.YARD_MAGNET_PULSE_INTERVAL: 5.0,
-	},
-	&"soft_landing": {
-		ProgressionEffectDef.Kind.ARRIVAL_LATERAL_MULTIPLIER: 0.92,
-		ProgressionEffectDef.Kind.ARRIVAL_BOUNCE_MULTIPLIER: 0.90,
-		ProgressionEffectDef.Kind.ARRIVAL_OUTWARD_MULTIPLIER: 0.92,
-	},
-	&"ring_reinforcement": {
-		ProgressionEffectDef.Kind.BOUNDARY_RADIUS: 0.12,
-		ProgressionEffectDef.Kind.BOUNDARY_GRACE: 0.40,
-	},
-	&"quick_study": {
-		ProgressionEffectDef.Kind.RUN_XP_MULTIPLIER: 1.10,
-	},
-	&"keen_appraisal": {
-		ProgressionEffectDef.Kind.SESSION_CASH_MULTIPLIER: 1.10,
-	},
-	&"area_size": {
-		ProgressionEffectDef.Kind.AREA_SIZE_MULTIPLIER: 1.10,
-	},
-	&"sawblade_halo": {
-		ProgressionEffectDef.Kind.SAWBLADE_HALO_INTERVAL: 12.0,
-		ProgressionEffectDef.Kind.SAWBLADE_HALO_RADIUS: 1.50,
-	},
-	&"grain_reader": {
-		ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE: 0.10,
-		ProgressionEffectDef.Kind.GRAIN_BONUS_XP_MULTIPLIER: 1.50,
-	},
-	&"earthshaker": {
-		ProgressionEffectDef.Kind.EARTHSHAKER_TRIGGER_CUTS: 4.0,
-		ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS: 1.50,
-		ProgressionEffectDef.Kind.EARTHSHAKER_INWARD_FORCE: 2.0,
-	},
-	&"powder_keg": {
-		ProgressionEffectDef.Kind.POWDER_KEG_RADIUS: 1.50,
-		ProgressionEffectDef.Kind.POWDER_KEG_CUT_COUNT: 2.0,
-		ProgressionEffectDef.Kind.POWDER_KEG_INWARD_FORCE: 2.0,
-	},
-	&"kindling_chain": {
-		ProgressionEffectDef.Kind.KINDLING_CHAIN_COUNT: 1.0,
-		ProgressionEffectDef.Kind.KINDLING_CHAIN_RANGE: 1.50,
-	},
-	&"whirling_axe": {
-		ProgressionEffectDef.Kind.ORBITING_AXE_COUNT: 1.0,
-		ProgressionEffectDef.Kind.ORBITING_AXE_CONTACT_COOLDOWN: 2.0,
-	},
-	&"crosscut_sweep": {
-		ProgressionEffectDef.Kind.CROSSCUT_SWEEP_INTERVAL: 14.0,
-		ProgressionEffectDef.Kind.CROSSCUT_SWEEP_WIDTH: 2.0,
-	},
-	&"maul_drop": {
-		ProgressionEffectDef.Kind.MAUL_DROP_INTERVAL: 18.0,
-		ProgressionEffectDef.Kind.MAUL_DROP_CUT_COUNT: 3.0,
-	},
-	&"splitter_rig": {
-		ProgressionEffectDef.Kind.SPLITTER_RIG_INTERVAL: 18.0,
-	},
-	&"cant_hook": {
-		ProgressionEffectDef.Kind.CANT_HOOK_FORCE: 1.0,
-	},
-	&"stump_pulse": {
-		ProgressionEffectDef.Kind.STUMP_PULSE_INTERVAL: 14.0,
-		ProgressionEffectDef.Kind.STUMP_PULSE_FORCE: 2.0,
-	},
-	&"last_ditch_rescue": {
-		ProgressionEffectDef.Kind.RESCUE_CHARGES: 1.0,
-	},
-	&"momentum": {
-		ProgressionEffectDef.Kind.MOMENTUM_MAX_STACKS: 3.0,
-		ProgressionEffectDef.Kind.MOMENTUM_SPEED_PER_STACK: 0.02,
-		ProgressionEffectDef.Kind.MOMENTUM_RELIABILITY_PER_STACK: 0.01,
-	},
-	&"timber_burst": {
-		ProgressionEffectDef.Kind.TIMBER_BURST_RADIUS: 1.20,
-	},
+## Stable wiring contract. The values themselves deliberately come from the
+## editable curve resource so balancing changes do not turn runtime tests into
+## a second, conflicting source of truth.
+const _EXPECTED_EFFECT_KINDS := {
+	&"deep_bite": [ProgressionEffectDef.Kind.SPLIT_RELIABILITY],
+	&"quick_hands": [ProgressionEffectDef.Kind.SWING_RECOVERY],
+	&"scar_wisdom": [ProgressionEffectDef.Kind.SCAR_RELIABILITY],
+	&"double_chop": [ProgressionEffectDef.Kind.GUARANTEED_EXTRA_CUTS],
+	&"follow_up": [ProgressionEffectDef.Kind.FOLLOW_UP_CHANCE,
+		ProgressionEffectDef.Kind.FOLLOW_UP_DEPTH],
+	&"splinter_volley": [ProgressionEffectDef.Kind.SPLINTER_COUNT],
+	&"flying_wedge": [ProgressionEffectDef.Kind.FLYING_WEDGE_INTERVAL,
+		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT],
+	&"yard_magnet": [ProgressionEffectDef.Kind.YARD_MAGNET_FORCE,
+		ProgressionEffectDef.Kind.YARD_MAGNET_PULSE_INTERVAL],
+	&"soft_landing": [ProgressionEffectDef.Kind.ARRIVAL_LATERAL_MULTIPLIER,
+		ProgressionEffectDef.Kind.ARRIVAL_BOUNCE_MULTIPLIER,
+		ProgressionEffectDef.Kind.ARRIVAL_OUTWARD_MULTIPLIER],
+	&"ring_reinforcement": [ProgressionEffectDef.Kind.BOUNDARY_RADIUS,
+		ProgressionEffectDef.Kind.BOUNDARY_GRACE],
+	&"quick_study": [ProgressionEffectDef.Kind.RUN_XP_MULTIPLIER],
+	&"keen_appraisal": [ProgressionEffectDef.Kind.SESSION_CASH_MULTIPLIER],
+	&"area_size": [ProgressionEffectDef.Kind.AREA_SIZE_MULTIPLIER],
+	&"sawblade_halo": [ProgressionEffectDef.Kind.SAWBLADE_HALO_INTERVAL,
+		ProgressionEffectDef.Kind.SAWBLADE_HALO_RADIUS],
+	&"grain_reader": [ProgressionEffectDef.Kind.GRAIN_MARK_CHANCE,
+		ProgressionEffectDef.Kind.GRAIN_BONUS_XP_MULTIPLIER],
+	&"earthshaker": [ProgressionEffectDef.Kind.EARTHSHAKER_TRIGGER_CUTS,
+		ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS,
+		ProgressionEffectDef.Kind.EARTHSHAKER_INWARD_FORCE],
+	&"powder_keg": [ProgressionEffectDef.Kind.POWDER_KEG_RADIUS,
+		ProgressionEffectDef.Kind.POWDER_KEG_CUT_COUNT,
+		ProgressionEffectDef.Kind.POWDER_KEG_INWARD_FORCE],
+	&"kindling_chain": [ProgressionEffectDef.Kind.KINDLING_CHAIN_COUNT,
+		ProgressionEffectDef.Kind.KINDLING_CHAIN_RANGE],
+	&"whirling_axe": [ProgressionEffectDef.Kind.ORBITING_AXE_COUNT,
+		ProgressionEffectDef.Kind.ORBITING_AXE_CONTACT_COOLDOWN],
+	&"crosscut_sweep": [ProgressionEffectDef.Kind.CROSSCUT_SWEEP_INTERVAL,
+		ProgressionEffectDef.Kind.CROSSCUT_SWEEP_WIDTH],
+	&"maul_drop": [ProgressionEffectDef.Kind.MAUL_DROP_INTERVAL,
+		ProgressionEffectDef.Kind.MAUL_DROP_CUT_COUNT],
+	&"splitter_rig": [ProgressionEffectDef.Kind.SPLITTER_RIG_INTERVAL],
+	&"cant_hook": [ProgressionEffectDef.Kind.CANT_HOOK_FORCE],
+	&"stump_pulse": [ProgressionEffectDef.Kind.STUMP_PULSE_INTERVAL,
+		ProgressionEffectDef.Kind.STUMP_PULSE_FORCE],
+	&"last_ditch_rescue": [ProgressionEffectDef.Kind.RESCUE_CHARGES],
+	&"momentum": [ProgressionEffectDef.Kind.MOMENTUM_MAX_STACKS,
+		ProgressionEffectDef.Kind.MOMENTUM_SPEED_PER_STACK,
+		ProgressionEffectDef.Kind.MOMENTUM_RELIABILITY_PER_STACK],
+	&"timber_burst": [ProgressionEffectDef.Kind.TIMBER_BURST_RADIUS],
 }
 
 var _passed := 0
@@ -179,6 +125,7 @@ func _run_scenario() -> bool:
 	await _test_off_block_destruction_and_migration()
 	await _test_capped_automatic_completion()
 	await _test_momentum_rescue_and_persistence()
+	await _test_power_prop_geometry()
 	return true
 
 
@@ -205,32 +152,143 @@ func _prepare_isolated_profile() -> bool:
 	return true
 
 
+## Every announcement is real geometry now. This guards the three things that
+## silently regress: a power losing its emblem, the retired particle/billboard
+## language coming back, and the two live gameplay quantities — destroyed logs
+## and effective radius — stopping short of the meshes they are supposed to
+## drive.
+func _test_power_prop_geometry() -> void:
+	var table := SurvivorsContent.run_powers()
+	var missing := PackedStringArray()
+	var duplicate_names := PackedStringArray()
+	var degenerate := PackedStringArray()
+	for definition: RunPowerDef in table.powers:
+		if definition == null:
+			continue
+		var holder := Node3D.new()
+		add_child(holder)
+		var meshes := RunPowerPropLibrary.build_emblem(holder, definition.id,
+			RunPowerBurst.default_power_color(), 1.2, 3)
+		if meshes.size() < 2:
+			missing.append(String(definition.id))
+		var seen: Dictionary = {}
+		for instance: MeshInstance3D in meshes:
+			if seen.has(instance.name):
+				duplicate_names.append("%s/%s" % [definition.id, instance.name])
+			seen[instance.name] = true
+			var bounds := instance.mesh.get_aabb() if instance.mesh != null \
+				else AABB()
+			var material := (instance.mesh as PrimitiveMesh).material \
+				as ShaderMaterial if instance.mesh is PrimitiveMesh else null
+			if bounds.size.x <= 0.0 or bounds.size.y <= 0.0 \
+					or bounds.size.z <= 0.0 or material == null \
+					or material.shader != RunPowerPropLibrary.PROP_SHADER:
+				degenerate.append("%s/%s" % [definition.id, instance.name])
+		holder.free()
+	_check(missing.is_empty() and duplicate_names.is_empty() \
+		and degenerate.is_empty(),
+		"all %d run powers build distinct, non-degenerate solid prop geometry [missing=%s duplicates=%s degenerate=%s]" % [
+			table.powers.size(), missing, duplicate_names, degenerate])
+
+	# Count-identity emblems must actually grow with the count.
+	var count_growth := PackedStringArray()
+	for power_id: StringName in [&"whirling_axe", &"momentum", &"area_size",
+			&"follow_up", &"splinter_volley", &"kindling_chain",
+			&"double_chop"]:
+		var previous := 0
+		for count: int in [1, 2, 5]:
+			var holder := Node3D.new()
+			add_child(holder)
+			var built := RunPowerPropLibrary.build_emblem(holder, power_id,
+				RunPowerBurst.default_power_color(), 1.2, count).size()
+			holder.free()
+			if built <= previous:
+				count_growth.append("%s@%d=%d" % [power_id, count, built])
+			previous = built
+	_check(count_growth.is_empty() and RunPowerPropLibrary.repeats_identity_count(
+			&"whirling_axe") and not RunPowerPropLibrary.repeats_identity_count(
+			&"deep_bite"),
+		"a higher identity count builds strictly more emblem pieces [%s]" % count_growth)
+
+	# Area-driven emblems must grow monotonically with the effective radius, and
+	# stay inside the badge envelope so a large Area Size roll cannot fill the yard.
+	var small := RunPowerPropLibrary.badge_radius(0.5)
+	var large := RunPowerPropLibrary.badge_radius(3.0)
+	var huge := RunPowerPropLibrary.badge_radius(500.0)
+	_check(large > small and huge <= 0.201 and huge >= large \
+		and RunPowerPropLibrary.uses_area_span(&"sawblade_halo") \
+		and not RunPowerPropLibrary.uses_area_span(&"quick_hands"),
+		"effective radius scales the area emblems monotonically inside a bounded envelope [%.3f→%.3f→%.3f]" % [
+			small, large, huge])
+
+	# The live burst: one billet per destroyed log, the true radius on the ring,
+	# and nothing left of the retired particle language.
+	var definition_keg := table.by_id(&"powder_keg")
+	var burst := RunPowerBurst.spawn(_game, Vector3(0.0, 0.5, 0.0),
+		definition_keg, "×5", null, true, 1.75, 0, 1.75, 5, 0)
+	var tally := burst.get_node_or_null("LogTally") if burst != null else null
+	var ring := burst.get_node_or_null("ActionSilhouette/AreaRing") \
+		as MeshInstance3D if burst != null else null
+	var ring_mesh := ring.mesh as TorusMesh if ring != null else null
+	var particle_nodes := 0
+	var quad_meshes := 0
+	for node: Node in burst.find_children("*", "", true, false):
+		if node is GPUParticles3D or node is CPUParticles3D:
+			particle_nodes += 1
+		var instance := node as MeshInstance3D
+		if instance != null and instance.mesh is QuadMesh:
+			quad_meshes += 1
+	var tally_count := tally.get_child_count() if tally != null else 0
+	var acquisition := RunPowerBurst.spawn(_game, Vector3(0.0, 0.5, 0.0),
+		definition_keg, "R1", null, false, 0.0, 0, 0.0, 0, 0)
+	var acquisition_tally := acquisition.get_node_or_null("LogTally") \
+		if acquisition != null else null
+	_check(burst != null and tally_count == 5 and particle_nodes == 0 \
+		and quad_meshes == 0 and ring_mesh != null \
+		and is_equal_approx(ring_mesh.outer_radius, 1.75) \
+		and burst.get_node_or_null("PowerProp") != null \
+		and acquisition != null and acquisition_tally == null,
+		"a ×5 trigger puts five real billets and the true 1.75m ring on screen with no particle or billboard fallback, while an acquisition shows the emblem alone [billets=%d particles=%d quads=%d]" % [
+			tally_count, particle_nodes, quad_meshes])
+	if burst != null:
+		burst.free()
+	if acquisition != null:
+		acquisition.free()
+
+
 func _test_catalogue_rank_one_contract() -> void:
 	var table := SurvivorsContent.run_powers()
 	var all_ok := table != null and table.powers.size() == 27 \
-		and _RANK_ONE_EFFECTS.size() == 27 \
+		and _EXPECTED_EFFECT_KINDS.size() == 27 \
 		and table.powers.size() <= RunPowerTable.MAX_POWER_COUNT
 	var icon_paths: Dictionary = {}
 	if table != null:
-		for raw_id: Variant in _RANK_ONE_EFFECTS:
+		for raw_id: Variant in _EXPECTED_EFFECT_KINDS:
 			var id := StringName(raw_id)
 			var definition := table.by_id(id)
 			all_ok = all_ok and definition != null
 			if definition == null:
 				continue
-			var expected: Dictionary = _RANK_ONE_EFFECTS[raw_id]
-			all_ok = all_ok and definition.effects.size() == expected.size() \
+			var expected: Array = _EXPECTED_EFFECT_KINDS[raw_id]
+			var actual_kinds: Array[int] = []
+			for effect: ProgressionEffectDef in definition.effects:
+				if effect != null:
+					actual_kinds.append(int(effect.kind))
+			var expected_kinds: Array[int] = []
+			for raw_kind: Variant in expected:
+				expected_kinds.append(int(raw_kind))
+			all_ok = all_ok and actual_kinds == expected_kinds \
+				and definition.rank_cap > 0 \
 				and definition.icon_path.begins_with("res://assets/ui/powers/") \
 				and not icon_paths.has(definition.icon_path) \
 				and load(definition.icon_path) is Texture2D \
 				and load(definition.vfx_path) is Shader
 			icon_paths[definition.icon_path] = true
-			for raw_kind: Variant in expected:
-				var kind := int(raw_kind) as ProgressionEffectDef.Kind
-				all_ok = all_ok and is_equal_approx(
-					definition.effect_value(kind, 1), float(expected[raw_kind]))
+			for kind: int in expected_kinds:
+				all_ok = all_ok and is_finite(definition.effect_value(
+					kind as ProgressionEffectDef.Kind, 1))
 	_check(all_ok and icon_paths.size() == 27,
-		"all 27 powers expose exact rank-one values and distinct loadable vector icons below the 32-power cap")
+		"all 27 powers bind the expected editable curves and distinct loadable vector icons below the 32-power cap")
 
 
 func _boot_production_main() -> void:
@@ -281,6 +339,11 @@ func _test_uniform_power_identity_selection() -> void:
 
 func _test_legitimate_rank_up() -> void:
 	var target := &"deep_bite"
+	var definition := SurvivorsContent.run_powers().by_id(target)
+	var expected_rank_one := definition.effect_value(
+		ProgressionEffectDef.Kind.SPLIT_RELIABILITY, 1) if definition != null else -1.0
+	var expected_rank_two := definition.effect_value(
+		ProgressionEffectDef.Kind.SPLIT_RELIABILITY, 2) if definition != null else -1.0
 	var found := false
 	for seed: int in range(61001, 61301):
 		_run.start_attempt(seed)
@@ -311,8 +374,9 @@ func _test_legitimate_rank_up() -> void:
 		found = _run.get_power_slots() == [target] \
 			and _run.get_run_power_rank(target) == 2 \
 			and is_equal_approx(_run.get_effect(
-				ProgressionEffectDef.Kind.SPLIT_RELIABILITY), 0.08) \
-			and rank_one_chance > baseline_chance + 0.039 \
+				ProgressionEffectDef.Kind.SPLIT_RELIABILITY), expected_rank_two) \
+			and is_equal_approx(rank_one_chance - baseline_chance,
+				expected_rank_one) \
 			and rank_one_visible and _power_slot_has_text("Deep Bite", "R2")
 		break
 	_check(found,
@@ -532,9 +596,8 @@ func _test_quality_offer_headroom() -> void:
 			ProgressionEffectDef.Kind.RESCUE_CHARGES), 4.0),
 		"quality value persists past the Common endpoint and every nominal rank still changes gameplay")
 
-	# Flying Wedge's one-log payload is intentionally fixed; this quality history
-	# proves its separate interval ladder still gives every offered rank a real
-	# gameplay improvement without multiplying one wedge into multiple removals.
+	# This quality history proves at least one authored Flying Wedge effect changes
+	# at each visible rank, regardless of how its cadence and payload are tuned.
 	_run.start_attempt(61802)
 	await _wait_frames(1)
 	var wedge_setup := _run.debug_set_run_power_rank(&"flying_wedge", 1)
@@ -552,23 +615,34 @@ func _test_quality_offer_headroom() -> void:
 			&"flying_wedge", quality) and wedge_setup
 	var wedge_next_offer := await _open_forced_quality_offer(
 		RunOfferTuning.Quality.RARE)
-	_check(wedge_setup and _run.get_run_power_rank(&"flying_wedge") == 5 \
+	var wedge_rank_before := _run.get_run_power_rank(&"flying_wedge")
+	var wedge_selected := _run.choose_run_offer(&"flying_wedge")
+	var wedge_definition := SurvivorsContent.run_powers().by_id(&"flying_wedge")
+	var wedge_picks := _float_array(_run.get_run_power_pick_multipliers().get(
+		"flying_wedge", []))
+	var expected_wedge_payload := wedge_definition.effect_value_for_pick_multipliers(
+		ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT, wedge_picks) \
+		if wedge_definition != null else -1.0
+	_check(wedge_setup and wedge_rank_before == 5 \
 		and &"flying_wedge" in _offer_ids(wedge_next_offer) \
 		and _offer_only_changes_effects(wedge_next_offer) \
-		and _run.choose_run_offer(&"flying_wedge") \
+		and wedge_selected \
 		and _run.get_run_power_rank(&"flying_wedge") == 6 \
 		and is_equal_approx(_run.get_effect(
-			ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT), 1.0),
+			ProgressionEffectDef.Kind.FLYING_WEDGE_CUT_COUNT),
+			expected_wedge_payload),
 		"every visible offer's exact rolled quality changes at least one gameplay effect")
 
-	# Five Legendary Quick Hands picks reach the production recovery ceiling at
-	# nominal R5. R6-R8 still exist in authored data, but once every exact quality
-	# is clamped to the same 0.8 consumer value they must leave the eligible pool
-	# instead of printing a gameplay-no-op card.
+	# Drive Quick Hands until no quality changes its live value. If an edited
+	# curve reaches the production recovery ceiling before its final authored
+	# rank, it must leave the eligible pool instead of printing a no-op card.
 	var quick_first := await _forced_quality_rank_one_effect(
 		&"quick_hands", ProgressionEffectDef.Kind.SWING_RECOVERY,
 		RunOfferTuning.Quality.LEGENDARY, 61901)
-	var quick_setup := is_equal_approx(quick_first, 0.16)
+	var quick_definition := SurvivorsContent.run_powers().by_id(&"quick_hands")
+	var quick_setup := quick_definition != null and is_equal_approx(quick_first,
+		quick_definition.effect_value_for_pick_multipliers(
+			ProgressionEffectDef.Kind.SWING_RECOVERY, [4.0]))
 	for filler: StringName in [
 		&"deep_bite", &"double_chop", &"yard_magnet", &"scar_wisdom",
 		&"keen_appraisal",
@@ -576,14 +650,30 @@ func _test_quality_offer_headroom() -> void:
 		var definition := SurvivorsContent.run_powers().by_id(filler)
 		quick_setup = definition != null and _run.debug_set_run_power_rank(
 			filler, definition.rank_cap) and quick_setup
-	for _pick: int in range(4):
+	var quick_guard := 0
+	while quick_definition != null \
+			and bool(_run.call("_run_power_has_effect_headroom", &"quick_hands")) \
+			and _run.get_run_power_rank(&"quick_hands") < quick_definition.rank_cap \
+			and quick_guard < quick_definition.rank_cap:
+		var selected_quality := RunOfferTuning.Quality.INVALID
+		for raw_quality: int in range(RunOfferTuning.Quality.LEGENDARY,
+				RunOfferTuning.Quality.COMMON - 1, -1):
+			if bool(_run.call("_quality_would_change_power", &"quick_hands",
+					raw_quality as RunOfferTuning.Quality)):
+				selected_quality = raw_quality as RunOfferTuning.Quality
+				break
+		if selected_quality == RunOfferTuning.Quality.INVALID:
+			break
 		quick_setup = await _take_forced_quality_pick(
-			&"quick_hands", RunOfferTuning.Quality.LEGENDARY) and quick_setup
-	var quick_definition := SurvivorsContent.run_powers().by_id(&"quick_hands")
+			&"quick_hands", selected_quality) and quick_setup
+		quick_guard += 1
 	var quick_picks := _float_array(_run.get_run_power_pick_multipliers().get(
 		"quick_hands", []))
 	var quick_effect := _run.get_effect(
 		ProgressionEffectDef.Kind.SWING_RECOVERY)
+	var expected_quick_effect := quick_definition.effect_value_for_pick_multipliers(
+		ProgressionEffectDef.Kind.SWING_RECOVERY, quick_picks) \
+		if quick_definition != null else -1.0
 	var quick_headroom := bool(_run.call(
 		"_run_power_has_effect_headroom", &"quick_hands"))
 	var quick_quality_changes := false
@@ -596,14 +686,12 @@ func _test_quality_offer_headroom() -> void:
 	var quick_next_offer := await _open_forced_quality_offer(
 		RunOfferTuning.Quality.LEGENDARY)
 	_check(quick_setup and quick_definition != null \
-		and _run.get_run_power_rank(&"quick_hands") == 5 \
-		and _run.get_run_power_rank(&"quick_hands") < quick_definition.rank_cap \
-		and _float_arrays_equal(quick_picks, [4.0, 4.0, 4.0, 4.0, 4.0]) \
-		and is_equal_approx(quick_effect, 0.8) \
+		and _run.get_run_power_rank(&"quick_hands") == quick_picks.size() \
+		and is_equal_approx(quick_effect, expected_quick_effect) \
 		and not quick_headroom and not quick_quality_changes \
 		and &"quick_hands" not in _offer_ids(quick_next_offer) \
 		and _offer_ids(quick_next_offer) == [RunDirector.PAYDAY_POWER_ID],
-		"Quick Hands leaves the offer pool before its high-quality recovery ceiling can create a nominal no-op rank")
+		"Quick Hands leaves the offer pool when its edited curve has no live-value headroom")
 
 
 func _take_forced_quality_pick(power_id: StringName,
@@ -631,19 +719,23 @@ func _open_forced_quality_offer(quality: RunOfferTuning.Quality) -> Dictionary:
 
 func _test_rank_one_effect_composition() -> void:
 	var all_ok := _run.has_method("debug_set_run_power_rank")
-	for raw_id: Variant in _RANK_ONE_EFFECTS:
+	for raw_id: Variant in _EXPECTED_EFFECT_KINDS:
 		var id := StringName(raw_id)
 		await _fresh_power(id, 1, 62000 + _passed + _failed)
+		var definition := SurvivorsContent.run_powers().by_id(id)
 		var power_ok := _run.get_power_slots() == [id] \
 			and _run.get_run_power_rank(id) == 1 \
-			and _first_power_slot_is_presented(id, 1)
-		var expected: Dictionary = _RANK_ONE_EFFECTS[raw_id]
+			and _first_power_slot_is_presented(id, 1) \
+			and definition != null
+		var expected: Array = _EXPECTED_EFFECT_KINDS[raw_id]
 		for raw_kind: Variant in expected:
-			power_ok = power_ok and is_equal_approx(_run.get_effect(
-				int(raw_kind) as ProgressionEffectDef.Kind), float(expected[raw_kind]))
+			var kind := int(raw_kind) as ProgressionEffectDef.Kind
+			power_ok = power_ok and definition != null \
+				and is_equal_approx(_run.get_effect(kind),
+					definition.effect_value(kind, 1))
 		all_ok = all_ok and power_ok
 	_check(all_ok,
-		"every named power composes its exact rank-one values into a fresh live run")
+		"every named power composes its editable rank-one curve values into a fresh live run")
 
 
 ## Filled out against the production debug seams supplied by RunDirector and
@@ -657,10 +749,12 @@ func _test_direct_cut_powers() -> void:
 	var base_cooldown := float(_game.call("current_swing_cooldown"))
 	_run.call("debug_set_run_power_rank", &"quick_hands", 1)
 	var quick_cooldown := float(_game.call("current_swing_cooldown"))
+	var quick_recovery := _run.get_effect(
+		ProgressionEffectDef.Kind.SWING_RECOVERY)
 	_check(quick_cooldown < base_cooldown \
 		and is_equal_approx(quick_cooldown, maxf(float(_game.get(
-			"min_swing_cooldown")), base_cooldown * 0.96)),
-		"Quick Hands rank one shortens the production swing cooldown by 4%")
+			"min_swing_cooldown")), base_cooldown * (1.0 - quick_recovery))),
+		"Quick Hands rank one shortens the production swing cooldown by its editable curve value")
 
 	# Scar Wisdom must add its own rank-one reliability on top of the ordinary
 	# visible scar pity left by a failed bite.
@@ -831,17 +925,21 @@ func _test_physics_and_boundary_powers() -> void:
 	_advance_power_time(0.011)
 	var next_pulse := _runtime_state()
 	var magnet_definition := SurvivorsContent.run_powers().by_id(&"yard_magnet")
+	var rank_one_interval := magnet_definition.effect_value(
+		ProgressionEffectDef.Kind.YARD_MAGNET_PULSE_INTERVAL, 1) \
+		if magnet_definition != null else -1.0
+	var max_rank_interval := magnet_definition.effect_value(
+		ProgressionEffectDef.Kind.YARD_MAGNET_PULSE_INTERVAL,
+		magnet_definition.rank_cap) if magnet_definition != null else -1.0
 	_check(initial_pulse_left > 0.0 and initial_pulse_left <= 0.5 \
 		and is_equal_approx(float(initial_magnet_state.get(
-			"yard_magnet_interval", 0.0)), 5.0) \
+			"yard_magnet_interval", 0.0)), rank_one_interval) \
 		and not bool(between_pulses.get("yard_magnet_active", true)) \
 		and not bool(just_before_pulse.get("yard_magnet_active", true)) \
 		and bool(next_pulse.get("yard_magnet_active", false)) \
 		and float(next_pulse.get("yard_magnet_pulse_seconds_left", 0.0)) > 0.48 \
-		and magnet_definition != null \
-		and is_equal_approx(magnet_definition.effect_value(
-			ProgressionEffectDef.Kind.YARD_MAGNET_PULSE_INTERVAL, 8), 1.5),
-		"Yard Magnet pulses for 0.5 seconds every 5 seconds at Rank 1 and its provisional interval works down to 1.5 seconds")
+		and rank_one_interval > 0.0 and max_rank_interval > 0.0,
+		"Yard Magnet pulses for 0.5 seconds at the cadence authored in its editable curve")
 	var original_game_position: Vector3 = _game.global_position
 	_game.global_position += Vector3(4.0, 0.0, -3.0)
 	var magnet_target: Vector3 = _arena.call(
@@ -1326,7 +1424,7 @@ func _test_periodic_and_completion_powers() -> void:
 			+ wedge_descriptor.xp_reward_snapshot \
 		and _trigger_count(&"flying_wedge") == 1 and wedge_visual \
 		and _power_burst_count(&"flying_wedge") == wedge_bursts_before + 1,
-		"Flying Wedge rank one waits 12 seconds, immediately destroys and randomly fragments the most endangered loose root, pays once, and presents one anchored wedge silhouette [left=%.3f early=%d removed=%s fragments=%d safe=%s triggers=%d bursts=%d→%d visual=%s]" % [
+		"Flying Wedge rank one waits for its edited cadence, immediately destroys and randomly fragments the most endangered loose root, pays once, and presents one anchored wedge silhouette [left=%.3f early=%d removed=%s fragments=%d safe=%s triggers=%d bursts=%d→%d visual=%s]" % [
 			wedge_left, wedge_early, wedge_endangered_removed,
 			(wedge_descriptor.pending_power_cuts + 1) \
 				if wedge_descriptor != null else -1,
@@ -1339,6 +1437,15 @@ func _test_periodic_and_completion_powers() -> void:
 		RunOfferTuning.Quality.LEGENDARY, 66002)
 	var shaker_setup := _run.debug_set_run_power_rank(&"earthshaker", 1)
 	await _wait_frames(1)
+	var shaker_double_definition := SurvivorsContent.run_powers().by_id(
+		&"double_chop")
+	var expected_shaker_double := shaker_double_definition.effect_value_for_pick_multipliers(
+		ProgressionEffectDef.Kind.GUARANTEED_EXTRA_CUTS, [4.0]) \
+		if shaker_double_definition != null else -1.0
+	var shaker_threshold := maxi(1, int(round(_run.get_effect(
+		ProgressionEffectDef.Kind.EARTHSHAKER_TRIGGER_CUTS))))
+	var shaker_radius := _run.scale_power_area(_run.get_effect(
+		ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS))
 	# Keep every valid descendant on the block for this geometry proof. The live
 	# firewood threshold is intentionally restored immediately after the one
 	# synchronous strike; only the available target count changes, while every
@@ -1353,7 +1460,7 @@ func _test_periodic_and_completion_powers() -> void:
 	var shaker_id := _body_id(shaker_body)
 	var shaker_descriptor := shaker_body.descriptor if shaker_body != null else null
 	if shaker_body != null:
-		shaker_body.global_position = Vector3(0.8, 0.4, 0.0)
+		shaker_body.global_position = Vector3(shaker_radius * 0.5, 0.4, 0.0)
 		# Begin with a deliberately unsafe outward/tangential/upward launch. The
 		# Earthshaker draw must replace all three components, not add to them.
 		shaker_body.linear_velocity = Vector3(-7.0, 3.0, 4.0)
@@ -1366,8 +1473,9 @@ func _test_periodic_and_completion_powers() -> void:
 	var shaker_cuts := int(_game.call(
 		"debug_last_run_power_cuts", &"double_chop"))
 	var shaker_triggered := _trigger_count(&"earthshaker")
-	_check(shaker_setup and is_equal_approx(shaker_double_value, 4.0) \
-		and shaker_prepared and shaker_split and shaker_cuts >= 3 \
+	_check(shaker_setup and is_equal_approx(shaker_double_value,
+			expected_shaker_double) \
+		and shaker_prepared and shaker_split and shaker_cuts >= shaker_threshold \
 		and shaker_state.is_empty() \
 		and shaker_descriptor != null \
 		and shaker_descriptor.pending_power_cuts >= 1 \
@@ -1378,7 +1486,7 @@ func _test_periodic_and_completion_powers() -> void:
 		and shaker_descriptor.pending_power_cut_sources.all(
 			func(source: StringName) -> bool: return source == &"earthshaker") \
 		and shaker_triggered == 1,
-		"Earthshaker R1 counts a real R1 Legendary Double Chop sequence, then immediately destroys and randomly fragments the affected loose root [prepared=%s split=%s sequence=%d removed=%s fragments=%d scars=%d triggers=%d]" % [
+		"Earthshaker R1 counts a real Legendary Double Chop sequence, then immediately destroys and randomly fragments a root inside its edited radius [prepared=%s split=%s sequence=%d removed=%s fragments=%d scars=%d triggers=%d]" % [
 			shaker_prepared, shaker_split, shaker_cuts,
 			shaker_state.is_empty(),
 			(shaker_descriptor.pending_power_cuts + 1) \
@@ -1640,6 +1748,12 @@ func _test_periodic_and_completion_powers() -> void:
 func _test_area_size_and_new_aoe_powers() -> void:
 	await _fresh_power(&"area_size", 1, 67001)
 	var halo_added := _run.debug_set_run_power_rank(&"sawblade_halo", 1)
+	var area_multiplier := _run.get_area_size_multiplier()
+	var halo_base_radius := _run.get_effect(
+		ProgressionEffectDef.Kind.SAWBLADE_HALO_RADIUS)
+	var halo_effective_radius := _run.scale_power_area(halo_base_radius)
+	var halo_interval := _run.get_effect(
+		ProgressionEffectDef.Kind.SAWBLADE_HALO_INTERVAL)
 	var halo_inside := _spawn_loose_body()
 	var halo_outside := _spawn_loose_body()
 	var halo_inside_id := _body_id(halo_inside)
@@ -1647,18 +1761,20 @@ func _test_area_size_and_new_aoe_powers() -> void:
 	var halo_inside_descriptor := halo_inside.descriptor \
 		if halo_inside != null else null
 	if halo_inside != null:
-		halo_inside.global_position = Vector3(1.58, 0.4, 0.0)
+		halo_inside.global_position = Vector3(halo_effective_radius * 0.5, 0.4, 0.0)
 	if halo_outside != null:
-		halo_outside.global_position = Vector3(1.72, 0.4, 0.0)
+		halo_outside.global_position = Vector3(halo_effective_radius + 0.15,
+			0.4, 0.0)
 	_set_runtime_bursts_visible(_main, false)
-	_advance_power_time(12.01)
+	_advance_power_time(halo_interval + 0.01)
 	var halo_inside_state := _arena_body_state(halo_inside_id)
 	var halo_outside_state := _arena_body_state(halo_outside_id)
 	var halo_burst := _latest_power_burst(&"sawblade_halo")
 	var halo_ring := halo_burst.get_node_or_null("ActionSilhouette/AreaRing") \
 		if halo_burst != null else null
-	_check(halo_added and is_equal_approx(_run.get_area_size_multiplier(), 1.1) \
-		and is_equal_approx(_run.scale_power_area(1.5), 1.65) \
+	_check(halo_added and area_multiplier > 1.0 \
+		and is_equal_approx(_run.scale_power_area(halo_base_radius),
+			halo_effective_radius) \
 		and halo_inside_state.is_empty() \
 		and halo_inside_descriptor != null \
 		and halo_inside_descriptor.pending_power_cuts >= 1 \
@@ -1668,8 +1784,9 @@ func _test_area_size_and_new_aoe_powers() -> void:
 		and int(halo_outside_state.get("pending_power_cuts", 0)) == 0 \
 		and _trigger_count(&"sawblade_halo") == 1 \
 		and halo_ring is MeshInstance3D \
-		and is_equal_approx(float(halo_burst.get("_action_span")), 1.65),
-		"Area Size R1 expands Sawblade Halo gameplay and its visible ring from 1.5m to 1.65m; Halo immediately destroys only roots inside it")
+		and is_equal_approx(float(halo_burst.get("_action_span")),
+			halo_effective_radius),
+		"Area Size R1 expands Sawblade Halo gameplay and its visible ring using both editable curves; Halo immediately destroys only roots inside it")
 	if DisplayServer.get_name() != "headless":
 		await get_tree().create_timer(0.12, true, false, true).timeout
 		await RenderingServer.frame_post_draw
@@ -1684,10 +1801,14 @@ func _test_area_size_and_new_aoe_powers() -> void:
 	var earth_id := _body_id(earth_target)
 	var earth_descriptor := earth_target.descriptor \
 		if earth_target != null else null
+	var earth_radius := _run.scale_power_area(_run.get_effect(
+		ProgressionEffectDef.Kind.EARTHSHAKER_RADIUS))
+	var earth_threshold := maxi(1, int(round(_run.get_effect(
+		ProgressionEffectDef.Kind.EARTHSHAKER_TRIGGER_CUTS))))
 	if earth_target != null:
-		earth_target.global_position = Vector3(-1.58, 0.4, 0.0)
+		earth_target.global_position = Vector3(-earth_radius * 0.5, 0.4, 0.0)
 		earth_target.linear_velocity = Vector3.ZERO
-	_run.on_manual_strike_resolved(true, Vector3.ZERO, 4)
+	_run.on_manual_strike_resolved(true, Vector3.ZERO, earth_threshold)
 	var earth_state := _arena_body_state(earth_id)
 	var earth_burst := _latest_power_burst(&"earthshaker")
 	_check(earth_added \
@@ -1699,7 +1820,7 @@ func _test_area_size_and_new_aoe_powers() -> void:
 		and earth_burst != null \
 		and earth_burst.get_node_or_null("ActionSilhouette/AreaRing") \
 			is MeshInstance3D \
-		and is_equal_approx(float(earth_burst.get("_action_span")), 1.65),
+		and is_equal_approx(float(earth_burst.get("_action_span")), earth_radius),
 		"the general Area Size stat expands Earthshaker's completion AoE and its matching visual")
 
 	await _fresh_power(&"timber_burst", 1, 67002)
@@ -2342,17 +2463,15 @@ func _action_visual_contract(burst: RunPowerBurst,
 		return false
 	var action_root := burst.get_node_or_null("ActionSilhouette") as Node3D
 	var label := burst.get_node_or_null("PowerName") as Label3D
-	var style := load(
-		"res://data/painterly_vfx_style_placeholder.tres") as Resource
 	var raw_registered: Variant = burst.get("_action_meshes")
-	if action_root == null or label == null or style == null \
+	if action_root == null or label == null \
 			or not (raw_registered is Array):
 		return false
 	var registered := raw_registered as Array
 	if registered.size() != mesh_names.size() \
 			or not label.no_depth_test or label.render_priority != 127:
 		return false
-	var expected_opacity := float(style.get("soft_opacity"))
+	var expected_opacity := 1.0
 	for mesh_name: StringName in mesh_names:
 		var mesh_instance := action_root.get_node_or_null(
 			String(mesh_name)) as MeshInstance3D
@@ -2366,10 +2485,10 @@ func _action_visual_contract(burst: RunPowerBurst,
 		var primitive := mesh_instance.mesh as PrimitiveMesh
 		var material := primitive.material as ShaderMaterial \
 			if primitive != null else null
+		# Solid props must not wear the flat cutout daub shader: it is unshaded
+		# with depth_draw_never, so a real 3D tool would show its own back faces.
 		if material == null \
-				or not bool(material.get_shader_parameter("solid_geometry")) \
-				or bool(material.get_shader_parameter("billboard_enabled")) \
-				or int(material.get_shader_parameter("shape_mode")) != 1 \
+				or material.shader != RunPowerPropLibrary.PROP_SHADER \
 				or not is_equal_approx(float(material.get_shader_parameter(
 					"opacity")), expected_opacity):
 			return false
@@ -2474,7 +2593,7 @@ func _remove_save_files() -> void:
 
 func _cleanup() -> void:
 	if is_instance_valid(_main):
-		# RunPowerBurst owns runtime-created ShaderMaterials and GPUParticles3D.
+		# The run-power props own runtime-created meshes and ShaderMaterials.
 		# Detach renderer resources first, then free the production root
 		# synchronously before the dummy renderer is finalized by headless shutdown.
 		_release_production_renderer_resources(_main)
@@ -2487,14 +2606,13 @@ func _cleanup() -> void:
 	# The production burst classes intentionally keep prewarmed materials in
 	# process-wide caches. A standalone acceptance process must release those
 	# shared references explicitly before renderer shutdown.
-	_release_primitive_mesh_materials(RunPowerBurst._mesh_cache.values())
-	_release_material_values(RunPowerBurst._material_cache.values())
+	_release_primitive_mesh_materials(RunPowerPropLibrary._mesh_cache.values())
+	_release_material_values(RunPowerPropLibrary._material_cache.values())
 	_release_material_values(LevelUpBurst._material_cache.values())
 	_release_material_values(CoinRewardPool._materials)
 	_release_material_values(XPOrb._tier_materials)
 	_release_material_values(XPOrb._halo_materials)
-	RunPowerBurst._material_cache.clear()
-	RunPowerBurst._mesh_cache.clear()
+	RunPowerPropLibrary.clear_caches()
 	LevelUpBurst._material_cache.clear()
 	CoinRewardPool._meshes.clear()
 	CoinRewardPool._materials.clear()

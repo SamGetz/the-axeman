@@ -2,20 +2,39 @@ class_name RunPowerBurst
 extends Node3D
 ## Short-lived, presentation-only announcement shared by run-power acquisition
 ## and runtime triggers. Gameplay resolves before this node is spawned.
+##
+## Every part of the announcement is real 3D geometry from RunPowerPropLibrary:
+## an emblem prop naming the power, one billet per destroyed log, and, for the
+## periodic tools and area effects, the world-scale silhouette of the thing that
+## actually resolved. The retired billboard core and GPU particle cloud are gone
+## — a burst now says what happened with objects rather than pigment.
+##
+## The two live gameplay quantities reach the geometry directly: `amount` is the
+## destroyed-log count and becomes that many billets, and `action_value` is the
+## already Area-Size-scaled radius and becomes the ground ring's true radius.
 
 const _CONFIG = preload("res://data/run_vfx_config_placeholder.tres")
-const _STYLE = preload("res://data/painterly_vfx_style_placeholder.tres")
-const _DEFAULT_SHADER = preload("res://assets/shaders/painterly_vfx_daub.gdshader")
 const _MAX_REAL_DELTA := 0.05
 
-static var _material_cache: Dictionary = {}
-static var _mesh_cache: Dictionary = {}
+## Powers that additionally draw a world-scale silhouette of the tool sweep or
+## area they resolved over.
+const ACTION_POWERS: Array[StringName] = [&"flying_wedge", &"crosscut_sweep",
+	&"maul_drop", &"earthshaker", &"powder_keg", &"kindling_chain",
+	&"stump_pulse", &"sawblade_halo", &"timber_burst"]
+const AREA_ACTION_POWERS: Array[StringName] = [&"earthshaker", &"powder_keg",
+	&"kindling_chain", &"stump_pulse", &"sawblade_halo", &"timber_burst"]
 
 var power_id: StringName = &""
 var _duration := 0.58
 var _age := 0.0
 var _started_ms := 0
-var _core: MeshInstance3D
+var _prop_root: Node3D
+var _prop_meshes: Array[MeshInstance3D] = []
+var _prop_base_scale := 1.0
+var _tally_root: Node3D
+var _tally_meshes: Array[MeshInstance3D] = []
+var _tally_offsets: Array[Vector3] = []
+var _tally_spins: Array[Vector3] = []
 var _label: Label3D
 var _light: OmniLight3D
 var _action_root: Node3D
@@ -29,10 +48,16 @@ var _action_variant := 0
 ## Preferred caller API when the authoritative runtime already has the immutable
 ## definition in hand. `event_name` may distinguish a trigger (for example
 ## "RESCUE") while an empty value shows the authored power name.
+##
+## `amount` is the number of loose roots this trigger destroyed; zero means the
+## event has no log payload (an acquisition) and draws no tally. `identity_count`
+## carries a power's own count stat — orbiting axes, Momentum stacks, Area Size
+## ranks — for the emblems that are built out of that many pieces.
 static func spawn(parent: Node, world_position: Vector3, definition: RunPowerDef,
 		event_name := "", color_override: Variant = null,
 		show_action := false, action_value := 0.0,
-		action_variant := 0, action_travel_value := 0.0) -> RunPowerBurst:
+		action_variant := 0, action_travel_value := 0.0,
+		amount := 0, identity_count := 0) -> RunPowerBurst:
 	if parent == null or definition == null:
 		return null
 	# Several named powers can resolve in one rendered frame. Preserve every proc
@@ -51,7 +76,8 @@ static func spawn(parent: Node, world_position: Vector3, definition: RunPowerDef
 	burst.global_position = world_position + Vector3(
 		cos(angle) * ring, float(overlap_index % 4) * 0.11, sin(angle) * ring)
 	burst._build(definition, event_name, color_override, show_action,
-		action_value, action_variant, action_travel_value)
+		action_value, action_variant, action_travel_value, amount,
+		identity_count)
 	return burst
 
 
@@ -60,12 +86,14 @@ static func spawn_for_id(parent: Node, world_position: Vector3,
 		requested_power_id: StringName, event_name := "",
 		color_override: Variant = null, show_action := false,
 		action_value := 0.0, action_variant := 0,
-		action_travel_value := 0.0) -> RunPowerBurst:
+		action_travel_value := 0.0, amount := 0,
+		identity_count := 0) -> RunPowerBurst:
 	var table := SurvivorsContent.run_powers()
 	var definition: RunPowerDef = table.by_id(requested_power_id) \
 		if table != null else null
 	return spawn(parent, world_position, definition, event_name, color_override,
-		show_action, action_value, action_variant, action_travel_value)
+		show_action, action_value, action_variant, action_travel_value,
+		amount, identity_count)
 
 
 static func default_power_color() -> Color:
@@ -75,34 +103,72 @@ static func default_power_color() -> Color:
 func _build(definition: RunPowerDef, event_name: String,
 		color_override: Variant = null, show_action := false,
 		action_value := 0.0, action_variant := 0,
-		action_travel_value := 0.0) -> void:
+		action_travel_value := 0.0, amount := 0,
+		identity_count := 0) -> void:
 	power_id = definition.id
 	_duration = _CONFIG.generic_duration
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var color := color_override as Color if color_override is Color \
 		else default_power_color()
-	var shader := load(definition.vfx_path) as Shader
-	if shader == null:
-		shader = _DEFAULT_SHADER
-	_build_core(shader, color)
-	_build_particles(shader, color)
+	_build_prop(color, action_value, amount, identity_count)
+	_build_tally(color, amount)
 	if show_action:
-		_build_action(shader, color, action_value, action_variant,
-			action_travel_value)
+		_build_action(color, action_value, action_variant, action_travel_value)
 	_build_label(definition.display_name if event_name.strip_edges().is_empty() \
 		else "%s · %s" % [definition.display_name, event_name], color)
 	_build_light(color)
 	_started_ms = Time.get_ticks_msec()
 
 
-## Code-native silhouettes for automatic tools and area effects whose gameplay
-## otherwise resolves instantly. These are provisional painterly geometry, not
-## a second authority: the real cut/target receipt has already resolved.
-func _build_action(shader: Shader, color: Color, action_value: float,
+## The emblem naming the power. Count-identity powers are built out of their own
+## live count; area powers are sized from the already scaled effective radius.
+func _build_prop(color: Color, action_value: float, amount: int,
+		identity_count: int) -> void:
+	_prop_root = Node3D.new()
+	_prop_root.name = "PowerProp"
+	add_child(_prop_root)
+	var count := identity_count
+	if count <= 0:
+		count = maxi(1, amount)
+	_prop_meshes = RunPowerPropLibrary.build_emblem(_prop_root, power_id, color,
+		maxf(0.0, action_value), count)
+	_prop_base_scale = maxf(0.01, _CONFIG.prop_scale)
+	_prop_root.position.y = _CONFIG.proc_log_base_clearance \
+		+ _CONFIG.prop_ground_clearance
+	_prop_root.scale = Vector3.ZERO
+
+
+## Exactly one real billet per destroyed loose root, so a ×4 receipt puts four
+## logs on screen instead of one label. Acquisitions pass no amount and get no
+## tally at all.
+func _build_tally(color: Color, amount: int) -> void:
+	var tally := clampi(amount, 0, _CONFIG.prop_tally_max)
+	if tally <= 0:
+		return
+	_tally_root = Node3D.new()
+	_tally_root.name = "LogTally"
+	add_child(_tally_root)
+	_tally_root.position.y = _CONFIG.proc_log_base_clearance + 0.04
+	for index: int in range(tally):
+		var billet := RunPowerPropLibrary.build_tally_billet(_tally_root, index,
+			color)
+		if billet == null:
+			continue
+		var angle := TAU * float(index) / float(tally) + 0.4
+		_tally_meshes.append(billet)
+		_tally_offsets.append(Vector3(cos(angle), 0.0, sin(angle)))
+		_tally_spins.append(Vector3(
+			1.4 + 0.6 * float(index % 3), 2.1, 0.9 - 0.4 * float(index % 2)))
+		billet.scale = Vector3.ZERO
+
+
+## World-scale silhouettes for the periodic tools and area effects whose gameplay
+## otherwise resolves instantly. These are not a second authority: the real
+## cut/target receipt has already resolved, and the ring only draws the radius
+## the resolver actually used.
+func _build_action(color: Color, action_value: float,
 		action_variant: int, action_travel_value: float) -> void:
-	if power_id not in [&"flying_wedge", &"crosscut_sweep", &"maul_drop",
-			&"earthshaker", &"powder_keg", &"kindling_chain", &"stump_pulse",
-			&"sawblade_halo", &"timber_burst"]:
+	if power_id not in ACTION_POWERS:
 		return
 	_action_kind = power_id
 	_action_variant = action_variant
@@ -112,23 +178,24 @@ func _build_action(shader: Shader, color: Color, action_value: float,
 	_action_root = Node3D.new()
 	_action_root.name = "ActionSilhouette"
 	add_child(_action_root)
-	var area_action := power_id in [&"earthshaker", &"powder_keg",
-		&"kindling_chain", &"stump_pulse", &"sawblade_halo", &"timber_burst"]
-	var action_material := _material(shader, color.lerp(Color.WHITE, 0.12),
-		false, &"solid_area" if area_action else &"solid_tool")
+	var tint := color.lerp(Color.WHITE, 0.12)
+	var steel := RunPowerPropLibrary.material_for(
+		Color(0.62, 0.71, 0.80, 1.0).lerp(tint, 0.22), &"action_steel")
+	var accent := RunPowerPropLibrary.material_for(
+		tint.lerp(Color(1.0, 0.94, 0.76, 1.0), 0.45), &"action_accent")
+	var wood := RunPowerPropLibrary.material_for(
+		Color(0.42, 0.24, 0.11, 1.0).lerp(tint, 0.12), &"action_wood")
+	var area_material := RunPowerPropLibrary.material_for(tint, &"action_area")
 	match power_id:
 		&"flying_wedge":
-			var wedge := CylinderMesh.new()
-			wedge.top_radius = 0.025
-			wedge.bottom_radius = 0.17
-			wedge.height = 0.46
-			wedge.radial_segments = 3
-			wedge.material = action_material
+			var wedge := PrismMesh.new()
+			wedge.size = Vector3(0.20, 0.46, 0.11)
+			wedge.material = steel
 			var wedge_mesh := _action_mesh("FlyingWedge", wedge)
-			wedge_mesh.rotation.x = PI * 0.5
+			wedge_mesh.rotation.x = -PI * 0.5
 			var tail := BoxMesh.new()
 			tail.size = Vector3(0.08, 0.08, 0.32)
-			tail.material = action_material
+			tail.material = accent
 			var tail_mesh := _action_mesh("WedgeTail", tail)
 			tail_mesh.position.z = 0.28
 			_action_root.position = Vector3(0.0, 1.55, 0.62)
@@ -136,8 +203,9 @@ func _build_action(shader: Shader, color: Color, action_value: float,
 		&"crosscut_sweep":
 			var blade := BoxMesh.new()
 			blade.size = Vector3(_action_span, 0.045, 0.12)
-			blade.material = action_material
-			_action_mesh("CrosscutBlade", blade)
+			blade.material = steel
+			var blade_mesh := _action_mesh("CrosscutBlade", blade)
+			_add_saw_teeth(blade_mesh, accent, _action_span)
 			var alternate_axis := _action_variant % 2 != 0
 			_action_root.position = Vector3(-_action_travel_span * 0.5, 0.16, 0.0) \
 				if alternate_axis else Vector3(
@@ -146,14 +214,24 @@ func _build_action(shader: Shader, color: Color, action_value: float,
 		&"maul_drop":
 			var head := BoxMesh.new()
 			head.size = Vector3(0.62, 0.24, 0.28)
-			head.material = action_material
-			_action_mesh("MaulHead", head)
+			head.material = steel
+			var head_mesh := _action_mesh("MaulHead", head)
+			var edge := PrismMesh.new()
+			edge.size = Vector3(0.24, 0.20, 0.28)
+			edge.material = accent
+			var edge_mesh := MeshInstance3D.new()
+			edge_mesh.name = "MaulEdge"
+			edge_mesh.mesh = edge
+			edge_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			edge_mesh.position.x = -0.40
+			edge_mesh.rotation.z = PI * 0.5
+			head_mesh.add_child(edge_mesh)
 			var handle := CylinderMesh.new()
 			handle.top_radius = 0.035
 			handle.bottom_radius = 0.045
 			handle.height = 0.82
 			handle.radial_segments = 8
-			handle.material = action_material
+			handle.material = wood
 			var handle_mesh := _action_mesh("MaulHandle", handle)
 			handle_mesh.position.y = -0.50
 			_action_root.position = Vector3(0.0, 1.85, 0.0)
@@ -164,9 +242,51 @@ func _build_action(shader: Shader, color: Color, action_value: float,
 			var ring := TorusMesh.new()
 			ring.inner_radius = maxf(0.04, _action_span - 0.085)
 			ring.outer_radius = _action_span
-			ring.material = action_material
-			_action_mesh("AreaRing", ring)
+			# A world-scale ring needs real slices around its circumference or
+			# the true radius reads as a polygon on the yard floor.
+			ring.rings = 56
+			ring.ring_segments = 6
+			ring.material = area_material
+			var ring_mesh := _action_mesh("AreaRing", ring)
+			_add_ring_ticks(ring_mesh, accent, _action_span)
 			_action_root.position.y = 0.055
+
+
+## Radial ticks make the ring's true radius legible against the yard floor
+## without changing the fitted bounds the camera guard measures.
+func _add_ring_ticks(ring_mesh: MeshInstance3D, material: ShaderMaterial,
+		radius: float) -> void:
+	for index: int in range(8):
+		var angle := TAU * float(index) / 8.0
+		var tick := BoxMesh.new()
+		tick.size = Vector3(maxf(0.04, radius * 0.10), 0.03, 0.045)
+		tick.material = material
+		var instance := MeshInstance3D.new()
+		instance.name = "RingTick%d" % (index + 1)
+		instance.mesh = tick
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		instance.position = Vector3(cos(angle) * radius, 0.0,
+			sin(angle) * radius)
+		instance.rotation.y = -angle
+		ring_mesh.add_child(instance)
+
+
+func _add_saw_teeth(blade_mesh: MeshInstance3D, material: ShaderMaterial,
+		width: float) -> void:
+	var teeth := clampi(int(round(width / 0.10)), 4, 24)
+	for index: int in range(teeth):
+		var tooth := PrismMesh.new()
+		tooth.size = Vector3(0.05, 0.05, 0.12)
+		tooth.material = material
+		var instance := MeshInstance3D.new()
+		instance.name = "SweepTooth%d" % (index + 1)
+		instance.mesh = tooth
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		instance.position = Vector3(
+			-width * 0.5 + width * (float(index) + 0.5) / float(teeth),
+			-0.045, 0.0)
+		instance.rotation.z = PI
+		blade_mesh.add_child(instance)
 
 
 func _action_mesh(node_name: String, mesh: Mesh) -> MeshInstance3D:
@@ -179,54 +299,6 @@ func _action_mesh(node_name: String, mesh: Mesh) -> MeshInstance3D:
 	return instance
 
 
-func _build_core(shader: Shader, color: Color) -> void:
-	_core = MeshInstance3D.new()
-	_core.name = "PainterlyCore"
-	_core.mesh = _draw_mesh(_material(shader, color.lerp(Color.WHITE, 0.24), true),
-		Vector2.ONE)
-	_core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_core.position.y = _CONFIG.proc_log_base_clearance + 0.035
-	add_child(_core)
-
-
-func _build_particles(shader: Shader, color: Color) -> void:
-	var draw_material := _material(shader, color, false)
-	var process := draw_material.get_meta(
-		&"run_power_particle_process") as ParticleProcessMaterial \
-		if draw_material.has_meta(&"run_power_particle_process") else null
-	if process == null:
-		process = ParticleProcessMaterial.new()
-		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		process.emission_sphere_radius = _CONFIG.generic_cloud_radius
-		process.direction = Vector3.UP
-		process.spread = _CONFIG.generic_spread_degrees
-		process.initial_velocity_min = _CONFIG.generic_speed_min
-		process.initial_velocity_max = _CONFIG.generic_speed_max
-		process.gravity = Vector3.DOWN * 1.2
-		process.damping_min = 0.15
-		process.damping_max = 0.55
-		# Shared placeholder dimensions keep trigger silhouettes visually consistent,
-		# this announcement does not introduce a second unreviewed particle scale.
-		process.scale_min = 0.016
-		process.scale_max = 0.052
-		process.color_ramp = _particle_fade_ramp()
-		draw_material.set_meta(&"run_power_particle_process", process)
-
-	var particles := GPUParticles3D.new()
-	particles.name = "PainterlyMotes"
-	particles.amount = _CONFIG.generic_particle_count
-	particles.lifetime = _duration
-	particles.one_shot = true
-	particles.explosiveness = 0.94
-	particles.randomness = 0.34
-	particles.visibility_aabb = AABB(Vector3(-3.0, -1.0, -3.0),
-		Vector3(6.0, 5.0, 6.0))
-	particles.process_material = process
-	particles.draw_pass_1 = _draw_mesh(draw_material, Vector2.ONE)
-	add_child(particles)
-	particles.emitting = true
-
-
 func _build_label(text: String, color: Color) -> void:
 	_label = Label3D.new()
 	_label.name = "PowerName"
@@ -236,7 +308,7 @@ func _build_label(text: String, color: Color) -> void:
 	_label.outline_size = 10
 	_label.pixel_size = 0.0025
 	_label.modulate = color.lerp(Color.WHITE, 0.20)
-	_label.position.y = _CONFIG.proc_core_size * 1.65
+	_label.position.y = _CONFIG.prop_label_height
 	_label.no_depth_test = true
 	_label.render_priority = 127
 	add_child(_label)
@@ -249,7 +321,7 @@ func _build_light(color: Color) -> void:
 	_light.light_energy = 0.0
 	_light.omni_range = _CONFIG.proc_light_range
 	_light.shadow_enabled = false
-	_light.position.y = _CONFIG.proc_core_size
+	_light.position.y = _CONFIG.prop_ground_clearance
 	add_child(_light)
 
 
@@ -262,16 +334,53 @@ func _process(_delta: float) -> void:
 	var k := clampf(_age / _duration, 0.0, 1.0)
 	var pulse := sin(PI * clampf(k / 0.42, 0.0, 1.0)) \
 		* (1.0 - smoothstep(0.34, 0.90, k))
-	_core.scale = Vector3.ONE * _CONFIG.proc_core_size * (0.62 + pulse * 1.75)
-	_core.transparency = 1.0 - clampf(pulse * _CONFIG.proc_core_opacity, 0.0, 1.0)
+	_update_prop(k)
+	_update_tally(k)
 	_light.light_energy = _CONFIG.generic_light_energy * pulse
-	_label.position.y = _CONFIG.proc_core_size * (1.65 + k * 1.25)
+	_label.position.y = _CONFIG.prop_label_height + k * 0.30
 	var label_color := _label.modulate
 	label_color.a = 1.0 - smoothstep(0.56, 1.0, k)
 	_label.modulate = label_color
 	_update_action(k)
 	if k >= 1.0:
 		queue_free()
+
+
+## Solid geometry cannot rely on an alpha fade under the Compatibility renderer,
+## so the emblem announces and retires by scale: it pops in with a short
+## overshoot, holds, rises, and shrinks out.
+func _update_prop(k: float) -> void:
+	if _prop_root == null:
+		return
+	var pop_span := maxf(0.02, _CONFIG.prop_pop_fraction)
+	var pop := smoothstep(0.0, pop_span, k)
+	var overshoot := 1.0 + 0.30 * sin(PI * clampf(k / pop_span, 0.0, 1.0))
+	var retire := smoothstep(0.74, 1.0, k)
+	_prop_root.scale = Vector3.ONE * maxf(0.0,
+		_prop_base_scale * pop * overshoot * (1.0 - retire))
+	_prop_root.position.y = _CONFIG.proc_log_base_clearance \
+		+ _CONFIG.prop_ground_clearance + _CONFIG.prop_rise * smoothstep(
+			0.0, 1.0, k)
+	_prop_root.rotation.y = TAU * _CONFIG.prop_spin_turns * k
+
+
+func _update_tally(k: float) -> void:
+	for index: int in range(_tally_meshes.size()):
+		var billet := _tally_meshes[index]
+		if not is_instance_valid(billet):
+			continue
+		# A short per-billet stagger keeps a large payload readable as separate
+		# logs; it is capped so even the ceiling count still clears the burst.
+		var stagger := minf(0.24, 0.035 * float(index))
+		var t := clampf((k - stagger) / maxf(0.2, 0.86 - stagger), 0.0, 1.0)
+		var travel := 1.0 - pow(1.0 - t, 2.4)
+		var offset: Vector3 = _tally_offsets[index]
+		billet.position = offset * _CONFIG.prop_tally_radius * travel \
+			+ Vector3.UP * _CONFIG.prop_tally_rise * sin(PI * t * 0.82)
+		var spin: Vector3 = _tally_spins[index]
+		billet.rotation = spin * t * 2.2
+		billet.scale = Vector3.ONE * maxf(0.0,
+			smoothstep(0.0, 0.18, t) * (1.0 - smoothstep(0.72, 1.0, t)))
 
 
 func _update_action(k: float) -> void:
@@ -366,59 +475,3 @@ func _action_meshes_fit(camera: Camera3D, visible_rect: Rect2,
 								camera.unproject_position(world_corner)):
 						return false
 	return true
-
-
-static func _material(shader: Shader, color: Color, smooth: bool,
-		variant: StringName = &"base") -> ShaderMaterial:
-	var key := "%d|%s|%s|%s" % [shader.get_instance_id(), color.to_html(true),
-		str(smooth), String(variant)]
-	if _material_cache.has(key):
-		return _material_cache[key]
-	var material := ShaderMaterial.new()
-	material.shader = shader
-	material.set_shader_parameter("dark_color", Color(
-		color.r * 0.32, color.g * 0.22, color.b * 0.18, 0.88))
-	material.set_shader_parameter("mid_color", Color(color.r, color.g, color.b,
-		_CONFIG.smooth_glow_alpha if smooth else 0.94))
-	var light := color.lerp(Color.WHITE, 0.52)
-	light.a = 0.94 if smooth else 0.98
-	material.set_shader_parameter("light_color", light)
-	material.set_shader_parameter("shape_mode", 0)
-	material.set_shader_parameter("dry_amount", _STYLE.soft_dry_amount if smooth \
-		else _STYLE.daub_dry_amount)
-	material.set_shader_parameter("opacity", _STYLE.soft_opacity if smooth else 1.0)
-	material.set_shader_parameter("seed", 17.0 if smooth else 11.0)
-	if variant in [&"solid_area", &"solid_tool"]:
-		material.set_shader_parameter("billboard_enabled", false)
-		material.set_shader_parameter("shape_mode", 1)
-		material.set_shader_parameter("solid_geometry", true)
-		material.set_shader_parameter("opacity", minf(
-			_STYLE.soft_opacity, 0.46) if variant == &"solid_area" \
-			else _STYLE.soft_opacity)
-	_material_cache[key] = material
-	return material
-
-
-static func _draw_mesh(material: ShaderMaterial, size: Vector2) -> QuadMesh:
-	var cache_key := "%d|%.4f|%.4f" % [
-		material.get_instance_id(), size.x, size.y]
-	var cached := _mesh_cache.get(cache_key) as QuadMesh
-	if cached != null:
-		return cached
-	var mesh := QuadMesh.new()
-	mesh.size = size
-	mesh.material = material
-	_mesh_cache[cache_key] = mesh
-	return mesh
-
-
-static func _particle_fade_ramp() -> GradientTexture1D:
-	var gradient := Gradient.new()
-	gradient.offsets = PackedFloat32Array([0.0, 0.06, 0.62, 1.0])
-	gradient.colors = PackedColorArray([
-		Color(1.0, 1.0, 1.0, 0.0), Color.WHITE,
-		Color(1.0, 1.0, 1.0, 0.72), Color(1.0, 1.0, 1.0, 0.0)])
-	var texture := GradientTexture1D.new()
-	texture.gradient = gradient
-	texture.width = 64
-	return texture

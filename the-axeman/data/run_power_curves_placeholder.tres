@@ -66,7 +66,7 @@ script = ExtResource("3_effect")
 kind = 27
 operation = 3
 cumulative_values_by_rank = PackedFloat64Array(1, 2, 3, 5, 6, 7, 8, 9)
-tuning_status = "PLACEHOLDER — user-directed 1-8 destroyed-log ladder requires measured approval"
+tuning_status = "PLACEHOLDER — destroyed-log count ladder requires measured approval"
 
 [sub_resource type="Resource" id="Curve_splinter_volley"]
 script = ExtResource("2_curve")
@@ -84,7 +84,7 @@ script = ExtResource("3_effect")
 kind = 29
 operation = 3
 cumulative_values_by_rank = PackedFloat64Array(1, 1, 1, 2, 2, 3, 3, 5)
-tuning_status = "PLACEHOLDER — fixed one-log destruction payload; cadence requires measured approval"
+tuning_status = "PLACEHOLDER — destroyed-log payload and cadence require measured approval"
 
 [sub_resource type="Resource" id="Curve_flying_wedge"]
 script = ExtResource("2_curve")
@@ -101,7 +101,7 @@ script = ExtResource("3_effect")
 kind = 58
 operation = 3
 cumulative_values_by_rank = PackedFloat64Array(5, 4.5, 4, 3.5, 3, 2.5, 2, 1)
-tuning_status = "PLACEHOLDER — user-directed 5-second Rank 1 pulse; 0.5-second rank reductions require measured approval"
+tuning_status = "PLACEHOLDER — pulse force and cadence require measured approval"
 
 [sub_resource type="Resource" id="Curve_yard_magnet"]
 script = ExtResource("2_curve")

@@ -1271,7 +1271,8 @@ func present_run_power_trigger(power_id: StringName, world_position: Vector3,
 		if action_value <= 0.0:
 			action_value = _scaled_power_area(_run_power_effect(area_kind))
 	RunPowerBurst.spawn_for_id(self, world_position, power_id, event_name,
-		null, true, action_value, action_variant, action_travel_value)
+		null, true, action_value, action_variant, action_travel_value,
+		maxi(0, amount), _run_power_identity_count(power_id))
 	if amount > 0:
 		AudioDirector.play_world(&"proc_mastery", world_position)
 
@@ -1335,9 +1336,38 @@ func present_run_power_acquisition(power_id: StringName,
 	var event_name := "R%d" % maxi(1, rank)
 	if not quality_name.is_empty():
 		event_name += " · %s" % quality_name.to_upper()
+	# An acquisition has no destroyed-log payload, so it shows the emblem alone —
+	# already built at the count the new rank just granted.
 	RunPowerBurst.spawn_for_id(self, world_position, power_id, event_name,
-		RunOfferTuning.color_for_quality(quality))
+		RunOfferTuning.color_for_quality(quality), false, 0.0, 0, 0.0, 0,
+		_run_power_identity_count(power_id))
 	AudioDirector.play_world(&"proc_mastery", world_position)
+
+
+## Emblems for powers whose identity is a count are built out of that many
+## pieces. The value is read from the authoritative runtime, never re-derived
+## here; returning zero lets the burst fall back to the destroyed-log amount.
+func _run_power_identity_count(power_id: StringName) -> int:
+	match power_id:
+		&"whirling_axe":
+			return maxi(1, int(round(_run_power_effect(
+				ProgressionEffectDef.Kind.ORBITING_AXE_COUNT))))
+		&"follow_up":
+			return maxi(1, int(round(_run_power_effect(
+				ProgressionEffectDef.Kind.FOLLOW_UP_DEPTH))))
+		&"momentum":
+			if _run_director != null:
+				return maxi(1, int(_run_director.get_run_power_runtime_state() \
+					.get("momentum_stacks", 1)))
+		&"area_size":
+			if _run_director != null:
+				var ranks: Variant = _run_director \
+					.get_run_power_runtime_state().get("power_ranks", {})
+				if ranks is Dictionary:
+					var table := ranks as Dictionary
+					return maxi(1, int(table.get(String(power_id),
+						table.get(power_id, 1))))
+	return 0
 
 
 func _run_power_color(power_id: StringName) -> Color:
@@ -1366,29 +1396,15 @@ func refresh_run_power_visuals(suppress_grain_roll := false) -> void:
 		_run_power_orbit_axes.append(axe)
 
 
+## The live tools are the same authored axe the Whirling Axe emblem is built
+## from, so the announcement and the thing circling the stump read as one object.
+## Their count is already the power's live rank and their orbit radius already
+## comes from the scaled area, so both stat changes stay visible in the geometry.
 func _build_run_power_orbiting_axe(index: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = "WhirlingAxe%d" % (index + 1)
-	var handle := MeshInstance3D.new()
-	var handle_mesh := BoxMesh.new()
-	handle_mesh.size = Vector3(0.045, 0.34, 0.045)
-	handle.mesh = handle_mesh
-	handle.position.y = -0.10
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.30, 0.12, 0.045, 1.0)
-	handle.material_override = wood
-	root.add_child(handle)
-	var head := MeshInstance3D.new()
-	var head_mesh := BoxMesh.new()
-	head_mesh.size = Vector3(0.28, 0.12, 0.055)
-	head.mesh = head_mesh
-	head.position = Vector3(0.08, 0.08, 0.0)
-	var steel := StandardMaterial3D.new()
-	steel.albedo_color = Color(0.34, 0.64, 0.88, 1.0)
-	steel.metallic = 0.55
-	steel.roughness = 0.34
-	head.material_override = steel
-	root.add_child(head)
+	RunPowerPropLibrary.build_orbit_axe(root,
+		_run_power_color(&"whirling_axe"), 1.6)
 	return root
 
 
@@ -1766,7 +1782,7 @@ func begin_initial_vfx_render_warmup() -> void:
 			var node := RunPowerBurst.spawn(self,
 				warm_position + Vector3(float(power_index % 9) * 0.02,
 					float(power_index / 9) * 0.02, 0.0), definition, "", null,
-				action, 2.0, 0, 4.0)
+				action, 2.0, 0, 4.0, 4, 4)
 			_render_warmup_nodes.append(node)
 			power_index += 1
 

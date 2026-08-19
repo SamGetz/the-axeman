@@ -6,11 +6,16 @@ extends Resource
 @export var curves: Array[RunPowerCurveDef] = []
 
 
-func effects_for(power_id: StringName) -> Array[ProgressionEffectDef]:
+func by_id(power_id: StringName) -> RunPowerCurveDef:
 	for curve: RunPowerCurveDef in curves:
 		if curve != null and curve.power_id == power_id:
-			return curve.effects
-	return []
+			return curve
+	return null
+
+
+func effects_for(power_id: StringName) -> Array[ProgressionEffectDef]:
+	var curve := by_id(power_id)
+	return [] if curve == null else curve.effects
 
 
 func validate() -> PackedStringArray:

@@ -20,11 +20,16 @@ for five active seconds, then sink through the floor and despawn.
 ## Powers and tuning
 
 The run-power catalogue has fourteen Core and thirteen Blueprint identities.
-Identity, copy, pool, cap, icons, and VFX references live in
-`data/run_power_catalogue_placeholder.tres`. Every gameplay rank ladder lives in
-the single editable `data/run_power_curves_placeholder.tres` resource. Values
-are cumulative by rank and remain explicitly `PLACEHOLDER` pending balance
-approval.
+Identity, copy, pool, icon, and shader references live in
+`data/run_power_catalogue_placeholder.tres`. Run powers are announced with real
+3D geometry rather than particles: every power owns a distinct prop in
+`scenes/3d_action/run_power_prop_library.gd`, destroyed-log counts become that
+many real billets, and effective radii size both the true ground ring and the
+emblem. See `docs/areas/skills.md`. Every gameplay rank ladder and its
+rank cap live in the single editable `data/run_power_curves_placeholder.tres`
+resource: the longest effect array for a power defines its cap, and shorter
+companion arrays hold their final value. Values are cumulative by rank and
+remain explicitly `PLACEHOLDER` pending balance approval.
 
 Every power that hits a loose root now destroys that entire root immediately.
 Count values mean distinct logs destroyed; chance values use `0.0–1.0`. Each
@@ -41,6 +46,10 @@ profile mutation; `RunDirector` owns disposable attempt state; `SaveSystem`
 serializes them. A suspended attempt locks permanent controls. Current v19
 saves use separate profile and optional-attempt sections with protected atomic
 replacement.
+
+Power-curve validation is diagnostic and is isolated from profile authority.
+Editing a ladder can neither make a valid save unreadable nor disable permanent
+upgrades, banking, Blueprint unlocks, or save writes.
 
 Migration keeps only value-bearing compatibility: old Cash/entitlement
 conversion, inventory and lifetime records, retired paid-upgrade refunds, and
@@ -69,7 +78,7 @@ campaign are out of scope unless Sam restores them explicitly.
 
 ## Latest verified logic gate
 
-- Profile/progression/migration: 102/102.
+- Profile/progression/migration and tuning isolation: 103/103.
 - Home: 26/26; run XP: 21/21; offers: 42/42; icons: 2/2.
 - Run-power runtime: 57/57; boss stack: 18/18; stage: 25/25.
 - Survival lifecycle: 45/45; production Main smoke: 22/22.

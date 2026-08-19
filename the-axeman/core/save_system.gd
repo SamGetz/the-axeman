@@ -114,11 +114,6 @@ static func load_game() -> LoadResult:
 	if version > SAVE_VERSION:
 		_preserve_unreadable_save("newer")
 		return LoadResult.TOO_NEW
-	var content_errors := SurvivorsContent.validate_all()
-	if not content_errors.is_empty():
-		push_error("SaveSystem: required v19 progression content is invalid; save not applied.")
-		return LoadResult.CORRUPT
-
 	var profile: Variant
 	var inventory: Variant
 	if version == SAVE_VERSION:
@@ -191,8 +186,7 @@ static func load_or_start_fresh() -> LoadResult:
 
 
 static func migrate_v18_profile(profile: Dictionary, attempt: Dictionary) -> Dictionary:
-	if not SurvivorsContent.validate_all().is_empty() \
-			or not _is_valid_legacy_source_shape(profile) \
+	if not _is_valid_legacy_source_shape(profile) \
 			or not _is_valid_v18_attempt_shape(attempt):
 		return {}
 	var migration := _fresh_migrated_profile(18)
@@ -221,7 +215,6 @@ static func migrate_v18_profile(profile: Dictionary, attempt: Dictionary) -> Dic
 
 static func migrate_v17_or_earlier_profile(legacy: Dictionary, version: int) -> Dictionary:
 	if version < 1 or version > 17 \
-			or not SurvivorsContent.validate_all().is_empty() \
 			or not _is_valid_legacy_source_shape(legacy):
 		return {}
 	var migration := _fresh_migrated_profile(version)
@@ -249,9 +242,6 @@ static func _migrate_legacy_profile(value: Variant, version: int) -> Dictionary:
 
 
 static func _write_current_save(attempt_snapshot: Dictionary) -> bool:
-	if not SurvivorsContent.validate_all().is_empty():
-		push_error("SaveSystem: refusing to write with invalid progression content.")
-		return false
 	if not FileAccess.file_exists(_active_save_path) \
 			and FileAccess.file_exists(_active_save_path + ".replacing") \
 			and not _recover_interrupted_replacement():

@@ -4,19 +4,31 @@ extends Resource
 ## Every value remains a labelled PLACEHOLDER until a measured Compatibility
 ## feel session approves it. Gameplay outcomes never depend on this resource.
 
-@export_group("Shared particle language — PLACEHOLDER")
-@export var proc_core_size := 0.12
-@export_range(0.0, 1.0, 0.01) var proc_core_opacity := 0.48
+@export_group("Shared run-power language — PLACEHOLDER")
 @export var proc_light_range := 1.25
 @export var proc_log_base_clearance := 0.025
-@export_range(0.0, 1.0, 0.01) var smooth_glow_alpha := 0.20
 @export var generic_duration := 0.58
-@export_range(1, 128, 1) var generic_particle_count := 42
-@export var generic_cloud_radius := 0.08
-@export var generic_speed_min := 0.65
-@export var generic_speed_max := 1.5
-@export_range(0.0, 180.0, 1.0) var generic_spread_degrees := 76.0
 @export var generic_light_energy := 0.9
+
+@export_group("Run-power 3D props — PLACEHOLDER")
+## Uniform multiplier over every authored emblem envelope in
+## RunPowerPropLibrary. The per-power proportions are authored there; this only
+## scales the whole announcement against the yard.
+@export var prop_scale := 1.15
+## Height of the emblem above the trigger point, so a prop reads clear of the
+## root or stump that produced it instead of intersecting it.
+@export var prop_ground_clearance := 0.46
+@export var prop_rise := 0.16
+@export_range(0.02, 0.9, 0.01) var prop_pop_fraction := 0.24
+@export var prop_spin_turns := 0.35
+@export var prop_label_height := 0.80
+
+@export_group("Destroyed-log tally — PLACEHOLDER")
+## One real billet per destroyed log. The ceiling only bounds pathological
+## counts; every authored ladder sits far below it.
+@export_range(1, 32, 1) var prop_tally_max := 16
+@export var prop_tally_radius := 0.44
+@export var prop_tally_rise := 0.34
 
 @export_group("Splinter Volley projectile — PLACEHOLDER")
 @export var splinter_projectile_size := Vector3(0.055, 0.055, 0.34)
@@ -68,28 +80,30 @@ func validate() -> PackedStringArray:
 		if duration <= 0.0:
 			errors.append("run VFX durations must be positive")
 			break
-	for count: int in [generic_particle_count, level_ray_count, level_spark_count,
+	for count: int in [prop_tally_max, level_ray_count, level_spark_count,
 			level_ember_count, level_glow_particle_count, level_pine_count,
 			level_offer_rain_count]:
 		if count <= 0:
 			errors.append("run VFX particle counts must be positive")
 			break
-	if proc_core_size <= 0.0 or proc_light_range <= 0.0 \
+	if prop_scale <= 0.0 or proc_light_range <= 0.0 \
 			or proc_log_base_clearance < 0.0 \
+			or prop_ground_clearance < 0.0 or prop_rise < 0.0 \
+			or prop_label_height <= 0.0 or prop_tally_radius <= 0.0 \
+			or prop_tally_rise < 0.0 \
 			or splinter_projectile_size.x <= 0.0 \
 			or splinter_projectile_size.y <= 0.0 \
 			or splinter_projectile_size.z <= 0.0 \
 			or splinter_projectile_height < 0.0 \
 			or splinter_projectile_emission_energy <= 0.0 \
-			or generic_cloud_radius <= 0.0 or level_cloud_radius <= 0.0 \
+			or level_cloud_radius <= 0.0 \
 			or level_ray_height <= 0.0 or level_ray_width <= 0.0 \
 			or level_pine_height <= 0.0 or level_pine_width <= 0.0 \
 			or level_crown_radius <= 0.0 or level_light_range_multiplier <= 0.0 \
 			or level_offer_rain_size_min <= 0.0 \
 			or level_offer_rain_size_min > level_offer_rain_size_max:
 		errors.append("run VFX dimensions must be positive")
-	if generic_speed_min > generic_speed_max \
-			or level_particle_speed_min > level_particle_speed_max \
+	if level_particle_speed_min > level_particle_speed_max \
 			or level_spark_speed_min > level_spark_speed_max \
 			or level_offer_rain_speed_min > level_offer_rain_speed_max \
 			or level_offer_rain_drift_min > level_offer_rain_drift_max \
